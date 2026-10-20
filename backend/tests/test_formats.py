@@ -110,3 +110,36 @@ def test_rcs_is_refused_with_guidance(tmp_path: Path):
     guidance = exc.value.guidance
     assert "proprietary" in guidance["summary"].lower()
     assert any("E57" in step for step in guidance["steps"])
+
+
+def test_e57_reader_roundtrip(tmp_path: Path):
+    """E57 is a listed format; prove the reader on a file we actually wrote."""
+    pye57 = pytest.importorskip("pye57")
+
+    xyz, rgb, _ = generate_room_points(spacing=0.5)
+    keep = len(xyz) // 3
+    xyz, rgb = xyz[:keep], rgb[:keep]
+
+    path = tmp_path / "room.e57"
+    e57 = pye57.E57(str(path), mode="w")
+    try:
+        e57.write_scan_raw(
+            {
+                "cartesianX": xyz[:, 0].astype(np.float64),
+                "cartesianY": xyz[:, 1].astype(np.float64),
+                "cartesianZ": xyz[:, 2].astype(np.float64),
+                "colorRed": rgb[:, 0].astype(np.uint8),
+                "colorGreen": rgb[:, 1].astype(np.uint8),
+                "colorBlue": rgb[:, 2].astype(np.uint8),
+            }
+        )
+    finally:
+        e57.close()
+
+    assert detect_format(path) == "e57"
+    cloud = read_cloud(path, max_points=0)
+    assert cloud.xyz.shape[1] == 3
+    assert len(cloud.xyz) == keep
+    # Coordinates must survive the round trip, not just the point count.
+    assert np.allclose(np.sort(cloud.xyz, axis=0), np.sort(xyz, axis=0), atol=1e-6)
+    assert cloud.rgb is not None and cloud.rgb.shape == rgb.shape

@@ -233,6 +233,15 @@ def _decimate_arrays(
     )
 
 
+def _first(data: dict, *names: str) -> np.ndarray | None:
+    """First present field among aliases (pye57 mixes E57 and short names)."""
+    for name in names:
+        value = data.get(name)
+        if value is not None and len(value):
+            return np.asarray(value)
+    return None
+
+
 def read_e57(path: Path, max_points: int, progress: Progress = None) -> RawCloud:
     try:
         import pye57
@@ -272,21 +281,29 @@ def read_e57(path: Path, max_points: int, progress: Progress = None) -> RawCloud
                 )
             except Exception as exc:
                 raise FormatError(f"E57 scan {i} could not be decoded: {exc}") from exc
-            if not data or "x" not in data:
-                continue
-            xyz = np.column_stack(
-                [np.asarray(data["x"]), np.asarray(data["y"]), np.asarray(data["z"])]
-            ).astype(np.float64, copy=False)
+            # pye57 exposes E57 record names, so a Cartesian scan comes back as
+            # cartesianX/Y/Z (colour as colorRed/Green/Blue). Accept both
+            # spellings: requiring only "x" made every real E57 look empty.
+            cx = _first(data, "x", "cartesianX")
+            cy = _first(data, "y", "cartesianY")
+            cz = _first(data, "z", "cartesianZ")
+            if cx is None or cy is None or cz is None:
+                raise FormatError(
+                    f"E57 scan {i} has no Cartesian coordinates; fields present: "
+                    f"{sorted(k for k in (data or {}) if isinstance(k, str))}"
+                )
+            xyz = np.column_stack([cx, cy, cz]).astype(np.float64, copy=False)
             if probability < 1.0 and len(xyz):
                 mask = rng.random(len(xyz)) < probability
                 xyz = xyz[mask]
             else:
                 mask = None
             colors = None
-            if "red" in data and "green" in data and "blue" in data:
-                colors = np.column_stack(
-                    [np.asarray(data["red"]), np.asarray(data["green"]), np.asarray(data["blue"])]
-                )
+            cr = _first(data, "red", "colorRed")
+            cg = _first(data, "green", "colorGreen")
+            cb = _first(data, "blue", "colorBlue")
+            if cr is not None and cg is not None and cb is not None:
+                colors = np.column_stack([cr, cg, cb])
                 if mask is not None:
                     colors = colors[mask]
                 keep_kinds |= 1
