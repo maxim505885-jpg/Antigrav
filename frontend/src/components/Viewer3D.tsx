@@ -81,6 +81,9 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     cameraRef.current = camera;
     rendererRef.current = renderer;
     controlsRef.current = controls;
+    // Debug hook: lets support/automation check what the GPU actually drew
+    // (renderer.info.render.points) without a screenshot. Read-only usage.
+    (window as unknown as Record<string, unknown>).__s2bViewer = { renderer, scene, camera };
 
     const resize = () => {
       const width = host.clientWidth;
