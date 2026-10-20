@@ -267,12 +267,12 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     <div className="viewer">
       <div ref={hostRef} className="viewer-canvas" />
       <div className="viewer-hud">
-        {loading && <span>loading preview…</span>}
-        {!loading && loaded > 0 && <span>{loaded.toLocaleString()} points</span>}
-        {cloud?.decimated && <span className="warn">decimated</span>}
+        {loading && <span>загрузка превью…</span>}
+        {!loading && loaded > 0 && <span>{loaded.toLocaleString()} точек</span>}
+        {cloud?.decimated && <span className="warn">прорежено</span>}
       </div>
       {error && <div className="viewer-error">{error}</div>}
-      {!cloud && <div className="viewer-empty">Import a point cloud or load the demo room</div>}
+      {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}
     </div>
   );
 }

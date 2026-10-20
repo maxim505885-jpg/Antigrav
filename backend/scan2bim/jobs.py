@@ -116,7 +116,7 @@ def submit(job_id: str, fn: Callable[[Callable[[float, str], None]], dict[str, A
 
 
 def _run(job_id: str, fn) -> None:
-    update_job(job_id, status="running", progress=0.01, message="started")
+    update_job(job_id, status="running", progress=0.01, message="запущено")
 
     def progress(value: float, message: str = "") -> None:
         update_job(job_id, progress=value, message=message or None)
@@ -128,12 +128,12 @@ def _run(job_id: str, fn) -> None:
         update_job(
             job_id,
             status="failed",
-            message="failed",
+            message="ошибка",
             error=message + "\n" + traceback.format_exc(limit=8),
         )
         job = get_job(job_id) or {}
         dispatch_event("job.failed", {"job": job, "error": message})
         return
-    update_job(job_id, status="succeeded", progress=1.0, message="done", result=result)
+    update_job(job_id, status="succeeded", progress=1.0, message="готово", result=result)
     job = get_job(job_id) or {}
     dispatch_event("job.succeeded", {"job": job})

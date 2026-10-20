@@ -75,7 +75,7 @@ export default function SectionCanvas({ result }: Props) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.fillStyle = "#8b949e";
         ctx.font = "13px system-ui";
-        ctx.fillText("Create a section to see measured geometry", 16, 28);
+        ctx.fillText("Постройте сечение, чтобы увидеть измеренную геометрию", 16, 28);
         return;
       }
       ctx.setTransform(dpr * view.scale, 0, 0, -dpr * view.scale, dpr * view.tx, dpr * view.ty);
@@ -117,14 +117,14 @@ export default function SectionCanvas({ result }: Props) {
       ctx.font = "12px system-ui";
       const holes = result.polygons.filter((p) => p.is_hole).length;
       ctx.fillText(
-        `${result.frame.u_label}/${result.frame.v_label} · ${result.polygons.length} contours (${holes} holes) · ` +
-          `${result.point_count.toLocaleString()} pts in slab · net area ${result.total_area_m2.toFixed(2)} m²`,
+        `${result.frame.u_label}/${result.frame.v_label} · контуров: ${result.polygons.length} (отверстий: ${holes}) · ` +
+          `точек в слое: ${result.point_count.toLocaleString()} · площадь ${result.total_area_m2.toFixed(2)} м²`,
         16,
         height - 16,
       );
       ctx.fillStyle = "#3fb950";
-      ctx.fillText(`offset ${result.frame.u_label}:${result.frame.world_offset[0].toFixed(2)} m  ` +
-        `${result.frame.v_label}:${result.frame.world_offset[1].toFixed(2)} m`, 16, height - 34);
+      ctx.fillText(`смещение ${result.frame.u_label}:${result.frame.world_offset[0].toFixed(2)} м  ` +
+        `${result.frame.v_label}:${result.frame.world_offset[1].toFixed(2)} м`, 16, height - 34);
     };
     drawRef.current = draw;
 

@@ -225,13 +225,13 @@ def vectorize_2d(
     )
     if resized:
         warnings.append(
-            f"grid resolution increased to {used_res:.3f} m to respect the raster cell limit"
+            f"шаг растра увеличен до {used_res:.3f} м из-за ограничения числа ячеек"
         )
     if not mask.any():
         return {
             "polygons": [],
             "point_count": int(len(u)),
-            "warnings": warnings + ["empty raster"],
+            "warnings": warnings + ["пустой растр"],
             "regularization": None,
             "grid_res": used_res,
         }
@@ -241,7 +241,7 @@ def vectorize_2d(
         theta = 0.0
         if regularize and concentration < 0.15:
             warnings.append(
-                "dominant direction is weak; orthogonal regularisation was skipped"
+                "доминирующее направление выражено слабо; ортогональная регуляризация пропущена"
             )
     if theta:
         u_rot, v_rot = _rotate(u, v, -theta)
@@ -251,7 +251,7 @@ def vectorize_2d(
             u_rot, v_rot, used_res, None
         )
         if resized:
-            warnings.append("grid resolution increased after rotation")
+            warnings.append("шаг растра увеличен после поворота")
 
     radius = max(1, int(round(close_radius_m / used_res / 2.0))) if close_radius_m > 0 else 0
     if radius > 0:
@@ -263,8 +263,8 @@ def vectorize_2d(
         mask = ndimage.binary_dilation(mask, structure=footprint)
         mask = ndimage.binary_closing(mask, structure=footprint)
         warnings.append(
-            "surface bands are drawn with a {:.0f} mm brush; measured positions remain "
-            "the scan points (contour is offset by up to one brush radius)".format(
+            "контуры поверхностей обведены кистью {:.0f} мм; измеренные положения — "
+            "это точки скана (контур смещён не более чем на радиус кисти)".format(
                 radius * used_res * 1000
             )
         )

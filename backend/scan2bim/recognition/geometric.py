@@ -389,33 +389,33 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     warnings: list[str] = []
     levels, zhist, _ = _detect_levels(geom, progress)
     if progress:
-        progress(0.2, "detecting vertical structures")
+        progress(0.2, "поиск вертикальных конструкций")
     grid = _occurrence_grid(geom, progress)
     if progress:
-        progress(0.45, "classifying columns")
+        progress(0.45, "классификация колонн")
     column_elements = _vertical_elements(geom, grid)
     if progress:
-        progress(0.6, "extracting straight wall segments")
+        progress(0.6, "выделение прямолинейных участков стен")
     from .walls import detect_walls  # local import avoids a cycle
 
     wall_elements = detect_walls(geom, grid)
     if progress:
-        progress(0.75, "extracting slab footprints")
+        progress(0.75, "выделение контуров плит")
     slab_elements = _slab_elements(geom, levels, progress)
     elements = column_elements + wall_elements + slab_elements
 
     warnings.append(
-        "Baseline geometric recognition detects walls, columns and slab footprints only."
+        "Базовое геометрическое распознавание находит только стены, колонны и контуры плит."
     )
     warnings.append(
-        "Beams, girders, trusses, braces, stairs, openings, pipes, ducts and equipment "
-        "are NOT detected in this build. Use the ML adapter stage for those classes."
+        "Балки, ригели, фермы, связи, лестницы, проёмы, трубы, воздуховоды и оборудование "
+        "в этой сборке НЕ распознаются — для них нужен ML-этап."
     )
     if not levels:
-        warnings.append("No horizontal levels were found; slab/roof detection is unavailable.")
+        warnings.append("Горизонтальные уровни не найдены; обнаружение плит и покрытий недоступно.")
     if len(elements) == 0:
         warnings.append(
-            "No construction elements passed the geometric thresholds; inspect density, units and orientation."
+            "Ни один элемент не прошёл геометрические пороги; проверьте плотность, единицы и ориентацию."
         )
 
     # Honest density report: recognition at 0.10 m resolution cannot resolve
@@ -431,10 +431,9 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     rejection = grid.get("wall_rejections", {})
     if mean_pts_cell and mean_pts_cell < 3.0:
         warnings.append(
-            f"Sampled density is only {mean_pts_cell:.1f} points per {grid['res']:.2f} m "
-            "vertical cell. Wall and column hypotheses at this density are unreliable "
-            "and must be verified in the editor; increase S2B_MAX_INGEST_POINTS for "
-            "full-resolution recognition."
+            f"Плотность выборки всего {mean_pts_cell:.1f} точки на ячейку {grid['res']:.2f} м. "
+            "При такой плотности гипотезы о стенах и колоннах ненадёжны и требуют проверки "
+            "в редакторе; для полноразрешённого распознавания увеличьте S2B_MAX_INGEST_POINTS."
         )
     stats = {
         "method": "geometric-baseline-v1",

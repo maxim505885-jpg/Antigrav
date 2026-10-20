@@ -135,6 +135,52 @@ export interface RecognitionSummary {
   recognised_at: string;
 }
 
+/** Русские подписи для кодов классов. Код класса в API остаётся латиницей. */
+export const CLASS_LABELS: Record<string, string> = {
+  wall: "стена",
+  column: "колонна",
+  beam: "балка",
+  girder: "ригель",
+  slab: "плита перекрытия",
+  roof: "покрытие",
+  truss: "ферма",
+  brace: "связь",
+  stair: "лестница",
+  opening: "проём",
+  pipe: "труба",
+  duct: "воздуховод",
+  equipment: "оборудование",
+  other: "другое",
+  unknown: "неизвестно",
+};
+
+export function classLabel(name: string): string {
+  return CLASS_LABELS[name] || name;
+}
+
+export const REVIEW_LABELS: Record<string, string> = {
+  unreviewed: "не проверено",
+  confirmed: "подтверждено",
+  corrected: "исправлено",
+  rejected: "отклонено",
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  queued: "в очереди",
+  running: "выполняется",
+  succeeded: "готово",
+  failed: "ошибка",
+  processing: "обработка",
+  ready: "готово",
+  candidate: "кандидат",
+  active: "активна",
+  archived: "в архиве",
+};
+
+export function statusLabel(name: string): string {
+  return STATUS_LABELS[name] || name;
+}
+
 export const CLASSES = [
   "wall",
   "column",

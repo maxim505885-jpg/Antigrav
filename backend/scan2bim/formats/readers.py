@@ -138,11 +138,11 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
 
     return {
         "summary": (
-            "Autodesk RCS/RCP is a proprietary format. This application does not implement "
-            "the format itself. On a machine with Autodesk ReCap installed, points are read "
-            "through ReCap's own local AdskRcExport.dll in an isolated subprocess (verified "
-            "read-only; the source file is never modified). Otherwise convert once to E57 "
-            "(recommended) or LAS with an Autodesk-licensed tool and import that."
+            "Autodesk RCS/RCP — закрытый (proprietary) формат. Приложение не реализует его "
+            "кодек. На машине с установленным Autodesk ReCap точки читаются через локальную "
+            "библиотеку Autodesk AdskRcExport.dll в отдельном процессе (только чтение; "
+            "исходный файл никогда не изменяется). Без ReCap конвертируйте файл один раз "
+            "в E57 (рекомендуется) или LAS лицензированным инструментом Autodesk."
         ),
         "file": str(path),
         "native_reader_available": bool(native.get("dll_exists")),
@@ -151,15 +151,15 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
         "recap_path": str(RECAP_EXE),
         "converter_configured": bool(RCS_CONVERTER_CMD),
         "steps": [
-            "With ReCap installed: import the .rcs/.rcp directly - it is read through ReCap's local DLL.",
-            "Without ReCap: open the .rcp project in ReCap, Export to E57 (or LAS) at full resolution.",
-            "Import the exported .e57/.las into this application.",
-            "Or set S2B_RCS_CONVERTER to an approved conversion command and retry.",
+            "Если ReCap установлен: импортируйте .rcs/.rcp напрямую — точки читает локальная библиотека ReCap.",
+            "Если ReCap нет: откройте проект .rcp в ReCap и экспортируйте в E57 (или LAS) в полном разрешении.",
+            "Импортируйте полученный .e57/.las в это приложение.",
+            "Либо задайте S2B_RCS_CONVERTER с разрешённой командой конвертации и повторите импорт.",
         ],
         "command_template": "S2B_RCS_CONVERTER='tool --in {input} --out {output}'",
         "warning": (
-            "The DLL interface is undocumented Autodesk-internal API. Describe it as "
-            "'read via installed Autodesk ReCap', not as a natively implemented RCS codec."
+            "Интерфейс DLL — недокументированный внутренний API Autodesk. Формулировка "
+            "должна быть «читается через установленный Autodesk ReCap», а не «нативная поддержка RCS»."
         ),
     }
 
@@ -192,7 +192,7 @@ def read_cloud(path: str | Path, max_points: int | None = None, progress: Progre
         return read_cloud(converted, max_points=limit, progress=progress)
 
     if progress:
-        progress(0.02, f"reading {fmt.upper()} file")
+        progress(0.02, f"чтение файла {fmt.upper()}")
     if fmt == "e57":
         return read_e57(p, limit, progress)
     if fmt in {"las", "laz"}:
@@ -270,7 +270,7 @@ def read_e57(path: Path, max_points: int, progress: Progress = None) -> RawCloud
         keep_kinds = 0
         for i, (header, n) in enumerate(headers):
             if progress:
-                progress(0.05 + 0.8 * (i / max(1, scan_count)), f"reading E57 scan {i + 1}/{scan_count}")
+                progress(0.05 + 0.8 * (i / max(1, scan_count)), f"чтение скана E57 {i + 1}/{scan_count}")
             try:
                 data = e57.read_scan(
                     i,

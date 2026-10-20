@@ -79,13 +79,13 @@ def ingest_cloud(
     progress=None,
 ) -> dict[str, Any]:
     if progress:
-        progress(0.01, "opening source file")
+        progress(0.01, "открытие исходного файла")
     raw = read_cloud(source_path, max_points=MAX_INGEST_POINTS, progress=progress)
     if len(raw.xyz) == 0:
-        raise ValueError("point cloud contains no points")
+        raise ValueError("облако точек не содержит точек")
 
     if progress:
-        progress(0.88, "computing bounds and preview")
+        progress(0.88, "расчёт габаритов и превью")
     bbox_min = raw.xyz.min(axis=0)
     bbox_max = raw.xyz.max(axis=0)
     origin = (bbox_min + bbox_max) / 2.0
@@ -111,9 +111,9 @@ def ingest_cloud(
     warning = None
     if decimated:
         warning = (
-            f"Source has ~{source_count:,} points; {len(local):,} were ingested for this "
-            f"project (S2B_MAX_INGEST_POINTS={MAX_INGEST_POINTS:,}). Increase the limit or "
-            "convert to LAS/E57 for full-resolution work."
+            f"В источнике ~{source_count:,} точек, в проект загружено {len(local):,} "
+            f"(S2B_MAX_INGEST_POINTS={MAX_INGEST_POINTS:,}). Увеличьте лимит или "
+            "конвертируйте в LAS/E57 для работы в полном разрешении."
         )
 
     checksum = None

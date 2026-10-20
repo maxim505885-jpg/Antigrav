@@ -168,7 +168,7 @@ def collect_slice(
         u_parts.append(uv[:, 0])
         v_parts.append(uv[:, 1])
         if progress:
-            progress(min(0.8, 0.1 + 0.1 * len(u_parts)), "collecting section slab")
+            progress(min(0.8, 0.1 + 0.1 * len(u_parts)), "сбор точек в слое сечения")
     if not u_parts:
         return np.empty(0), np.empty(0), 0
     u = np.concatenate(u_parts)
@@ -218,9 +218,9 @@ def extract_section(
             "preview_points": [],
         }
     if len(u) < 20:
-        warnings.append("very few points in the slab; geometry is unreliable")
+        warnings.append("в слое слишком мало точек; геометрия ненадёжна")
     if progress:
-        progress(0.6, "vectorising section")
+        progress(0.6, "векторизация сечения")
     result = vectorize_2d(
         u,
         v,
@@ -246,8 +246,8 @@ def extract_section(
             "warnings": warnings,
             "measured": True,
             "note": (
-                "Polygons are measured from the points inside the slab; orthogonal "
-                "regularisation and line simplification are applied and reported."
+                "Контуры измерены по точкам внутри слоя; ортогональная регуляризация и "
+                "упрощение линий применены и отражены в предупреждениях."
             ),
         }
     )

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CLASSES, type Element } from "../types";
+import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 
 interface Props {
   elements: Element[];
@@ -12,9 +12,9 @@ interface Props {
 function dimensionSummary(element: Element): string {
   const dims = element.dimensions || {};
   if (dims.length_m) {
-    return `${dims.length_m} × ${dims.thickness_m} × ${dims.height_m} m`;
+    return `${dims.length_m} × ${dims.thickness_m} × ${dims.height_m} м`;
   }
-  if (dims.area_m2) return `${dims.area_m2} m² footprint`;
+  if (dims.area_m2) return `${dims.area_m2} м² в плане`;
   return "—";
 }
 
@@ -31,8 +31,9 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   if (!elements.length) {
     return (
       <div className="empty-note">
-        No recognised elements yet. Run recognition to extract a geometric baseline
-        (walls, columns, slab footprints). Beams, trusses, stairs and MEP require the ML stage.
+        Распознанных элементов пока нет. Запустите распознавание — оно выделит
+        геометрический базис: стены, колонны, контуры плит. Балки, фермы, лестницы и
+        инженерные сети требуют ML-этапа.
       </div>
     );
   }
@@ -42,18 +43,18 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
       <div className="counts">
         {Object.entries(counts).map(([name, value]) => (
           <span key={name} className="count-chip">
-            {name} <b>{value}</b>
+            {classLabel(name)} <b>{value}</b>
           </span>
         ))}
       </div>
       <table className="element-table">
         <thead>
           <tr>
-            <th>class</th>
-            <th>confidence</th>
-            <th>dimensions</th>
-            <th>flags</th>
-            <th>review</th>
+            <th>класс</th>
+            <th>уверенность</th>
+            <th>размеры</th>
+            <th>признаки</th>
+            <th>проверка</th>
             <th />
           </tr>
         </thead>
@@ -74,7 +75,7 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                   >
                     {CLASSES.map((name) => (
                       <option key={name} value={name}>
-                        {name}
+                        {classLabel(name)}
                       </option>
                     ))}
                   </select>
@@ -87,11 +88,13 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                 </td>
                 <td>{dimensionSummary(element)}</td>
                 <td className="flags">
-                  {element.measured && <span className="badge measured">measured</span>}
-                  {element.inferred && <span className="badge inferred">inferred</span>}
+                  {element.measured && <span className="badge measured">измерено</span>}
+                  {element.inferred && <span className="badge inferred">восстановлено</span>}
                 </td>
                 <td>
-                  <span className={`status ${element.review_status}`}>{element.review_status}</span>
+                  <span className={`status ${element.review_status}`}>
+                    {REVIEW_LABELS[element.review_status] || element.review_status}
+                  </span>
                 </td>
                 <td className="actions" onClick={(event) => event.stopPropagation()}>
                   {draft !== element.class_name && (
@@ -101,29 +104,29 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                         onFeedback(element.id, {
                           action: "reclassify",
                           class_name: draft,
-                          note: "class corrected in engineer editor",
+                          note: "класс исправлен инженером",
                         })
                       }
                     >
-                      Apply class
+                      Применить класс
                     </button>
                   )}
                   {element.review_status !== "confirmed" && (
                     <button
                       disabled={busy}
                       className="primary"
-                      onClick={() => onFeedback(element.id, { action: "confirm", note: "confirmed in editor" })}
+                      onClick={() => onFeedback(element.id, { action: "confirm", note: "подтверждено инженером" })}
                     >
-                      Confirm
+                      Подтвердить
                     </button>
                   )}
                   {element.review_status !== "rejected" && (
                     <button
                       disabled={busy}
                       className="danger"
-                      onClick={() => onFeedback(element.id, { action: "reject", note: "rejected in editor" })}
+                      onClick={() => onFeedback(element.id, { action: "reject", note: "отклонено инженером" })}
                     >
-                      Reject
+                      Отклонить
                     </button>
                   )}
                 </td>
@@ -133,8 +136,8 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
         </tbody>
       </table>
       <p className="hint">
-        Confirmed and corrected elements become labelled training samples together with their source points.
-        Confidence is a heuristic score, not a calibrated probability.
+        Подтверждённые и исправленные элементы становятся размеченными примерами вместе с
+        исходными точками. Уверенность — эвристическая оценка, а не откалиброванная вероятность.
       </p>
     </div>
   );

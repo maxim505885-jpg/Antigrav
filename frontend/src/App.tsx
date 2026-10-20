@@ -3,9 +3,24 @@ import { api, waitForCloud, waitForJob } from "./api";
 import ElementTable from "./components/ElementTable";
 import SectionCanvas from "./components/SectionCanvas";
 import Viewer3D from "./components/Viewer3D";
-import type { Cloud, Element, ModelInfo, Project, Section, SectionResult } from "./types";
+import { classLabel, statusLabel, type Cloud, type Element, type ModelInfo, type Project, type Section, type SectionResult } from "./types";
 
 type Tab = "section" | "recognition" | "learning" | "export";
+
+const TAB_LABELS: Record<Tab, string> = {
+  section: "СЕЧЕНИЕ",
+  recognition: "РАСПОЗНАВАНИЕ",
+  learning: "ОБУЧЕНИЕ",
+  export: "ЭКСПОРТ",
+};
+
+const STAT_LABELS: Record<string, string> = {
+  wall_count: "стен",
+  column_count: "колонн",
+  slab_count: "плит",
+  grid_res_m: "шаг сетки, м",
+  level_candidates: "уровней",
+};
 const CLASSES = [
   "wall",
   "column",
@@ -91,7 +106,9 @@ export default function App() {
 
   useEffect(() => {
     refreshProjects().catch((err) => setError(detailText(err)));
-    api.health().catch(() => setError("Local API is not running. Start it with: python backend/run.py"));
+    api.health().catch(() =>
+      setError("Локальный API не запущен. Запустите его командой: python backend/run.py"),
+    );
   }, []);
 
   useEffect(() => {
@@ -141,7 +158,7 @@ export default function App() {
 
   const trackCloud = async (incoming: Cloud) => {
     setBusy(true);
-    setJobLabel("Processing point cloud");
+    setJobLabel("Обработка облака точек");
     setJobProgress(0.05);
     try {
       const ready = await waitForCloud(incoming.id, (update) => {
@@ -151,7 +168,7 @@ export default function App() {
       });
       setClouds((list) => list.map((item) => (item.id === ready.id ? ready : item)));
       setCloud(ready);
-      if (ready.status === "failed") setError(ready.error || "cloud processing failed");
+      if (ready.status === "failed") setError(ready.error || "не удалось обработать облако точек");
       await refreshProjects();
     } catch (err) {
       setError(detailText(err));
@@ -230,16 +247,16 @@ export default function App() {
     setError(null);
     setBusy(true);
     setTab("recognition");
-    setJobLabel("Recognising construction elements");
+    setJobLabel("Распознавание конструкций");
     setJobProgress(0.02);
     try {
       const job = await api.recognize(cloud.id);
       const finished = await waitForJob(job.id, (update) => {
         setJobProgress(update.progress || 0.05);
-        setJobLabel(`Recognition: ${update.message || update.status}`);
+        setJobLabel(`Распознавание: ${update.message || statusLabel(update.status)}`);
       });
       if (finished.status === "failed") {
-        setError(finished.error || "recognition failed");
+        setError(finished.error || "распознавание завершилось ошибкой");
       } else {
         const refreshed = await api.getCloud(cloud.id);
         setCloud(refreshed);
@@ -259,7 +276,7 @@ export default function App() {
     if (!cloud) return;
     setError(null);
     setBusy(true);
-    setJobLabel("Computing measured section");
+    setJobLabel("Построение измеренного сечения");
     setJobProgress(0.4);
     try {
       const created = await api.createSection(cloud.id, {
@@ -387,12 +404,12 @@ export default function App() {
           <span className="logo">S2B</span>
           <div>
             <strong>Intelligent Scan-to-BIM</strong>
-            <small>independent point-cloud engineering workspace</small>
+            <small>рабочее место инженера по облакам точек</small>
           </div>
         </div>
         <div className="topbar-right">
-          <span className="pill">local API · v1</span>
-          <span className="pill muted">no Autodesk required</span>
+          <span className="pill">локальный API · v1</span>
+          <span className="pill muted">Autodesk не требуется</span>
         </div>
       </header>
 
@@ -400,7 +417,7 @@ export default function App() {
         <aside className="sidebar">
           <section className="panel">
             <div className="panel-title">
-              <span>Projects</span>
+              <span>Проекты</span>
               <span className="counter">{projects.length}</span>
             </div>
             <div className="project-list">
@@ -416,30 +433,32 @@ export default function App() {
                   }}
                 >
                   <span>{item.name}</span>
-                  <small>{item.cloud_count ?? 0} clouds</small>
+                  <small>облаков: {item.cloud_count ?? 0}</small>
                 </button>
               ))}
-              {!projects.length && <p className="hint">No projects yet. Create one or load the demo.</p>}
+              {!projects.length && (
+                <p className="hint">Проектов пока нет. Создайте проект или загрузите демо-комнату.</p>
+              )}
             </div>
             <div className="row">
               <input
                 value={newProject}
-                placeholder="New project name"
+                placeholder="Название нового проекта"
                 onChange={(event) => setNewProject(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && createProject()}
               />
               <button onClick={createProject} disabled={!newProject.trim()}>
-                Add
+                Создать
               </button>
             </div>
             <button className="demo-button" onClick={handleDemo} disabled={busy}>
-              Load synthetic demo room (6 × 4 × 3 m)
+              Загрузить демо-комнату (6 × 4 × 3 м)
             </button>
           </section>
 
           <section className="panel">
             <div className="panel-title">
-              <span>Point clouds</span>
+              <span>Облака точек</span>
               <span className="counter">{clouds.length}</span>
             </div>
             <div className="cloud-list">
@@ -451,16 +470,20 @@ export default function App() {
                   title={item.source_path}
                 >
                   <span className="cloud-name">{item.name}</span>
-                  <span className={`badge-status ${item.status}`}>{item.status}</span>
+                  <span className={`badge-status ${item.status}`}>{statusLabel(item.status)}</span>
                   <small>
-                    {item.point_count.toLocaleString()} pts · {item.source_format.toUpperCase()}
+                    {item.point_count.toLocaleString()} точек · {item.source_format.toUpperCase()}
                   </small>
                 </button>
               ))}
-              {!clouds.length && <p className="hint">Import E57, LAS/LAZ, PLY, PCD, PTS or XYZ.</p>}
+              {!clouds.length && (
+                <p className="hint">Поддерживаются E57, LAS/LAZ, PLY, PCD, PTS, XYZ, RCS.</p>
+              )}
             </div>
             <div className="import-block">
-              <label className="field-label">Import by local path (large scans stay in place)</label>
+              <label className="field-label">
+                Импорт по локальному пути (большой скан остаётся на месте)
+              </label>
               <div className="row">
                 <input
                   value={pathInput}
@@ -470,7 +493,7 @@ export default function App() {
                   disabled={!project || busy}
                 />
                 <button onClick={handleImport} disabled={!project || !pathInput.trim() || busy}>
-                  Import
+                  Импортировать
                 </button>
               </div>
               <input
@@ -485,11 +508,11 @@ export default function App() {
                 }}
               />
               <button className="ghost" onClick={() => fileRef.current?.click()} disabled={!project || busy}>
-                Upload a file copy…
+                Загрузить копию файла…
               </button>
               <p className="hint">
-                Originals are never modified. RCS/RCP are read through the installed Autodesk
-                ReCap library when it is present; otherwise convert once to E57/LAS.
+                Исходные файлы не изменяются. RCS/RCP читаются через установленную библиотеку
+                Autodesk ReCap; если её нет — конвертируйте файл в E57/LAS один раз.
               </p>
             </div>
           </section>
@@ -497,17 +520,17 @@ export default function App() {
           {cloud && (
             <section className="panel meta-panel">
               <div className="panel-title">
-                <span>Cloud</span>
-                <span className={`badge-status ${cloud.status}`}>{cloud.status}</span>
+                <span>Облако</span>
+                <span className={`badge-status ${cloud.status}`}>{statusLabel(cloud.status)}</span>
               </div>
               <dl>
-                <dt>points</dt>
+                <dt>точек</dt>
                 <dd>{cloud.point_count.toLocaleString()}</dd>
-                <dt>preview</dt>
+                <dt>в превью</dt>
                 <dd>{cloud.preview_count.toLocaleString()}</dd>
-                <dt>format</dt>
+                <dt>формат</dt>
                 <dd>{cloud.source_format.toUpperCase()}</dd>
-                <dt>bbox</dt>
+                <dt>габарит</dt>
                 <dd>
                   {cloud.bbox_min && cloud.bbox_max
                     ? `${(cloud.bbox_max[0] - cloud.bbox_min[0]).toFixed(2)} × ${(
@@ -530,11 +553,11 @@ export default function App() {
                   RGB
                 </button>
                 <button className={colorMode === "height" ? "active" : ""} onClick={() => setColorMode("height")}>
-                  Height
+                  Высота
                 </button>
               </div>
               <label className="slider-label">
-                point size
+                размер точек
                 <input
                   type="range"
                   min={0.5}
@@ -546,10 +569,10 @@ export default function App() {
               </label>
               <label className="check">
                 <input type="checkbox" checked={showPlane} onChange={(event) => setShowPlane(event.target.checked)} />
-                section plane
+                плоскость сечения
               </label>
               <span className="spacer" />
-              <span className="hint">drag orbit · wheel zoom · right-drag pan</span>
+              <span className="hint">ЛКМ — вращение · колесо — масштаб · ПКМ — панорама</span>
             </div>
             <Viewer3D
               cloud={cloud}
@@ -572,7 +595,7 @@ export default function App() {
             <div className="tabs">
               {(["section", "recognition", "learning", "export"] as Tab[]).map((name) => (
                 <button key={name} className={tab === name ? "tab active" : "tab"} onClick={() => setTab(name)}>
-                  {name}
+                  {TAB_LABELS[name]}
                 </button>
               ))}
             </div>
@@ -596,20 +619,20 @@ export default function App() {
             )}
             {rcsInfo && (
               <div className="alert info">
-                <strong>RCS/RCP conversion required</strong>
+                <strong>RCS/RCP: нужна конвертация или ReCap</strong>
                 <p>{rcsInfo.summary}</p>
                 <ol>
                   {(rcsInfo.steps || []).map((step: string) => (
                     <li key={step}>{step}</li>
                   ))}
                 </ol>
-                <small>Status: not natively supported in this build.</small>
+                <small>Статус: формат не реализован нативно, только через ReCap или конвертацию.</small>
               </div>
             )}
 
             {tab === "section" && (
               <div className="tab-body">
-                {!cloud && <div className="empty-note">Select a ready point cloud first.</div>}
+                {!cloud && <div className="empty-note">Сначала выберите готовое облако точек.</div>}
                 {cloud && (
                   <>
                     <div className="controls">
@@ -622,7 +645,7 @@ export default function App() {
                             setSectionForm({ ...sectionForm, kind: "horizontal", position: (min + max) / 2 });
                           }}
                         >
-                          Horizontal plan
+                          Горизонтальный план
                         </button>
                         <button
                           className={sectionForm.kind === "vertical" ? "active" : ""}
@@ -633,7 +656,7 @@ export default function App() {
                             setSectionForm({ ...sectionForm, kind: "vertical", position: (min + max) / 2 });
                           }}
                         >
-                          Vertical section
+                          Вертикальный разрез
                         </button>
                       </div>
                       {sectionForm.kind === "vertical" && (
@@ -646,7 +669,7 @@ export default function App() {
                               setSectionForm({ ...sectionForm, axis: "x", position: (min + max) / 2 });
                             }}
                           >
-                            cut along X (view Y/Z)
+                            разрез по X (вид Y/Z)
                           </button>
                           <button
                             className={sectionForm.axis === "y" ? "active" : ""}
@@ -656,14 +679,14 @@ export default function App() {
                               setSectionForm({ ...sectionForm, axis: "y", position: (min + max) / 2 });
                             }}
                           >
-                            cut along Y (view X/Z)
+                            разрез по Y (вид X/Z)
                           </button>
                         </div>
                       )}
                       <label className="field-label">
-                        position ({sectionForm.kind === "horizontal" ? "Z" : sectionForm.axis.toUpperCase()}) —
+                        положение ({sectionForm.kind === "horizontal" ? "Z" : sectionForm.axis.toUpperCase()}) —
                         {" "}
-                        {sectionForm.position.toFixed(3)} m
+                        {sectionForm.position.toFixed(3)} м
                       </label>
                       <input
                         type="range"
@@ -683,7 +706,7 @@ export default function App() {
                       />
                       <div className="grid-2">
                         <label>
-                          <span className="field-label">section thickness (m)</span>
+                          <span className="field-label">толщина сечения (м)</span>
                           <input
                             type="number"
                             min={0.005}
@@ -695,7 +718,7 @@ export default function App() {
                           />
                         </label>
                         <label>
-                          <span className="field-label">raster resolution (m)</span>
+                          <span className="field-label">шаг растра (м)</span>
                           <select
                             value={sectionForm.gridRes}
                             onChange={(event) =>
@@ -717,10 +740,10 @@ export default function App() {
                             setSectionForm({ ...sectionForm, regularize: event.target.checked })
                           }
                         />
-                        orthogonal regularisation
+                        ортогональная регуляризация
                       </label>
                       <button className="primary wide" onClick={createSection} disabled={busy || cloud.status !== "ready"}>
-                        Build measured section
+                        Построить измеренное сечение
                       </button>
                     </div>
 
@@ -729,15 +752,15 @@ export default function App() {
                         <div className="section-summary">
                           <div>
                             <b>{sectionResult.polygons.length}</b>
-                            <small>contours</small>
+                            <small>контуров</small>
                           </div>
                           <div>
                             <b>{sectionResult.point_count.toLocaleString()}</b>
-                            <small>points in slab</small>
+                            <small>точек в слое</small>
                           </div>
                           <div>
                             <b>{sectionResult.total_area_m2.toFixed(2)}</b>
-                            <small>net area m²</small>
+                            <small>площадь, м²</small>
                           </div>
                         </div>
                         <div className="section-view">
@@ -754,16 +777,21 @@ export default function App() {
                           {(["dxf", "pdf", "json"] as const).map((format) => (
                             <button
                               key={format}
-                              onClick={() => download(() => api.exportSection(section!.id, format), `Export ${format.toUpperCase()}`)}
+                              onClick={() =>
+                                download(
+                                  () => api.exportSection(section!.id, format),
+                                  `Экспорт ${format.toUpperCase()}`,
+                                )
+                              }
                               disabled={busy}
                             >
-                              Export {format.toUpperCase()}
+                              Экспорт {format.toUpperCase()}
                             </button>
                           ))}
                         </div>
                         <p className="hint">
-                          DXF contains editable polylines, layers, overall dimensions, level text and an A3 sheet.
-                          DWG requires AutoCAD or a licensed converter.
+                          В DXF передаются редактируемые полилинии, слои, габаритные размеры,
+                          высотные отметки и лист A3. Для DWG нужен AutoCAD или лицензированный конвертер.
                         </p>
                       </>
                     )}
@@ -776,12 +804,12 @@ export default function App() {
               <div className="tab-body">
                 <div className="button-row">
                   <button className="primary" onClick={runRecognition} disabled={!cloud || busy || cloud.status !== "ready"}>
-                    Run geometric recognition
+                    Запустить геометрическое распознавание
                   </button>
                 </div>
                 <p className="hint">
-                  Baseline detects walls, columns and slab footprints. Other classes are not guessed; they are
-                  reported as unimplemented.
+                  Базовый модуль находит стены, колонны и контуры плит. Остальные классы не
+                  угадываются, а честно помечаются как нереализованные.
                 </p>
                 {recognition?.warnings && (
                   <ul className="warnings">
@@ -792,7 +820,7 @@ export default function App() {
                 )}
                 {recognition?.levels?.length > 0 && (
                   <div className="levels">
-                    <span className="field-label">detected levels</span>
+                    <span className="field-label">найденные уровни</span>
                     {recognition.levels.map((level: any) => (
                       <button
                         key={level.z}
@@ -802,7 +830,7 @@ export default function App() {
                           setTab("section");
                         }}
                       >
-                        {level.z.toFixed(3)} m
+                        {level.z.toFixed(3)} м
                       </button>
                     ))}
                   </div>
@@ -813,7 +841,7 @@ export default function App() {
                       .filter(([key]) => ["wall_count", "column_count", "slab_count", "grid_res_m", "level_candidates"].includes(key))
                       .map(([key, value]) => (
                         <span key={key}>
-                          {key}: <b>{String(value)}</b>
+                          {STAT_LABELS[key] || key}: <b>{String(value)}</b>
                         </span>
                       ))}
                   </div>
@@ -831,28 +859,28 @@ export default function App() {
                 {selectedElement && (
                   <div className="editor-box">
                     <div className="panel-title">
-                      <span>Edit selected element</span>
+                      <span>Редактирование элемента</span>
                       <code>{selectedElement.id.slice(0, 8)}</code>
                     </div>
                     <div className="editor-grid">
                       <label>
-                        <span className="field-label">merge with</span>
+                        <span className="field-label">объединить с</span>
                         <select value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
-                          <option value="">choose element…</option>
+                          <option value="">выберите элемент…</option>
                           {elements
                             .filter((item) => item.id !== selectedElement.id && item.review_status !== "rejected")
                             .map((item) => (
                               <option key={item.id} value={item.id}>
-                                {item.class_name} · {item.id.slice(0, 6)}
+                                {classLabel(item.class_name)} · {item.id.slice(0, 6)}
                               </option>
                             ))}
                         </select>
                       </label>
                       <button onClick={doMerge} disabled={!mergeTarget || busy}>
-                        Merge
+                        Объединить
                       </button>
                       <label>
-                        <span className="field-label">split axis</span>
+                        <span className="field-label">ось разрезания</span>
                         <select value={splitAxis} onChange={(event) => setSplitAxis(event.target.value as any)}>
                           <option value="x">X</option>
                           <option value="y">Y</option>
@@ -860,7 +888,7 @@ export default function App() {
                         </select>
                       </label>
                       <label>
-                        <span className="field-label">split at (m)</span>
+                        <span className="field-label">разрезать в (м)</span>
                         <input
                           type="number"
                           step={0.05}
@@ -869,7 +897,7 @@ export default function App() {
                         />
                       </label>
                       <button onClick={doSplit} disabled={busy}>
-                        Split
+                        Разрезать
                       </button>
                       <button
                         onClick={async () => {
@@ -881,18 +909,18 @@ export default function App() {
                         }}
                         disabled={busy}
                       >
-                        Similar verified examples
+                        Похожие подтверждённые примеры
                       </button>
                     </div>
                     <p className="hint">
-                      Merge/split create inferred geometry and are recorded in the feedback history. Adjust class
-                      per element in the table.
+                      Объединение и разрезание создают восстановленную геометрию и попадают в историю
+                      правок. Класс элемента меняется в таблице.
                     </p>
                     {similar.length > 0 && (
                       <ul className="similar-list">
                         {similar.map((item) => (
                           <li key={item.id}>
-                            {item.class_name} · distance {item.distance}
+                            {classLabel(item.class_name)} · расстояние {item.distance}
                           </li>
                         ))}
                       </ul>
@@ -904,23 +932,23 @@ export default function App() {
 
             {tab === "learning" && (
               <div className="tab-body">
-                {!project && <div className="empty-note">Select a project.</div>}
+                {!project && <div className="empty-note">Выберите проект.</div>}
                 {project && (
                   <>
                     <div className="stats-line">
                       <span>
-                        reviewed samples: <b>{learning?.samples ?? 0}</b>
+                        проверенных примеров: <b>{learning?.samples ?? 0}</b>
                       </span>
                       <span>
-                        classes: <b>{learning?.classes?.length ?? 0}</b>
+                        классов: <b>{learning?.classes?.length ?? 0}</b>
                       </span>
                       <span>
-                        active model: <b>{learning?.active_model?.version ?? "none"}</b>
+                        рабочая модель: <b>{learning?.active_model?.version ?? "нет"}</b>
                       </span>
                     </div>
                     <div className="button-row">
                       <button className="primary" onClick={train} disabled={training}>
-                        {training ? "Training…" : "Train candidate from reviewed examples"}
+                        {training ? "Обучение…" : "Обучить кандидата на проверенных примерах"}
                       </button>
                       <button
                         onClick={() =>
@@ -928,16 +956,17 @@ export default function App() {
                             await api.rollback();
                             setModels(await api.models());
                             setLearning(await api.modelStatus(project.id));
-                          }, "Rolling back model")
+                          }, "Откат модели")
                         }
                         disabled={busy}
                       >
-                        Roll back
+                        Откатить
                       </button>
                     </div>
                     <p className="hint">
-                      Training uses a deterministic held-out split. A candidate becomes active only when held-out
-                      macro-F1 and sample count pass the thresholds; nothing updates automatically.
+                      Обучение использует детерминированное отложенное разбиение. Кандидат
+                      становится рабочей моделью только при прохождении порогов macro-F1 и числа
+                      примеров; ничего не обновляется автоматически.
                     </p>
                     {trainResult && (
                       <div className={trainResult.metrics?.eligible_for_activation ? "alert info" : "alert error"}>
@@ -953,7 +982,7 @@ export default function App() {
                           <table className="metrics-table">
                             <thead>
                               <tr>
-                                <th>class</th>
+                                <th>класс</th>
                                 <th>P</th>
                                 <th>R</th>
                                 <th>F1</th>
@@ -988,21 +1017,22 @@ export default function App() {
                           </div>
                           {model.status !== "active" && (
                             <button onClick={() => activateModel(model)} disabled={busy}>
-                              Activate
+                              Активировать
                             </button>
                           )}
                         </div>
                       ))}
-                      {!models.length && <p className="hint">No candidate models yet.</p>}
+                      {!models.length && <p className="hint">Кандидатных моделей пока нет.</p>}
                     </div>
                     <div className="alert info">
-                      <strong>ML adapter status</strong>
+                      <strong>Состояние ML-адаптера</strong>
                       <p>
-                        Provider: {learning?.ml?.provider || "pointcept"} · available:{" "}
-                        {String(learning?.ml?.available ?? false)}
+                        Провайдер: {learning?.ml?.provider || "pointcept"} · доступен:{" "}
+                        {learning?.ml?.available ? "да" : "нет"}
                       </p>
                       <small>
-                        Heavy segmentation models run in a separate PyTorch environment. The core works without a GPU.
+                        Тяжёлые модели сегментации работают в отдельном окружении PyTorch.
+                        Ядро системы работает без GPU.
                       </small>
                     </div>
                   </>
@@ -1012,30 +1042,30 @@ export default function App() {
 
             {tab === "export" && (
               <div className="tab-body">
-                {!cloud && <div className="empty-note">Select a cloud.</div>}
+                {!cloud && <div className="empty-note">Выберите облако.</div>}
                 {cloud && (
                   <>
                     <div className="panel-title">
                       <span>BIM</span>
                     </div>
                     <div className="button-row">
-                      <button onClick={() => download(() => api.exportBim(cloud.id, "ifc"), "Export IFC")} disabled={busy}>
-                        Export IFC4
+                      <button onClick={() => download(() => api.exportBim(cloud.id, "ifc"), "Экспорт IFC")} disabled={busy}>
+                        Экспорт IFC4
                       </button>
-                      <button onClick={() => download(() => api.exportBim(cloud.id, "json"), "Export BIM JSON")} disabled={busy}>
-                        Export BIM JSON
+                      <button onClick={() => download(() => api.exportBim(cloud.id, "json"), "Экспорт BIM JSON")} disabled={busy}>
+                        Экспорт BIM JSON
                       </button>
-                      <button onClick={() => download(() => api.exportElementsDxf(cloud.id), "Export elements DXF")} disabled={busy}>
-                        Elements DXF
+                      <button onClick={() => download(() => api.exportElementsDxf(cloud.id), "Экспорт DXF элементов")} disabled={busy}>
+                        DXF элементов
                       </button>
                     </div>
                     <p className="hint">
-                      IFC contains native IfcWall/IfcColumn/IfcSlab entities and a Pset_ScanToBIM property set with
-                      confidence, measured/inferred flags and review status. Geometry of slabs uses an assumed
-                      thickness until it is measured.
+                      В IFC передаются нативные сущности IfcWall/IfcColumn/IfcSlab и набор свойств
+                      Pset_ScanToBIM: уверенность, признаки «измерено/восстановлено», статус проверки.
+                      Толщина плит до измерения — допущение, а не замер.
                     </p>
                     <div className="panel-title">
-                      <span>Section drawings</span>
+                      <span>Чертежи сечений</span>
                     </div>
                     {section ? (
                       <div className="button-row">
@@ -1050,10 +1080,10 @@ export default function App() {
                         ))}
                       </div>
                     ) : (
-                      <p className="hint">Build a section first.</p>
+                      <p className="hint">Сначала постройте сечение.</p>
                     )}
                     <div className="panel-title">
-                      <span>Plugin API</span>
+                      <span>API для плагинов</span>
                     </div>
                     <pre className="code-block">{`GET  /api/v1/clouds/{cloud}/elements
 GET  /api/v1/clouds/{cloud}/bim?format=ifc
@@ -1061,12 +1091,12 @@ GET  /api/v1/clouds/{cloud}/sections
 POST /api/v1/elements/{element}/feedback
 GET  /api/v1/plugin/manifest`}</pre>
                     <p className="hint">
-                      AutoCAD and Revit plugins live in /plugins and use this versioned API. The application does not
-                      require either CAD system to run.
+                      Плагины AutoCAD и Revit используют этот версионированный API и не нужны для
+                      работы самого приложения.
                     </p>
                     {cloudBBox && (
                       <p className="hint">
-                        Cloud bbox: {cloudBBox.map((value) => value.toFixed(3)).join(", ")} (world metres)
+                        Габарит облака: {cloudBBox.map((value) => value.toFixed(3)).join(", ")} (мировые метры)
                       </p>
                     )}
                   </>

@@ -59,11 +59,15 @@ def _hough_segments(mask: np.ndarray, res: float, minx: float, miny: float) -> l
     if mask.sum() < 10:
         return []
     skeleton = skeletonize(mask)
+    # The Hough transform samples edge points at random, so without a fixed seed
+    # two runs on the same cloud returned 46 and 49 walls. Engineering results
+    # must be reproducible: same input, same output.
     lines = probabilistic_hough_line(
         skeleton,
         threshold=8,
         line_length=max(6, int(1.2 / res)),
         line_gap=max(2, int(0.45 / res)),
+        rng=20261020,
     )
     segments: list[Segment] = []
     for (x0, y0), (x1, y1) in lines:
