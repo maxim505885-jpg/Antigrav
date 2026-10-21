@@ -1,0 +1,15 @@
+[submodule "external/pc2beam"]
+	path = external/pc2beam
+	url = https://github.com/fnoi/pc2beam.git
+[submodule "external/beam_system_reconstruction"]
+	path = external/beam_system_reconstruction
+	url = https://github.com/cea-ethz/beam_system_reconstruction.git
+[submodule "external/truss_bridge_pointcloud_segmentation"]
+	path = external/truss_bridge_pointcloud_segmentation
+	url = https://github.com/GeoTechUVigo/truss_bridge_pointcloud_segmentation.git
+[submodule "external/small_gicp"]
+	path = external/small_gicp
+	url = https://github.com/koide3/small_gicp.git
+[submodule "external/TEASER-plusplus"]
+	path = external/TEASER-plusplus
+	url = https://github.com/MIT-SPARK/TEASER-plusplus.git
