@@ -25,6 +25,7 @@ class CloudGeometry:
     bbox_min: np.ndarray
     bbox_max: np.ndarray
     count: int
+    spatial_index_path: Path | None = None
 
 
 @dataclass
@@ -133,6 +134,36 @@ def _iter_positions(path: Path) -> Iterator[np.ndarray]:
         yield np.asarray(arr[start : start + CHUNK])
 
 
+def _iter_slice_positions(geom: CloudGeometry, frame: SectionFrame) -> Iterator[np.ndarray]:
+    if geom.spatial_index_path is None:
+        yield from _iter_positions(geom.positions_path)
+        return
+    from ..pointdata import NpyPointProvider, PointQuery
+    from ..pointdata.index import IndexedPointProvider
+
+    colors = geom.positions_path.with_name("colors.npy")
+    source = NpyPointProvider(geom.positions_path, origin=geom.origin,
+                              colors_path=colors if colors.exists() else None)
+    indexed = IndexedPointProvider(source, geom.spatial_index_path)
+    w_index = {"x": 0, "y": 1, "z": 2}[frame.w_axis]
+    lower, upper = geom.bbox_min.copy(), geom.bbox_max.copy()
+    # Broad phase must cover float32 slab arithmetic in the legacy exact filter.
+    extent = max(1., float(np.max(np.abs(lower-geom.origin))),
+                 float(np.max(np.abs(upper-geom.origin))), abs(frame.position_local))
+    pad = float(np.finfo(np.float32).eps) * extent * 4
+    lower -= pad
+    upper += pad
+    lower[w_index] = frame.position_world-frame.thickness/2-pad
+    upper[w_index] = frame.position_world+frame.thickness/2+pad
+    positions = np.load(geom.positions_path, mmap_mode="r", allow_pickle=False)
+    try:
+        for batch in indexed.iter_points(PointQuery(tuple(lower)+tuple(upper))):
+            # Keep the original local float32 values, not a world-space roundtrip.
+            yield np.asarray(positions[batch.source_indices])
+    finally:
+        del positions
+
+
 def collect_slice(
     geom: CloudGeometry,
     frame: SectionFrame,
@@ -148,7 +179,7 @@ def collect_slice(
     total = 0
     u_parts: list[np.ndarray] = []
     v_parts: list[np.ndarray] = []
-    for chunk in _iter_positions(geom.positions_path):
+    for chunk in _iter_slice_positions(geom, frame):
         w = chunk[:, w_index]
         mask = np.abs(w - frame.position_local) <= half
         selected = int(mask.sum())
