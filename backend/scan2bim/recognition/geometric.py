@@ -385,6 +385,18 @@ def _slab_elements(
     return elements
 
 
+def structural_only(elements: list[DetectedElement]) -> tuple[list[DetectedElement], int]:
+    """Drop non-structural ``unknown`` fragments; return (kept, dropped_count).
+
+    The request is a structural model only ("только конструктив, лишнего не
+    надо"): walls, columns, slabs, beams, trusses and bracing. ``unknown``
+    blobs carry no load-bearing meaning, so they are excluded from the output
+    while their count is preserved for honest reporting.
+    """
+    kept = [e for e in elements if e.class_name != "unknown"]
+    return kept, len(elements) - len(kept)
+
+
 def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     warnings: list[str] = []
     levels, zhist, _ = _detect_levels(geom, progress)
@@ -404,12 +416,50 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     slab_elements = _slab_elements(geom, levels, progress)
     elements = column_elements + wall_elements + slab_elements
 
+    # Consolidation stage: bind elements to levels, merge collinear wall
+    # fragments and overlapping column shafts, demote single-storey "columns"
+    # in multi-storey buildings. See recognition/consolidate.py.
+    from .consolidate import consolidate  # local import avoids a cycle
+
+    if progress:
+        progress(0.85, "консолидация фрагментов в конструкции")
+    elements, consolidation = consolidate(elements, levels)
+    warnings.extend(consolidation.warnings)
+
+    # Structural steel frame stage: crane runways, purlins, floor beams,
+    # trusses, vertical/horizontal bracing, column section typing.
+    # See recognition/steel.py.
+    from .steel import detect_structural_frame
+
+    if progress:
+        progress(0.86, "распознавание металлического каркаса (балки, фермы, связи)")
+    column_elements = [e for e in elements if e.class_name == "column"]
+    steel_elements, steel_stats, steel_warnings = detect_structural_frame(
+        geom, levels, grid, column_elements, progress
+    )
+    elements = elements + steel_elements
+    warnings.extend(steel_warnings)
+
+    # "Только конструктив, лишнего не надо": the baseline also emits
+    # non-structural fragments as ``unknown`` (blobs too long to be a column
+    # and too short to be a wall, plus single-storey shafts demoted by the
+    # consolidation stage). They are equipment/stands/scan noise, not
+    # load-bearing, so they are dropped from the model the engineer sees.
+    # The count stays in stats so nothing disappears silently.
+    elements, dropped_unknown = structural_only(elements)
+    if dropped_unknown:
+        warnings.append(
+            f"Исключено {dropped_unknown} неструктурных фрагментов (класс «не опознано»): "
+            "оборудование, стойки, шум скана. В модель не входят — только конструктив."
+        )
+
     warnings.append(
-        "Базовое геометрическое распознавание находит только стены, колонны и контуры плит."
+        "Геометрическое распознавание находит стены, колонны, плиты, горизонтальные балки "
+        "(подкрановые балки, прогоны, балки перекрытия), фермы и вертикальные/горизонтальные связи."
     )
     warnings.append(
-        "Балки, ригели, фермы, связи, лестницы, проёмы, трубы, воздуховоды и оборудование "
-        "в этой сборке НЕ распознаются — для них нужен ML-этап."
+        "Лестницы, проёмы, трубы, воздуховоды и оборудование в этой сборке НЕ распознаются — "
+        "для них нужен ML-этап."
     )
     if not levels:
         warnings.append("Горизонтальные уровни не найдены; обнаружение плит и покрытий недоступно.")
@@ -446,15 +496,18 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
         "plan_area_m2": round(plan_area, 1),
         "points_per_m2_plan": round(grid["total"] / plan_area, 2) if plan_area > 0 else None,
         "wall_rejections": rejection,
+        "consolidation": consolidation.as_stats(),
+        "steel": steel_stats,
         "level_candidates": len(levels),
         "wall_count": sum(1 for e in elements if e.class_name == "wall"),
         "column_count": sum(1 for e in elements if e.class_name == "column"),
         "slab_count": sum(1 for e in elements if e.class_name == "slab"),
+        "beam_count": sum(1 for e in elements if e.class_name == "beam"),
+        "truss_count": sum(1 for e in elements if e.class_name == "truss"),
+        "brace_count": sum(1 for e in elements if e.class_name == "brace"),
+        "non_structural_excluded": dropped_unknown,
         "unimplemented_classes": [
-            "beam",
             "girder",
-            "truss",
-            "brace",
             "stair",
             "opening",
             "pipe",

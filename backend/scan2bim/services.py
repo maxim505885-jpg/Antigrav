@@ -75,6 +75,15 @@ def derive_bbox(geometry: dict[str, Any], fallback: dict[str, Any] | None = None
             "min": [round(min(xs), 3), round(min(ys), 3), round(cz - height / 2, 3)],
             "max": [round(max(xs), 3), round(max(ys), 3), round(cz + height / 2, 3)],
         }
+    if kind == "member" and geometry.get("p0") and geometry.get("p1"):
+        section = float(geometry.get("section_m", 0.15))
+        p0 = [float(v) for v in geometry["p0"]]
+        p1 = [float(v) for v in geometry["p1"]]
+        half = section / 2
+        return {
+            "min": [round(min(p0[0], p1[0]) - half, 3), round(min(p0[1], p1[1]) - half, 3), round(min(p0[2], p1[2]) - half, 3)],
+            "max": [round(max(p0[0], p1[0]) + half, 3), round(max(p0[1], p1[1]) + half, 3), round(max(p0[2], p1[2]) + half, 3)],
+        }
     if kind == "slab" and geometry.get("polygon"):
         pts = geometry["polygon"]
         z = float(geometry.get("z", 0.0))

@@ -9,13 +9,78 @@ interface Props {
   selected: Element | null;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  crane_girder: "подкрановая",
+  purlin: "прогон",
+  floor_beam: "перекрытие",
+};
+
 function dimensionSummary(element: Element): string {
   const dims = element.dimensions || {};
-  if (dims.length_m) {
-    return `${dims.length_m} × ${dims.thickness_m} × ${dims.height_m} м`;
+  const storeys =
+    dims.storey_count > 1 ? ` · ${dims.storey_count} этажа` : dims.storey_count === 1 ? " · 1 этаж" : "";
+  if (element.class_name === "truss" && dims.span_m) {
+    return `пролёт ${dims.span_m} × выс ${dims.height_m} м · панелей: ${dims.panels ?? "—"}${storeys}`;
   }
-  if (dims.area_m2) return `${dims.area_m2} м² в плане`;
+  if (dims.length_m && dims.role_label) {
+    return `${dims.length_m} м · ${dims.role_label}${dims.orientation ? ` (${dims.orientation === "vertical" ? "верт." : "гориз."})` : ""}`;
+  }
+  if (dims.length_m) {
+    return `${dims.length_m} × ${dims.thickness_m} × ${dims.height_m} м${storeys}`;
+  }
+  if (dims.area_m2) {
+    const level = dims.level_index != null ? ` · уровень ${dims.level_index + 1}` : "";
+    return `${dims.area_m2} м² в плане${level}`;
+  }
   return "—";
+}
+
+function extraBadges(element: Element) {
+  const dims = element.dimensions || {};
+  const badges: { text: string; title: string; cls: string }[] = [];
+  if (dims.merged_from > 1) {
+    badges.push({
+      text: `сращено из ${dims.merged_from}`,
+      title: `Несколько фрагментов объединены в одну конструкцию (максимальный разрыв ${dims.merged_gap_m ?? "—"} м)`,
+      cls: "measured",
+    });
+  }
+  if (dims.demoted_from) {
+    badges.push({
+      text: `была ${classLabel(dims.demoted_from)}`,
+      title: "Класс понижен: объект виден только на одном этаже многоэтажного здания — это не несущая колонна",
+      cls: "inferred",
+    });
+  }
+  if (dims.embedded_in_wall) {
+    badges.push({
+      text: "в стене",
+      title: "След колонны внутри стены (угол, пилон или колонна в плоскости стены) — проверьте в редакторе",
+      cls: "inferred",
+    });
+  }
+  if (dims.role && ROLE_LABELS[dims.role]) {
+    badges.push({
+      text: ROLE_LABELS[dims.role],
+      title: dims.role_note || `Роль элемента: ${dims.role}. Класс — геометрическая гипотеза, проверьте в редакторе.`,
+      cls: "measured",
+    });
+  }
+  if (dims.column_type_label) {
+    badges.push({
+      text: dims.column_type_label,
+      title: `Тип сечения по профилю площади: основание ${dims.base_area_m2 ?? "—"} м², верх ${dims.top_area_m2 ?? "—"} м², заполнение ${dims.section_fill ?? "—"}`,
+      cls: "measured",
+    });
+  }
+  if (element.class_name === "truss") {
+    badges.push({
+      text: `диагр. ${dims.diagonals ?? 0}`,
+      title: `Ферма: пояса измерены, стоек (панелей): ${dims.panels ?? "—"}, раскосов: ${dims.diagonals ?? 0}. Нижний пояс может сливаться с уровнем кровли.`,
+      cls: "measured",
+    });
+  }
+  return badges;
 }
 
 export default function ElementTable({ elements, busy, onFeedback, onSelect, selected }: Props) {
@@ -90,6 +155,11 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                 <td className="flags">
                   {element.measured && <span className="badge measured">измерено</span>}
                   {element.inferred && <span className="badge inferred">восстановлено</span>}
+                  {extraBadges(element).map((badge) => (
+                    <span key={badge.text} className={`badge ${badge.cls}`} title={badge.title}>
+                      {badge.text}
+                    </span>
+                  ))}
                 </td>
                 <td>
                   <span className={`status ${element.review_status}`}>

@@ -75,6 +75,54 @@ def _box_solid(ifc, center, length, thickness, height, rotation_z) -> Any:
     )
 
 
+def _member_solid(ifc, p0, p1, section) -> Any:
+    """Rectangular section swept along the p0->p1 direction (brace/link)."""
+    import numpy as _np
+
+    start = _np.array([float(v) for v in p0], dtype=float)
+    end = _np.array([float(v) for v in p1], dtype=float)
+    direction = end - start
+    length = float(_np.linalg.norm(direction))
+    if length < 1e-6:
+        direction = _np.array([0.0, 0.0, 1.0])
+        length = max(0.01, float(section))
+    else:
+        direction = direction / length
+    # Build an orthonormal frame with Z = member axis.
+    z_axis = direction
+    helper = _np.array([1.0, 0.0, 0.0])
+    if abs(float(_np.dot(z_axis, helper))) > 0.9:
+        helper = _np.array([0.0, 1.0, 0.0])
+    x_axis = _np.cross(helper, z_axis)
+    x_axis = x_axis / float(_np.linalg.norm(x_axis))
+    y_axis = _np.cross(z_axis, x_axis)
+    profile = ifc.create_entity(
+        "IfcRectangleProfileDef",
+        ProfileType="AREA",
+        XDim=float(max(0.01, section)),
+        YDim=float(max(0.01, section)),
+        Position=ifc.create_entity(
+            "IfcAxis2Placement2D", Location=_point(ifc, (0.0, 0.0))
+        ),
+    )
+    position = ifc.create_entity(
+        "IfcAxis2Placement3D",
+        Location=_point(ifc, start),
+        Axis=ifc.create_entity("IfcDirection", DirectionRatios=[float(v) for v in z_axis]),
+        RefDirection=ifc.create_entity(
+            "IfcDirection", DirectionRatios=[float(v) for v in x_axis]
+        ),
+    )
+    del y_axis
+    return ifc.create_entity(
+        "IfcExtrudedAreaSolid",
+        SweptArea=profile,
+        Position=position,
+        ExtrudedDirection=ifc.create_entity("IfcDirection", DirectionRatios=[0.0, 0.0, 1.0]),
+        Depth=float(max(0.01, length)),
+    )
+
+
 def _slab_solid(ifc, polygon, z, thickness) -> Any:
     pts = [_point(ifc, (float(x), float(y), 0.0)) for x, y in polygon]
     if pts[0] != pts[-1]:
@@ -240,6 +288,13 @@ def export_ifc(
                 z = float(geom.get("z", 0.0))
                 solid = _slab_solid(ifc, polygon, z, float(geom.get("assumed_thickness", 0.2)))
                 z_for_storey = z
+            elif geom.get("kind") == "member":
+                p0 = geom.get("p0")
+                p1 = geom.get("p1")
+                if not p0 or not p1 or len(p0) != 3 or len(p1) != 3:
+                    continue
+                solid = _member_solid(ifc, p0, p1, float(geom.get("section_m", 0.15)))
+                z_for_storey = min(float(p0[2]), float(p1[2]))
             else:
                 continue
         except Exception:
@@ -275,11 +330,27 @@ def export_ifc(
                 Representation=representation,
                 PredefinedType="FLOOR",
             )
-        elif cls == "beam":
+        elif cls in ("beam", "girder"):
             product = ifc.create_entity(
                 "IfcBeam",
                 GlobalId=_guid(),
                 Name=f"Beam {element['id'][:8]}",
+                ObjectPlacement=placement,
+                Representation=representation,
+            )
+        elif cls == "truss":
+            product = ifc.create_entity(
+                "IfcBuildingElementProxy",
+                GlobalId=_guid(),
+                Name=f"Truss {element['id'][:8]}",
+                ObjectPlacement=placement,
+                Representation=representation,
+            )
+        elif cls == "brace":
+            product = ifc.create_entity(
+                "IfcBuildingElementProxy",
+                GlobalId=_guid(),
+                Name=f"Brace {element['id'][:8]}",
                 ObjectPlacement=placement,
                 Representation=representation,
             )
