@@ -26,6 +26,7 @@ data_smoke/
 **/obj/
 .superpowers/
 .column_type_store_*
+.column_type_api_*
 .openapi-*
 .pytest-*
 .site-preview-data/
