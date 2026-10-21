@@ -17,6 +17,7 @@ import numpy as np
 from .config import MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 from .db import dumps, execute, one, utcnow
 from .formats import read_cloud
+from .formats.rcs_native import extract_rcs_native
 from .storage import cloud_paths, sha256_file, write_json_atomic
 
 PREVIEW_DTYPE = np.dtype(
@@ -185,6 +186,151 @@ def _finalize_checkpoint(
     return result
 
 
+def _ingest_full_rcs_stream(
+    project_id: str,
+    cloud_id: str,
+    source_path: Path,
+    paths: dict[str, Path],
+    stage_dir: Path,
+    source_identity: dict[str, Any],
+    progress=None,
+) -> dict[str, Any]:
+    """Convert a full native RCS disk stream into derived arrays with bounded RAM."""
+    raw = extract_rcs_native(source_path, stage_dir / "raw", progress=progress)
+    source_count = int(raw["point_count"])
+    if source_count <= 0:
+        raise ValueError("RCS stream contains no points")
+    raw_xyz_path = Path(raw["xyz_path"])
+    raw_rgb_path = Path(raw["rgb_path"])
+    raw_xyz = np.memmap(raw_xyz_path, mode="r", dtype="<f8", shape=(source_count, 3))
+    raw_rgb = np.memmap(raw_rgb_path, mode="r", dtype="u1", shape=(source_count, 3))
+    chunk_size = 500_000
+    bbox_min = np.full(3, np.inf, dtype=np.float64)
+    bbox_max = np.full(3, -np.inf, dtype=np.float64)
+    valid_count = 0
+    for start in range(0, source_count, chunk_size):
+        chunk = np.asarray(raw_xyz[start : start + chunk_size])
+        finite = np.isfinite(chunk).all(axis=1)
+        if finite.any():
+            valid = chunk[finite]
+            bbox_min = np.minimum(bbox_min, valid.min(axis=0))
+            bbox_max = np.maximum(bbox_max, valid.max(axis=0))
+            valid_count += int(finite.sum())
+    if valid_count == 0:
+        raise ValueError("RCS stream contains no finite XYZ points")
+    origin = (bbox_min + bbox_max) / 2.0
+    if progress:
+        progress(0.62, "RCS bounds measured; writing local memmaps")
+
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    staged_files: dict[str, Path] = {
+        "positions": stage_dir / paths["positions"].name,
+        "colors": stage_dir / paths["colors"].name,
+        "preview": stage_dir / paths["preview"].name,
+        "meta": stage_dir / paths["meta"].name,
+    }
+    positions = np.lib.format.open_memmap(
+        staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+    )
+    colors = np.lib.format.open_memmap(
+        staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
+    )
+    out_start = 0
+    for start in range(0, source_count, chunk_size):
+        end = min(source_count, start + chunk_size)
+        xyz_chunk = np.asarray(raw_xyz[start:end])
+        finite = np.isfinite(xyz_chunk).all(axis=1)
+        count = int(finite.sum())
+        if count:
+            out_end = out_start + count
+            positions[out_start:out_end] = (xyz_chunk[finite] - origin).astype(np.float32)
+            colors[out_start:out_end] = raw_rgb[start:end][finite]
+            out_start = out_end
+        if progress:
+            progress(0.62 + 0.28 * (end / source_count), "writing full-resolution RCS points")
+    positions.flush()
+    colors.flush()
+    raw_xyz._mmap.close()
+    raw_rgb._mmap.close()
+    del positions, colors, raw_xyz, raw_rgb
+
+    positions = np.load(staged_files["positions"], mmap_mode="r")
+    colors = np.load(staged_files["colors"], mmap_mode="r")
+    preview_arr, preview_count = build_preview(positions, colors, None)
+    preview_tmp = staged_files["preview"].with_suffix(".bin.tmp")
+    preview_arr.tofile(preview_tmp)
+    preview_tmp.replace(staged_files["preview"])
+    positions._mmap.close()
+    colors._mmap.close()
+    del positions, colors
+
+    checksum = None
+    try:
+        if source_path.stat().st_size <= 2 * 1024 * 1024 * 1024:
+            checksum = sha256_file(source_path)
+    except OSError:
+        pass
+    if _source_identity(source_path) != source_identity:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError("source identity changed while cloud import was running")
+
+    metadata = {
+        **raw["reader"],
+        "origin": [float(x) for x in origin],
+        "bbox_min": [float(x) for x in bbox_min],
+        "bbox_max": [float(x) for x in bbox_max],
+        "preview_count": preview_count,
+        "preview_stride_bytes": PREVIEW_DTYPE.itemsize,
+        "stored_point_count": valid_count,
+        "source_point_count": source_count,
+        "decimated": False,
+        "dropped_non_finite": source_count - valid_count,
+        "warning": None,
+        "has_color": True,
+        "has_intensity": False,
+        "crash_safe": True,
+        "source_unchanged": True,
+        "checksum_sha256": checksum,
+        "source_identity": source_identity,
+    }
+    write_json_atomic(staged_files["meta"], metadata)
+    cloud = {
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "decimated": False,
+        "size_bytes": int(source_path.stat().st_size),
+        "sha256": checksum,
+        "origin": [float(x) for x in origin],
+        "bbox_min": [float(x) for x in bbox_min],
+        "bbox_max": [float(x) for x in bbox_max],
+        "has_color": True,
+        "has_intensity": False,
+        "metadata": metadata,
+    }
+    result = {
+        "cloud_id": cloud_id,
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "preview_count": preview_count,
+        "decimated": False,
+        "warning": None,
+    }
+    files = {
+        key: {"name": staged.name, **_file_record(staged)}
+        for key, staged in staged_files.items()
+    }
+    manifest = {
+        "version": INGEST_CHECKPOINT_VERSION,
+        "cloud_id": cloud_id,
+        "source_identity": source_identity,
+        "files": files,
+        "cloud": cloud,
+        "result": result,
+    }
+    write_json_atomic(stage_dir / "manifest.json", manifest)
+    return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
+
+
 def ingest_cloud(
     project_id: str,
     cloud_id: str,
@@ -201,6 +347,10 @@ def ingest_cloud(
     if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
         _discard_incomplete_stage(stage_dir, paths)
     source_identity = _source_identity(source_path)
+    if source_path.suffix.lower() in {".rcs", ".rcp"} and MAX_INGEST_POINTS == 0:
+        return _ingest_full_rcs_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress
+        )
     if progress:
         progress(0.01, "открытие исходного файла")
     raw = read_cloud(source_path, max_points=MAX_INGEST_POINTS, progress=progress)

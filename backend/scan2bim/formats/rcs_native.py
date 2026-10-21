@@ -118,11 +118,11 @@ def _resolve(handle: int, mangled: str, nargs: int):
     return ctypes.CFUNCTYPE(ctypes.c_uint64, *([ctypes.c_uint64] * nargs))(addr)
 
 
-def _stream(rcs_path: Path, out_dir: Path, max_points: int) -> int:
-    """Iterate the whole octree once, keeping a uniform reservoir sample."""
-    if max_points <= 0:
+def _stream(rcs_path: Path, out_dir: Path, max_points: int, stream_all: bool = False) -> int:
+    """Read RCS in bounded chunks; optionally stream every point to raw files."""
+    if max_points <= 0 and not stream_all:
         max_points = MAX_INGEST_POINTS
-    if max_points <= 0:
+    if max_points <= 0 and not stream_all:
         raise RuntimeError("reservoir sampling needs a positive point budget")
 
     dll = RECAP_DIR / DLL_NAME
@@ -160,8 +160,16 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int) -> int:
             raise RuntimeError("RCRcsDataSource::open() failed for both ctor flags")
 
     rng = np.random.default_rng(RNG_SEED)
-    keep_xyz = np.empty((max_points, 3), dtype=np.float32)
-    keep_rgb = np.empty((max_points, 3), dtype=np.uint8)
+    if stream_all:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        xyz_out = (out_dir / "xyz.f64").open("wb")
+        rgb_out = (out_dir / "rgb.u8").open("wb")
+        keep_xyz = np.empty((CHUNK, 3), dtype=np.float64)
+        keep_rgb = np.empty((CHUNK, 3), dtype=np.uint8)
+    else:
+        xyz_out = rgb_out = None
+        keep_xyz = np.empty((max_points, 3), dtype=np.float32)
+        keep_rgb = np.empty((max_points, 3), dtype=np.uint8)
     kept = 0
     seen = 0
     slot = (ctypes.c_double * 3)()
@@ -172,14 +180,26 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int) -> int:
         while True:
             # Decide the whole chunk's fate before touching a single point.
             idx = np.arange(seen, seen + CHUNK, dtype=np.int64)
-            replace = rng.integers(0, idx + 1)
-            slots = np.where(idx < max_points, idx, np.where(replace < max_points, replace, -1))
+            if stream_all:
+                slots = np.arange(CHUNK, dtype=np.int32)
+            else:
+                replace = rng.integers(0, idx + 1)
+                slots = np.where(idx < max_points, idx, np.where(replace < max_points, replace, -1))
 
             n = 0
             for s in slots:
                 if not adv(this_ptr):
                     break
-                if s >= 0:
+                if stream_all:
+                    pos(this_ptr, ctypes.addressof(slot))
+                    keep_xyz[n, 0] = slot[0]
+                    keep_xyz[n, 1] = slot[1]
+                    keep_xyz[n, 2] = slot[2]
+                    color(this_ptr, ctypes.addressof(cs))
+                    keep_rgb[n, 0] = cs[0]
+                    keep_rgb[n, 1] = cs[1]
+                    keep_rgb[n, 2] = cs[2]
+                elif s >= 0:
                     pos(this_ptr, ctypes.addressof(slot))
                     keep_xyz[s, 0] = slot[0]
                     keep_xyz[s, 1] = slot[1]
@@ -187,11 +207,14 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int) -> int:
                     color(this_ptr, ctypes.addressof(cs))
                     keep_rgb[s, 0] = cs[0]
                     keep_rgb[s, 1] = cs[1]
-                    keep_rgb[s, 2] = cs[2]
                 n += 1
 
+            if stream_all and n:
+                keep_xyz[:n].tofile(xyz_out)
+                keep_rgb[:n].tofile(rgb_out)
+
             seen += n
-            kept = min(seen, max_points)
+            kept = seen if stream_all else min(seen, max_points)
             # The true total is unknown (sentinel count), so no honest fraction
             # exists: report absolute progress with the measured rate instead.
             if seen % (CHUNK * 40) < CHUNK or n < CHUNK:
@@ -207,14 +230,21 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int) -> int:
             close(this_ptr)
         finally:
             dtor(this_ptr)
+            if xyz_out is not None:
+                xyz_out.close()
+            if rgb_out is not None:
+                rgb_out.close()
 
     if kept == 0:
         raise RuntimeError("RCS iterator produced no points")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    np.save(out_dir / "xyz.npy", keep_xyz[:kept])
-    np.save(out_dir / "rgb.npy", keep_rgb[:kept])
-    print(f"DONE {kept} SEEN {seen}", flush=True)
+    if stream_all:
+        print(f"DONE {kept} SEEN {seen} MODE all", flush=True)
+    else:
+        np.save(out_dir / "xyz.npy", keep_xyz[:kept])
+        np.save(out_dir / "rgb.npy", keep_rgb[:kept])
+        print(f"DONE {kept} SEEN {seen}", flush=True)
     return kept
 
 
@@ -223,9 +253,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("rcs")
     ap.add_argument("out_dir")
     ap.add_argument("--max", type=int, default=0)
+    ap.add_argument("--all", action="store_true", help="write every point to bounded raw disk streams")
     args = ap.parse_args(argv)
     try:
-        _stream(Path(args.rcs), Path(args.out_dir), args.max)
+        _stream(Path(args.rcs), Path(args.out_dir), args.max, stream_all=args.all)
     except Exception as exc:  # reported to the parent
         print(f"ERROR {exc}", flush=True)
         return 1
@@ -233,6 +264,102 @@ def main(argv: list[str] | None = None) -> int:
 
 
 # --------------------------------------------------------------------------- parent
+
+
+def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, Any]:
+    """Write all RCS points to bounded raw disk streams and return their layout."""
+    from .readers import FormatError
+
+    info = native_available()
+    if not info["dll_exists"]:
+        raise FormatError(f"ReCap DLL not found: {info['dll_path']}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        sys.executable,
+        "-m",
+        "scan2bim.formats.rcs_native",
+        str(path),
+        str(out_dir),
+        "--all",
+    ]
+    env = dict(os.environ)
+    pkg_root = str(Path(__file__).resolve().parents[2])
+    env["PYTHONPATH"] = pkg_root + os.pathsep + env.get("PYTHONPATH", "")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+    assert proc.stdout is not None
+    last = ""
+    count = 0
+    stray: list[str] = []
+    try:
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("PROGRESS "):
+                last = line
+                if progress:
+                    parts = line.split(" ", 3)
+                    progress(0.05, "RCS: " + (parts[2] if len(parts) > 2 else line))
+            elif line.startswith("DONE"):
+                last = line
+                bits = line.split()
+                if "SEEN" in bits:
+                    count = int(bits[bits.index("SEEN") + 1])
+            elif line.startswith("ERROR"):
+                last = line
+            else:
+                stray.append(line)
+                stray = stray[-12:]
+        try:
+            code = proc.wait(timeout=60 * 60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise FormatError("native RCS full-resolution read timed out after 60 minutes")
+    except BaseException:
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        raise
+
+    xyz_path = out_dir / "xyz.f64"
+    rgb_path = out_dir / "rgb.u8"
+    if code != 0 or count <= 0 or not xyz_path.is_file() or not rgb_path.is_file():
+        detail = last or (" | ".join(stray[-4:]) if stray else f"exit {code}")
+        raise FormatError(f"native RCS full-resolution stream failed: {detail}")
+    if xyz_path.stat().st_size != count * 3 * np.dtype("<f8").itemsize:
+        raise FormatError("native RCS coordinate stream has an invalid byte count")
+    if rgb_path.stat().st_size != count * 3 * np.dtype("u1").itemsize:
+        raise FormatError("native RCS color stream has an invalid byte count")
+    if progress:
+        progress(0.55, f"RCS points staged: {count:,}")
+    return {
+        "point_count": count,
+        "xyz_path": xyz_path,
+        "rgb_path": rgb_path,
+        "reader": {
+            "reader": "recap-adskrcexport-dll",
+            "reader_abi": info["abi"],
+            "dll": info["dll_path"],
+            "native_rcs_verified": True,
+            "sampling": "none; full sequential RCS stream",
+        },
+    }
 
 
 def read_rcs_native(path: Path, max_points: int, progress=None):

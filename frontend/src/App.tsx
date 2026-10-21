@@ -66,7 +66,7 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [clouds, setClouds] = useState<Cloud[]>([]);
   const [cloud, setCloud] = useState<Cloud | null>(null);
-  const [tab, setTab] = useState<Tab>("section");
+  const [tab, setTab] = useState<Tab>("recognition");
   const [error, setError] = useState<string | null>(null);
   const [rcsInfo, setRcsInfo] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -166,6 +166,7 @@ export default function App() {
   const refreshProjects = async () => {
     const list = await api.listProjects();
     setProjects(list);
+    setProject((current) => current ?? (list.length > 0 ? list[0] : null));
     return list;
   };
 

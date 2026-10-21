@@ -22,6 +22,8 @@ from scan2bim.recognition.steel import (
     BRACE_MIN_CONCENTRATION,
     COLUMN_TYPE_SOLID,
     COLUMN_TYPE_STEPPED,
+    _dedup_brace_candidates,
+    _diagonals_in_slices,
     _line_concentration,
     classify_column_sections,
 )
@@ -237,3 +239,111 @@ def test_structural_only_is_noop_when_no_unknowns():
     kept, dropped = structural_only(elements)
     assert dropped == 0
     assert len(kept) == 2
+
+
+# ------------------------------------------------- bracing across thin slices
+def _candidate(
+    center: tuple[float, float],
+    angle_deg: float,
+    length: float,
+    conc: float,
+    z0: float = 4.2,
+    z1: float = 4.25,
+) -> tuple:
+    angle = math.radians(angle_deg)
+    direction = np.array([math.cos(angle), math.sin(angle)])
+    return (
+        np.array(center, dtype=float),
+        direction,
+        length,
+        conc,
+        0.20,
+        z0,
+        z1,
+        500,
+    )
+
+
+def test_dedup_keeps_one_member_found_in_overlapping_slices():
+    # The same member, clipped differently by two slices: one candidate is
+    # 5.2 m long at 0.61 concentration, the other 4.0 m at 0.88.
+    first = _candidate((0.0, 0.0), 40.0, 5.2, 0.61)
+    second = _candidate((0.3, 0.2), 38.0, 4.0, 0.88)
+
+    merged = _dedup_brace_candidates([first, second])
+
+    assert len(merged) == 1
+    # The better supported fragment wins over the longer, diluter one.
+    assert merged[0][3] == 0.88
+
+
+def test_dedup_keeps_parallel_members_in_different_bays():
+    # Cross bracing has two diagonals per bay; parallel members 3 m apart are
+    # DIFFERENT members and must not collapse into one.
+    left = _candidate((0.0, 0.0), 40.0, 6.0, 0.8)
+    right = _candidate((0.0, 3.0), 40.0, 6.0, 0.8)
+
+    merged = _dedup_brace_candidates([left, right])
+
+    assert len(merged) == 2
+
+
+def test_dedup_keeps_members_at_different_heights():
+    low = _candidate((0.0, 0.0), 40.0, 6.0, 0.8, z0=4.2, z1=4.25)
+    high = _candidate((0.0, 0.0), 40.0, 6.0, 0.8, z0=7.2, z1=7.25)
+
+    merged = _dedup_brace_candidates([low, high])
+
+    assert len(merged) == 2
+
+
+def test_thin_slice_finds_brace_hidden_under_dense_deck_plane():
+    # Production failure mode: the bracing member sits just above a densely
+    # sampled roof deck. Measure the whole band and the deck dominates the
+    # raster and the +-0.6 m window; a thin slice above the deck isolates the
+    # member. `_diagonals_in_slices` must return it.
+    rng = np.random.default_rng(5)
+    angle = math.radians(40.0)
+    direction = np.array([math.cos(angle), math.sin(angle)])
+    along = rng.uniform(0.0, 6.0, 3000)
+    across = rng.normal(0.0, 0.03, 3000)
+    brace_xy = np.outer(along, direction) + np.outer(across, np.array([-direction[1], direction[0]]))
+    brace = np.column_stack(
+        [brace_xy[:, 0], brace_xy[:, 1], np.full(3000, 1.20)]
+    )
+
+    deck_x, deck_y = np.mgrid[-2.0:8.0:0.05, -2.0:8.0:0.05]
+    deck = np.column_stack(
+        [deck_x.ravel(), deck_y.ravel(), np.full(deck_x.size, 0.80)]
+    )
+    # A level band has thickness: sparse points above the member (truss
+    # top-chord nodes, purlins) keep the slice loop running past it, so a slice
+    # exists that contains the brace and NOT the deck plane.
+    above = np.column_stack(
+        [rng.uniform(-2.0, 8.0, 120), rng.uniform(-2.0, 8.0, 120), rng.uniform(1.50, 1.58, 120)]
+    )
+    points = np.vstack([brace, deck, above]).astype(np.float32)
+
+    behind_deck = _line_concentration(
+        brace_xy.astype(np.float32), brace_xy.mean(axis=0).astype(np.float32), direction, 6.0
+    )
+    candidates = _diagonals_in_slices(points, axis=0.0)
+
+    assert behind_deck >= BRACE_MIN_CONCENTRATION  # the member itself is clean
+    assert len(candidates) >= 1
+    found = max(candidates, key=lambda item: item[2])
+    assert found[2] >= 5.0           # the whole member, not a stub
+    assert found[3] >= BRACE_MIN_CONCENTRATION
+
+
+def test_slices_do_not_invent_bracing_from_uniform_clutter():
+    rng = np.random.default_rng(17)
+    clutter = np.column_stack(
+        [
+            rng.uniform(0.0, 8.0, 40000),
+            rng.uniform(0.0, 8.0, 40000),
+            rng.uniform(0.8, 1.6, 40000),
+        ]
+    ).astype(np.float32)
+
+    assert _diagonals_in_slices(clutter, axis=0.0) == []
