@@ -519,6 +519,135 @@ def _member_element(
     )
 
 
+def _diagonals_in_slices(
+    points: np.ndarray,
+    axis: float,
+) -> list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]]:
+    """Diagonal plan candidates from thin z-slices of one level band.
+
+    Horizontal bracing is a thin plan member. Measured over a whole 1 m band it
+    is diluted by the roof-deck plane, which also fills the raster so the Hough
+    stage cannot separate the member, and its concentration drops below the
+    acceptance threshold. Each thin slice re-runs the plan Hough in isolation,
+    where the deck plane no longer dominates the raster. Overlapping slices
+    find different fragments of the same member, so the caller deduplicates.
+    """
+    z = points[:, 2]
+    z0, z1 = float(z.min()), float(z.max())
+    out: list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]] = []
+    start = z0
+    while start + BRACE_SLICE_THICK_M <= z1 + 1e-9:
+        stop = start + BRACE_SLICE_THICK_M
+        mask = (z >= start) & (z < stop)
+        start += BRACE_SLICE_STEP_M
+        sub = points[mask]
+        if len(sub) < BRACE_SLICE_MIN_POINTS:
+            continue
+        segments = _plan_segments(
+            sub[:, :2], res=0.10, min_length_m=BRACE_MIN_LENGTH_M
+        )
+        for group in _group_segments(segments):
+            center, direction, length = _group_line(group)
+            if length < BRACE_MIN_LENGTH_M:
+                continue
+            angle = math.atan2(float(direction[1]), float(direction[0])) % math.pi
+            rel_deg = math.degrees(_angle_diff(angle, axis))
+            if not (DIAGONAL_MIN_DEG <= rel_deg <= DIAGONAL_MAX_DEG):
+                continue
+            conc = _line_concentration(
+                sub[:, :2], center, direction, length, core_m=BRACE_CORE_M
+            )
+            if conc < BRACE_MIN_CONCENTRATION:
+                continue
+            thickness, bz0, bz1, support = _measure_strip(
+                sub[:, :2], sub[:, 2], center, direction, length
+            )
+            if support < 5:
+                continue
+            out.append((center, direction, length, conc, thickness, bz0, bz1, support))
+    return out
+
+
+def _dedup_brace_candidates(
+    candidates: list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]],
+) -> list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]]:
+    """Merge the same member found in overlapping slices and in the full band.
+
+    Two candidates are the same member when their lines are nearly parallel,
+    laterally within ``BRACE_DEDUP_POS_M`` and at the same height. The better
+    supported one survives: higher concentration, then the longer fragment
+    (a thin slice may clip the member's ends).
+    """
+    keep: list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]] = []
+    max_angle = math.radians(BRACE_DEDUP_ANGLE_DEG)
+    for cand in candidates:
+        center, direction = cand[0], cand[1]
+        angle = math.atan2(float(direction[1]), float(direction[0])) % math.pi
+        mid_z = (cand[5] + cand[6]) / 2
+        is_duplicate = False
+        for index, known in enumerate(keep):
+            known_angle = math.atan2(float(known[1][1]), float(known[1][0])) % math.pi
+            if _angle_diff(angle, known_angle) > max_angle:
+                continue
+            normal = np.array([-direction[1], direction[0]])
+            if abs(float(np.dot(center - known[0], normal))) > BRACE_DEDUP_POS_M:
+                continue
+            if abs(mid_z - (known[5] + known[6]) / 2) > 0.6:
+                continue
+            if cand[3] - known[3] > 0.03 or (
+                abs(cand[3] - known[3]) <= 0.03 and cand[2] > known[2]
+            ):
+                keep[index] = cand
+            is_duplicate = True
+            break
+        if not is_duplicate:
+            keep.append(cand)
+    return keep
+
+
+def _emit_horizontal_braces(
+    geom: CloudGeometry,
+    candidates: list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]],
+) -> list[DetectedElement]:
+    """One brace element per deduplicated horizontal bracing member."""
+    out: list[DetectedElement] = []
+    for center, direction, length, conc, thickness, bz0, bz1, _support in candidates:
+        center_z = (bz0 + bz1) / 2
+        p0 = np.array(
+            [
+                center[0] - direction[0] * length / 2,
+                center[1] - direction[1] * length / 2,
+                center_z,
+            ]
+        ) + geom.origin
+        p1 = np.array(
+            [
+                center[0] + direction[0] * length / 2,
+                center[1] + direction[1] * length / 2,
+                center_z,
+            ]
+        ) + geom.origin
+        out.append(
+            _member_element(
+                geom,
+                p0,
+                p1,
+                section_m=max(0.10, min(thickness, 0.4)),
+                role="brace",
+                orientation="horizontal",
+                confidence=0.35
+                + 0.1 * min(1.0, length / 10.0)
+                + 0.15 * min(1.0, (conc - BRACE_MIN_CONCENTRATION) / 0.25),
+                method=(
+                    "plan Hough on thin z-slices and on the full level band, merged "
+                    "by dedup; diagonal 25..65 deg from hall axis; accepted by "
+                    f"line concentration >= {BRACE_MIN_CONCENTRATION:.2f}"
+                ),
+            )
+        )
+    return out
+
+
 # ------------------------------------------------------------- horizontal stage
 def _horizontal_members(
     geom: CloudGeometry,
@@ -560,6 +689,9 @@ def _horizontal_members(
         if len(points) < 500:
             continue
         groups = _group_segments(segments)
+        diag_candidates: list[
+            tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]
+        ] = []
         for group in groups:
             center, direction, length = _group_line(group)
             if length < BEAM_MIN_LENGTH_M:
@@ -576,8 +708,8 @@ def _horizontal_members(
             role = None
             note = ""
             confidence = 0.45
-            if diagonal and kind in ("crane", "roof"):
-                if length >= BRACE_MIN_LENGTH_M:
+            if diagonal:
+                if kind in ("crane", "roof") and length >= BRACE_MIN_LENGTH_M:
                     # Width alone is unusable here (it saturates on the roof);
                     # require the points to actually cluster on the line.
                     conc = _line_concentration(
@@ -585,19 +717,11 @@ def _horizontal_members(
                         core_m=BRACE_CORE_M,
                     )
                     if conc >= BRACE_MIN_CONCENTRATION:
-                        p0 = np.array([center[0] - direction[0] * length / 2, center[1] - direction[1] * length / 2, (bz0 + bz1) / 2]) + geom.origin
-                        p1 = np.array([center[0] + direction[0] * length / 2, center[1] + direction[1] * length / 2, (bz0 + bz1) / 2]) + geom.origin
-                        elements.append(
-                            _member_element(
-                                geom, p0, p1,
-                                section_m=max(0.10, min(thickness, 0.4)),
-                                role="brace",
-                                orientation="horizontal",
-                                confidence=0.35 + 0.1 * min(1.0, length / 10.0) + 0.15 * min(1.0, (conc - BRACE_MIN_CONCENTRATION) / 0.25),
-                                method="thin-band plan Hough + line concentration, diagonal 25..65 deg from hall axis",
-                            )
+                        # Collected, not emitted: thin-slice candidates for the
+                        # same member are merged into it first.
+                        diag_candidates.append(
+                            (center, direction, length, conc, thickness, bz0, bz1, support)
                         )
-                        role_counts["brace_horizontal"] = role_counts.get("brace_horizontal", 0) + 1
                 continue
             if aligned:
                 if kind == "crane" and length >= CRANE_MIN_LENGTH_M and thickness <= BEAM_MAX_THICKNESS_M:
@@ -634,10 +758,30 @@ def _horizontal_members(
                 )
             )
             role_counts[role] = role_counts.get(role, 0) + 1
+        # Second, independent source of diagonal candidates: a thin plan slice
+        # isolates a bracing member that the full 1 m band dilutes or hides.
+        if (
+            kind in ("crane", "roof")
+            and axis is not None
+            and len(points) >= BRACE_SLICE_MIN_POINTS
+        ):
+            if progress:
+                progress(0.885, f"горизонтальные связи в полосе {label}")
+            diag_candidates.extend(_diagonals_in_slices(points, axis))
+        braces = _emit_horizontal_braces(geom, _dedup_brace_candidates(diag_candidates))
+        if braces:
+            elements.extend(braces)
+            role_counts["brace_horizontal"] = role_counts.get("brace_horizontal", 0) + len(braces)
     if role_counts.get("crane_girder"):
         warnings.append(
             f"Найдено {role_counts['crane_girder']} подкрановых балок (осевые длинные балки между уровнями) "
             "— класс геометрический, привязку к крановому пути проверьте в редакторе."
+        )
+    if role_counts.get("brace_horizontal"):
+        warnings.append(
+            f"Найдено {role_counts['brace_horizontal']} горизонтальных связей "
+            "(диагонали в плане в полосах подкрановых балок и кровли) — "
+            "крестовые узлы и раскрепления проверьте в редакторе."
         )
     return elements, axis, band_xy, warnings
 
