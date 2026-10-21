@@ -17,6 +17,7 @@ import numpy as np
 from .config import MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 from .db import dumps, execute, one, utcnow
 from .formats import read_cloud
+from .formats.readers import e57_stream_info, iter_e57_chunks, iter_las_chunks, las_stream_info
 from .formats.rcs_native import extract_rcs_native, native_available
 from .storage import cloud_paths, sha256_file, write_json_atomic
 
@@ -285,12 +286,19 @@ def _ingest_full_rcs_stream(
     colors._mmap.close()
     del positions, colors
 
-    checksum = None
+    checksum = raw["reader"].get("source_sha256")
     try:
-        if source_path.stat().st_size <= 2 * 1024 * 1024 * 1024:
+        if checksum is None and source_path.stat().st_size <= 2 * 1024 * 1024 * 1024:
             checksum = sha256_file(source_path)
-    except OSError:
-        pass
+        if checksum is None:
+            raise RuntimeError("full-resolution RCS stream has no source content hash")
+        verified_checksum = sha256_file(source_path)
+    except OSError as exc:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError(f"could not verify source content after RCS import: {exc}") from exc
+    if verified_checksum != checksum:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError("source content changed while full-resolution RCS import was running")
     if _source_identity(source_path) != source_identity:
         _discard_incomplete_stage(stage_dir, paths)
         raise RuntimeError("source identity changed while cloud import was running")
@@ -312,7 +320,7 @@ def _ingest_full_rcs_stream(
         "crash_safe": True,
         "source_unchanged": True,
         "checksum_sha256": checksum,
-        "source_identity": source_identity,
+        "source_identity": {**source_identity, "sha256": checksum},
     }
     write_json_atomic(staged_files["meta"], metadata)
     cloud = {
@@ -352,6 +360,386 @@ def _ingest_full_rcs_stream(
     return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
 
 
+def _ingest_full_e57_stream(
+    project_id: str,
+    cloud_id: str,
+    source_path: Path,
+    paths: dict[str, Path],
+    stage_dir: Path,
+    source_identity: dict[str, Any],
+    progress=None,
+) -> dict[str, Any]:
+    """Ingest full-resolution E57 with bounded point buffers and disk-backed arrays.
+
+    Two sequential passes measure the exact world-space bounds and fill the
+    final memmaps. The current pye57 reader cannot seek to a record, so a failed
+    pass is restarted from the beginning; completed files still use the normal
+    hashed ingest manifest/finalization path.
+    """
+    checksum = sha256_file(source_path)
+    info = e57_stream_info(source_path)
+    source_count = int(info["source_point_count"])
+    if source_count <= 0:
+        raise ValueError("E57 stream contains no points")
+    chunk_points = 500_000
+
+    bbox_min = np.full(3, np.inf, dtype=np.float64)
+    bbox_max = np.full(3, -np.inf, dtype=np.float64)
+    valid_count = 0
+    bounds_progress = (
+        (lambda fraction, message: progress(0.05 + 0.45 * fraction, message))
+        if progress else None
+    )
+    for xyz, rgb, intensity in iter_e57_chunks(
+        source_path, chunk_points=chunk_points, progress=bounds_progress
+    ):
+        if info["has_color"] != (rgb is not None):
+            raise RuntimeError("E57 color fields changed between scan headers and point stream")
+        if info["has_intensity"] != (intensity is not None):
+            raise RuntimeError("E57 intensity fields changed between scan headers and point stream")
+        if len(xyz):
+            bbox_min = np.minimum(bbox_min, xyz.min(axis=0))
+            bbox_max = np.maximum(bbox_max, xyz.max(axis=0))
+            valid_count += len(xyz)
+    if valid_count <= 0:
+        raise ValueError("E57 stream contains no finite points")
+
+    derived_bytes = valid_count * (3 * np.dtype("<f4").itemsize)
+    if info["has_color"]:
+        derived_bytes += valid_count * 3 * np.dtype("u1").itemsize
+    if info["has_intensity"]:
+        derived_bytes += valid_count * np.dtype("<f4").itemsize
+    preview_bytes = min(valid_count, MAX_PREVIEW_POINTS) * PREVIEW_DTYPE.itemsize
+    required_free = derived_bytes + preview_bytes + MIN_INGEST_DISK_RESERVE_BYTES
+    free_bytes = shutil.disk_usage(paths["dir"]).free
+    if free_bytes < required_free:
+        raise OSError(
+            "not enough free disk space to finalize full-resolution E57 import: "
+            f"need about {required_free:,} free bytes including reserve, have {free_bytes:,}"
+        )
+
+    origin = (bbox_min + bbox_max) / 2.0
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    staged_files: dict[str, Path] = {
+        "positions": stage_dir / paths["positions"].name,
+        "preview": stage_dir / paths["preview"].name,
+        "meta": stage_dir / paths["meta"].name,
+    }
+    if info["has_color"]:
+        staged_files["colors"] = stage_dir / paths["colors"].name
+    if info["has_intensity"]:
+        staged_files["intensity"] = stage_dir / paths["intensity"].name
+
+    positions = colors = intensity_values = None
+    out_start = 0
+    try:
+        positions = np.lib.format.open_memmap(
+            staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+        )
+        colors = (
+            np.lib.format.open_memmap(
+                staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
+            ) if info["has_color"] else None
+        )
+        intensity_values = (
+            np.lib.format.open_memmap(
+                staged_files["intensity"], mode="w+", dtype="<f4", shape=(valid_count,)
+            ) if info["has_intensity"] else None
+        )
+        for xyz, rgb, intensity in iter_e57_chunks(source_path, chunk_points=chunk_points):
+            if info["has_color"] != (rgb is not None):
+                raise RuntimeError("E57 color fields changed between point stream passes")
+            if info["has_intensity"] != (intensity is not None):
+                raise RuntimeError("E57 intensity fields changed between point stream passes")
+            count = len(xyz)
+            if count:
+                out_end = out_start + count
+                positions[out_start:out_end] = (xyz - origin).astype(np.float32)
+                if colors is not None and rgb is not None:
+                    colors[out_start:out_end] = rgb
+                if intensity_values is not None and intensity is not None:
+                    intensity_values[out_start:out_end] = intensity
+                out_start = out_end
+            if progress:
+                progress(0.58 + 0.30 * (out_start / valid_count), "writing full-resolution E57 memmaps")
+        if out_start != valid_count:
+            raise RuntimeError("E57 point count changed between bounds and write passes")
+        positions.flush()
+        if colors is not None:
+            colors.flush()
+        if intensity_values is not None:
+            intensity_values.flush()
+    finally:
+        if positions is not None:
+            positions._mmap.close()
+        if colors is not None:
+            colors._mmap.close()
+        if intensity_values is not None:
+            intensity_values._mmap.close()
+
+    if _source_identity(source_path) != source_identity or sha256_file(source_path) != checksum:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError("source content changed while full-resolution E57 import was running")
+
+    positions = np.load(staged_files["positions"], mmap_mode="r")
+    colors = np.load(staged_files["colors"], mmap_mode="r") if "colors" in staged_files else None
+    intensity_values = np.load(staged_files["intensity"], mmap_mode="r") if "intensity" in staged_files else None
+    try:
+        preview_arr, preview_count = build_preview(positions, colors, intensity_values)
+        preview_tmp = staged_files["preview"].with_suffix(".bin.tmp")
+        preview_arr.tofile(preview_tmp)
+        preview_tmp.replace(staged_files["preview"])
+    finally:
+        positions._mmap.close()
+        if colors is not None:
+            colors._mmap.close()
+        if intensity_values is not None:
+            intensity_values._mmap.close()
+
+    metadata = {
+        **info,
+        "origin": [float(value) for value in origin],
+        "bbox_min": [float(value) for value in bbox_min],
+        "bbox_max": [float(value) for value in bbox_max],
+        "preview_count": preview_count,
+        "preview_stride_bytes": PREVIEW_DTYPE.itemsize,
+        "stored_point_count": valid_count,
+        "decimated": False,
+        "dropped_non_finite": source_count - valid_count,
+        "warning": None,
+        "has_color": bool(info["has_color"]),
+        "has_intensity": bool(info["has_intensity"]),
+        "bounded_memory": True,
+        "stream_chunk_points": chunk_points,
+        "restart_policy": "replay_from_source_start",
+        "crash_safe": True,
+        "source_unchanged": True,
+        "checksum_sha256": checksum,
+        "source_identity": {**source_identity, "sha256": checksum},
+    }
+    write_json_atomic(staged_files["meta"], metadata)
+    cloud = {
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "decimated": False,
+        "size_bytes": int(source_identity["size_bytes"]),
+        "sha256": checksum,
+        "origin": [float(value) for value in origin],
+        "bbox_min": [float(value) for value in bbox_min],
+        "bbox_max": [float(value) for value in bbox_max],
+        "has_color": bool(info["has_color"]),
+        "has_intensity": bool(info["has_intensity"]),
+        "metadata": metadata,
+    }
+    result = {
+        "cloud_id": cloud_id,
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "preview_count": preview_count,
+        "decimated": False,
+        "warning": None,
+    }
+    files = {key: {"name": staged.name, **_file_record(staged)} for key, staged in staged_files.items()}
+    manifest = {
+        "version": INGEST_CHECKPOINT_VERSION,
+        "cloud_id": cloud_id,
+        "source_identity": source_identity,
+        "files": files,
+        "cloud": cloud,
+        "result": result,
+    }
+    write_json_atomic(stage_dir / "manifest.json", manifest)
+    return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
+
+
+def _ingest_full_las_stream(
+    project_id: str,
+    cloud_id: str,
+    source_path: Path,
+    paths: dict[str, Path],
+    stage_dir: Path,
+    source_identity: dict[str, Any],
+    progress=None,
+) -> dict[str, Any]:
+    """Import full-resolution LAS/LAZ in bounded chunks into disk-backed arrays."""
+    checksum = sha256_file(source_path)
+    info = las_stream_info(source_path)
+    source_count = int(info["source_point_count"])
+    if source_count <= 0:
+        raise ValueError("LAS/LAZ stream contains no points")
+    chunk_points = 500_000
+
+    bbox_min = np.full(3, np.inf, dtype=np.float64)
+    bbox_max = np.full(3, -np.inf, dtype=np.float64)
+    valid_count = 0
+    bounds_progress = (
+        (lambda fraction, message: progress(0.05 + 0.45 * fraction, message))
+        if progress else None
+    )
+    for xyz, rgb, intensity in iter_las_chunks(
+        source_path, chunk_points=chunk_points, progress=bounds_progress
+    ):
+        if info["has_color"] != (rgb is not None):
+            raise RuntimeError("LAS/LAZ color dimensions changed during bounds pass")
+        if info["has_intensity"] != (intensity is not None):
+            raise RuntimeError("LAS/LAZ intensity dimension changed during bounds pass")
+        if len(xyz):
+            bbox_min = np.minimum(bbox_min, xyz.min(axis=0))
+            bbox_max = np.maximum(bbox_max, xyz.max(axis=0))
+            valid_count += len(xyz)
+    if valid_count <= 0:
+        raise ValueError("LAS/LAZ stream contains no finite points")
+
+    derived_bytes = valid_count * (3 * np.dtype("<f4").itemsize)
+    if info["has_color"]:
+        derived_bytes += valid_count * 3 * np.dtype("u1").itemsize
+    if info["has_intensity"]:
+        derived_bytes += valid_count * np.dtype("<f4").itemsize
+    preview_bytes = min(valid_count, MAX_PREVIEW_POINTS) * PREVIEW_DTYPE.itemsize
+    required_free = derived_bytes + preview_bytes + MIN_INGEST_DISK_RESERVE_BYTES
+    free_bytes = shutil.disk_usage(paths["dir"]).free
+    if free_bytes < required_free:
+        raise OSError(
+            "not enough free disk space to finalize full-resolution LAS/LAZ import: "
+            f"need about {required_free:,} free bytes including reserve, have {free_bytes:,}"
+        )
+
+    origin = (bbox_min + bbox_max) / 2.0
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    staged_files: dict[str, Path] = {
+        "positions": stage_dir / paths["positions"].name,
+        "preview": stage_dir / paths["preview"].name,
+        "meta": stage_dir / paths["meta"].name,
+    }
+    if info["has_color"]:
+        staged_files["colors"] = stage_dir / paths["colors"].name
+    if info["has_intensity"]:
+        staged_files["intensity"] = stage_dir / paths["intensity"].name
+
+    positions = colors = intensity_values = None
+    out_start = 0
+    try:
+        positions = np.lib.format.open_memmap(
+            staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+        )
+        colors = (
+            np.lib.format.open_memmap(
+                staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
+            ) if info["has_color"] else None
+        )
+        intensity_values = (
+            np.lib.format.open_memmap(
+                staged_files["intensity"], mode="w+", dtype="<f4", shape=(valid_count,)
+            ) if info["has_intensity"] else None
+        )
+        for xyz, rgb, intensity in iter_las_chunks(source_path, chunk_points=chunk_points):
+            if info["has_color"] != (rgb is not None):
+                raise RuntimeError("LAS/LAZ color dimensions changed between stream passes")
+            if info["has_intensity"] != (intensity is not None):
+                raise RuntimeError("LAS/LAZ intensity dimension changed between stream passes")
+            count = len(xyz)
+            if count:
+                out_end = out_start + count
+                if out_end > valid_count:
+                    raise RuntimeError("LAS/LAZ point count increased between stream passes")
+                positions[out_start:out_end] = (xyz - origin).astype(np.float32)
+                if colors is not None and rgb is not None:
+                    colors[out_start:out_end] = rgb
+                if intensity_values is not None and intensity is not None:
+                    intensity_values[out_start:out_end] = intensity
+                out_start = out_end
+            if progress:
+                progress(0.58 + 0.30 * (out_start / valid_count), "writing full-resolution LAS/LAZ memmaps")
+        if out_start != valid_count:
+            raise RuntimeError("LAS/LAZ point count changed between bounds and write passes")
+        positions.flush()
+        if colors is not None:
+            colors.flush()
+        if intensity_values is not None:
+            intensity_values.flush()
+    finally:
+        if positions is not None:
+            positions._mmap.close()
+        if colors is not None:
+            colors._mmap.close()
+        if intensity_values is not None:
+            intensity_values._mmap.close()
+
+    if _source_identity(source_path) != source_identity or sha256_file(source_path) != checksum:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError("source content changed while full-resolution LAS/LAZ import was running")
+
+    positions = np.load(staged_files["positions"], mmap_mode="r")
+    colors = np.load(staged_files["colors"], mmap_mode="r") if "colors" in staged_files else None
+    intensity_values = np.load(staged_files["intensity"], mmap_mode="r") if "intensity" in staged_files else None
+    try:
+        preview_arr, preview_count = build_preview(positions, colors, intensity_values)
+        preview_tmp = staged_files["preview"].with_suffix(".bin.tmp")
+        preview_arr.tofile(preview_tmp)
+        preview_tmp.replace(staged_files["preview"])
+    finally:
+        positions._mmap.close()
+        if colors is not None:
+            colors._mmap.close()
+        if intensity_values is not None:
+            intensity_values._mmap.close()
+
+    metadata = {
+        **info,
+        "origin": [float(value) for value in origin],
+        "bbox_min": [float(value) for value in bbox_min],
+        "bbox_max": [float(value) for value in bbox_max],
+        "preview_count": preview_count,
+        "preview_stride_bytes": PREVIEW_DTYPE.itemsize,
+        "stored_point_count": valid_count,
+        "decimated": False,
+        "dropped_non_finite": source_count - valid_count,
+        "warning": None,
+        "has_color": bool(info["has_color"]),
+        "has_intensity": bool(info["has_intensity"]),
+        "bounded_memory": True,
+        "stream_chunk_points": chunk_points,
+        "restart_policy": "replay_from_source_start",
+        "crash_safe": True,
+        "source_unchanged": True,
+        "checksum_sha256": checksum,
+        "source_identity": {**source_identity, "sha256": checksum},
+    }
+    write_json_atomic(staged_files["meta"], metadata)
+    cloud = {
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "decimated": False,
+        "size_bytes": int(source_identity["size_bytes"]),
+        "sha256": checksum,
+        "origin": [float(value) for value in origin],
+        "bbox_min": [float(value) for value in bbox_min],
+        "bbox_max": [float(value) for value in bbox_max],
+        "has_color": bool(info["has_color"]),
+        "has_intensity": bool(info["has_intensity"]),
+        "metadata": metadata,
+    }
+    result = {
+        "cloud_id": cloud_id,
+        "point_count": source_count,
+        "ingested_count": valid_count,
+        "preview_count": preview_count,
+        "decimated": False,
+        "warning": None,
+    }
+    files = {key: {"name": staged.name, **_file_record(staged)} for key, staged in staged_files.items()}
+    manifest = {
+        "version": INGEST_CHECKPOINT_VERSION,
+        "cloud_id": cloud_id,
+        "source_identity": source_identity,
+        "files": files,
+        "cloud": cloud,
+        "result": result,
+    }
+    write_json_atomic(stage_dir / "manifest.json", manifest)
+    return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
+
+
 def ingest_cloud(
     project_id: str,
     cloud_id: str,
@@ -370,10 +758,20 @@ def ingest_cloud(
         and MAX_INGEST_POINTS == 0
         and native_available()["dll_exists"]
     )
+    full_e57_stream = source_path.suffix.lower() == ".e57" and MAX_INGEST_POINTS == 0
+    full_las_stream = source_path.suffix.lower() in {".las", ".laz"} and MAX_INGEST_POINTS == 0
     preserve_raw_stream = full_rcs_stream and (stage_dir / "raw" / "stream.json").is_file()
     if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
         _discard_incomplete_stage(stage_dir, paths, preserve_raw_stream=preserve_raw_stream)
     source_identity = _source_identity(source_path)
+    if full_e57_stream:
+        return _ingest_full_e57_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress
+        )
+    if full_las_stream:
+        return _ingest_full_las_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress
+        )
     if full_rcs_stream:
         return _ingest_full_rcs_stream(
             project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress

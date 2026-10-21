@@ -17,6 +17,7 @@ import math
 
 import numpy as np
 
+from scan2bim.geometry.section import CloudGeometry
 from scan2bim.recognition.geometric import DetectedElement, structural_only
 from scan2bim.recognition.steel import (
     BRACE_MIN_CONCENTRATION,
@@ -24,8 +25,12 @@ from scan2bim.recognition.steel import (
     COLUMN_TYPE_STEPPED,
     _dedup_brace_candidates,
     _diagonals_in_slices,
+    _group_line,
+    _group_segments,
     _line_concentration,
     classify_column_sections,
+    measure_column_sections,
+    typify_column_sections,
 )
 
 
@@ -334,6 +339,277 @@ def test_thin_slice_finds_brace_hidden_under_dense_deck_plane():
     found = max(candidates, key=lambda item: item[2])
     assert found[2] >= 5.0           # the whole member, not a stub
     assert found[3] >= BRACE_MIN_CONCENTRATION
+
+
+def _hough_segment(p0: tuple[float, float], p1: tuple[float, float]) -> dict:
+    start = np.array(p0, dtype=float)
+    end = np.array(p1, dtype=float)
+    delta = end - start
+    length = float(np.linalg.norm(delta))
+    angle = math.atan2(float(delta[1]), float(delta[0]))
+    return {
+        "p0": start,
+        "p1": end,
+        "mid": (start + end) / 2,
+        "dir": np.array([math.cos(angle), math.sin(angle)]),
+        "angle": angle,
+        "angle_deg": math.degrees(angle) % 180.0,
+        "length": length,
+    }
+
+
+def test_collinear_diagonal_fragments_merge_into_one_member():
+    # Production failure mode: one inter-truss diagonal leaves the Hough as
+    # three overlapping pieces; without merging, the model shows three braces
+    # where the hall has one.
+    fragments = [
+        _hough_segment((0.0, 0.0), (1.2, 1.2)),
+        _hough_segment((1.0, 1.0), (2.1, 2.1)),
+        _hough_segment((2.0, 2.0), (3.0, 3.0)),
+    ]
+
+    merged = [_group_line(group) for group in _group_segments(fragments)]
+
+    assert len(merged) == 1
+    assert merged[0][2] > 3.5  # merged extent, not a 1.7 m stub
+
+
+def test_parallel_diagonals_of_a_cross_brace_stay_separate():
+    # X bracing: two diagonals crossing in the same plane are different members.
+    rising = _hough_segment((0.0, 0.0), (3.0, 3.0))
+    falling = _hough_segment((0.0, 3.0), (3.0, 0.0))
+
+    merged = [_group_line(group) for group in _group_segments([rising, falling])]
+
+    assert len(merged) == 2
+
+
+# ------------------------------------- column section completion / typification
+def _section_grid(specs: list[tuple[float, float, float, float, str]]) -> dict:
+    """Occupancy raster with synthetic column faces.
+
+    ``faces`` is what the scanner saw of the section: all four sides, a corner
+    of two adjacent sides, two opposite sides, or a single side.
+    """
+    res = 0.10
+    n = 80
+    plan = np.zeros((n, n), dtype=bool)
+    band = 1.5 * res
+    for cx, cy, length, thickness, faces in specs:
+        x0, x1 = cx - length / 2, cx + length / 2
+        y0, y1 = cy - thickness / 2, cy + thickness / 2
+        for j in range(max(0, int(y0 / res)), min(n, int(y1 / res) + 1)):
+            for i in range(max(0, int(x0 / res)), min(n, int(x1 / res) + 1)):
+                x, y = (i + 0.5) * res, (j + 0.5) * res
+                if not (x0 <= x <= x1 and y0 <= y <= y1):
+                    continue
+                on_x0 = x <= x0 + band
+                on_x1 = x >= x1 - band
+                on_y0 = y <= y0 + band
+                on_y1 = y >= y1 - band
+                keep = {
+                    "all": True,
+                    "corner": on_x1 or on_y1,
+                    "opposite": on_x0 or on_x1,
+                    "one": on_x1,
+                }[faces]
+                plan[j, i] = bool(keep)
+    return {
+        "res": res,
+        "band_occ": plan[None, :, :],
+        "min": np.array([0.0, 0.0, 0.0]),
+        "nu": n,
+        "nv": n,
+        "nbands": 1,
+        "assumed_band_height": 0.5,
+        "total": int(plan.sum()),
+    }
+
+
+def _section_column(cx: float, cy: float, length: float, thickness: float) -> DetectedElement:
+    return DetectedElement(
+        class_name="column",
+        geometry={
+            "kind": "oriented_box",
+            "center": [cx, cy, 2.0],
+            "sizes": {"length": length, "thickness": thickness, "height": 3.0},
+            "rotation_z": 0.0,
+        },
+        bbox={
+            "min": [cx - length / 2, cy - thickness / 2, 0.5],
+            "max": [cx + length / 2, cy + thickness / 2, 3.5],
+        },
+        confidence=0.6,
+        dimensions={
+            "length_m": length,
+            "thickness_m": thickness,
+            "height_m": 3.0,
+            "footprint_area_m2": length * thickness,
+        },
+    )
+
+
+def test_section_is_completed_from_two_visible_sides():
+    # A corner of two adjacent faces is enough to draw the full rectangle: a
+    # leg of the corner spans the whole length, the other spans the whole
+    # thickness.
+    grid = _section_grid([(2.0, 2.0, 0.40, 0.30, "corner")])
+    column = _section_column(2.0, 2.0, 0.40, 0.30)
+
+    typify_column_sections(grid, [column], np.zeros(3))
+
+    assert column.dimensions["sides_visible"] == 2
+    assert column.dimensions["section_status"] == "completed_from_2_sides"
+    assert abs(column.geometry["sizes"]["length"] - 0.40) <= 0.005
+    assert abs(column.geometry["sizes"]["thickness"] - 0.30) <= 0.005
+
+
+def test_section_is_completed_from_two_opposite_sides():
+    # 0.60 m: at 0.40 m the two face bands of a 0.10 m raster would overlap and
+    # the synthetic section would look solid from every side.
+    grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "opposite")])
+    column = _section_column(2.0, 2.0, 0.60, 0.60)
+
+    typify_column_sections(grid, [column], np.zeros(3))
+
+    assert column.dimensions["sides_visible"] == 2
+    assert column.dimensions["section_status"] == "completed_from_2_sides"
+
+
+def test_single_visible_side_is_made_square():
+    # One face fixes one axis only; the other is mirrored so the plan drawing
+    # still gets a closed rectangle.
+    grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "one")])
+    column = _section_column(2.0, 2.0, 0.60, 0.60)
+
+    typify_column_sections(grid, [column], np.zeros(3))
+
+    assert column.dimensions["sides_visible"] == 1
+    assert column.dimensions["section_status"] == "completed_square_1_side"
+    assert abs(column.geometry["sizes"]["length"] - column.geometry["sizes"]["thickness"]) <= 0.005
+
+
+def test_corner_cells_do_not_fake_extra_visible_sides():
+    # Cells of the perpendicular face sit at the ends of this side; they must
+    # not turn a 2-side corner into a 4-side measurement.
+    grid = _section_grid([(2.0, 2.0, 0.40, 0.40, "corner")])
+    column = _section_column(2.0, 2.0, 0.40, 0.40)
+
+    typify_column_sections(grid, [column], np.zeros(3))
+
+    assert column.dimensions["sides_visible"] == 2
+
+
+def test_column_sections_snap_to_shared_types():
+    specs = [
+        (1.0, 1.0, 0.39, 0.39, "all"),
+        (3.0, 1.0, 0.41, 0.40, "all"),
+        (5.0, 1.0, 0.40, 0.41, "corner"),
+        (1.0, 4.0, 0.49, 0.49, "all"),
+        (3.0, 4.0, 0.51, 0.50, "all"),
+        (5.0, 4.0, 0.50, 0.51, "all"),
+    ]
+    grid = _section_grid(specs)
+    columns = [_section_column(*spec[:4]) for spec in specs]
+
+    stats = typify_column_sections(grid, columns, np.zeros(3))
+
+    assert len(stats["column_section_types"]) == 2
+    sizes = {
+        (round(c.geometry["sizes"]["length"], 2), round(c.geometry["sizes"]["thickness"], 2))
+        for c in columns
+    }
+    assert sizes == {(0.40, 0.40), (0.50, 0.50)}
+    assert all(c.dimensions["section_source"] == "nominal" for c in columns)
+    assert all(c.dimensions["section_type"] in {"К1", "К2"} for c in columns)
+
+
+def test_off_type_column_keeps_its_measured_size():
+    specs = [
+        (1.0, 1.0, 0.40, 0.40, "all"),
+        (3.0, 1.0, 0.41, 0.40, "all"),
+        (5.0, 1.0, 0.80, 0.80, "all"),
+    ]
+    grid = _section_grid(specs)
+    columns = [_section_column(*spec[:4]) for spec in specs]
+
+    stats = typify_column_sections(grid, columns, np.zeros(3))
+
+    assert len(stats["column_section_types"]) == 1
+    big = columns[2]
+    assert big.dimensions["section_source"] == "measured"
+    assert big.dimensions["section_status"] == "unique_section"
+    assert abs(big.geometry["sizes"]["length"] - 0.80) <= 0.01
+
+
+def test_typification_keeps_the_measured_section_as_evidence():
+    specs = [(1.0, 1.0, 0.39, 0.41, "all"), (3.0, 1.0, 0.41, 0.39, "all")]
+    grid = _section_grid(specs)
+    columns = [_section_column(*spec[:4]) for spec in specs]
+
+    typify_column_sections(grid, columns, np.zeros(3))
+
+    for column, spec in zip(columns, specs):
+        measured = column.dimensions["measured_section_m"]
+        assert measured == [round(spec[2], 3), round(spec[3], 3)]
+        assert column.dimensions["section_residual_mm"] >= 0
+
+
+def _column_cloud(length: float, thickness: float, tmp_path) -> CloudGeometry:
+    """Hollow rectangular column as a point cloud (four faces, 1 cm sampling)."""
+    rng = np.random.default_rng(3)
+    along = np.arange(-length / 2, length / 2 + 1e-9, 0.01)
+    across = np.arange(-thickness / 2, thickness / 2 + 1e-9, 0.01)
+    faces = []
+    for z in (0.5, 1.0, 1.5, 2.0):
+        for x in (-length / 2, length / 2):
+            faces.append(np.column_stack([np.full(across.size, x), across, np.full(across.size, z)]))
+        for y in (-thickness / 2, thickness / 2):
+            faces.append(np.column_stack([along, np.full(along.size, y), np.full(along.size, z)]))
+    points = np.vstack(faces)
+    points = points + rng.normal(0.0, 0.004, points.shape)
+    path = tmp_path / "positions.npy"
+    np.save(path, points.astype(np.float32))
+    return CloudGeometry(
+        positions_path=path,
+        origin=np.zeros(3),
+        bbox_min=np.array([-0.5, -0.5, 0.0]),
+        bbox_max=np.array([0.5, 0.5, 2.5]),
+        count=int(points.shape[0]),
+    )
+
+
+def test_section_is_measured_from_points_not_grid_cells(tmp_path):
+    # The occupancy grid found this column as 0.50 x 0.30 (cell steps); the
+    # points say 0.42 x 0.21. The drawn section must follow the points.
+    geom = _column_cloud(0.42, 0.21, tmp_path)
+    column = _section_column(0.0, 0.0, 0.50, 0.30)
+
+    measured = measure_column_sections(geom, [column])
+
+    record = measured[0]
+    assert abs(record["length"] - 0.42) <= 0.03
+    assert abs(record["thickness"] - 0.21) <= 0.03
+    assert record["faces_along"] == 2
+    assert record["faces_across"] == 2
+    assert abs(math.sin(2 * record["angle"])) <= 0.10
+
+
+def test_point_measurement_feeds_the_type_size(tmp_path):
+    geom = _column_cloud(0.42, 0.21, tmp_path)
+    column = _section_column(0.0, 0.0, 0.50, 0.30)
+    sibling = _section_column(0.0, 0.0, 0.50, 0.30)
+    measured = measure_column_sections(geom, [column])
+
+    # Two columns of the same real size: with point measurements they land in
+    # ONE type, and the coarse 0.50 x 0.30 footprint is replaced.
+    stats = typify_column_sections(
+        _section_grid([]), [column, sibling], np.zeros(3), {0: measured[0], 1: measured[0]}
+    )
+
+    assert len(stats["column_section_types"]) == 1
+    assert abs(column.geometry["sizes"]["length"] - 0.42) <= 0.03
+    assert abs(column.geometry["sizes"]["thickness"] - 0.21) <= 0.03
 
 
 def test_slices_do_not_invent_bracing_from_uniform_clutter():

@@ -240,3 +240,77 @@ def draw_spds_dimension_chain(
                 t = msp.add_text(text_str, dxfattribs={"layer": "SPDS-DIMS", "height": th, "rotation": 90})
                 t.dxf.halign = 1
                 t.dxf.align_point = (line_coord + th * 0.3, mid_val, 0.0)
+
+
+def draw_spds_level_mark(
+    msp: Any,
+    x: float,
+    y: float,
+    level_str: str,
+    scale_factor: float = 1.0,
+    shelf_dir: int = 1,  # 1 for right, -1 for left
+) -> None:
+    """Draw standard SPDS elevation mark (ГОСТ 21.101-2020, 45-deg open arrow with shelf)."""
+    arrow_size = 0.003 * scale_factor  # 3 mm on sheet
+    shelf_len = 0.015 * scale_factor   # 15 mm on sheet
+    th = 0.0025 * scale_factor        # 2.5 mm font height
+
+    # 45 deg arrow lines down to (x, y)
+    p_tip = (x, y, 0.0)
+    p_top_shelf = (x, y + arrow_size, 0.0)
+    p_left_wing = (x - arrow_size * 0.707, y + arrow_size, 0.0)
+    p_right_wing = (x + arrow_size * 0.707, y + arrow_size, 0.0)
+
+    # V-arrow
+    msp.add_line(p_tip, p_left_wing, dxfattribs={"layer": "SPDS-DIMS"})
+    msp.add_line(p_tip, p_right_wing, dxfattribs={"layer": "SPDS-DIMS"})
+    msp.add_line(p_left_wing, p_right_wing, dxfattribs={"layer": "SPDS-DIMS"})
+
+    # Vertical stem & horizontal shelf
+    p_shelf_end = (x + shelf_dir * shelf_len, y + arrow_size, 0.0)
+    msp.add_line(p_top_shelf, p_shelf_end, dxfattribs={"layer": "SPDS-DIMS"})
+
+    # Elevation text above shelf
+    t = msp.add_text(level_str, dxfattribs={"layer": "SPDS-DIMS", "height": th})
+    if shelf_dir > 0:
+        t.dxf.halign = 0  # Left
+        t.dxf.align_point = (x + 0.001 * scale_factor, y + arrow_size + th * 0.3, 0.0)
+    else:
+        t.dxf.halign = 2  # Right
+        t.dxf.align_point = (x - 0.001 * scale_factor, y + arrow_size + th * 0.3, 0.0)
+
+
+def draw_spds_leader_mark(
+    msp: Any,
+    target_x: float,
+    target_y: float,
+    mark_text: str,
+    scale_factor: float = 1.0,
+    offset_dx: float = 2.0,
+    offset_dy: float = 2.0,
+) -> None:
+    """Draw leader line with dot and horizontal shelf for element mark (e.g. К-1, ФС-1)."""
+    shelf_len = 0.012 * scale_factor
+    th = 0.0025 * scale_factor
+
+    p0 = (target_x, target_y, 0.0)
+    p1 = (target_x + offset_dx, target_y + offset_dy, 0.0)
+    shelf_dir = 1 if offset_dx >= 0 else -1
+    p2 = (p1[0] + shelf_dir * shelf_len, p1[1], 0.0)
+
+    # Leader lines
+    msp.add_line(p0, p1, dxfattribs={"layer": "SPDS-DIMS"})
+    msp.add_line(p1, p2, dxfattribs={"layer": "SPDS-DIMS"})
+
+    # Small dot at target
+    dot_r = 0.0008 * scale_factor
+    msp.add_circle(p0, radius=dot_r, dxfattribs={"layer": "SPDS-DIMS"})
+
+    # Text above shelf
+    t = msp.add_text(mark_text, dxfattribs={"layer": "SPDS-DIMS", "height": th})
+    if shelf_dir > 0:
+        t.dxf.halign = 0
+        t.dxf.align_point = (p1[0] + 0.001 * scale_factor, p1[1] + th * 0.3, 0.0)
+    else:
+        t.dxf.halign = 2
+        t.dxf.align_point = (p1[0] - 0.001 * scale_factor, p1[1] + th * 0.3, 0.0)

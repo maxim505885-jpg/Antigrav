@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import numpy as np
 
@@ -242,6 +242,164 @@ def _first(data: dict, *names: str) -> np.ndarray | None:
     return None
 
 
+def iter_e57_chunks(
+    path: str | Path,
+    chunk_points: int = 1_000_000,
+    progress: Progress = None,
+) -> Iterator[tuple[np.ndarray, np.ndarray | None, np.ndarray | None]]:
+    """Yield bounded E57 point chunks transformed into the source-world frame.
+
+    The pye57 high-level ``read_scan`` allocates an array for an entire scan.
+    Its lower-level compressed-vector reader accepts fixed-capacity NumPy
+    buffers, so this iterator keeps point memory proportional to
+    ``chunk_points``. Current pye57/libE57Format builds can read sequential
+    chunks but may not implement ``CompressedVectorReader.seek``; callers that
+    resume a checkpoint must replay the committed prefix from the start.
+    """
+    if chunk_points <= 0:
+        raise ValueError("chunk_points must be a positive integer")
+    try:
+        import pye57
+        from pye57.e57 import COORDINATE_SYSTEMS
+        from pye57.utils import convert_spherical_to_cartesian
+    except ImportError as exc:  # pragma: no cover - dependency missing
+        raise UnsupportedFormat("pye57 is not installed; install it to read E57 files") from exc
+
+    try:
+        e57 = pye57.E57(str(path))
+    except Exception as exc:
+        raise FormatError(f"cannot open E57 file: {exc}") from exc
+
+    try:
+        scan_count = int(e57.scan_count)
+        headers = [e57.get_header(index) for index in range(scan_count)]
+        total_points = sum(int(header.point_count) for header in headers)
+        points_read = 0
+        for scan_index, header in enumerate(headers):
+            try:
+                coordinate_system = header.get_coordinate_system(COORDINATE_SYSTEMS)
+                coordinate_fields = list(coordinate_system.value)
+            except Exception as exc:
+                raise FormatError(f"E57 scan {scan_index} has unsupported coordinates: {exc}") from exc
+
+            valid_field = (
+                "cartesianInvalidState"
+                if coordinate_system is COORDINATE_SYSTEMS.CARTESIAN
+                else "sphericalInvalidState"
+            )
+            fields = coordinate_fields.copy()
+            if "intensity" in header.point_fields:
+                fields.append("intensity")
+            color_fields = ("colorRed", "colorGreen", "colorBlue")
+            has_color = all(name in header.point_fields for name in color_fields)
+            if has_color:
+                fields.extend(color_fields)
+            if valid_field in header.point_fields:
+                fields.append(valid_field)
+
+            arrays, buffers = e57.make_buffers(fields, chunk_points)
+            reader = header.node["points"].reader(buffers)
+            scan_read = 0
+            try:
+                while True:
+                    count = int(reader.read(buffers))
+                    if count <= 0:
+                        break
+                    if coordinate_system is COORDINATE_SYSTEMS.CARTESIAN:
+                        xyz = np.column_stack(
+                            [arrays["cartesianX"][:count], arrays["cartesianY"][:count], arrays["cartesianZ"][:count]]
+                        ).astype(np.float64, copy=False)
+                    else:
+                        spherical = np.column_stack(
+                            [arrays["sphericalRange"][:count], arrays["sphericalAzimuth"][:count], arrays["sphericalElevation"][:count]]
+                        )
+                        xyz = convert_spherical_to_cartesian(spherical)
+                    if header.has_pose():
+                        xyz = e57.to_global(xyz, header.rotation, header.translation)
+
+                    keep = np.isfinite(xyz).all(axis=1)
+                    if valid_field in arrays:
+                        keep &= ~arrays[valid_field][:count].astype(bool)
+                    xyz = xyz[keep]
+                    rgb = None
+                    if has_color:
+                        colors = np.column_stack([arrays[name][:count] for name in color_fields])
+                        rgb = normalize_rgb(colors[keep])
+                    intensity = None
+                    if "intensity" in arrays:
+                        intensity = np.asarray(arrays["intensity"][:count][keep], dtype=np.float32)
+
+                    scan_read += count
+                    points_read += count
+                    if progress:
+                        progress(
+                            0.05 + 0.85 * min(1.0, points_read / max(1, total_points)),
+                            f"чтение E57 блоками: скан {scan_index + 1}/{scan_count}, {scan_read:,}/{header.point_count:,}",
+                        )
+                    if len(xyz):
+                        yield xyz, rgb, intensity
+            except Exception as exc:
+                if isinstance(exc, (FormatError, UnsupportedFormat)):
+                    raise
+                raise FormatError(f"E57 scan {scan_index} could not be streamed: {exc}") from exc
+            finally:
+                reader.close()
+    finally:
+        try:
+            e57.close()
+        except Exception:
+            pass
+
+
+def e57_stream_info(path: str | Path) -> dict[str, Any]:
+    """Read small E57 headers only, without materializing scan point arrays."""
+    try:
+        import pye57
+        from pye57.e57 import COORDINATE_SYSTEMS
+    except ImportError as exc:  # pragma: no cover - dependency missing
+        raise UnsupportedFormat("pye57 is not installed; install it to read E57 files") from exc
+    try:
+        e57 = pye57.E57(str(path))
+    except Exception as exc:
+        raise FormatError(f"cannot open E57 file: {exc}") from exc
+    try:
+        scans = []
+        for index in range(int(e57.scan_count)):
+            header = e57.get_header(index)
+            try:
+                coordinate_system = header.get_coordinate_system(COORDINATE_SYSTEMS).name.lower()
+            except Exception as exc:
+                raise FormatError(f"E57 scan {index} has unsupported coordinates: {exc}") from exc
+            scans.append(
+                {
+                    "index": index,
+                    "point_count": int(header.point_count),
+                    "guid": str(getattr(header, "guid", "") or ""),
+                    "name": str(getattr(header, "name", "") or ""),
+                    "coordinate_system": coordinate_system,
+                    "has_color": all(
+                        name in header.point_fields for name in ("colorRed", "colorGreen", "colorBlue")
+                    ),
+                    "has_intensity": "intensity" in header.point_fields,
+                }
+            )
+        if not scans:
+            raise FormatError("E57 file contains no readable scans")
+        return {
+            "reader": "pye57",
+            "scan_count": len(scans),
+            "source_point_count": sum(scan["point_count"] for scan in scans),
+            "scans": scans,
+            "has_color": all(scan["has_color"] for scan in scans),
+            "has_intensity": all(scan["has_intensity"] for scan in scans),
+        }
+    finally:
+        try:
+            e57.close()
+        except Exception:
+            pass
+
+
 def read_e57(path: Path, max_points: int, progress: Progress = None) -> RawCloud:
     try:
         import pye57
@@ -412,6 +570,78 @@ def read_las(path: Path, max_points: int, progress: Progress = None) -> RawCloud
         raise
     except Exception as exc:
         raise FormatError(f"cannot read LAS/LAZ file: {exc}") from exc
+
+
+def las_stream_info(path: str | Path) -> dict[str, Any]:
+    """Read LAS/LAZ header fields without materializing point records."""
+    try:
+        import laspy
+    except ImportError as exc:  # pragma: no cover
+        raise UnsupportedFormat("laspy is not installed; install it to read LAS/LAZ") from exc
+    try:
+        with laspy.open(str(path)) as fh:
+            header = fh.header
+            dims = set(header.point_format.dimension_names)
+            return {
+                "reader": "laspy",
+                "source_point_count": int(header.point_count),
+                "las_version": str(header.version),
+                "point_format": int(header.point_format.id),
+                "has_color": {"red", "green", "blue"} <= dims,
+                "has_intensity": "intensity" in dims,
+                "crs": str(header.parse_crs()) if header.parse_crs() else None,
+            }
+    except UnsupportedFormat:
+        raise
+    except Exception as exc:
+        raise FormatError(f"cannot read LAS/LAZ header: {exc}") from exc
+
+
+def iter_las_chunks(
+    path: str | Path,
+    chunk_points: int = 500_000,
+    progress: Progress = None,
+) -> Iterator[tuple[np.ndarray, np.ndarray | None, np.ndarray | None]]:
+    """Yield bounded world-coordinate LAS/LAZ chunks as XYZ, RGB and intensity."""
+    if chunk_points <= 0:
+        raise ValueError("chunk_points must be positive")
+    try:
+        import laspy
+    except ImportError as exc:  # pragma: no cover
+        raise UnsupportedFormat("laspy is not installed; install it to read LAS/LAZ") from exc
+
+    try:
+        with laspy.open(str(path)) as fh:
+            total = int(fh.header.point_count)
+            dims = set(fh.header.point_format.dimension_names)
+            has_rgb = {"red", "green", "blue"} <= dims
+            has_intensity = "intensity" in dims
+            read = 0
+            for chunk in fh.chunk_iterator(chunk_points):
+                read += len(chunk)
+                xyz = np.column_stack([chunk.x, chunk.y, chunk.z]).astype(np.float64, copy=False)
+                finite = np.isfinite(xyz).all(axis=1)
+                if not finite.any():
+                    if progress:
+                        progress(min(1.0, read / max(1, total)), "reading LAS/LAZ")
+                    continue
+                xyz = xyz[finite]
+                rgb = None
+                if has_rgb:
+                    values = np.column_stack([chunk.red, chunk.green, chunk.blue])
+                    if values.size and values.max() > 255:
+                        values = values / 256.0
+                    rgb = np.clip(values[finite], 0, 255).astype(np.uint8)
+                intensity = None
+                if has_intensity:
+                    intensity = np.asarray(chunk.intensity, dtype=np.float32)[finite]
+                if progress:
+                    progress(min(1.0, read / max(1, total)), "reading LAS/LAZ")
+                yield xyz, rgb, intensity
+    except (FormatError, UnsupportedFormat):
+        raise
+    except Exception as exc:
+        raise FormatError(f"cannot read LAS/LAZ stream: {exc}") from exc
 
 
 def read_ply(path: Path, max_points: int, progress: Progress = None) -> RawCloud:

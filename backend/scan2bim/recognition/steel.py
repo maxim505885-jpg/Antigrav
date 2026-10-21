@@ -81,6 +81,23 @@ TRUSS_MAX_SECTION_FILL = 0.35
 BAND_CAP_POINTS = 3_000_000
 HOUGH_SEED = 20261020
 
+# Column section completion and typification. A scan measures each column with
+# noise and occlusion, while a yard fabricates a handful of standard sizes.
+# Two visible sides (adjacent or opposite) fully determine a rectangular
+# section; one visible side determines only one axis.
+# Sections are measured from the POINTS on a local 2 cm raster: the 0.10 m
+# occupancy grid that finds the columns cannot size them (one-cell steps make
+# a hall of identical columns read as 0.4..0.9 m) and its PCA puts the
+# orientation 10 deg off.
+COLUMN_MEASURE_RES = 0.02
+COLUMN_MEASURE_CELL_MIN = 2
+COLUMN_MEASURE_MIN_POINTS = 60
+COLUMN_SIDE_BAND_CELLS = 1.5
+COLUMN_SIDE_MIN_COVERAGE = 0.50
+COLUMN_SECTION_TOLERANCE_M = 0.05
+COLUMN_SECTION_MAX_RESIDUAL_M = 0.12
+COLUMN_NOMINAL_ROUND_M = 0.005
+
 # Column typing.
 COLUMN_TYPE_SOLID = "rectangular_solid"
 COLUMN_TYPE_BUILT_UP = "built_up"
@@ -924,6 +941,12 @@ def _detect_trusses(
             if DIAGONAL_MIN_DEG <= min(s["angle_deg"], 180 - s["angle_deg"]) <= DIAGONAL_MAX_DEG
             and s["length"] >= BRACE_MIN_DIAGONAL_M
         ]
+        # Merge collinear diagonal fragments for the SAME reason as chords and
+        # posts: one brace leaves the Hough as several overlapping 1-3 m pieces,
+        # and emitting every piece puts three or four braces where the hall has
+        # one (they overlap, so they are not different members).
+        merged_d = [_group_line(g) for g in _group_segments(diagonals)]
+        merged_d = [m for m in merged_d if m[2] >= BRACE_MIN_DIAGONAL_M]
         # Merge collinear fragments: a scanned chord comes out of the Hough as
         # 1-3 m pieces with gaps; its real length is the merged extent.
         merged_h: list[tuple[np.ndarray, np.ndarray, float]] = [
@@ -1000,7 +1023,7 @@ def _detect_trusses(
                         "top_chord_z": round(top_z + float(geom.origin[2]), 3),
                         "bottom_chord_z": round(bot_z + float(geom.origin[2]), 3),
                         "panels": len(posts),
-                        "diagonals": len(diagonals),
+                        "diagonals": len(merged_d),
                         "section_fill": round(fill, 3),
                     },
                     metadata={
@@ -1015,11 +1038,13 @@ def _detect_trusses(
             )
             stats["truss_count"] += 1
             planes_meta.append({"u": plane_world_u, "kind": "truss", "span": span, "posts": len(posts)})
-        elif diagonals and len(diagonals) >= 2 and fill <= 0.5 and not has_chords:
+        elif len(merged_d) >= 2 and fill <= 0.5 and not has_chords:
             # Vertical bracing plane between trusses: emit diagonal members.
-            for diag in diagonals:
-                v0, z0d = diag["p0"]
-                v1, z1d = diag["p1"]
+            for center_vz, dir_vz, diag_length in merged_d:
+                v0 = float(center_vz[0] - dir_vz[0] * diag_length / 2)
+                z0d = float(center_vz[1] - dir_vz[1] * diag_length / 2)
+                v1 = float(center_vz[0] + dir_vz[0] * diag_length / 2)
+                z1d = float(center_vz[1] + dir_vz[1] * diag_length / 2)
                 p0 = np.array(
                     [
                         center2[0] + direction[0] * plane_u + normal[0] * v0,
@@ -1040,12 +1065,17 @@ def _detect_trusses(
                         section_m=0.15,
                         role="brace",
                         orientation="vertical",
-                        confidence=0.35 + 0.05 * min(1.0, diag["length"] / 4.0),
-                        method="inter-truss (v,z) section Hough, diagonal without chords",
+                        confidence=0.35 + 0.05 * min(1.0, diag_length / 4.0),
+                        method=(
+                            "inter-truss (v,z) section Hough, collinear diagonal "
+                            "fragments merged, diagonal without chords"
+                        ),
                     )
                 )
                 stats["brace_vertical"] += 1
-            planes_meta.append({"u": plane_world_u, "kind": "bracing", "diagonals": len(diagonals)})
+            planes_meta.append(
+                {"u": plane_world_u, "kind": "bracing", "diagonals": len(merged_d)}
+            )
     return elements, planes_meta, stats
 
 
@@ -1212,6 +1242,463 @@ def classify_column_sections(
     return {"columns_typed": typed, "column_types": distribution}
 
 
+def measure_column_sections(
+    geom: CloudGeometry,
+    columns: list[DetectedElement],
+) -> dict[int, dict[str, Any]]:
+    """Measure every column section from the cloud points at 2 cm.
+
+    One extra streaming pass fills a local raster per column (windows are
+    sparse, so most points are rejected by a 0.5 m cell lookup). The section
+    is then measured on that raster: weighted PCA for the orientation, 1/99
+    percentiles for the two outer dimensions, and side support for completing
+    a partially scanned rectangle. Returns one record per column index.
+    """
+    if not columns:
+        return {}
+    res = COLUMN_MEASURE_RES
+    minx = float(geom.bbox_min[0] - geom.origin[0])
+    miny = float(geom.bbox_min[1] - geom.origin[1])
+    coarse = 0.5
+    ncx = int(math.ceil((float(geom.bbox_max[0] - geom.origin[0]) - minx) / coarse)) + 2
+    ncy = int(math.ceil((float(geom.bbox_max[1] - geom.origin[1]) - miny) / coarse)) + 2
+    owner = np.full(ncx * ncy, -1, dtype=np.int32)
+    windows: list[dict[str, float]] = []
+    for index, element in enumerate(columns):
+        cx = float(element.geometry["center"][0]) - float(geom.origin[0])
+        cy = float(element.geometry["center"][1]) - float(geom.origin[1])
+        length = float(element.dimensions.get("length_m") or 0.2)
+        thickness = float(element.dimensions.get("thickness_m") or 0.2)
+        half = 0.5 * max(length, thickness) + 0.35
+        cells = max(10, int(math.ceil(2.0 * half / res)) + 1)
+        ox = cx - half
+        oy = cy - half
+        windows.append({"ox": ox, "oy": oy, "n": cells, "cx": cx, "cy": cy})
+        ix0 = max(0, int((ox - minx) / coarse))
+        ix1 = min(ncx - 1, int((ox + cells * res - minx) / coarse))
+        iy0 = max(0, int((oy - miny) / coarse))
+        iy1 = min(ncy - 1, int((oy + cells * res - miny) / coarse))
+        for ix in range(ix0, ix1 + 1):
+            for iy in range(iy0, iy1 + 1):
+                flat = ix * ncy + iy
+                if owner[flat] == -1:
+                    owner[flat] = index
+    sizes = [int(w["n"]) ** 2 for w in windows]
+    offsets = np.cumsum([0] + sizes)
+    total_cells = int(offsets[-1])
+    counts = np.zeros(total_cells, dtype=np.int64)
+    ox_arr = np.array([w["ox"] for w in windows], dtype=np.float64)
+    oy_arr = np.array([w["oy"] for w in windows], dtype=np.float64)
+    n_arr = np.array([int(w["n"]) for w in windows], dtype=np.int64)
+    for chunk in _iter_positions(geom.positions_path):
+        x = chunk[:, 0].astype(np.float64)
+        y = chunk[:, 1].astype(np.float64)
+        ix = ((x - minx) / coarse).astype(np.int64)
+        iy = ((y - miny) / coarse).astype(np.int64)
+        inside = (ix >= 0) & (ix < ncx) & (iy >= 0) & (iy < ncy)
+        if not inside.any():
+            continue
+        flat = ix[inside] * ncy + iy[inside]
+        column_index = owner[flat]
+        hit = column_index >= 0
+        if not hit.any():
+            continue
+        column_index = column_index[hit]
+        px = x[inside][hit]
+        py = y[inside][hit]
+        lx = ((px - ox_arr[column_index]) / res).astype(np.int64)
+        ly = ((py - oy_arr[column_index]) / res).astype(np.int64)
+        local = (lx >= 0) & (ly >= 0) & (lx < n_arr[column_index]) & (ly < n_arr[column_index])
+        if not local.any():
+            continue
+        column_index = column_index[local]
+        cell = offsets[column_index] + ly[local] * n_arr[column_index] + lx[local]
+        counts += np.bincount(cell, minlength=total_cells)
+
+    measured: dict[int, dict[str, Any]] = {}
+    for index, window in enumerate(windows):
+        cells = int(window["n"])
+        raster = counts[offsets[index] : offsets[index] + cells * cells].reshape(cells, cells)
+        occupied = raster >= COLUMN_MEASURE_CELL_MIN
+        if int(raster.sum()) < COLUMN_MEASURE_MIN_POINTS or int(occupied.sum()) < 8:
+            continue
+        iy, ix = np.nonzero(occupied)
+        weights = raster[iy, ix].astype(np.float64)
+        xs = (ix + 0.5) * res + float(window["ox"]) - float(window["cx"])
+        ys = (iy + 0.5) * res + float(window["oy"]) - float(window["cy"])
+        weight_sum = float(weights.sum())
+        mx = float((xs * weights).sum() / weight_sum)
+        my = float((ys * weights).sum() / weight_sum)
+        cxx = float((weights * (xs - mx) ** 2).sum() / weight_sum)
+        cyy = float((weights * (ys - my) ** 2).sum() / weight_sum)
+        cxy = float((weights * (xs - mx) * (ys - my)).sum() / weight_sum)
+        angle = 0.5 * math.atan2(2.0 * cxy, cxx - cyy)
+        ca, sa = math.cos(angle), math.sin(angle)
+        along = (xs - mx) * ca + (ys - my) * sa
+        across = -(xs - mx) * sa + (ys - my) * ca
+        # Cell centres, so the measured extent is at most half a cell short of
+        # the outer surface on each side; inflating it by a whole cell instead
+        # made every section 20 mm too large and split one type into many.
+        a0, a1 = (float(v) for v in np.percentile(along, [0.5, 99.5]))
+        c0, c1 = (float(v) for v in np.percentile(across, [0.5, 99.5]))
+        length = max(res, a1 - a0)
+        thickness = max(res, c1 - c0)
+        u_mid = (a0 + a1) / 2
+        v_mid = (c0 + c1) / 2
+        center_x = mx + u_mid * ca - v_mid * sa + float(geom.origin[0])
+        center_y = my + u_mid * sa + v_mid * ca + float(geom.origin[1])
+        faces_along, faces_across = _section_faces(along, across, res, length, thickness)
+        measured[index] = {
+            "center": (center_x, center_y),
+            "angle": angle,
+            "length": length,
+            "thickness": thickness,
+            "faces_along": faces_along,
+            "faces_across": faces_across,
+            "points": int(raster.sum()),
+        }
+
+    # A near-square section has no stable principal direction (PCA on a square
+    # is arbitrary), and a hall builds all its columns on one grid: take the
+    # common orientation from the rectangular columns and use it for those.
+    rectangular = [
+        record for record in measured.values()
+        if abs(record["length"] - record["thickness"]) >= 0.08
+    ]
+    if rectangular:
+        s = sum(math.sin(2 * record["angle"]) for record in rectangular)
+        c = sum(math.cos(2 * record["angle"]) for record in rectangular)
+        if abs(s) + abs(c) > 1e-9:
+            reference = 0.5 * math.atan2(s, c)
+            for record in measured.values():
+                square = abs(record["length"] - record["thickness"]) < 0.08
+                if square or _angle_diff(record["angle"], reference) <= math.radians(20):
+                    record["angle"] = reference
+    return measured
+
+
+def _column_plan_cells(
+    plan_occ: np.ndarray,
+    res: float,
+    min_xy: tuple[float, float],
+    element: DetectedElement,
+    origin: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Occupied plan cells around one column, in the column's own axes.
+
+    ``plan_occ`` is the plan projection of the occupancy raster (one flag per
+    cell, any height). Cells are returned as (along, across) distances from
+    the column centre, so a side can be tested independently of rotation.
+    """
+    nv, nu = int(plan_occ.shape[0]), int(plan_occ.shape[1])
+    center = np.array(element.geometry["center"][:2], dtype=float) - np.array(
+        [float(origin[0]) + min_xy[0], float(origin[1]) + min_xy[1]]
+    )
+    angle = float(element.geometry.get("rotation_z") or 0.0)
+    length = float(element.dimensions.get("length_m") or 0.2)
+    thickness = float(element.dimensions.get("thickness_m") or 0.2)
+    radius = 0.5 * math.hypot(length, thickness) + 3.0 * res
+    ix0 = max(0, int(math.floor((center[0] - radius) / res)))
+    ix1 = min(nu, int(math.floor((center[0] + radius) / res)) + 1)
+    iy0 = max(0, int(math.floor((center[1] - radius) / res)))
+    iy1 = min(nv, int(math.floor((center[1] + radius) / res)) + 1)
+    if ix1 <= ix0 or iy1 <= iy0:
+        return np.zeros(0, dtype=float), np.zeros(0, dtype=float)
+    iy, ix = np.nonzero(plan_occ[iy0:iy1, ix0:ix1])
+    if len(ix) == 0:
+        return np.zeros(0, dtype=float), np.zeros(0, dtype=float)
+    xs = (ix0 + ix + 0.5) * res
+    ys = (iy0 + iy + 0.5) * res
+    ca, sa = math.cos(angle), math.sin(angle)
+    dx = xs - center[0]
+    dy = ys - center[1]
+    along = dx * ca + dy * sa
+    across = -dx * sa + dy * ca
+    margin = 2.0 * res
+    keep = (np.abs(along) <= length / 2 + margin) & (np.abs(across) <= thickness / 2 + margin)
+    return along[keep], across[keep]
+
+
+def _side_visible(
+    primary: np.ndarray,
+    secondary: np.ndarray,
+    edge: float,
+    band: float,
+    res: float,
+    expected: float,
+) -> bool:
+    """True when one section side is actually scanned.
+
+    The middle of the side is required: cells belonging to the PERPENDICULAR
+    face lie at this side's extreme and would otherwise make a corner look
+    like three or four visible sides.
+    """
+    near = np.abs(primary - edge) <= band
+    if not near.any():
+        return False
+    sec = secondary[near]
+    slots = np.unique(np.round(sec / res).astype(np.int64))
+    if len(slots) < COLUMN_SIDE_MIN_COVERAGE * max(1.0, expected / res):
+        return False
+    lo, hi = float(secondary.min()), float(secondary.max())
+    if hi - lo <= res:
+        return True
+    mid_lo = lo + 0.30 * (hi - lo)
+    mid_hi = hi - 0.30 * (hi - lo)
+    return bool(((sec >= mid_lo) & (sec <= mid_hi)).any())
+
+
+def _section_faces(
+    along: np.ndarray,
+    across: np.ndarray,
+    res: float,
+    length: float,
+    thickness: float,
+) -> tuple[int, int]:
+    """How many of the two faces are visible per section axis."""
+    if len(along) == 0:
+        return 0, 0
+    band = COLUMN_SIDE_BAND_CELLS * res
+    along0, along1 = float(along.min()), float(along.max())
+    across0, across1 = float(across.min()), float(across.max())
+    faces_along = int(_side_visible(along, across, along0, band, res, thickness)) + int(
+        _side_visible(along, across, along1, band, res, thickness)
+    )
+    faces_across = int(_side_visible(across, along, across0, band, res, length)) + int(
+        _side_visible(across, along, across1, band, res, length)
+    )
+    # One cell row cannot show two opposite faces: both "sides" would be the
+    # same cells, and an occluded axis would look fully measured.
+    if along1 - along0 <= 1.5 * res:
+        faces_along = min(faces_along, 1)
+    if across1 - across0 <= 1.5 * res:
+        faces_across = min(faces_across, 1)
+    return faces_along, faces_across
+
+
+def _cluster_sections(
+    sizes: list[tuple[float, float]],
+    tolerance: float,
+) -> list[list[tuple[float, float]]]:
+    """Group measured sections whose two dimensions agree within tolerance."""
+    clusters: list[list[tuple[float, float]]] = []
+    for size in sizes:
+        for cluster in clusters:
+            rep_l = float(np.median([s[0] for s in cluster]))
+            rep_t = float(np.median([s[1] for s in cluster]))
+            if abs(size[0] - rep_l) <= tolerance and abs(size[1] - rep_t) <= tolerance:
+                cluster.append(size)
+                break
+        else:
+            clusters.append([size])
+    # A later member moves a cluster's median towards its neighbour; merge
+    # clusters until the set is stable, othwerwise one physical size splits in two.
+    merged = True
+    while merged and len(clusters) > 1:
+        merged = False
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                li = float(np.median([s[0] for s in clusters[i]]))
+                ti = float(np.median([s[1] for s in clusters[i]]))
+                lj = float(np.median([s[0] for s in clusters[j]]))
+                tj = float(np.median([s[1] for s in clusters[j]]))
+                if abs(li - lj) <= tolerance and abs(ti - tj) <= tolerance:
+                    clusters[i].extend(clusters.pop(j))
+                    merged = True
+                    break
+            if merged:
+                break
+    return clusters
+
+
+def _apply_column_section(element: DetectedElement, length: float, thickness: float) -> None:
+    """Rewrite the column footprint to the completed / nominal section."""
+    angle = float(element.geometry.get("rotation_z") or 0.0)
+    center = element.geometry["center"]
+    ca, sa = math.cos(angle), math.sin(angle)
+    corners = []
+    for lx, ly in (
+        (-length / 2, -thickness / 2),
+        (length / 2, -thickness / 2),
+        (length / 2, thickness / 2),
+        (-length / 2, thickness / 2),
+    ):
+        corners.append((center[0] + lx * ca - ly * sa, center[1] + lx * sa + ly * ca))
+    xs = [c[0] for c in corners]
+    ys = [c[1] for c in corners]
+    element.geometry.setdefault("sizes", {})
+    element.geometry["sizes"]["length"] = round(length, 3)
+    element.geometry["sizes"]["thickness"] = round(thickness, 3)
+    element.dimensions["length_m"] = round(length, 3)
+    element.dimensions["thickness_m"] = round(thickness, 3)
+    element.dimensions["footprint_area_m2"] = round(length * thickness, 3)
+    element.bbox["min"][0] = round(min(xs), 3)
+    element.bbox["min"][1] = round(min(ys), 3)
+    element.bbox["max"][0] = round(max(xs), 3)
+    element.bbox["max"][1] = round(max(ys), 3)
+
+
+def typify_column_sections(
+    grid: dict[str, Any],
+    columns: list[DetectedElement],
+    origin: np.ndarray,
+    measured: dict[int, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Complete partially seen column sections and snap them to shared sizes.
+
+    Two visible sides determine a rectangular section, so such a column is
+    drawn as a full rectangle even when the other two sides were never
+    scanned. One visible side fixes a single axis only, and those are made
+    square and then corrected by the type size. Measured sizes are always
+    kept as evidence; the drawn size comes from the type.
+    """
+    if not columns:
+        return {"column_section_types": [], "column_sections_total": 0}
+    res = float(grid["res"])
+    plan_occ = grid["band_occ"].any(axis=0)
+    min_xy = (float(grid["min"][0]), float(grid["min"][1]))
+    measurements: list[dict[str, Any]] = []
+    for index, element in enumerate(columns):
+        record = measured.get(index) if measured else None
+        if record is not None:
+            length = float(record["length"])
+            thickness = float(record["thickness"])
+            faces_along = int(record["faces_along"])
+            faces_across = int(record["faces_across"])
+            # Refined geometry from the points: the coarse grid centre and its
+            # PCA angle are off by up to a cell and ten degrees.
+            element.geometry["center"][0] = round(float(record["center"][0]), 4)
+            element.geometry["center"][1] = round(float(record["center"][1]), 4)
+            element.geometry["rotation_z"] = round(float(record["angle"]), 5)
+        else:
+            length = float(element.dimensions.get("length_m") or 0.0)
+            thickness = float(element.dimensions.get("thickness_m") or 0.0)
+            if length <= 0 or thickness <= 0:
+                continue
+            along, across = _column_plan_cells(plan_occ, res, min_xy, element, origin)
+            faces_along, faces_across = _section_faces(along, across, res, length, thickness)
+        visible = faces_along + faces_across
+        completed_length, completed_thickness = length, thickness
+        if visible == 4:
+            status = "measured_4_sides"
+        elif visible == 3:
+            status = "measured_3_sides"
+        elif visible == 2:
+            status = "completed_from_2_sides"
+        elif visible == 1:
+            # One face fixes one axis; mirror it. A face perpendicular to the
+            # ALONG axis is seen as its extent on ACROSS (that dimension is the
+            # reliable one) while the along extent collapses to the face
+            # thickness. Steel columns are square in plan far more often than
+            # not, and the type stage corrects the size as soon as a
+            # neighbouring column is measured on two sides.
+            if faces_along and not faces_across:
+                completed_length = thickness
+            else:
+                completed_thickness = length
+            status = "completed_square_1_side"
+            # The completed square is drawn even when no type size exists yet.
+            _apply_column_section(element, completed_length, completed_thickness)
+        else:
+            status = "unconfirmed"
+        element.dimensions["sides_visible"] = visible
+        element.dimensions["section_status"] = status
+        element.dimensions["measured_section_m"] = [round(length, 3), round(thickness, 3)]
+        measurements.append(
+            {
+                "element": element,
+                "length": completed_length,
+                "thickness": completed_thickness,
+                "sides": visible,
+                "status": status,
+            }
+        )
+
+    reliable = [(m["length"], m["thickness"]) for m in measurements if m["sides"] >= 2]
+    clusters = _cluster_sections(reliable, COLUMN_SECTION_TOLERANCE_M) if reliable else []
+    # A size seen on ONE column is an outlier (mis-measurement or a genuinely
+    # single column), not a hall type: it cannot define a nominal size.
+    clusters = [cluster for cluster in clusters if len(cluster) >= 2]
+    clusters.sort(key=lambda c: (-len(c), -float(np.median([s[0] for s in c]))))
+    types: list[dict[str, Any]] = []
+    for index, members in enumerate(clusters):
+        nominal_length = (
+            round(float(np.median([s[0] for s in members])) / COLUMN_NOMINAL_ROUND_M)
+            * COLUMN_NOMINAL_ROUND_M
+        )
+        nominal_thickness = (
+            round(float(np.median([s[1] for s in members])) / COLUMN_NOMINAL_ROUND_M)
+            * COLUMN_NOMINAL_ROUND_M
+        )
+        types.append(
+            {
+                "id": f"К{index + 1}",
+                "length": nominal_length,
+                "thickness": nominal_thickness,
+                "assigned": 0,
+            }
+        )
+
+    snapped = 0
+    unique = 0
+    for m in measurements:
+        element = m["element"]
+        length = float(m["length"])
+        thickness = float(m["thickness"])
+        best = None
+        best_residual = None
+        for column_type in types:
+            residual = max(
+                abs(length - column_type["length"]),
+                abs(thickness - column_type["thickness"]),
+            )
+            if best_residual is None or residual < best_residual:
+                best, best_residual = column_type, residual
+        if best is not None and best_residual is not None and best_residual <= COLUMN_SECTION_MAX_RESIDUAL_M:
+            _apply_column_section(element, best["length"], best["thickness"])
+            best["assigned"] += 1
+            element.dimensions["section_type"] = best["id"]
+            element.dimensions["section_type_label"] = (
+                f"{int(round(best['length'] * 1000))}×{int(round(best['thickness'] * 1000))} мм"
+            )
+            element.dimensions["section_residual_mm"] = int(round(best_residual * 1000))
+            element.dimensions["section_source"] = "nominal"
+            snapped += 1
+        else:
+            # Nothing in this hall matches: keep what was measured instead of
+            # forcing a size the scan does not support.
+            element.dimensions["section_source"] = "measured"
+            if types and m["status"] != "unconfirmed":
+                element.dimensions["section_status"] = "unique_section"
+            unique += 1
+
+    return {
+        "column_section_types": [
+            {
+                "id": t["id"],
+                "length_m": round(t["length"], 3),
+                "thickness_m": round(t["thickness"], 3),
+                "label_mm": (
+                    f"{int(round(t['length'] * 1000))}×{int(round(t['thickness'] * 1000))}"
+                ),
+                "count": t["assigned"],
+            }
+            for t in types
+            if t["assigned"]
+        ],
+        "column_sections_total": len(measurements),
+        "column_sections_snapped": snapped,
+        "column_sections_unique": unique,
+        "column_sections_from_two_sides": sum(
+            1 for m in measurements if m["status"] == "completed_from_2_sides"
+        ),
+        "column_sections_square_completed": sum(
+            1 for m in measurements if m["status"] == "completed_square_1_side"
+        ),
+        "column_section_tolerance_m": COLUMN_SECTION_TOLERANCE_M,
+    }
+
+
 _GRID_STATE: dict[str, float] = {}
 
 
@@ -1269,8 +1756,32 @@ def detect_structural_frame(
     else:
         warnings.append("Фермы и связи не распознаны: ось зала не определена.")
 
+    # Sections are measured from the points (2 cm local raster), completed by
+    # their visible sides and snapped to shared type sizes. This runs BEFORE
+    # the area-profile typing so that stage sees the final footprint.
     if progress:
-        progress(0.96, "типизация сечений колонн")
+        progress(0.955, "измерение сечений колонн по точкам")
+    measured_sections = measure_column_sections(geom, columns)
+    if progress:
+        progress(0.965, "типоразмеры сечений колонн")
+    sections = typify_column_sections(grid, columns, geom.origin, measured_sections)
+    stats.update(sections)
+    if sections.get("column_section_types"):
+        labels = ", ".join(
+            f"{t['id']} {t['label_mm']} мм — {t['count']} шт"
+            for t in sections["column_section_types"]
+        )
+        warnings.append(
+            f"Сечения колонн сведены к {len(sections['column_section_types'])} "
+            f"типоразмерам (допуск {int(sections['column_section_tolerance_m'] * 1000)} мм): "
+            f"{labels}. Достроено по двум видимым сторонам: "
+            f"{sections['column_sections_from_two_sides']}, по одной стороне (принято "
+            f"квадратным): {sections['column_sections_square_completed']}; не совпало с "
+            f"типами и оставлено измеренным: {sections['column_sections_unique']}."
+        )
+
+    if progress:
+        progress(0.97, "типизация сечений колонн")
     typing = classify_column_sections(grid, columns, geom.origin)
     stats.update(typing)
 
