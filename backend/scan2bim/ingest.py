@@ -25,6 +25,10 @@ PREVIEW_DTYPE = np.dtype(
 INGEST_CHECKPOINT_VERSION = 1
 
 
+class CheckpointSourceChanged(ValueError):
+    """The source no longer matches the source for a complete ingest checkpoint."""
+
+
 def _save_npy_atomic(path: Path, array: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # np.save appends .npy when the suffix differs, so keep .npy at the end.
@@ -105,13 +109,13 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
             return None
         identity = manifest["source_identity"]
         if identity.get("path") != str(source_path.resolve()):
-            return None
+            raise CheckpointSourceChanged("source changed since ingest checkpoint: source path differs")
         current_identity = _source_identity(source_path)
         # Once a complete, checksummed derived package exists, finalization no
         # longer depends on the source still being present. If it is present,
         # however, its recorded identity must still match.
         if not current_identity.get("missing") and current_identity != identity:
-            return None
+            raise CheckpointSourceChanged("source changed since ingest checkpoint: file identity differs")
         records = manifest["files"]
         for key, record in records.items():
             if key not in {"positions", "colors", "intensity", "preview", "meta"}:
@@ -123,6 +127,8 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
         if not {"positions", "preview", "meta"} <= set(records):
             return None
         return manifest
+    except CheckpointSourceChanged:
+        raise
     except (OSError, ValueError, KeyError, TypeError):
         return None
 

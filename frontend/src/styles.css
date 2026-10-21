@@ -1,19 +1,50 @@
 :root {
   color-scheme: light;
-  --bg: #faf8f5;
+  --bg: #f8fafc;
   --panel: #ffffff;
-  --panel-2: #ffffff;
-  --line: #e9e1d8;
-  --text: #2d2b2a;
-  --muted: #776f67;
-  --accent: #cc6633;
-  --accent-2: #4a8b63;
-  --danger: #b94a3b;
-  --warn: #aa7122;
-  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+  --panel-2: #f1f5f9;
+  --panel-hover: #e2e8f0;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: #eff6ff;
+  --accent-2: #059669;
+  --accent-2-light: #ecfdf5;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --warn: #d97706;
+  --warn-light: #fffbeb;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
+  line-height: 1.5;
   background: var(--bg);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 * {
@@ -37,33 +68,54 @@ select {
 button {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: all 0.15s ease-in-out;
+  box-shadow: var(--shadow-sm);
 }
 button:hover:not(:disabled) {
-  border-color: #d8a080;
-  background: #fbf2ed;
+  border-color: var(--line-strong);
+  background: var(--panel-2);
+  transform: translateY(-1px);
+}
+button:active:not(:disabled) {
+  transform: translateY(0);
 }
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
 }
 button.primary:hover:not(:disabled) {
-  background: #b35529;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.35);
 }
 button.danger {
-  border-color: #e4b9b3;
-  color: #a94136;
+  border-color: #fca5a5;
+  color: var(--danger);
+  background: #ffffff;
+}
+button.danger:hover:not(:disabled) {
+  background: var(--danger-light);
+  border-color: var(--danger);
 }
 button.ghost {
   background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+button.ghost:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: var(--line);
 }
 button.wide {
   width: 100%;

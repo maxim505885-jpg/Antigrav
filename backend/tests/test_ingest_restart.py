@@ -128,3 +128,37 @@ def test_restart_marks_interrupted_cloud_import_resumable_without_reading_source
     assert cloud["status"] == "failed"
     assert "Возобновить" in cloud["error"]
     assert get_job(job_id)["status"] == "failed"
+
+
+def test_changed_source_cannot_be_silently_imported_under_an_old_checkpoint(client, tmp_path, monkeypatch):
+    source = tmp_path / "mutable-source.xyz"
+    source.write_text("original source", encoding="utf-8")
+    project = client.post("/api/v1/projects", json={"name": "changed checkpoint source"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], "mutable", str(source), "xyz", source.stat().st_size, "processing", now, now),
+    )
+    xyz = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    monkeypatch.setattr(ingest, "read_cloud", lambda *_args, **_kwargs: RawCloud(xyz))
+
+    def interrupt_after_checkpoint(_value, message):
+        if message == "checkpoint ready; finalizing":
+            raise JobCancelled("preserve checkpoint")
+
+    with pytest.raises(JobCancelled):
+        ingest.ingest_cloud(project["id"], cloud_id, source, progress=interrupt_after_checkpoint)
+    checkpoint = cloud_paths(project["id"], cloud_id)["dir"] / ".ingest-stage" / "manifest.json"
+    assert checkpoint.exists()
+    source.write_text("different source now", encoding="utf-8")
+
+    def must_not_reimport(*_args, **_kwargs):
+        pytest.fail("changed source was silently read under the existing cloud ID")
+
+    monkeypatch.setattr(ingest, "read_cloud", must_not_reimport)
+    with pytest.raises(ValueError, match="source changed since ingest checkpoint"):
+        ingest.ingest_cloud(project["id"], cloud_id, source)
+    assert checkpoint.exists(), "changed-source checkpoint is retained for diagnosis"
