@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { api } from "../api";
-import type { Cloud } from "../types";
+import type { Cloud, Element } from "../types";
+import { groupCameraDistance } from "../columnGroupGeometry";
 
 interface Props {
   cloud: Cloud | null;
+  groupPositions: Float32Array;
+  selectedElement: Element | null;
+  selectedElementPositions: Float32Array;
+  selectedElementSections: [Float32Array, Float32Array, Float32Array];
   pointSize: number;
   colorMode: "rgb" | "height";
   showPlane: boolean;
@@ -31,7 +36,7 @@ function heightColors(z: Float32Array): Uint8Array {
   const color = new THREE.Color();
   for (let i = 0; i < z.length; i += 1) {
     const t = (z[i] - min) / span;
-    color.setHSL(0.66 - 0.66 * t, 0.8, 0.55);
+    color.setHSL(0.12 - 0.1 * t, 0.78, 0.52);
     colors[i * 3] = Math.round(color.r * 255);
     colors[i * 3 + 1] = Math.round(color.g * 255);
     colors[i * 3 + 2] = Math.round(color.b * 255);
@@ -39,7 +44,7 @@ function heightColors(z: Float32Array): Uint8Array {
   return colors;
 }
 
-export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, section }: Props) {
+export default function Viewer3D({ cloud, groupPositions, selectedElement, selectedElementPositions, selectedElementSections, pointSize, colorMode, showPlane, section }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -47,17 +52,35 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
   const controlsRef = useRef<OrbitControls | null>(null);
   const pointsRef = useRef<THREE.Points | null>(null);
   const materialRef = useRef<THREE.PointsMaterial | null>(null);
+  const selectedPointsRef = useRef<THREE.Points | null>(null);
+  const selectionOutlineRef = useRef<THREE.LineSegments | null>(null);
   const rawRef = useRef<RawGeometry | null>(null);
   const planeRef = useRef<THREE.Mesh | null>(null);
+  const groupSphereRef = useRef<THREE.Sphere | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(0);
+
+  function fitSphere(sphere: THREE.Sphere) {
+    const camera = cameraRef.current, controls = controlsRef.current;
+    if (!camera || !controls) return;
+    const radius = Math.max(1, sphere.radius);
+    const distance = groupCameraDistance(radius, camera.fov, camera.aspect);
+    const direction = camera.position.clone().sub(controls.target).normalize();
+    if (direction.lengthSq() === 0) direction.set(1, -1, 0.8).normalize();
+    controls.target.copy(sphere.center);
+    camera.position.copy(sphere.center).add(direction.multiplyScalar(distance));
+    camera.near = Math.max(0.01, radius / 500);
+    camera.far = Math.max(radius * 50, (rawRef.current?.radius ?? 0) * 50, distance + radius * 2);
+    camera.updateProjectionMatrix();
+    controls.update();
+  }
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0e13);
+    scene.background = new THREE.Color(0xfaf8f5);
     const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 5000);
     camera.up.set(0, 0, 1);
     camera.position.set(9, -11, 8);
@@ -72,7 +95,7 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     controls.dampingFactor = 0.08;
     controls.screenSpacePanning = true;
     controls.target.set(0, 0, 0);
-    const grid = new THREE.GridHelper(40, 40, 0x30363d, 0x1b2028);
+    const grid = new THREE.GridHelper(40, 40, 0xc8beb3, 0xe5ddd4);
     grid.rotation.x = Math.PI / 2;
     grid.position.z = -0.001;
     scene.add(grid);
@@ -92,6 +115,8 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      if (groupSphereRef.current) fitSphere(groupSphereRef.current);
+      else if (rawRef.current) fitSphere(new THREE.Sphere(new THREE.Vector3(), Math.max(1, rawRef.current.radius)));
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
@@ -179,17 +204,7 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
         pointsRef.current = points;
         materialRef.current = material;
 
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        if (camera && controls) {
-          const radius = Math.max(1, maxRadius);
-          controls.target.set(0, 0, 0);
-          camera.position.set(radius * 1.15, -radius * 1.25, radius * 0.85);
-          camera.near = Math.max(0.01, radius / 500);
-          camera.far = radius * 50;
-          camera.updateProjectionMatrix();
-          controls.update();
-        }
+        fitSphere(groupSphereRef.current ?? new THREE.Sphere(new THREE.Vector3(), Math.max(1, maxRadius)));
       } catch (err: any) {
         if (err?.name !== "AbortError") setError(String(err?.message || err));
       } finally {
@@ -198,6 +213,25 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     })();
     return () => controller.abort();
   }, [cloud?.id, cloud?.updated_at]);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !groupPositions.length) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(groupPositions, 3));
+    const material = new THREE.LineBasicMaterial({ color: 0xb55631, depthTest: false, depthWrite: false });
+    const outline = new THREE.LineSegments(geometry, material);
+    outline.name = "column-type-group";
+    outline.renderOrder = 3;
+    scene.add(outline);
+    geometry.computeBoundingSphere();
+    const sphere = geometry.boundingSphere;
+    if (sphere) { groupSphereRef.current = sphere; fitSphere(sphere); }
+    return () => {
+      if (groupSphereRef.current === sphere) groupSphereRef.current = null;
+      scene.remove(outline); geometry.dispose(); material.dispose();
+    };
+  }, [groupPositions, loaded]);
 
   useEffect(() => {
     const material = materialRef.current;
@@ -212,6 +246,100 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     material.size = Math.max(0.004, raw.radius / 600) * pointSize;
     material.needsUpdate = true;
   }, [colorMode, pointSize, loaded, cloud?.has_color]);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    if (selectedPointsRef.current) {
+      scene.remove(selectedPointsRef.current);
+      selectedPointsRef.current.geometry.dispose();
+      (selectedPointsRef.current.material as THREE.Material).dispose();
+      selectedPointsRef.current = null;
+    }
+    if (selectionOutlineRef.current) {
+      scene.remove(selectionOutlineRef.current);
+      selectionOutlineRef.current.geometry.dispose();
+      (selectionOutlineRef.current.material as THREE.Material).dispose();
+      selectionOutlineRef.current = null;
+    }
+    if (!selectedElement || selectedElementPositions.length === 0) return;
+
+    const pointGeometry = new THREE.BufferGeometry();
+    pointGeometry.setAttribute("position", new THREE.BufferAttribute(selectedElementPositions, 3));
+    pointGeometry.computeBoundingSphere();
+    const pointMaterial = new THREE.PointsMaterial({
+      color: 0xffd54a,
+      size: Math.max(0.008, (rawRef.current?.radius ?? 1) / 420) * pointSize,
+      sizeAttenuation: true,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.96,
+    });
+    const selectedPoints = new THREE.Points(pointGeometry, pointMaterial);
+    selectedPoints.renderOrder = 2;
+    selectedPoints.frustumCulled = false;
+    scene.add(selectedPoints);
+    selectedPointsRef.current = selectedPoints;
+
+    const sectionColors = [0xb55631, 0x9a6819, 0x6b8069];
+    const sectionPoints: THREE.Points[] = [];
+    selectedElementSections.forEach((positions, index) => {
+      if (positions.length === 0) return;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({
+        color: sectionColors[index],
+        size: Math.max(0.01, (rawRef.current?.radius ?? 1) / 350) * pointSize,
+        sizeAttenuation: true,
+        depthTest: false,
+      });
+      const slice = new THREE.Points(geometry, material);
+      slice.renderOrder = 4 + index;
+      slice.frustumCulled = false;
+      scene.add(slice);
+      sectionPoints.push(slice);
+    });
+
+    const origin = cloud?.origin ?? [0, 0, 0];
+    const min = selectedElement.bbox.min;
+    const max = selectedElement.bbox.max;
+    const size = new THREE.Vector3(
+      Math.max(0.005, max[0] - min[0]),
+      Math.max(0.005, max[1] - min[1]),
+      Math.max(0.005, max[2] - min[2]),
+    );
+    const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(boxGeometry),
+      new THREE.LineBasicMaterial({ color: 0xffd54a, depthTest: false, transparent: true, opacity: 0.9 }),
+    );
+    boxGeometry.dispose();
+    outline.position.set(
+      (min[0] + max[0]) / 2 - origin[0],
+      (min[1] + max[1]) / 2 - origin[1],
+      (min[2] + max[2]) / 2 - origin[2],
+    );
+    outline.renderOrder = 3;
+    scene.add(outline);
+    selectionOutlineRef.current = outline;
+    return () => {
+      scene.remove(selectedPoints);
+      selectedPoints.geometry.dispose();
+      pointMaterial.dispose();
+      sectionPoints.forEach((slice) => {
+        scene.remove(slice);
+        slice.geometry.dispose();
+        (slice.material as THREE.Material).dispose();
+      });
+      if (selectionOutlineRef.current === outline) {
+        scene.remove(outline);
+        outline.geometry.dispose();
+        (outline.material as THREE.Material).dispose();
+        selectionOutlineRef.current = null;
+      }
+      if (selectedPointsRef.current === selectedPoints) selectedPointsRef.current = null;
+    };
+  }, [selectedElement?.id, selectedElementPositions, selectedElementSections, pointSize, cloud?.id, cloud?.origin]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -250,7 +378,7 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
     }
     const geometry = new THREE.PlaneGeometry(Math.max(0.01, width), Math.max(0.01, height));
     const material = new THREE.MeshBasicMaterial({
-      color: 0x4da3ff,
+      color: 0xb55631,
       transparent: true,
       opacity: 0.16,
       side: THREE.DoubleSide,
@@ -270,6 +398,7 @@ export default function Viewer3D({ cloud, pointSize, colorMode, showPlane, secti
         {loading && <span>загрузка превью…</span>}
         {!loading && loaded > 0 && <span>{loaded.toLocaleString()} точек</span>}
         {cloud?.decimated && <span className="warn">прорежено</span>}
+        {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
       </div>
       {error && <div className="viewer-error">{error}</div>}
       {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}

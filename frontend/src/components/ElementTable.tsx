@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
+import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
 
 interface Props {
   elements: Element[];
@@ -7,6 +8,7 @@ interface Props {
   onFeedback: (id: string, payload: Record<string, unknown>) => Promise<void>;
   onSelect: (element: Element | null) => void;
   selected: Element | null;
+  referenceStates: Record<string, string>;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -38,6 +40,13 @@ function dimensionSummary(element: Element): string {
 function extraBadges(element: Element) {
   const dims = element.dimensions || {};
   const badges: { text: string; title: string; cls: string }[] = [];
+  if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
+    badges.push({
+      text: "проверить повторный кандидат",
+      title: `Новый кандидат пересекается с элементом, который уже проверен: ${dims.review_conflict_with.join(", ")}`,
+      cls: "inferred",
+    });
+  }
   if (dims.merged_from > 1) {
     badges.push({
       text: `сращено из ${dims.merged_from}`,
@@ -83,8 +92,10 @@ function extraBadges(element: Element) {
   return badges;
 }
 
-export default function ElementTable({ elements, busy, onFeedback, onSelect, selected }: Props) {
+export default function ElementTable({ elements, busy, onFeedback, onSelect, selected, referenceStates }: Props) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("pending");
+  const [referenceFilter, setReferenceFilter] = useState<ReferenceFilter>("all");
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     elements.forEach((element) => {
@@ -92,6 +103,31 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
     });
     return map;
   }, [elements]);
+  const reviewCounts = useMemo(() => ({
+    pending: elements.filter((element) => element.review_status === "unreviewed").length,
+    conflicts: filterReviewElements(elements, "conflicts").length,
+    checked: filterReviewElements(elements, "checked").length,
+    rejected: filterReviewElements(elements, "rejected").length,
+    all: elements.length,
+  }), [elements]);
+  const visibleElements = useMemo(
+    () => filterReferenceElements(filterReviewElements(elements, reviewFilter), referenceFilter, referenceStates),
+    [elements, reviewFilter, referenceFilter, referenceStates],
+  );
+  const reviewFilters: { id: ReviewFilter; label: string }[] = [
+    { id: "pending", label: "К проверке" },
+    { id: "conflicts", label: "Конфликты" },
+    { id: "checked", label: "Проверенные" },
+    { id: "rejected", label: "Отклонённые" },
+    { id: "all", label: "Все" },
+  ];
+  const referenceFilters: { id: ReferenceFilter; label: string }[] = [
+    { id: "all", label: "Все элементы" }, { id: "needs_reference", label: "Без эталона" },
+    { id: "labeled", label: "Размечены" }, { id: "unknown", label: "Неизвестно" }, { id: "excluded", label: "Исключены" },
+  ];
+  const referenceCounts = useMemo(() => Object.fromEntries(referenceFilters.map(({ id }) => [
+    id, id === "all" ? elements.length : filterReferenceElements(elements, id, referenceStates).length,
+  ])) as Record<ReferenceFilter, number>, [elements, referenceStates]);
 
   if (!elements.length) {
     return (
@@ -105,6 +141,26 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
 
   return (
     <div className="element-list">
+      <div className="segmented review-filters" aria-label="Очередь ручной проверки">
+        {reviewFilters.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={reviewFilter === id ? "active" : ""}
+            aria-pressed={reviewFilter === id}
+            onClick={() => setReviewFilter(id)}
+          >
+            {label} <span className="review-count">{reviewCounts[id]}</span>
+          </button>
+        ))}
+      </div>
+      <div className="segmented review-filters reference-filters" aria-label="Фильтр независимой эталонной разметки колонн">
+        {referenceFilters.map(({ id, label }) => <button key={id} type="button"
+          className={referenceFilter === id ? "active" : ""} aria-pressed={referenceFilter === id}
+          onClick={() => setReferenceFilter(id)}>
+          {label} <span className="review-count">{referenceCounts[id]}</span>
+        </button>)}
+      </div>
       <div className="counts">
         {Object.entries(counts).map(([name, value]) => (
           <span key={name} className="count-chip">
@@ -112,7 +168,9 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
           </span>
         ))}
       </div>
-      <table className="element-table">
+      {visibleElements.length === 0 ? (
+        <div className="empty-note">В этой очереди пока нет элементов.</div>
+      ) : <table className="element-table">
         <thead>
           <tr>
             <th>класс</th>
@@ -124,7 +182,7 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
           </tr>
         </thead>
         <tbody>
-          {elements.map((element) => {
+          {visibleElements.map((element) => {
             const draft = drafts[element.id] ?? element.class_name;
             return (
               <tr
@@ -153,6 +211,11 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                 </td>
                 <td>{dimensionSummary(element)}</td>
                 <td className="flags">
+                  {element.class_name === "column" && <span className={`badge ${referenceStates[element.id] === "labeled" ? "measured" : "inferred"}`}>
+                    {referenceStates[element.id] === "labeled" ? "эталон размечен"
+                      : referenceStates[element.id] === "unknown" ? "эталон: неизвестно"
+                      : referenceStates[element.id] === "excluded" ? "эталон: исключён" : "нет эталона"}
+                  </span>}
                   {element.measured && <span className="badge measured">измерено</span>}
                   {element.inferred && <span className="badge inferred">восстановлено</span>}
                   {extraBadges(element).map((badge) => (
@@ -204,7 +267,7 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
             );
           })}
         </tbody>
-      </table>
+      </table>}
       <p className="hint">
         Подтверждённые и исправленные элементы становятся размеченными примерами вместе с
         исходными точками. Уверенность — эвристическая оценка, а не откалиброванная вероятность.

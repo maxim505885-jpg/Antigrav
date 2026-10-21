@@ -18,16 +18,17 @@ from pydantic import BaseModel
 from .. import __version__
 from ..bim import build_model, export_ifc
 from ..cad import export_section_dxf, export_section_pdf
-from ..cad.dxf import export_elements_dxf
+from ..cad.dxf import export_elements_dxf, export_structural_plan_dxf
+from ..cad.pdf import export_structural_plan_pdf
 from ..config import ALLOWED_ORIGINS, API_KEY, API_VERSION, MAX_INGEST_POINTS
-from ..db import dumps, execute, init_db, loads, new_id, one, rows, utcnow
+from ..db import db as db_session, dumps, execute, init_db, loads, new_id, one, rows, utcnow
 from ..demo import write_room_ply
 from ..formats import RcsConversionRequired, detect_format, read_cloud, supported_formats
 from ..formats.readers import rcs_guidance
 from ..geometry import extract_section
 from ..geometry.section import CloudGeometry
 from ..ingest import ingest_cloud
-from ..jobs import create_job, dispatch_event, get_job, submit
+from ..jobs import JobCancelled, create_job, dispatch_event, get_job, request_cancel, submit, update_job
 from ..learning.features import features_from_element
 from ..learning.knn import KNNModel
 from ..learning.registry import activate, list_models, rollback
@@ -35,9 +36,16 @@ from ..learning.store import create_sample, list_samples, similar_samples
 from ..learning.training import active_artifact, apply_learned_prior, train_candidate
 from ..recognition import detect_structures, ml_status
 from ..recognition.geometric import DetectedElement
+from ..recognition.reconcile import protect_reviewed_candidates
 from ..schemas import (
     CloudImportPath,
     CloudOut,
+    ColumnTypeAssign,
+    ColumnAnnotationSave,
+    ColumnTypeConfirm,
+    ColumnTypeReject,
+    ColumnTypeUndo,
+    ColumnSectionFitRequest,
     ElementOut,
     ElementPatch,
     FeedbackCreate,
@@ -45,6 +53,7 @@ from ..schemas import (
     ModelOut,
     ProjectCreate,
     ProjectOut,
+    SampleCreate,
     SampleOut,
     SectionOut,
     SectionRequest,
@@ -59,6 +68,7 @@ from ..services import (
     merge_elements,
     review_element,
     split_element,
+    undo_feedback,
 )
 from ..storage import (
     cloud_paths,
@@ -68,6 +78,25 @@ from ..storage import (
     safe_filename,
     write_json_atomic,
 )
+from ..structure.column_type_store import (
+    assign_column_type,
+    confirm_column_type,
+    list_column_types,
+    list_rejected_column_types,
+    reject_column_type,
+    undo_column_type_action,
+)
+from ..structure.column_types import propose_column_types
+from ..structure.column_type_matching import match_project_column_types
+from ..structure.column_annotations import (
+    annotation_reference_document,
+    column_cloud_manifest,
+    column_snapshot_sha256,
+    empty_annotation,
+    validate_column_annotation,
+)
+from ..structure.section_fitting import fit_rectangular_section
+from ..pointdata import NpyPointProvider, PointQuery
 
 # ---------------------------------------------------------------- helpers
 
@@ -91,7 +120,7 @@ def _cloud(cloud_id: str) -> dict[str, Any]:
     return row
 
 
-def _cloud_out(row: dict[str, Any]) -> dict[str, Any]:
+def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[str, Any]:
     meta = loads(row.get("metadata_json"), {})
     origin = None
     if row.get("origin_x") is not None:
@@ -103,6 +132,7 @@ def _cloud_out(row: dict[str, Any]) -> dict[str, Any]:
         bbox_max = [row["bbox_max_x"], row["bbox_max_y"], row["bbox_max_z"]]
     return {
         "id": row["id"],
+        "import_job_id": import_job_id,
         "project_id": row["project_id"],
         "name": row["name"],
         "source_path": row["source_path"],
@@ -175,6 +205,12 @@ def _ingest_work(project_id: str, cloud_id: str):
     def work(progress):
         try:
             return ingest_cloud(project_id, cloud_id, Path(_cloud(cloud_id)["source_path"]), progress)
+        except JobCancelled:
+            execute(
+                "UPDATE clouds SET status = 'cancelled', error = NULL, updated_at = ? WHERE id = ?",
+                (utcnow(), cloud_id),
+            )
+            raise
         except Exception as exc:  # keep the cloud row truthful on failure
             execute(
                 "UPDATE clouds SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
@@ -183,6 +219,33 @@ def _ingest_work(project_id: str, cloud_id: str):
             raise
 
     return work
+
+
+def _mark_interrupted_imports() -> None:
+    """Mark imports left processing by a prior API process as resumable failures.
+
+    Recovery is deliberately metadata-only: it must never open the user's source
+    file during startup. A complete staged checkpoint is picked up only after
+    the user explicitly resumes the cloud from the UI/API.
+    """
+    interrupted = rows("SELECT id, name FROM clouds WHERE status = 'processing'")
+    for cloud in interrupted:
+        message = "Импорт прерван перезапуском сервера. Нажмите «Возобновить импорт»."
+        execute(
+            "UPDATE clouds SET status = 'failed', error = ?, updated_at = ? WHERE id = ? AND status = 'processing'",
+            (message, utcnow(), cloud["id"]),
+        )
+        jobs = rows(
+            "SELECT id FROM jobs WHERE cloud_id = ? AND type = 'ingest' AND status IN ('queued', 'running')",
+            (cloud["id"],),
+        )
+        for job in jobs:
+            update_job(
+                job["id"],
+                status="failed",
+                message="прервано перезапуском сервера; можно возобновить импорт",
+                error=message,
+            )
 
 
 def _section_row(section: dict[str, Any]) -> dict[str, Any]:
@@ -207,12 +270,37 @@ def _section(section_id: str) -> dict[str, Any]:
     return row
 
 
+def _column_type_http_error(exc: ValueError) -> HTTPException:
+    message = str(exc)
+    if any(fragment in message for fragment in ("does not exist", "unknown element", "unknown column type")):
+        return HTTPException(404, message)
+    if any(fragment in message for fragment in ("same project", "changed after", "undo later actions", "already confirms", "already rejects", "was rejected")):
+        return HTTPException(409, message)
+    return HTTPException(400, message)
+
+
+def _unassigned_type_elements(elements: list[dict[str, Any]], confirmed: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    assigned_ids = {element_id for item in confirmed for element_id in item["member_element_ids"]}
+    return [item for item in elements if item["id"] not in assigned_ids and item["review_status"] != "rejected"]
+
+
+def _column_type_export_catalog(project_id: str, elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    confirmed = list_column_types(project_id)
+    excluded = {item["proposal_key"] for item in list_rejected_column_types(project_id)}
+    proposals = propose_column_types(
+        _unassigned_type_elements(elements, confirmed),
+        linear_tolerance_m=0.005, relative_tolerance=0.01,
+    )
+    return confirmed + [item for item in proposals if item["proposal_key"] not in excluded]
+
+
 # ---------------------------------------------------------------- app
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _mark_interrupted_imports()
     yield
 
 
@@ -347,7 +435,7 @@ def create_app() -> FastAPI:
         cloud_id = _cloud_row_from_import(project_id, name, source.resolve(), fmt)
         job_id = create_job("ingest", project_id, cloud_id, f"чтение {name}")
         submit(job_id, _ingest_work(project_id, cloud_id))
-        return _cloud_out(_cloud(cloud_id))
+        return _cloud_out(_cloud(cloud_id), job_id)
 
     @api.post("/projects/{project_id}/clouds/upload", response_model=CloudOut)
     def upload_cloud(project_id: str, file: UploadFile = File(...), name: str | None = None):
@@ -393,11 +481,25 @@ def create_app() -> FastAPI:
         )
         job_id = create_job("ingest", project_id, cloud_id, f"чтение {filename}")
         submit(job_id, _ingest_work(project_id, cloud_id))
-        return _cloud_out(_cloud(cloud_id))
+        return _cloud_out(_cloud(cloud_id), job_id)
 
     @api.get("/clouds/{cloud_id}", response_model=CloudOut)
     def get_cloud(cloud_id: str):
         return _cloud_out(_cloud(cloud_id))
+
+    @api.post("/clouds/{cloud_id}/resume", response_model=CloudOut)
+    def resume_cloud_import(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        if cloud["status"] not in {"failed", "cancelled"}:
+            raise HTTPException(409, f"cloud import cannot be resumed from status {cloud['status']}")
+        project_id = cloud["project_id"]
+        execute(
+            "UPDATE clouds SET status = 'processing', error = NULL, updated_at = ? WHERE id = ?",
+            (utcnow(), cloud_id),
+        )
+        job_id = create_job("ingest", project_id, cloud_id, f"возобновление {cloud['name']}")
+        submit(job_id, _ingest_work(project_id, cloud_id))
+        return _cloud_out(_cloud(cloud_id), job_id)
 
     @api.delete("/clouds/{cloud_id}")
     def delete_cloud(cloud_id: str):
@@ -563,11 +665,7 @@ def create_app() -> FastAPI:
 
         def work(progress):
             result = detect_structures(geom, progress)
-            execute(
-                "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
-                (cloud_id,),
-            )
-            created = []
+            candidates = []
             for el in result.elements:
                 element = {
                     "id": new_id(),
@@ -585,8 +683,28 @@ def create_app() -> FastAPI:
                     "metadata": el.metadata,
                 }
                 element["features"] = features_from_element(element)
+                candidates.append(element)
+            apply_learned_prior(candidates)
+            reviewed = rows(
+                """SELECT id, geometry_json, bbox_json, review_status FROM elements
+                   WHERE cloud_id = ? AND source = 'geometric'
+                   AND review_status IN ('confirmed', 'corrected', 'rejected')""",
+                (cloud_id,),
+            )
+            reconciliation = protect_reviewed_candidates(candidates, reviewed)
+            execute(
+                "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
+                (cloud_id,),
+            )
+            created = []
+            conflicts = []
+            for element in reconciliation.candidates:
+                if element.get("dimensions", {}).get("review_conflict_with"):
+                    conflicts.append({
+                        "candidate_id": element["id"],
+                        "protected_ids": element["dimensions"]["review_conflict_with"],
+                    })
                 created.append(element)
-            apply_learned_prior(created)
             now = utcnow()
             for element in created:
                 execute(
@@ -634,6 +752,10 @@ def create_app() -> FastAPI:
                 "levels": result.levels,
                 "stats": result.stats,
                 "warnings": result.warnings,
+                "review_reconciliation": {
+                    "preserved_manual_element_ids": reconciliation.preserved_ids,
+                    "conflicts": conflicts,
+                },
             }
 
         submit(job_id, work)
@@ -644,6 +766,259 @@ def create_app() -> FastAPI:
     def get_elements(cloud_id: str):
         _cloud(cloud_id)
         return list_elements(cloud_id)
+
+    @api.get("/clouds/{cloud_id}/column-annotations")
+    def get_column_annotations(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        if not elements:
+            raise HTTPException(404, "cloud has no column candidates")
+        try:
+            source_hash = column_snapshot_sha256(elements, cloud)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        history = rows(
+            "SELECT element_id,revision,payload_json,created_at FROM column_annotations "
+            "WHERE cloud_id=? AND source_snapshot_sha256=? ORDER BY element_id,revision",
+            (cloud_id, source_hash),
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        history_out = []
+        for record in history:
+            payload = loads(record["payload_json"], {})
+            latest[record["element_id"]] = {
+                **payload, "element_id": record["element_id"],
+                "revision": record["revision"], "created_at": record["created_at"],
+            }
+            history_out.append(latest[record["element_id"]])
+        annotations = []
+        for element in sorted(elements, key=lambda item: item["id"]):
+            annotations.append(latest.get(element["id"]) or empty_annotation(element["id"]))
+        dataset_id = f"{cloud_id}:{source_hash[:12]}"
+        return {
+            "schema": "scan.column-type-reference/1",
+            "dataset_id": dataset_id,
+            "project_id": cloud["project_id"],
+            "cloud_id": cloud_id,
+            "source_snapshot_sha256": source_hash,
+            "source_cloud_manifest": column_cloud_manifest(cloud),
+            "annotation_origin": "independent_manual",
+            "engineering_tolerance_m": None,
+            "annotations": annotations,
+            "history": history_out,
+        }
+
+    @api.post("/clouds/{cloud_id}/column-annotations/{element_id}")
+    def save_column_annotation(cloud_id: str, element_id: str, payload: ColumnAnnotationSave):
+        cloud = _cloud(cloud_id)
+        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        element = next((item for item in elements if item["id"] == element_id), None)
+        if element is None:
+            raise HTTPException(404, "column candidate not found in this cloud")
+        try:
+            source_hash = column_snapshot_sha256(elements, cloud)
+            annotation = validate_column_annotation(payload.model_dump())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if payload.source_snapshot_sha256 != source_hash:
+            raise HTTPException(409, "column snapshot changed; reload the annotation dataset before saving")
+
+        with db_session() as con:
+            con.execute("BEGIN IMMEDIATE")
+            current = con.execute(
+                "SELECT element_id,payload_json,MAX(revision) AS revision FROM column_annotations "
+                "WHERE cloud_id=? AND source_snapshot_sha256=? GROUP BY element_id",
+                (cloud_id, source_hash),
+            ).fetchall()
+            if annotation["state"] == "labeled":
+                duplicate = next((row["element_id"] for row in current
+                    if row["element_id"] != element_id
+                    and (stored := loads(row["payload_json"], {})).get("state") == "labeled"
+                    and stored.get("physical_instance_id") == annotation["physical_instance_id"]), None)
+                if duplicate:
+                    raise HTTPException(409, f"physical instance ID is already used by {duplicate}")
+            revision_row = con.execute(
+                "SELECT COALESCE(MAX(revision),0) AS revision FROM column_annotations "
+                "WHERE cloud_id=? AND source_snapshot_sha256=? AND element_id=?",
+                (cloud_id, source_hash, element_id),
+            ).fetchone()
+            revision = int(revision_row["revision"]) + 1
+            created_at = utcnow()
+            con.execute(
+                "INSERT INTO column_annotations "
+                "(id,project_id,cloud_id,source_snapshot_sha256,element_id,revision,payload_json,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (new_id(), cloud["project_id"], cloud_id, source_hash, element_id,
+                 revision, dumps(annotation), created_at),
+            )
+        result = {**annotation, "element_id": element_id, "revision": revision,
+                  "created_at": created_at, "source_snapshot_sha256": source_hash}
+        dispatch_event("column_annotation.saved", {
+            "project_id": cloud["project_id"], "cloud_id": cloud_id,
+            "element_id": element_id, "revision": revision,
+            "source_snapshot_sha256": source_hash,
+        })
+        return result
+
+    @api.get("/clouds/{cloud_id}/column-annotations/export")
+    def export_column_annotations(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        if not elements:
+            raise HTTPException(404, "cloud has no column candidates")
+        try:
+            source_hash = column_snapshot_sha256(elements, cloud)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        history = rows(
+            "SELECT element_id,revision,payload_json,created_at FROM column_annotations "
+            "WHERE cloud_id=? AND source_snapshot_sha256=? ORDER BY element_id,revision",
+            (cloud_id, source_hash),
+        )
+        latest = {}
+        for record in history:
+            latest[record["element_id"]] = loads(record["payload_json"], {})
+        dataset_id = f"{cloud_id}:{source_hash[:12]}"
+        document = annotation_reference_document(dataset_id, source_hash, elements, latest, cloud)
+        return {**document, "project_id": cloud["project_id"], "cloud_id": cloud_id}
+
+    @api.get("/clouds/{cloud_id}/column-annotations/history")
+    def get_column_annotation_history(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        history = rows(
+            "SELECT source_snapshot_sha256,element_id,revision,payload_json,created_at "
+            "FROM column_annotations WHERE cloud_id=? ORDER BY created_at,element_id,revision",
+            (cloud_id,),
+        )
+        records = []
+        for record in history:
+            records.append({
+                **loads(record["payload_json"], {}),
+                "dataset_id": f"{cloud_id}:{record['source_snapshot_sha256'][:12]}",
+                "source_snapshot_sha256": record["source_snapshot_sha256"],
+                "element_id": record["element_id"],
+                "revision": record["revision"],
+                "created_at": record["created_at"],
+            })
+        return {"project_id": cloud["project_id"], "cloud_id": cloud_id, "history": records}
+
+    @api.get("/clouds/{cloud_id}/column-types")
+    def cloud_column_types(
+        cloud_id: str,
+        linear_tolerance_m: float = Query(default=0.005, ge=0, le=0.5, allow_inf_nan=False),
+        relative_tolerance: float = Query(default=0.01, ge=0, le=0.25, allow_inf_nan=False),
+    ):
+        cloud = _cloud(cloud_id)
+        elements = [item for item in list_elements(cloud_id) if item["review_status"] != "rejected"]
+        confirmed_types = list_column_types(cloud["project_id"])
+        try:
+            proposals = propose_column_types(
+                _unassigned_type_elements(elements, confirmed_types),
+                linear_tolerance_m=linear_tolerance_m,
+                relative_tolerance=relative_tolerance,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        rejected = list_rejected_column_types(cloud["project_id"])
+        rejected_keys = {item["proposal_key"] for item in rejected}
+        sources = [element_from_row(item) for item in rows(
+            "SELECT e.* FROM elements e JOIN column_type_assignments a ON a.element_id=e.id "
+            "WHERE e.project_id=? AND a.project_id=?", (cloud["project_id"], cloud["project_id"]))]
+        reuse = match_project_column_types(cloud["project_id"], elements, confirmed_types, sources,
+            linear_tolerance_m=linear_tolerance_m, relative_tolerance=relative_tolerance)
+        return {
+            "cloud_id": cloud_id,
+            "project_id": cloud["project_id"],
+            "tolerance_status": "provisional",
+            "linear_tolerance_m": linear_tolerance_m,
+            "relative_tolerance": relative_tolerance,
+            "proposals": [
+                proposal for proposal in proposals
+                if proposal["proposal_key"] not in rejected_keys
+            ],
+            "confirmed_types": confirmed_types,
+            "rejected_proposals": rejected,
+            "catalog_reuse": reuse,
+        }
+
+    @api.post("/column-types/{proposal_key}/confirm")
+    def column_type_confirm(proposal_key: str, payload: ColumnTypeConfirm):
+        cloud = _cloud(payload.cloud_id)
+        elements = [item for item in list_elements(payload.cloud_id) if item["review_status"] != "rejected"]
+        confirmed = list_column_types(cloud["project_id"])
+        existing = next((item for item in confirmed if item["proposal_key"] == proposal_key), None)
+        if existing:
+            original_ids = set(existing["prototype"]["member_element_ids"])
+            review_elements = [item for item in elements if item["id"] in original_ids]
+        else:
+            review_elements = _unassigned_type_elements(elements, confirmed)
+        try:
+            proposals = propose_column_types(
+                review_elements,
+                linear_tolerance_m=payload.linear_tolerance_m,
+                relative_tolerance=payload.relative_tolerance,
+            )
+            proposal = next(
+                (item for item in proposals if item["proposal_key"] == proposal_key), None
+            )
+            if proposal is None:
+                raise HTTPException(404, "column type proposal not found for this cloud")
+            result = confirm_column_type(
+                cloud["project_id"], proposal, mark=payload.mark,
+                engineer=payload.engineer, note=payload.note,
+            )
+        except ValueError as exc:
+            raise _column_type_http_error(exc) from exc
+        dispatch_event("column_type.confirmed", {
+            "project_id": cloud["project_id"], "type_id": result["id"],
+            "mark": result["mark"], "proposal_key": proposal_key,
+        })
+        return result
+
+    @api.post("/column-types/{proposal_key}/reject")
+    def column_type_reject(proposal_key: str, payload: ColumnTypeReject):
+        cloud = _cloud(payload.cloud_id)
+        elements = [item for item in list_elements(payload.cloud_id) if item["review_status"] != "rejected"]
+        confirmed = list_column_types(cloud["project_id"])
+        try:
+            proposals = propose_column_types(
+                _unassigned_type_elements(elements, confirmed), linear_tolerance_m=payload.linear_tolerance_m,
+                relative_tolerance=payload.relative_tolerance,
+            )
+            proposal = next((item for item in proposals if item["proposal_key"] == proposal_key), None)
+            if proposal is None:
+                raise HTTPException(404, "column type proposal not found for this cloud")
+            result = reject_column_type(cloud["project_id"], proposal, payload.engineer, payload.note)
+        except ValueError as exc:
+            raise _column_type_http_error(exc) from exc
+        dispatch_event("column_type.rejected", {"project_id": cloud["project_id"], "proposal_key": proposal_key})
+        return result
+
+    @api.post("/elements/{element_id}/column-type")
+    def element_column_type(element_id: str, payload: ColumnTypeAssign):
+        try:
+            result = assign_column_type(
+                element_id, payload.type_id, engineer=payload.engineer, note=payload.note
+            )
+        except ValueError as exc:
+            raise _column_type_http_error(exc) from exc
+        dispatch_event("column_type.assigned", {
+            "element_id": element_id, "type_id": payload.type_id,
+        })
+        return result
+
+    @api.post("/column-types/actions/{action_id}/undo")
+    def column_type_undo(action_id: str, payload: ColumnTypeUndo):
+        try:
+            result = undo_column_type_action(
+                action_id, engineer=payload.engineer, note=payload.note
+            )
+        except ValueError as exc:
+            raise _column_type_http_error(exc) from exc
+        dispatch_event("column_type.undo", {
+            "target_action_id": action_id, "action_id": result["action_id"],
+        })
+        return result
 
     @api.get("/clouds/{cloud_id}/levels")
     def get_levels(cloud_id: str):
@@ -657,6 +1032,119 @@ def create_app() -> FastAPI:
             return get_element(element_id)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
+
+    @api.post("/elements/{element_id}/section-fit")
+    def propose_element_section(element_id: str, payload: ColumnSectionFitRequest):
+        """Fit one horizontal slice for review; never changes element geometry or type."""
+        try:
+            element = get_element(element_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        geometry = element.get("geometry") or {}
+        if element.get("class_name") != "column" or geometry.get("kind") != "oriented_box":
+            raise HTTPException(409, "section fitting requires a column with oriented_box geometry")
+        cloud = _cloud(element["cloud_id"])
+        if cloud["status"] != "ready":
+            raise HTTPException(409, f"cloud is not ready (status: {cloud['status']})")
+        paths = cloud_paths(cloud["project_id"], cloud["id"])
+        if not paths["positions"].exists():
+            raise HTTPException(409, "derived cloud positions are missing")
+        center = np.asarray(geometry["center"], dtype=np.float64)
+        angle = float(geometry.get("rotation_z", 0.0))
+        rotation = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        half = np.array([geometry["sizes"]["length"], geometry["sizes"]["thickness"]], dtype=np.float64) / 2
+        padded = half + payload.candidate_margin_m
+        extent = np.abs(rotation) @ padded
+        z_center = float(payload.slice_z_m if payload.slice_z_m is not None else center[2])
+        lower = np.array([center[0] - extent[0], center[1] - extent[1], z_center - payload.thickness_m / 2])
+        upper = np.array([center[0] + extent[0], center[1] + extent[1], z_center + payload.thickness_m / 2])
+        point_source = NpyPointProvider(
+            paths["positions"],
+            origin=np.array([cloud["origin_x"], cloud["origin_y"], cloud["origin_z"]], dtype=np.float64),
+        )
+        xyz_parts, row_parts = [], []
+        selected_count = 0
+        hard_limit = 250_000
+        for batch in point_source.iter_points(PointQuery(tuple(np.r_[lower, upper]))):
+            local_xy = (batch.xyz[:, :2] - center[:2]) @ rotation
+            inside = (np.abs(local_xy) <= padded).all(axis=1)
+            if not inside.any():
+                continue
+            xyz_parts.append(batch.xyz[inside])
+            row_parts.append(batch.source_indices[inside])
+            selected_count += int(inside.sum())
+            if selected_count > hard_limit:
+                raise HTTPException(413, "slice has more than 250000 points; reduce slice thickness or candidate margin")
+        points = np.concatenate(xyz_parts) if xyz_parts else np.empty((0, 3), dtype=np.float64)
+        source_rows = np.concatenate(row_parts) if row_parts else np.empty(0, dtype=np.int64)
+        if len(points) < 2:
+            fit = {"status": "insufficient_points", "hypotheses": [], "observed_faces": [],
+                   "open_corners": [], "dimension_conflicts": [], "review_required": True,
+                   "engineering_status": "not_assessed"}
+        else:
+            fit = fit_rectangular_section(
+                points[:, :2],
+                known_sides_m=tuple(payload.known_sides_m) if payload.known_sides_m is not None else None,
+                distance_tolerance_m=payload.distance_tolerance_m,
+            )
+        faces = []
+        for face in fit.get("observed_faces", []):
+            row_ids = np.asarray(face.get("input_point_indices", []), dtype=np.int64)
+            source_ids = np.sort(source_rows[row_ids]) if len(row_ids) else np.empty(0, dtype=np.int64)
+            faces.append({**face, "ingested_point_row_id_sample": source_ids[:100].tolist(),
+                          "ingested_point_row_id_count": len(source_ids)})
+        observed_point_indices = {
+            int(index)
+            for face in fit.get("observed_faces", [])
+            for index in face.get("input_point_indices", [])
+            if 0 <= int(index) < len(points)
+        }
+        observed_point_count = len(observed_point_indices)
+        preview_step = max(1, int(np.ceil(len(points) / 4000)))
+        preview = (points[::preview_step, :2] - center[:2]).tolist()
+        return {
+            "element_id": element_id,
+            "algorithm": {"name": "fit_rectangular_section", "version": "1"},
+            "parameters": {
+                "slice_z_m": z_center,
+                "thickness_m": payload.thickness_m,
+                "known_sides_m": payload.known_sides_m,
+                "distance_tolerance_m": payload.distance_tolerance_m,
+                "candidate_margin_m": payload.candidate_margin_m,
+            },
+            "source_rows": {
+                "kind": "derived_cloud_zero_based_row_index",
+                "count": int(len(points)),
+                "sample_limit_per_face": 100,
+                "description": "Строки в производном массиве координат облака; это не номера точек FARO.",
+            },
+            "point_support": {
+                "selected_point_count": int(len(points)),
+                "unique_observed_face_point_count": observed_point_count,
+                "unassigned_point_count": int(len(points) - observed_point_count),
+                "observed_face_point_fraction": (
+                    float(observed_point_count / len(points)) if len(points) else None
+                ),
+                "scope": (
+                    "Уникальные точки среза, использованные хотя бы одной найденной гранью; "
+                    "это не покрытие площади поверхности и не оценка точности."
+                ),
+            },
+            "slice_z_m": z_center,
+            "slice_thickness_m": payload.thickness_m,
+            "candidate_margin_m": payload.candidate_margin_m,
+            "point_count": int(len(points)),
+            "preview_points_xy_local_m": preview,
+            "status": fit["status"],
+            "hypotheses": fit.get("hypotheses", []),
+            "observed_faces": faces,
+            "open_corners": fit.get("open_corners", []),
+            "dimension_conflicts": fit.get("dimension_conflicts", []),
+            "review_required": True,
+            "engineering_status": "not_assessed",
+            "persisted": False,
+            "source_geometry_modified": False,
+        }
 
     @api.patch("/elements/{element_id}", response_model=ElementOut)
     def patch_element(element_id: str, payload: ElementPatch):
@@ -729,6 +1217,47 @@ def create_app() -> FastAPI:
         dispatch_event("element.feedback", {"element_id": element_id, "action": payload.action})
         return result
 
+    @api.get("/elements/{element_id}/history")
+    def element_history(element_id: str):
+        try:
+            get_element(element_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        history = rows("SELECT rowid AS sequence, * FROM feedback WHERE element_id = ? ORDER BY rowid", (element_id,))
+        undone_ids = {
+            loads(item.get("after_json"), {}).get("undo_of")
+            for item in history
+            if item["action"] == "undo"
+        }
+        latest_undoable = next(
+            (item["id"] for item in reversed(history) if item["action"] != "undo" and item["id"] not in undone_ids),
+            None,
+        )
+        return [
+            {
+                "id": item["id"],
+                "action": item["action"],
+                "before": loads(item.get("before_json"), {}),
+                "after": loads(item.get("after_json"), {}),
+                "can_undo": item["id"] == latest_undoable,
+                "engineer": item.get("engineer", ""),
+                "note": item.get("note", ""),
+                "created_at": item["created_at"],
+            }
+            for item in history
+        ]
+
+    @api.post("/elements/{element_id}/history/{feedback_id}/undo")
+    def element_history_undo(element_id: str, feedback_id: str):
+        try:
+            result = undo_feedback(element_id, feedback_id, engineer="engineer")
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        dispatch_event("element.feedback", {"element_id": element_id, "action": "undo"})
+        return result
+
     @api.get("/elements/{element_id}/similar")
     def element_similar(element_id: str, k: int = Query(default=5, ge=1, le=20)):
         element = get_element(element_id)
@@ -774,15 +1303,58 @@ def create_app() -> FastAPI:
         export_elements_dxf(elements, path, project_name=project["name"])
         return FileResponse(path, media_type="application/dxf", filename=path.name)
 
+    @api.get("/clouds/{cloud_id}/structural-plan.dxf")
+    def structural_plan_dxf(
+        cloud_id: str,
+        drawing_type: str = Query(default="columns", alias="type", pattern="^(columns|crane_girders)$"),
+        issue_mode: str = Query(default="final", alias="issue", pattern="^(draft|final)$"),
+    ):
+        cloud = _cloud(cloud_id)
+        project = _project(cloud["project_id"])
+        elements = list_elements(cloud_id)
+        export_id, folder = new_export_dir(cloud["project_id"], f"plan_{issue_mode}_{drawing_type}_{cloud_id[:8]}")
+        path = folder / f"plan_{issue_mode}_{drawing_type}.dxf"
+        export_structural_plan_dxf(
+            elements,
+            path,
+            drawing_type=drawing_type,
+            project_name=project["name"],
+            column_types=_column_type_export_catalog(cloud["project_id"], elements) if drawing_type == "columns" else None,
+            issue_mode=issue_mode,
+        )
+        return FileResponse(path, media_type="application/dxf", filename=path.name)
+
+    @api.get("/clouds/{cloud_id}/structural-plan.pdf")
+    def structural_plan_pdf(
+        cloud_id: str,
+        drawing_type: str = Query(default="columns", alias="type", pattern="^(columns|crane_girders)$"),
+        scale: int = Query(default=100, ge=10, le=1000),
+        issue_mode: str = Query(default="final", alias="issue", pattern="^(draft|final)$"),
+    ):
+        cloud = _cloud(cloud_id)
+        project = _project(cloud["project_id"])
+        elements = list_elements(cloud_id)
+        export_id, folder = new_export_dir(cloud["project_id"], f"plan_{issue_mode}_{drawing_type}_{cloud_id[:8]}")
+        path = folder / f"plan_{issue_mode}_{drawing_type}.pdf"
+        try:
+            export_structural_plan_pdf(
+                elements,
+                path,
+                scale=scale,
+                drawing_type=drawing_type,
+                project_name=project["name"],
+                column_types=_column_type_export_catalog(cloud["project_id"], elements) if drawing_type == "columns" else None,
+                issue_mode=issue_mode,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return FileResponse(path, media_type="application/pdf", filename=path.name)
+
     # ------------------------------------------------------------ learning
     @api.get("/projects/{project_id}/samples", response_model=list[SampleOut])
     def get_samples(project_id: str):
         _project(project_id)
         return list_samples(project_id)
-
-    class SampleCreate(BaseModel):
-        element_id: str
-        class_name: str | None = None
 
     @api.post("/projects/{project_id}/samples", response_model=SampleOut)
     def add_sample(project_id: str, payload: SampleCreate):
@@ -885,6 +1457,19 @@ def create_app() -> FastAPI:
         if not job:
             raise HTTPException(404, f"job {job_id} not found")
         return job
+
+    @api.post("/jobs/{job_id}/cancel")
+    def cancel_job(job_id: str):
+        job = get_job(job_id)
+        if not job:
+            raise HTTPException(404, f"job {job_id} not found")
+        requested = request_cancel(job_id)
+        return {
+            "job_id": job_id,
+            "cancel_requested": requested,
+            "status": "cancellation_requested" if requested else job["status"],
+        }
+
 
     @api.get("/plugin/manifest")
     def plugin_manifest():

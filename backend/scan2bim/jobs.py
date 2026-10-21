@@ -13,6 +13,12 @@ from typing import Any, Callable
 from .db import dumps, execute, new_id, one, record_event, rows, utcnow
 
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="s2b-job")
+_cancel_lock = threading.Lock()
+_cancel_events: dict[str, threading.Event] = {}
+
+
+class JobCancelled(Exception):
+    """Raised at a cooperative cancellation point in a background job."""
 
 
 def create_job(
@@ -112,17 +118,43 @@ def dispatch_event(event_type: str, payload: dict[str, Any]) -> str:
 
 
 def submit(job_id: str, fn: Callable[[Callable[[float, str], None]], dict[str, Any]]) -> None:
-    _executor.submit(_run, job_id, fn)
+    cancel_event = threading.Event()
+    with _cancel_lock:
+        _cancel_events[job_id] = cancel_event
+    _executor.submit(_run, job_id, fn, cancel_event)
 
 
-def _run(job_id: str, fn) -> None:
+def request_cancel(job_id: str) -> bool:
+    """Request cancellation for a queued/running job; work stops at its next progress checkpoint."""
+    job = get_job(job_id)
+    if not job or job["status"] not in {"queued", "running"}:
+        return False
+    with _cancel_lock:
+        cancel_event = _cancel_events.get(job_id)
+        if cancel_event is None:
+            return False
+        cancel_event.set()
+    return True
+
+
+def _run(job_id: str, fn, cancel_event: threading.Event) -> None:
     update_job(job_id, status="running", progress=0.01, message="запущено")
 
     def progress(value: float, message: str = "") -> None:
+        if cancel_event.is_set():
+            raise JobCancelled("job cancellation requested")
         update_job(job_id, progress=value, message=message or None)
 
     try:
+        if cancel_event.is_set():
+            raise JobCancelled("job cancellation requested")
         result = fn(progress) or {}
+        if cancel_event.is_set():
+            raise JobCancelled("job cancellation requested")
+    except JobCancelled:
+        update_job(job_id, status="cancelled", message="отменено", error=None)
+        job = get_job(job_id) or {}
+        dispatch_event("job.cancelled", {"job": job})
     except Exception as exc:  # noqa: BLE001 - job boundary must capture everything
         message = f"{type(exc).__name__}: {exc}"
         update_job(
@@ -133,7 +165,11 @@ def _run(job_id: str, fn) -> None:
         )
         job = get_job(job_id) or {}
         dispatch_event("job.failed", {"job": job, "error": message})
-        return
-    update_job(job_id, status="succeeded", progress=1.0, message="готово", result=result)
-    job = get_job(job_id) or {}
-    dispatch_event("job.succeeded", {"job": job})
+    else:
+        update_job(job_id, status="succeeded", progress=1.0, message="готово", result=result)
+        job = get_job(job_id) or {}
+        dispatch_event("job.succeeded", {"job": job})
+    finally:
+        with _cancel_lock:
+            if _cancel_events.get(job_id) is cancel_event:
+                _cancel_events.pop(job_id, None)

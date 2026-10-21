@@ -69,11 +69,11 @@ export default function SectionCanvas({ result }: Props) {
       const dpr = canvas.width / Math.max(1, width);
       const view = viewRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = "#0d1117";
+      ctx.fillStyle = "#faf8f5";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       if (!result || width === 0) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.fillStyle = "#8b949e";
+        ctx.fillStyle = "#776f67";
         ctx.font = "13px system-ui";
         ctx.fillText("Постройте сечение, чтобы увидеть измеренную геометрию", 16, 28);
         return;
@@ -81,7 +81,7 @@ export default function SectionCanvas({ result }: Props) {
       ctx.setTransform(dpr * view.scale, 0, 0, -dpr * view.scale, dpr * view.tx, dpr * view.ty);
 
       if (result.preview_points.length) {
-        ctx.fillStyle = "rgba(150, 170, 195, 0.35)";
+        ctx.fillStyle = "rgba(142, 109, 88, 0.48)";
         const step = Math.max(1, Math.ceil(result.preview_points.length / 25000));
         for (let i = 0; i < result.preview_points.length; i += step) {
           const [u, v] = result.preview_points[i];
@@ -99,12 +99,12 @@ export default function SectionCanvas({ result }: Props) {
         });
         ctx.closePath();
         if (!poly.is_hole) {
-          ctx.fillStyle = "rgba(77, 163, 255, 0.12)";
+          ctx.fillStyle = "rgba(204, 102, 51, 0.12)";
           ctx.fill();
-          ctx.strokeStyle = "#7cc4ff";
+          ctx.strokeStyle = "#cc6633";
           ctx.lineWidth = 1.6 / view.scale;
         } else {
-          ctx.strokeStyle = "rgba(255, 156, 110, 0.9)";
+          ctx.strokeStyle = "rgba(170, 113, 34, 0.9)";
           ctx.lineWidth = 1.2 / view.scale;
           ctx.setLineDash([6 / view.scale, 4 / view.scale]);
         }
@@ -113,7 +113,7 @@ export default function SectionCanvas({ result }: Props) {
       });
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#c9d1d9";
+      ctx.fillStyle = "#2d2b2a";
       ctx.font = "12px system-ui";
       const holes = result.polygons.filter((p) => p.is_hole).length;
       ctx.fillText(
@@ -122,7 +122,7 @@ export default function SectionCanvas({ result }: Props) {
         16,
         height - 16,
       );
-      ctx.fillStyle = "#3fb950";
+      ctx.fillStyle = "#347653";
       ctx.fillText(`смещение ${result.frame.u_label}:${result.frame.world_offset[0].toFixed(2)} м  ` +
         `${result.frame.v_label}:${result.frame.world_offset[1].toFixed(2)} м`, 16, height - 34);
     };

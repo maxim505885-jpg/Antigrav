@@ -1,0 +1,126 @@
+{
+  "schema": "scan2bim.bim/1.0",
+  "units": "m",
+  "coordinate_frame": {
+    "id": "source_cloud_world",
+    "units": "m",
+    "vertical_axis": "Z"
+  },
+  "project": {
+    "id": "revit-import-pilot",
+    "name": "SCAN Revit importer verification"
+  },
+  "source": {
+    "cloud_id": "synthetic-revit-import-fixture",
+    "cloud_name": "Synthetic fixture",
+    "format": "synthetic",
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "point_count": 0,
+    "snapshot_manifest": {
+      "sha256": null,
+      "source_format": "synthetic",
+      "size_bytes": null,
+      "point_count": 0,
+      "ingested_count": null,
+      "decimated": null,
+      "origin_x": 0.0,
+      "origin_y": 0.0,
+      "origin_z": 0.0,
+      "bbox_min_x": null,
+      "bbox_min_y": null,
+      "bbox_min_z": null,
+      "bbox_max_x": null,
+      "bbox_max_y": null,
+      "bbox_max_z": null,
+      "has_color": null,
+      "has_intensity": null
+    }
+  },
+  "levels": [
+    {
+      "name": "Level 99.00",
+      "elevation": 99.0,
+      "confidence": null,
+      "method": "rollback fixture only"
+    }
+  ],
+  "elements": [
+    {
+      "id": "SCAN-ROLLBACK-COLUMN",
+      "class_name": "column",
+      "geometry": {
+        "kind": "oriented_box",
+        "center": [
+          30.0,
+          20.0,
+          3.0
+        ],
+        "sizes": {
+          "length": 0.5,
+          "thickness": 0.4,
+          "height": 6.0
+        },
+        "rotation_z": 0.0
+      },
+      "bbox": {
+        "min": [
+          29.75,
+          19.8,
+          0.0
+        ],
+        "max": [
+          30.25,
+          20.2,
+          6.0
+        ]
+      },
+      "confidence": 1.0,
+      "confidence_kind": "synthetic_fixture",
+      "measured": true,
+      "inferred": false,
+      "source": "synthetic_fixture",
+      "review_status": "confirmed",
+      "dimensions": {}
+    },
+    {
+      "id": "SCAN-BEAM-KEEP",
+      "class_name": "beam",
+      "geometry": {
+        "kind": "member",
+        "p0": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "bbox": {
+        "min": [
+          10.0,
+          19.875,
+          5.875
+        ],
+        "max": [
+          16.0,
+          20.125,
+          6.125
+        ]
+      },
+      "confidence": 1.0,
+      "confidence_kind": "synthetic_fixture",
+      "measured": true,
+      "inferred": false,
+      "source": "synthetic_fixture",
+      "review_status": "confirmed",
+      "dimensions": {}
+    }
+  ],
+  "notes": [
+    "Measured geometry is separated from inferred geometry via measured/inferred flags.",
+    "Confidence is a heuristic score, not a calibrated probability.",
+    "No material or load-bearing property is inferred from shape."
+  ]
+}

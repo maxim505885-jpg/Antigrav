@@ -14,6 +14,8 @@ from typing import Any
 import ifcopenshell
 import ifcopenshell.guid
 
+from .model import validate_bim_model
+
 
 def _guid() -> str:
     return ifcopenshell.guid.new()
@@ -182,6 +184,8 @@ def export_ifc(
     project_name: str = "",
     author: str = "Intelligent Scan-to-BIM",
 ) -> Path:
+    if "schema" in model:
+        validate_bim_model(model)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     ifc = ifcopenshell.file(schema="IFC4")

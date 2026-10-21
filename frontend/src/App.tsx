@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, waitForCloud, waitForJob } from "./api";
 import ElementTable from "./components/ElementTable";
+import ColumnTypesPanel from "./components/ColumnTypesPanel";
+import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
+import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
 import SectionCanvas from "./components/SectionCanvas";
 import Viewer3D from "./components/Viewer3D";
-import { classLabel, statusLabel, type Cloud, type Element, type ModelInfo, type Project, type Section, type SectionResult } from "./types";
+import { sliceElementPositions, toLocalElementPositions } from "./elementPointGeometry";
+import { columnGroupLinePositions } from "./columnGroupGeometry";
+import { buildOrientedBoxGeometry, orientedBoxDraft, type OrientedBoxDraft } from "./orientedBoxEditor";
+import { classLabel, REVIEW_LABELS, statusLabel, type Cloud, type Element, type ModelInfo, type Project, type Section, type SectionResult } from "./types";
 
 type Tab = "section" | "recognition" | "learning" | "export";
 
@@ -64,8 +70,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [rcsInfo, setRcsInfo] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [planScale, setPlanScale] = useState(100);
+  const [drawingIssueMode, setDrawingIssueMode] = useState<"draft" | "final">("final");
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
+  const [importJobId, setImportJobId] = useState<string | null>(null);
+  const [cancelingImport, setCancelingImport] = useState(false);
+  const [importCancellationRequested, setImportCancellationRequested] = useState(false);
 
   const [newProject, setNewProject] = useState("");
   const [pathInput, setPathInput] = useState("");
@@ -85,11 +96,38 @@ export default function App() {
   });
 
   const [elements, setElements] = useState<Element[]>([]);
+  const [columnReferenceStates, setColumnReferenceStates] = useState<Record<string, string>>({});
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
+  const [selectedColumnGroup, setSelectedColumnGroup] = useState<{ cloudId: string; ids: string[] } | null>(null);
+  const groupGeometry = useMemo(() => columnGroupLinePositions(
+    elements.filter((element) => element.cloud_id === cloud?.id),
+    selectedColumnGroup?.cloudId === cloud?.id ? selectedColumnGroup?.ids ?? [] : [],
+    cloud?.origin ?? undefined,
+  ), [elements, selectedColumnGroup, cloud?.id, cloud?.origin]);
   const [mergeTarget, setMergeTarget] = useState("");
   const [splitAxis, setSplitAxis] = useState<"x" | "y" | "z">("x");
   const [splitValue, setSplitValue] = useState(0);
   const [similar, setSimilar] = useState<any[]>([]);
+  const [reviewHistory, setReviewHistory] = useState<any[]>([]);
+  const [boundaryDraft, setBoundaryDraft] = useState<OrientedBoxDraft>(() => orientedBoxDraft(null));
+  const [boundaryError, setBoundaryError] = useState<string | null>(null);
+  const [selectedElementPoints, setSelectedElementPoints] = useState<number[][]>([]);
+  const [elementPointsLoading, setElementPointsLoading] = useState(false);
+  const selectedElementPositions = useMemo(
+    () => toLocalElementPositions(selectedElementPoints, cloud?.origin),
+    [selectedElementPoints, cloud?.origin],
+  );
+  const selectedElementSections = useMemo(
+    () => selectedElement
+      ? sliceElementPositions(selectedElementPoints, selectedElement.bbox, cloud?.origin)
+      : [new Float32Array(), new Float32Array(), new Float32Array()] as [Float32Array, Float32Array, Float32Array],
+    [selectedElement?.id, selectedElementPoints, selectedElement?.bbox, cloud?.origin],
+  );
+
+  useEffect(() => {
+    setBoundaryDraft(orientedBoxDraft(selectedElement?.geometry));
+    setBoundaryError(null);
+  }, [selectedElement?.id, selectedElement?.geometry]);
 
   const [learning, setLearning] = useState<any>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -97,6 +135,33 @@ export default function App() {
   const [training, setTraining] = useState(false);
 
   const recognition = useMemo(() => cloud?.metadata?.recognition ?? null, [cloud]);
+
+  useEffect(() => {
+    if (!selectedElement) {
+      setReviewHistory([]);
+      return;
+    }
+    let current = true;
+    api.elementHistory(selectedElement.id)
+      .then((history) => { if (current) setReviewHistory(history); })
+      .catch((err) => { if (current) setError(detailText(err)); });
+    return () => { current = false; };
+  }, [selectedElement?.id]);
+
+  useEffect(() => {
+    if (!selectedElement) {
+      setSelectedElementPoints([]);
+      setElementPointsLoading(false);
+      return;
+    }
+    let current = true;
+    setElementPointsLoading(true);
+    api.elementPoints(selectedElement.id)
+      .then((result) => { if (current) setSelectedElementPoints(result.points); })
+      .catch((err) => { if (current) setError(detailText(err)); })
+      .finally(() => { if (current) setElementPointsLoading(false); });
+    return () => { current = false; };
+  }, [selectedElement?.id, selectedElement?.bbox]);
 
   const refreshProjects = async () => {
     const list = await api.listProjects();
@@ -148,6 +213,7 @@ export default function App() {
     }
     setSection(null);
     setSelectedElement(null);
+    setSelectedColumnGroup(null);
     if (cloud.status === "ready") {
       api.elements(cloud.id).then(setElements).catch(() => setElements([]));
     } else {
@@ -156,10 +222,30 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud?.id, cloud?.status, cloud?.updated_at]);
 
+  useEffect(() => {
+    if (!cloud || cloud.status !== "ready") {
+      setColumnReferenceStates({});
+      return;
+    }
+    let active = true;
+    setColumnReferenceStates({});
+    api.columnAnnotations(cloud.id).then((dataset) => {
+      if (!active) return;
+      setColumnReferenceStates(Object.fromEntries(dataset.annotations.map((annotation) => [annotation.element_id, annotation.state])));
+    }).catch(() => {
+      if (active) setColumnReferenceStates({});
+    });
+    return () => { active = false; };
+  }, [cloud?.id, cloud?.status, cloud?.updated_at]);
+
   const trackCloud = async (incoming: Cloud) => {
     setBusy(true);
+    setImportJobId(incoming.import_job_id ?? null);
+    setCancelingImport(false);
+    setImportCancellationRequested(false);
     setJobLabel("Обработка облака точек");
     setJobProgress(0.05);
+    let cancelled = false;
     try {
       const ready = await waitForCloud(incoming.id, (update) => {
         setCloud(update);
@@ -169,13 +255,50 @@ export default function App() {
       setClouds((list) => list.map((item) => (item.id === ready.id ? ready : item)));
       setCloud(ready);
       if (ready.status === "failed") setError(ready.error || "не удалось обработать облако точек");
+      if (ready.status === "cancelled") {
+        cancelled = true;
+        setJobLabel("Импорт облака отменён");
+        setJobProgress(0);
+      }
       await refreshProjects();
     } catch (err) {
       setError(detailText(err));
     } finally {
       setBusy(false);
-      setJobLabel(null);
-      setJobProgress(0);
+      setImportJobId(null);
+      setCancelingImport(false);
+      setImportCancellationRequested(false);
+      if (!cancelled) {
+        setJobLabel(null);
+        setJobProgress(0);
+      }
+    }
+  };
+
+  const cancelImport = async () => {
+    if (!importJobId || cancelingImport || importCancellationRequested) return;
+    setCancelingImport(true);
+    try {
+      const result = await api.cancelJob(importJobId);
+      if (result.cancel_requested) setImportCancellationRequested(true);
+      else setError("Импорт уже завершился; отменять нечего.");
+    } catch (err) {
+      setError(detailText(err));
+    } finally {
+      setCancelingImport(false);
+    }
+  };
+
+  const resumeImport = async () => {
+    if (!cloud || busy || !["failed", "cancelled"].includes(cloud.status)) return;
+    setError(null);
+    try {
+      const incoming = await api.resumeImport(cloud.id);
+      setCloud(incoming);
+      setClouds((list) => list.map((item) => (item.id === incoming.id ? incoming : item)));
+      await trackCloud(incoming);
+    } catch (err) {
+      setError(detailText(err));
     }
   };
 
@@ -317,10 +440,35 @@ export default function App() {
     setBusy(true);
     try {
       await api.feedback(elementId, payload);
-      if (cloud) setElements(await api.elements(cloud.id));
+      if (cloud) {
+        const refreshed = await api.elements(cloud.id);
+        setElements(refreshed);
+        if (selectedElement?.id === elementId) {
+          setSelectedElement(refreshed.find((item) => item.id === elementId) ?? null);
+        }
+      }
+      if (selectedElement?.id === elementId) setReviewHistory(await api.elementHistory(elementId));
       if (project) {
         setLearning(await api.modelStatus(project.id));
       }
+      setSimilar([]);
+    } catch (err) {
+      setError(detailText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const undoReviewAction = async (feedbackId: string) => {
+    if (!selectedElement || !cloud) return;
+    setBusy(true);
+    try {
+      await api.undoFeedback(selectedElement.id, feedbackId);
+      const refreshed = await api.elements(cloud.id);
+      setElements(refreshed);
+      setSelectedElement(refreshed.find((item) => item.id === selectedElement.id) ?? null);
+      setReviewHistory(await api.elementHistory(selectedElement.id));
+      if (project) setLearning(await api.modelStatus(project.id));
       setSimilar([]);
     } catch (err) {
       setError(detailText(err));
@@ -347,6 +495,44 @@ export default function App() {
       value: splitValue,
       note: "split in engineer editor",
     });
+  };
+
+  const saveBoundary = async () => {
+    if (!selectedElement || selectedElement.geometry?.kind !== "oriented_box") return;
+    let geometry;
+    try {
+      geometry = buildOrientedBoxGeometry(boundaryDraft);
+    } catch (err) {
+      setBoundaryError(detailText(err));
+      return;
+    }
+    setBoundaryError(null);
+    await feedback(selectedElement.id, {
+      action: "adjust_boundary",
+      geometry,
+      note: "Ручная правка границ в интерфейсе проверки",
+    });
+  };
+
+  const applySectionHypothesis = (hypothesis: {
+    corners_world_m: [number, number][];
+    side_lengths_m: number[];
+  }) => {
+    const [p0, p1, p2, p3] = hypothesis.corners_world_m;
+    if (!p0 || !p1 || !p2 || !p3) return;
+    const centerX = (p0[0] + p1[0] + p2[0] + p3[0]) / 4;
+    const centerY = (p0[1] + p1[1] + p2[1] + p3[1]) / 4;
+    const edgeX = p1[0] - p0[0];
+    const edgeY = p1[1] - p0[1];
+    setBoundaryDraft((draft) => ({
+      ...draft,
+      centerX: String(centerX),
+      centerY: String(centerY),
+      length: String(Math.hypot(edgeX, edgeY)),
+      thickness: String(Math.hypot(p3[0] - p0[0], p3[1] - p0[1])),
+      rotationDegrees: String(Math.atan2(edgeY, edgeX) * 180 / Math.PI),
+    }));
+    setBoundaryError(null);
   };
 
   const train = async () => {
@@ -541,6 +727,14 @@ export default function App() {
               </dl>
               {cloud.warning && <p className="warn-box">{cloud.warning}</p>}
               {cloud.error && <p className="error-box">{cloud.error}</p>}
+              {["failed", "cancelled"].includes(cloud.status) && (
+                <div className="resume-import">
+                  <p>Импорт можно продолжить. Сохранённая контрольная точка будет проверена перед повторной обработкой.</p>
+                  <button className="primary wide" onClick={resumeImport} disabled={busy}>
+                    Возобновить импорт
+                  </button>
+                </div>
+              )}
             </section>
           )}
         </aside>
@@ -576,6 +770,10 @@ export default function App() {
             </div>
             <Viewer3D
               cloud={cloud}
+              groupPositions={groupGeometry.positions}
+              selectedElement={selectedElement}
+              selectedElementPositions={selectedElementPositions}
+              selectedElementSections={selectedElementSections}
               pointSize={pointSize}
               colorMode={colorMode}
               showPlane={showPlane}
@@ -602,7 +800,15 @@ export default function App() {
 
             {jobLabel && (
               <div className="job-banner">
-                <span>{jobLabel}</span>
+                <div className="job-banner-head">
+                  <span>{jobLabel}</span>
+                  {importJobId && cloud?.status === "processing" && (
+                    <button className="job-cancel" onClick={cancelImport}
+                      disabled={cancelingImport || importCancellationRequested}>
+                      {importCancellationRequested ? "Отмена…" : cancelingImport ? "Запрос…" : "Отменить"}
+                    </button>
+                  )}
+                </div>
                 <div className="progress">
                   <div style={{ width: `${Math.round(jobProgress * 100)}%` }} />
                 </div>
@@ -846,8 +1052,20 @@ export default function App() {
                       ))}
                   </div>
                 )}
+                {cloud && <ColumnTypesPanel key={cloud.id} cloudId={cloud.id} elements={elements}
+                  onSelectGroup={(ids) => setSelectedColumnGroup({ cloudId: cloud.id, ids })}
+                  busy={busy} selected={selectedElement} onSelect={(element) => {
+                    setSelectedElement(element);
+                    setSimilar([]);
+                  }} />}
+                {selectedColumnGroup?.cloudId === cloud?.id && selectedColumnGroup && <p className="hint" role="status">
+                  Контуры группы в 3D: {groupGeometry.rendered_ids.length}.
+                  {groupGeometry.unavailable_ids.length > 0 && ` Недоступны в этом облаке или нет полной геометрии: ${groupGeometry.unavailable_ids.length}.`}
+                  <button type="button" onClick={() => setSelectedColumnGroup(null)}>Снять выделение группы</button>
+                </p>}
                 <ElementTable
                   elements={elements}
+                  referenceStates={columnReferenceStates}
                   busy={busy}
                   selected={selectedElement}
                   onSelect={(element) => {
@@ -862,6 +1080,66 @@ export default function App() {
                       <span>Редактирование элемента</span>
                       <code>{selectedElement.id.slice(0, 8)}</code>
                     </div>
+                    <p className="hint" role="status">
+                      {elementPointsLoading
+                        ? "Загружаю исходные точки выбранного элемента…"
+                        : `Исходные точки: ${selectedElementPoints.length.toLocaleString("ru-RU")} · сечения X/Y/Z: ${selectedElementSections.map((slice) => (slice.length / 3).toLocaleString("ru-RU")).join(" / ")}`}
+                    </p>
+                    {selectedElement.geometry?.kind === "oriented_box" && (
+                      <div className="boundary-editor">
+                        <div className="panel-title">
+                          <span>Границы элемента</span>
+                          <small>координаты и размеры в метрах</small>
+                        </div>
+                        <div className="boundary-fields">
+                          {([
+                            ["centerX", "Центр X"],
+                            ["centerY", "Центр Y"],
+                            ["centerZ", "Центр Z"],
+                            ["length", "Длина"],
+                            ["thickness", "Ширина"],
+                            ["height", "Высота"],
+                            ["rotationDegrees", "Поворот °"],
+                          ] as [keyof OrientedBoxDraft, string][]).map(([key, label]) => (
+                            <label key={key}>
+                              <span className="field-label">{label}</span>
+                              <input
+                                type="number"
+                                step="any"
+                                value={boundaryDraft[key]}
+                                onChange={(event) => setBoundaryDraft((draft) => ({ ...draft, [key]: event.target.value }))}
+                                aria-label={label}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                        {boundaryError && <p className="error" role="alert">{boundaryError}</p>}
+                        <button type="button" onClick={saveBoundary} disabled={busy}>
+                          Сохранить исправленную геометрию
+                        </button>
+                        <p className="hint">
+                          Изменение сохранится как исправленный элемент и появится в истории; его можно отменить.
+                        </p>
+                        {selectedElement.class_name === "column" && (
+                          <ColumnSectionFitPanel
+                            element={selectedElement}
+                            candidateConflicts={elements.filter((item) => item.id !== selectedElement.id
+                              && item.review_status === "unreviewed"
+                              && selectedElement.bbox.min.length === 3 && selectedElement.bbox.max.length === 3
+                              && item.bbox.min.length === 3 && item.bbox.max.length === 3
+                              && item.bbox.min.every((value, axis) => value <= selectedElement.bbox.max[axis]
+                                && item.bbox.max[axis] >= selectedElement.bbox.min[axis]))}
+                            priorDecisions={reviewHistory.slice(-5).reverse()}
+                            busy={busy}
+                            onApplyHypothesis={applySectionHypothesis}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {cloud && selectedElement.class_name === "column" && (
+                      <ColumnAnnotationPanel cloudId={cloud.id} element={selectedElement} busy={busy}
+                        onAnnotationSaved={(annotation) => setColumnReferenceStates((states) => ({ ...states, [annotation.element_id]: annotation.state }))} />
+                    )}
                     <div className="editor-grid">
                       <label>
                         <span className="field-label">объединить с</span>
@@ -924,6 +1202,31 @@ export default function App() {
                           </li>
                         ))}
                       </ul>
+                    )}
+                    <div className="panel-title">
+                      <span>История изменений</span>
+                      <code>{reviewHistory.length}</code>
+                    </div>
+                    {reviewHistory.length > 0 ? (
+                      <ul className="similar-list">
+                        {reviewHistory.map((entry) => (
+                          <li key={entry.id}>
+                            <b>{entry.action}</b>
+                            {entry.after?.review_status && ` · ${REVIEW_LABELS[entry.after.review_status] || entry.after.review_status}`}
+                            {entry.after?.class_name && ` · ${classLabel(entry.after.class_name)}`}
+                            {entry.engineer && ` · ${entry.engineer}`}
+                            {entry.note && ` — ${entry.note}`}
+                            <small>{new Date(entry.created_at).toLocaleString()}</small>
+                            {entry.can_undo && (
+                              <button type="button" onClick={() => undoReviewAction(entry.id)} disabled={busy}>
+                                Отменить
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="hint">Для этого элемента записей пока нет.</p>
                     )}
                   </div>
                 )}
@@ -1059,6 +1362,55 @@ export default function App() {
                         DXF элементов
                       </button>
                     </div>
+                    <div className="panel-title">
+                      <span>Планы конструкций AutoCAD</span>
+                    </div>
+                    <label>Масштаб PDF
+                      <select value={planScale} disabled={busy} onChange={(event) => setPlanScale(Number(event.target.value))}>
+                        {[50, 100, 200, 500].map((value) => <option key={value} value={value}>1:{value}</option>)}
+                      </select>
+                    </label>
+                    <label>Тип выпуска
+                      <select value={drawingIssueMode} disabled={busy} onChange={(event) => setDrawingIssueMode(event.target.value as "draft" | "final")}>
+                        <option value="draft">Черновик — с кандидатами</option>
+                        <option value="final">Финал — только проверенные</option>
+                      </select>
+                    </label>
+                    <p className="hint">
+                      {drawingIssueMode === "draft"
+                        ? "Черновик содержит непроверенные объекты с маркировкой КАНДИДАТ и штампом «НЕ ДЛЯ РАБОТЫ»."
+                        : "Финальный выпуск включает только подтверждённые или исправленные объекты и подтверждённые типы колонн."}
+                    </p>
+                    <p className="hint">Планы печатать 100%, без подгонки. Ведомость — на отдельных листах A3.</p>
+                    <div className="button-row">
+                      <button
+                        onClick={() => download(() => api.exportStructuralPlanDxf(cloud.id, "columns", drawingIssueMode), "План колонн DXF")}
+                        disabled={busy}
+                      >
+                        План колонн
+                      </button>
+                      <button
+                        onClick={() => download(() => api.exportStructuralPlanDxf(cloud.id, "crane_girders", drawingIssueMode), "План подкрановых балок DXF")}
+                        disabled={busy}
+                      >
+                        План подкрановых балок
+                      </button>
+                      <button
+                        onClick={() => download(() => api.exportStructuralPlanPdf(cloud.id, "columns", planScale, drawingIssueMode), "План колонн PDF")}
+                        disabled={busy}
+                      >
+                        Колонны PDF
+                      </button>
+                      <button
+                        onClick={() => download(() => api.exportStructuralPlanPdf(cloud.id, "crane_girders", planScale, drawingIssueMode), "План подкрановых балок PDF")}
+                        disabled={busy}
+                      >
+                        Подкрановые балки PDF
+                      </button>
+                    </div>
+                    <p className="hint">
+                      Непроверенные конструкции будут отмечены как кандидаты. Шаг сетки 6000 мм не подменяет измеренные координаты.
+                    </p>
                     <p className="hint">
                       В IFC передаются нативные сущности IfcWall/IfcColumn/IfcSlab и набор свойств
                       Pset_ScanToBIM: уверенность, признаки «измерено/восстановлено», статус проверки.
@@ -1088,6 +1440,7 @@ export default function App() {
                     <pre className="code-block">{`GET  /api/v1/clouds/{cloud}/elements
 GET  /api/v1/clouds/{cloud}/bim?format=ifc
 GET  /api/v1/clouds/{cloud}/sections
+GET  /api/v1/clouds/{cloud}/structural-plan.dxf?type=columns|crane_girders
 POST /api/v1/elements/{element}/feedback
 GET  /api/v1/plugin/manifest`}</pre>
                     <p className="hint">

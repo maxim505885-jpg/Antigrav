@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta http-equiv="refresh" content="30">
+  <title>SCAN — план работ</title>
+  <style>
+    :root {
+      color-scheme: dark light;
+      font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+      --page: light-dark(#fff, #202124);
+      --text: light-dark(#202124, #f1f3f4);
+      --muted: light-dark(#667085, #a5aab2);
+      --line: light-dark(#e5e7eb, #393b40);
+      --green: light-dark(#16864a, #52d273);
+      --active: light-dark(#e9eefc, #293b67);
+      --active-text: light-dark(#183b83, #e5edff);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 18px 16px 28px; background: var(--page); color: var(--text); }
+    h1 { margin: 0 0 5px; font-size: 19px; font-weight: 600; }
+    .subtitle { margin: 0 0 16px; color: var(--muted); }
+    .now { margin: 0 0 17px; padding: 10px 11px; background: var(--active); color: var(--active-text); border-radius: 7px; }
+    .now strong { display: block; margin-bottom: 3px; }
+    h2 { margin: 18px 0 7px; font-size: 13px; font-weight: 600; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { display: grid; grid-template-columns: 20px 1fr; gap: 7px; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+    li.done .mark { color: var(--green); font-weight: 700; }
+    li.pending { color: var(--muted); }
+    .subdone { color: var(--green); font-weight: 700; }
+    li.active { margin: 4px 0; padding: 9px 7px; border: 0; border-radius: 7px; background: var(--active); color: var(--active-text); }
+    .phase { font-weight: 600; }
+    .detail { display: block; color: var(--muted); font-size: 12px; }
+    li.active .detail { color: inherit; opacity: .82; }
+    .legend { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+    @media (prefers-color-scheme: light) { :root { color-scheme: light; } }
+    @media (prefers-color-scheme: dark) { :root { color-scheme: dark; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>План работ SCAN</h1>
+    <p class="subtitle">FARO → ReCap → AutoCAD 2026 / Revit 2027 · обновление раз в 30 секунд</p>
+    <p><a href="superpowers/plans/2026-10-21-scan-workshop-execution-plan.md">Открыть полный исполняемый план: задачи, зависимости и критерии приёмки</a></p>
+
+    <p class="now"><strong>Делаем сейчас · A2: возобновление импорта</strong> Полный производный пакет теперь пишется во временную область, проверяется SHA-256 манифестом и идемпотентно переносится в готовое облако; после перезапуска API импорт помечается возобновляемым, а UI показывает кнопку. Проверено на синтетике без повторного чтения источника. Чтение исходника всё ещё целиком в памяти, checkpoint только после декодирования: bounded-RAM, промежуточные точки продолжения, полный маршрут облака и канонический формат остаются открытыми. Исходный `1.rcs` не открывался. В A6 нужны реальные физические ID/размеры; AutoCAD/Revit интерактивная приёмка также не пройдена. Интерфейс использует кремово-терракотовую тему. Bundle 736,91 kB; инженерный допуск не определён.</p>
+
+    <h2>Подготовка и облако точек</h2>
+    <ul>
+      <li class="done"><span class="mark" aria-label="Готово">✓</span><span><span class="phase">A0 · Исходная точка</span><span class="detail">Инвентаризация, резервная копия, базовые проверки</span></span></li>
+      <li><span class="mark">○</span><span><span class="phase">A1 · Контрольный участок</span><span class="detail">Подготовлен шаблон 16 колонн и инструмент метрик; эталоны ещё не заполнены. Допуск пока не определён</span></span></li>
+      <li class="active" aria-current="step"><span class="mark">●</span><span><span class="phase">A2 · Расчётное облако</span><span class="detail"><span class="subdone">✓</span> Отмена и RCS-процесс; staged checkpoint, SHA-256 проверка, идемпотентная финализация, безопасное восстановление после перезапуска и кнопка возобновления. Остались streaming/bounded-RAM и checkpoint во время чтения, большой полный прогон и восстановление после отказа диска.</span></span></li>
+    </ul>
+
+    <h2>Распознавание конструкций</h2>
+    <ul>
+      <li><span class="mark">◐</span><span><span class="phase">A4 · Типы колонн и обучение</span><span class="detail"><span class="subdone">✓</span> Группировка измеренных сечений, каталог, назначения и память проекта. `fit_column_track_sections` связывает дорожки с исходными строками и серией Z-срезов. Отчёт v2 сохранил ID: 16 кандидатов, 38 неподдержанных дорожек, 666 unknown-срезов, 0 предложений; хеши источников сохранены. Осталось независимо разметить физические ID/видимость, проверить профили и оценить качество типов/балок. Этап приостановлен, пока A2 закрывает restartability.</span></span></li>
+      <li class="pending"><span class="mark">○</span><span><span class="phase">A5 · Фермы и связи</span><span class="detail">Восстановить стержни, узлы и принадлежность пролётам</span></span></li>
+      <li><span class="mark">◐</span><span><span class="phase">A6 · Ручная проверка</span><span class="detail"><span class="subdone">✓</span> Очередь, журнал, исходные точки, ручная правка/undo, измерение, карта наблюдаемых пролётов на пяти высотах и фильтр эталонной разметки колонн. Карта не различает затенение и пропуск сканирования. Остались проверенная привязка bay/level, реальные разметки и инженерная проверка пилота.</span></span></li>
+    </ul>
+
+    <h2>Чертежи и BIM</h2>
+    <ul>
+      <li><span class="mark">◐</span><span><span class="phase">A7 · AutoCAD 2026</span><span class="detail"><span class="subdone">✓</span> По умолчанию выдаётся финал только по подтверждённым элементам; черновик помечен «НЕ ДЛЯ РАБОТЫ». API проверено; пакет v3: 16 колонн + 5 балок, короткие марки читаемы, SHA и DXF audits записаны. DXF/drawing regression: 25 passed. Core Console AutoCAD W.164.0.0 в режиме read-only проверил 400 объектов: 0 ошибок/исправлений, но заменил Liberation fonts на `simplex.shx`. Видимого окна AutoCAD сейчас нет; GUI-приёмка не выполнена.<br>Осталось проверить шрифты/геометрию визуально, редактирование/печать и DWG round-trip, затем подтвердить физические ID и оси</span></span></li>
+      <li><span class="mark">◐</span><span><span class="phase">A8 · Revit 2027</span><span class="detail"><span class="subdone">✓</span> IFC4 проверен на полном пилоте: 33 из 33 элементов/ID сохранены, GUID уникальны; все элементы остаются кандидатами. BIM JSON 1.0 проверяет метры, мировую систему координат и уникальные ID до импорта. Плагин пересобран: 0 ошибок, 3 предупреждения Autodesk/.NET; тесты fixture прошли. Манифест add-in зарегистрирован. <br>Запуск Revit через управляемое приложение истёк по тайм-ауту, окна Revit нет. Интерактивные сценарии импорта, rollback, повторного открытия и создание листов остаются незакрыты</span></span></li>
+      <li class="pending"><span class="mark">○</span><span><span class="phase">A9 · Весь цех</span><span class="detail">Полный прогон и выпуск документации</span></span></li>
+    </ul>
+
+    <h2>Отдельные станции FARO</h2>
+    <ul>
+      <li class="pending"><span class="mark">○</span><span><span class="phase">R1–R3 · Сшивка и ReCap</span><span class="detail">Для этого этапа нужны исходные станции FARO</span></span></li>
+    </ul>
+
+    <p class="legend"><span style="color:var(--green)">✓</span> готово · <span style="color:var(--muted)">○</span> осталось · выделенный этап — в работе. Автоматически найденные элементы пока кандидаты.</p>
+  </main>
+</body>
+</html>

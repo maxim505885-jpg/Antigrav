@@ -1,6 +1,7 @@
 """API request/response schemas (Pydantic v2)."""
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -25,6 +26,7 @@ class ProjectOut(BaseModel):
 
 class CloudOut(BaseModel):
     id: str
+    import_job_id: str | None = None
     project_id: str
     name: str
     source_path: str
@@ -129,6 +131,66 @@ class FeedbackCreate(BaseModel):
     engineer: str = ""
 
 
+class ColumnTypeReview(BaseModel):
+    cloud_id: str
+    engineer: str = "engineer"
+    note: str = ""
+    linear_tolerance_m: float = Field(default=0.005, ge=0, le=0.5, allow_inf_nan=False)
+    relative_tolerance: float = Field(default=0.01, ge=0, le=0.25, allow_inf_nan=False)
+
+
+class ColumnTypeConfirm(ColumnTypeReview):
+    mark: str | None = None
+
+
+class ColumnTypeReject(ColumnTypeReview):
+    pass
+
+
+class ColumnTypeAssign(BaseModel):
+    type_id: str | None = None
+    engineer: str = "engineer"
+    note: str = ""
+
+
+class ColumnTypeUndo(BaseModel):
+    engineer: str = "engineer"
+    note: str = ""
+
+
+class ColumnAnnotationSave(BaseModel):
+    source_snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    annotator: str = Field(min_length=1, max_length=200)
+    state: Literal["labeled", "unknown", "excluded"]
+    physical_instance_id: str | None = Field(default=None, max_length=200)
+    type_label: str | None = Field(default=None, max_length=120)
+    shape_label: Literal["rectangular_solid", "built_up", "stepped", "circular", "other", "unknown"] | None = None
+    structural_role: Literal["column", "crane_column", "other", "unknown"] | None = None
+    sides_m: dict[str, float] | None = None
+    measurement_source: Literal["manual_cloud", "field_measurement"] | None = None
+    z_measurements: list[dict[str, Any]] = Field(default_factory=list)
+    visible_faces: list[Literal["u+", "u-", "v+", "v-"]] = Field(default_factory=list)
+    hidden_faces: list[Literal["u+", "u-", "v+", "v-"]] = Field(default_factory=list)
+    confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    reason_unknown: str = Field(default="", max_length=2000)
+    note: str = Field(default="", max_length=4000)
+
+
+class ColumnSectionFitRequest(BaseModel):
+    slice_z_m: float | None = Field(default=None, ge=-1e9, le=1e9, allow_inf_nan=False)
+    thickness_m: float = Field(default=0.2, gt=0, le=1.0, allow_inf_nan=False)
+    known_sides_m: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    distance_tolerance_m: float = Field(default=0.004, gt=0, le=0.05, allow_inf_nan=False)
+    candidate_margin_m: float = Field(default=0.2, ge=0, le=1.0, allow_inf_nan=False)
+
+    @field_validator("known_sides_m")
+    @classmethod
+    def _known_sides_positive(cls, value: list[float] | None) -> list[float] | None:
+        if value is not None and any(not value_i > 0 or not math.isfinite(value_i) for value_i in value):
+            raise ValueError("known_sides_m must contain two finite positive lengths")
+        return value
+
+
 class TrainRequest(BaseModel):
     name: str = "geometric-knn"
     test_fraction: float = Field(default=0.25, ge=0.1, le=0.5)
@@ -180,3 +242,8 @@ class SampleOut(BaseModel):
     split: str
     source: str
     created_at: str
+
+
+class SampleCreate(BaseModel):
+    element_id: str
+    class_name: str | None = None

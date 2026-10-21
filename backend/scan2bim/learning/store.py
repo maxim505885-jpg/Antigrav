@@ -135,11 +135,11 @@ def list_samples(project_id: str, split: str | None = None) -> list[dict[str, An
 
 
 def samples_for_training(project_id: str) -> list[dict[str, Any]]:
-    return list_samples(project_id)
+    return [sample for sample in list_samples(project_id) if sample.get("source") != "undone"]
 
 
 def similar_samples(project_id: str, features: dict[str, float], k: int = 5) -> list[dict[str, Any]]:
-    samples = list_samples(project_id)
+    samples = [sample for sample in list_samples(project_id) if sample.get("source") != "undone"]
     if not samples:
         return []
     names = list(features.keys())

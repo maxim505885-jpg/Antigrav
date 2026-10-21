@@ -109,6 +109,65 @@ CREATE TABLE IF NOT EXISTS training_samples (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS column_types (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    proposal_key TEXT NOT NULL,
+    mark TEXT NOT NULL,
+    prototype_json TEXT NOT NULL,
+    engineer TEXT NOT NULL DEFAULT 'engineer',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(project_id, proposal_key),
+    UNIQUE(project_id, mark)
+);
+
+CREATE TABLE IF NOT EXISTS column_type_assignments (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    element_id TEXT PRIMARY KEY REFERENCES elements(id) ON DELETE CASCADE,
+    type_id TEXT NOT NULL REFERENCES column_types(id) ON DELETE NO ACTION,
+    assigned_at TEXT NOT NULL,
+    engineer TEXT NOT NULL DEFAULT 'engineer',
+    note TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS column_type_actions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    target_action_id TEXT UNIQUE REFERENCES column_type_actions(id) ON DELETE NO ACTION,
+    created_type_id TEXT,
+    before_json TEXT NOT NULL DEFAULT '{}',
+    after_json TEXT NOT NULL DEFAULT '{}',
+    engineer TEXT NOT NULL DEFAULT 'engineer',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS column_type_rejections (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    proposal_key TEXT NOT NULL,
+    proposal_json TEXT NOT NULL,
+    action_id TEXT NOT NULL REFERENCES column_type_actions(id) ON DELETE NO ACTION,
+    PRIMARY KEY(project_id, proposal_key)
+);
+
+-- Independent ground-truth annotations are append-only and tied to an exact
+-- candidate snapshot. They deliberately do not reference element rows, so a
+-- recognition rerun cannot overwrite or delete reviewed measurements.
+CREATE TABLE IF NOT EXISTS column_annotations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    cloud_id TEXT NOT NULL REFERENCES clouds(id) ON DELETE CASCADE,
+    source_snapshot_sha256 TEXT NOT NULL,
+    element_id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(cloud_id, source_snapshot_sha256, element_id, revision)
+);
+
 CREATE TABLE IF NOT EXISTS model_versions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -165,7 +224,24 @@ CREATE INDEX IF NOT EXISTS idx_clouds_project ON clouds(project_id);
 CREATE INDEX IF NOT EXISTS idx_sections_cloud ON sections(cloud_id);
 CREATE INDEX IF NOT EXISTS idx_elements_cloud ON elements(cloud_id);
 CREATE INDEX IF NOT EXISTS idx_samples_project ON training_samples(project_id);
+CREATE INDEX IF NOT EXISTS idx_column_types_project ON column_types(project_id);
+CREATE INDEX IF NOT EXISTS idx_column_type_assignments_type ON column_type_assignments(type_id);
+CREATE INDEX IF NOT EXISTS idx_column_type_actions_project ON column_type_actions(project_id);
+CREATE INDEX IF NOT EXISTS idx_column_annotations_snapshot ON column_annotations(cloud_id, source_snapshot_sha256, element_id, revision);
 CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id);
+
+-- Also supports the initial local catalog schema whose foreign keys used
+-- immediate RESTRICT checks. Cleanup order is explicit, without rebuilding
+-- any existing table or changing individual-type deletion protection.
+CREATE TRIGGER IF NOT EXISTS column_types_project_cleanup
+BEFORE DELETE ON projects
+BEGIN
+    DELETE FROM column_type_rejections WHERE project_id=OLD.id;
+    DELETE FROM column_type_assignments WHERE project_id=OLD.id;
+    DELETE FROM column_type_actions WHERE project_id=OLD.id AND target_action_id IS NOT NULL;
+    DELETE FROM column_type_actions WHERE project_id=OLD.id;
+    DELETE FROM column_types WHERE project_id=OLD.id;
+END;
 """
 
 

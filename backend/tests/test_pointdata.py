@@ -81,6 +81,65 @@ def test_spatial_index_matches_scan_including_tile_edges_and_rgb(tmp_path):
     assert list(indexed.iter_points(PointQuery((-20, -20, -20, -10, -10, -10)))) == []
 
 
+def test_spatial_index_matches_rotated_thin_roi_at_cell_and_slice_boundaries(tmp_path):
+    from scan2bim.pointdata import PointQuery
+    from scan2bim.pointdata.index import build_index, IndexedPointProvider
+
+    origin = np.array([1000.0, -2000.0, 30.0])
+    xy = np.array([(x, y) for x in np.arange(-4, 4.001, 0.2) for y in np.arange(-4, 4.001, 0.2)])
+    xyz = np.column_stack((xy, np.zeros(len(xy)))).astype(np.float32)
+    p = provider(tmp_path, xyz, origin=tuple(origin))
+    build_index(p, tmp_path / "index", cell_size=0.5)
+    indexed = IndexedPointProvider(p, tmp_path / "index")
+
+    angle = np.deg2rad(27.0)
+    c, s = np.cos(angle), np.sin(angle)
+    half_u, half_v = 2.0, 0.18
+    local_corners = np.array([[-half_u, -half_v], [half_u, -half_v], [half_u, half_v], [-half_u, half_v]])
+    rotation = np.array([[c, -s], [s, c]])
+    world_corners = local_corners @ rotation.T + origin[:2]
+    lower = np.r_[world_corners.min(axis=0), origin[2] - 1e-6]
+    upper = np.r_[world_corners.max(axis=0), origin[2] + 1e-6]
+    query = PointQuery(tuple(np.r_[lower, upper]))
+
+    def collect(reader):
+        batches = list(reader.iter_points(query))
+        rows = np.concatenate([batch.source_indices for batch in batches])
+        points = np.concatenate([batch.xyz for batch in batches])
+        order = np.argsort(rows)
+        return rows[order], points[order]
+
+    linear_rows, linear_xyz = collect(p)
+    indexed_rows, indexed_xyz = collect(indexed)
+    np.testing.assert_array_equal(indexed_rows, linear_rows)
+    np.testing.assert_array_equal(indexed_xyz, linear_xyz)
+
+    delta = linear_xyz[:, :2] - origin[:2]
+    local_u = delta[:, 0] * c + delta[:, 1] * s
+    local_v = -delta[:, 0] * s + delta[:, 1] * c
+    exact_local_mask = (np.abs(local_u) <= half_u) & (np.abs(local_v) <= half_v)
+    np.testing.assert_array_equal(indexed_rows[exact_local_mask], linear_rows[exact_local_mask])
+    assert np.all(np.abs(local_v[exact_local_mask]) <= half_v)
+    assert len(indexed_rows[exact_local_mask]) > 0
+
+
+def test_spatial_index_matches_scan_for_long_extent_and_empty_roi(tmp_path):
+    from scan2bim.pointdata import PointQuery
+    from scan2bim.pointdata.index import build_index, IndexedPointProvider
+
+    p = provider(tmp_path, [[x, y, z] for x in range(-5, 6) for y in range(-3, 4) for z in range(-2, 3)])
+    build_index(p, tmp_path / "index", cell_size=1.0)
+    indexed = IndexedPointProvider(p, tmp_path / "index")
+
+    def ids(reader, bounds):
+        batches = list(reader.iter_points(PointQuery(bounds)))
+        return np.sort(np.concatenate([batch.source_indices for batch in batches])) if batches else np.array([], dtype=np.int64)
+
+    for bounds in ((995, -2005, 28, 1005, -1995, 32),
+                   (5000, 5000, 5000, 5001, 5001, 5001)):
+        np.testing.assert_array_equal(ids(indexed, bounds), ids(p, bounds))
+
+
 def test_index_refuses_changed_origin_and_incomplete_directory(tmp_path):
     from scan2bim.pointdata import NpyPointProvider
     from scan2bim.pointdata.index import build_index, IndexedPointProvider

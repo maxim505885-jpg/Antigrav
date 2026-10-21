@@ -22,3 +22,12 @@ data/
 .DS_Store
 Thumbs.db
 data_smoke/
+**/bin/
+**/obj/
+.superpowers/
+.column_type_store_*
+.openapi-*
+.pytest-*
+.site-preview-data/
+.test-data-*
+

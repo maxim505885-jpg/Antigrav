@@ -45,7 +45,9 @@ BEAM_MIN_LENGTH_M = 2.5
 # A beam is at most 0.70 m wide in plan; anything thicker is a wall, a walkway
 # bundle or merged clutter, not a member an engineer would call a beam.
 BEAM_MAX_THICKNESS_M = 0.70
-CRANE_MIN_LENGTH_M = 12.0
+# Individual span members must be eligible, not only continuous multi-span runs.
+# This is a detection floor, NOT the project's nominal column pitch.
+CRANE_MIN_LENGTH_M = BEAM_MIN_LENGTH_M
 FLOOR_BEAM_MIN_LENGTH_M = 4.0
 PURLIN_MAX_THICKNESS_M = 0.40
 BRACE_MIN_LENGTH_M = 3.0
@@ -55,6 +57,15 @@ BRACE_MIN_LENGTH_M = 3.0
 # would put only core/window = 0.25 of its points there.
 BRACE_MIN_CONCENTRATION = 0.55
 BRACE_CORE_M = 0.15
+# Horizontal bracing is a thin plan member. A whole 1 m level band mixes in the
+# roof-deck plane, whose filled raster hides the member from Hough AND dilutes
+# its concentration, so diagonal candidates are ALSO sought in thin
+# overlapping plan slices and then deduplicated against the full-band ones.
+BRACE_SLICE_THICK_M = 0.40
+BRACE_SLICE_STEP_M = 0.10
+BRACE_SLICE_MIN_POINTS = 300
+BRACE_DEDUP_POS_M = 1.2
+BRACE_DEDUP_ANGLE_DEG = 12.0
 DIAGONAL_MIN_DEG = 25.0
 DIAGONAL_MAX_DEG = 65.0
 ALIGNED_TOL_DEG = 20.0
@@ -237,7 +248,20 @@ def _measure_strip(
     selected = (np.abs(across) <= 0.6) & (np.abs(along) <= length / 2 + 0.25)
     if central.sum() >= 5:
         across_c = across[central]
-        thickness = float(np.percentile(across_c, 97) - np.percentile(across_c, 2))
+        quantiles = (2, 97)
+        # Sparse neighbouring objects used to inflate a clear thin ridge to
+        # 1.5 m. Narrow the measurement window only when MOST central evidence
+        # hugs the line; a broad wall/surface must retain its measured width.
+        concentration = float((np.abs(across_c) <= BRACE_CORE_M).mean())
+        if concentration >= 0.60:
+            core = across_c[np.abs(across_c) <= BEAM_MAX_THICKNESS_M / 2]
+            if len(core) >= 5:
+                across_c = core
+                # The restricted window can still contain sparse outliers.
+                # Trim both tails; this envelope is not a fitted steel profile.
+                quantiles = (5, 95)
+                selected &= np.abs(across) <= BEAM_MAX_THICKNESS_M / 2
+        thickness = float(np.percentile(across_c, quantiles[1]) - np.percentile(across_c, quantiles[0]))
     else:
         thickness = 0.0
     if selected.sum() >= 3:
@@ -342,6 +366,31 @@ def _axis_angle(band_xy: list[np.ndarray]) -> float | None:
     return math.atan2(float(major[1]), float(major[0])) % math.pi
 
 
+def _axis_from_segments(segments: list[dict[str, Any]], reference: float | None) -> float | None:
+    """Orthogonal frame consensus, with PCA only choosing longitudinal vs cross.
+
+    Crop shape can bias PCA. Actual measured line directions establish the
+    frame, modulo 90 degrees. No line or column is snapped to the returned axis.
+    """
+    usable = [s for s in segments if math.isfinite(s["angle"]) and s["length"] > 0]
+    if not usable:
+        return reference
+    angles = np.array([s["angle"] for s in usable])
+    weights = np.array([min(s["length"], 20.0) for s in usable])
+    period = math.pi / 2
+    bins = np.arange(90) * math.pi / 180
+    distances = np.abs((angles[:, None]-bins[None, :]+period/2) % period-period/2)
+    votes = (distances <= math.radians(6)).T @ weights
+    best = bins[int(np.argmax(votes))]
+    keep = np.abs((angles-best+period/2) % period-period/2) <= math.radians(6)
+    vector = np.sum(weights[keep] * np.exp(4j * angles[keep]))
+    if abs(vector) < 1e-9:
+        return reference
+    angle = float(np.angle(vector) / 4) % period
+    choices = (angle, angle+period)
+    return min(choices, key=lambda a: _angle_diff(a, reference)) if reference is not None else angle
+
+
 def _beam_element(
     geom: CloudGeometry,
     center: np.ndarray,
@@ -406,6 +455,10 @@ def _beam_element(
             "height_m": round(height, 3),
             "role": role,
             "role_label": label,
+            "role_status": "proposed",
+            "profile_status": "not_fitted",
+            "height_source": "percentiles within sampled level band, not full profile height",
+            "thickness_source": "supported strip envelope, not a catalogue profile",
         },
         metadata={
             "method": "thin-band plan raster + skeleton + probabilistic Hough + collinear merge",
@@ -488,18 +541,24 @@ def _horizontal_members(
             kind = "crane"
         band_data.append((zl - 0.50, zl + 0.50, f"{float(level['z']):.2f} м", kind))
     band_points = _bands_points(geom, [(z0, z1) for z0, z1, *_ in band_data])
-    axis = _axis_angle([points[:, :2] for points in band_points])
+    segments_by_band = [
+        _plan_segments(points[:, :2], res=0.10, min_length_m=BEAM_MIN_LENGTH_M)
+        if len(points) >= 500 else [] for points in band_points
+    ]
+    axis = _axis_from_segments(
+        [segment for segments in segments_by_band for segment in segments],
+        _axis_angle([points[:, :2] for points in band_points]),
+    )
     if axis is None:
         warnings.append("Не удалось определить ось зала для распознавания горизонтальных связей и балок.")
     elements: list[DetectedElement] = []
     role_counts: dict[str, int] = {}
-    for (z0, z1, label, kind), points in zip(band_data, band_points):
+    for (z0, z1, label, kind), points, segments in zip(band_data, band_points, segments_by_band):
         if progress:
             progress(0.88, f"горизонтальные члены в полосе {label}")
         band_xy.append(points[:, :2])
         if len(points) < 500:
             continue
-        segments = _plan_segments(points[:, :2], res=0.10, min_length_m=BEAM_MIN_LENGTH_M)
         groups = _group_segments(segments)
         for group in groups:
             center, direction, length = _group_line(group)
@@ -546,7 +605,7 @@ def _horizontal_members(
                         continue  # vertical structure reaching the floor: a wall, not a beam
                     role = "crane_girder"
                     note = (
-                        "Длинная осевая балка между уровнем перекрытия и низкой кровлей, "
+                        "Осевая балка в промежуточной высотной полосе, "
                         "не продолжается вниз до пола — гипотеза подкрановой балки; "
                         "проверьте привязку к колоннам и крановому пути."
                     )
@@ -861,7 +920,9 @@ def _footprint_cells(
     half_l = length / 2 + res
     half_t = thickness / 2 + res
     mask = np.zeros((nv, nu), dtype=bool)
-    rad = int(math.ceil(max(half_l, half_t) / res)) + 1
+    # Raster search bounds must enclose the rotated rectangle, including corners.
+    radius = max(abs(ca) * half_l + abs(sa) * half_t, abs(sa) * half_l + abs(ca) * half_t)
+    rad = int(math.ceil(radius / res)) + 1
     cx = int(round((center[0] - 0) / res))
     cy = int(round((center[1] - 0) / res))
     for iy in range(max(0, cy - rad), min(nv, cy + rad + 1)):
@@ -943,8 +1004,8 @@ def classify_column_sections(
         if len(measured) < 2:
             continue
         split = max(1, n // 3)
-        base_vals = [a for z, a in measured if z < split * grid_band_height()]
-        top_vals = [a for z, a in measured if z >= (n - split) * grid_band_height()]
+        base_vals = [a for z, a in measured if z < (b0 + split) * grid_band_height()]
+        top_vals = [a for z, a in measured if z >= (b1 - split) * grid_band_height()]
         base_area = float(np.median(base_vals)) if base_vals else 0.0
         top_area = float(np.median(top_vals)) if top_vals else 0.0
         mid_b = (b0 + b1) // 2
@@ -953,7 +1014,7 @@ def classify_column_sections(
             # The middle band is often one of the empty ones; use the densest
             # measured band for the solid/built-up fill signature instead.
             densest_z, densest_a = max(measured, key=lambda za: za[1])
-            mid_b = min(b1 - 1, max(b0, b0 + int(densest_z / grid_band_height())))
+            mid_b = min(b1 - 1, max(b0, int(densest_z / grid_band_height())))
             mid_cells = int(densest_a / (res * res))
         fill = mid_cells / max(1, cells)
         # Bimodal flange signature on the mid band, projected on both axes.
@@ -1044,6 +1105,8 @@ def detect_structural_frame(
     beams, axis, _band_xy, h_warnings = _horizontal_members(geom, levels, grid, progress)
     warnings.extend(h_warnings)
     elements.extend(beams)
+    stats["hall_axis_deg"] = round(math.degrees(axis), 4) if axis is not None else None
+    stats["hall_axis_method"] = "measured orthogonal line consensus; PCA chooses longitudinal direction"
 
     if axis is not None:
         zone = _truss_zone(geom, levels)

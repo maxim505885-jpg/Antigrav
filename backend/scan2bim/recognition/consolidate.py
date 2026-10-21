@@ -290,6 +290,7 @@ def _merge_column_group(group: list[DetectedElement]) -> DetectedElement:
     min_y, max_y = min(ys), max(ys)
     dx, dy = max_x - min_x, max_y - min_y
     length, thickness = max(dx, dy), min(dx, dy)
+    envelope_angle = 0.0 if dx >= dy else math.pi / 2
     z0 = min(_z_range(e)[0] for e in group)
     z1 = max(_z_range(e)[1] for e in group)
     height = max(0.05, z1 - z0)
@@ -305,7 +306,7 @@ def _merge_column_group(group: list[DetectedElement]) -> DetectedElement:
                 "thickness": round(thickness, 3),
                 "height": round(height, 3),
             },
-            "rotation_z": 0.0,
+            "rotation_z": envelope_angle,
             "note": "shaft merged from overlapping per-storey fragments; plan extent measured",
         },
         bbox={

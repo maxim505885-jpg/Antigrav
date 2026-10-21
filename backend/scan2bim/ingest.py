@@ -7,7 +7,9 @@ in metadata and can be added back to obtain world coordinates.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import shutil
 from typing import Any
 
 import numpy as np
@@ -20,6 +22,7 @@ from .storage import cloud_paths, sha256_file, write_json_atomic
 PREVIEW_DTYPE = np.dtype(
     [("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("r", "u1"), ("g", "u1"), ("b", "u1")]
 )
+INGEST_CHECKPOINT_VERSION = 1
 
 
 def _save_npy_atomic(path: Path, array: np.ndarray) -> None:
@@ -72,12 +75,126 @@ def build_preview(
     return arr, len(pos)
 
 
+def _source_identity(path: Path) -> dict[str, Any]:
+    resolved = str(path.resolve())
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"path": resolved, "missing": True}
+    return {"path": resolved, "size_bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+
+
+def _file_record(path: Path) -> dict[str, Any]:
+    return {"size_bytes": path.stat().st_size, "sha256": sha256_file(path)}
+
+
+def _record_matches(path: Path, record: dict[str, Any]) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size == record["size_bytes"] and sha256_file(path) == record["sha256"]
+    except (OSError, KeyError, TypeError):
+        return False
+
+
+def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path, cloud_id: str) -> dict[str, Any] | None:
+    manifest_path = stage_dir / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("version") != INGEST_CHECKPOINT_VERSION or manifest.get("cloud_id") != cloud_id:
+            return None
+        identity = manifest["source_identity"]
+        if identity.get("path") != str(source_path.resolve()):
+            return None
+        current_identity = _source_identity(source_path)
+        # Once a complete, checksummed derived package exists, finalization no
+        # longer depends on the source still being present. If it is present,
+        # however, its recorded identity must still match.
+        if not current_identity.get("missing") and current_identity != identity:
+            return None
+        records = manifest["files"]
+        for key, record in records.items():
+            if key not in {"positions", "colors", "intensity", "preview", "meta"}:
+                return None
+            staged = stage_dir / record["name"]
+            final = paths[key]
+            if not (_record_matches(staged, record) or _record_matches(final, record)):
+                return None
+        if not {"positions", "preview", "meta"} <= set(records):
+            return None
+        return manifest
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _discard_incomplete_stage(stage_dir: Path, paths: dict[str, Path]) -> None:
+    shutil.rmtree(stage_dir, ignore_errors=True)
+    # These paths are exclusively derived outputs for this cloud. A source
+    # upload lives in the separate `source/` directory and is never removed.
+    for key in ("positions", "colors", "intensity", "preview", "meta"):
+        paths[key].unlink(missing_ok=True)
+
+
+def _finalize_checkpoint(
+    project_id: str,
+    cloud_id: str,
+    paths: dict[str, Path],
+    stage_dir: Path,
+    manifest: dict[str, Any],
+    progress=None,
+) -> dict[str, Any]:
+    if progress:
+        progress(0.98, "checkpoint ready; finalizing")
+    for key, record in manifest["files"].items():
+        staged = stage_dir / record["name"]
+        destination = paths[key]
+        if _record_matches(destination, record):
+            continue
+        if not _record_matches(staged, record):
+            raise RuntimeError(f"ingest checkpoint file is missing or corrupt: {record['name']}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(staged, destination)
+
+    cloud = manifest["cloud"]
+    now = utcnow()
+    execute(
+        """UPDATE clouds SET
+            point_count = ?, ingested_count = ?, decimated = ?, size_bytes = ?, sha256 = ?,
+            origin_x = ?, origin_y = ?, origin_z = ?,
+            bbox_min_x = ?, bbox_min_y = ?, bbox_min_z = ?,
+            bbox_max_x = ?, bbox_max_y = ?, bbox_max_z = ?,
+            has_color = ?, has_intensity = ?, status = 'ready', error = NULL,
+            metadata_json = ?, updated_at = ?
+        WHERE id = ?""",
+        (
+            cloud["point_count"], cloud["ingested_count"], int(cloud["decimated"]), cloud["size_bytes"], cloud["sha256"],
+            *cloud["origin"], *cloud["bbox_min"], *cloud["bbox_max"],
+            int(cloud["has_color"]), int(cloud["has_intensity"]), dumps(cloud["metadata"]), now, cloud_id,
+        ),
+    )
+    result = manifest["result"]
+    if progress:
+        progress(1.0, "cloud ready")
+    shutil.rmtree(stage_dir, ignore_errors=True)
+    return result
+
+
 def ingest_cloud(
     project_id: str,
     cloud_id: str,
     source_path: Path,
     progress=None,
 ) -> dict[str, Any]:
+    paths = cloud_paths(project_id, cloud_id)
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    stage_dir = paths["dir"] / ".ingest-stage"
+    manifest = _load_checkpoint(stage_dir, paths, source_path, cloud_id)
+    if manifest is not None:
+        return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
+
+    if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
+        _discard_incomplete_stage(stage_dir, paths)
+    source_identity = _source_identity(source_path)
     if progress:
         progress(0.01, "открытие исходного файла")
     raw = read_cloud(source_path, max_points=MAX_INGEST_POINTS, progress=progress)
@@ -93,18 +210,24 @@ def ingest_cloud(
     colors = raw.rgb.astype(np.uint8, copy=False) if raw.rgb is not None else None
     intensity = raw.intensity.astype(np.float32, copy=False) if raw.intensity is not None else None
 
-    paths = cloud_paths(project_id, cloud_id)
-    paths["dir"].mkdir(parents=True, exist_ok=True)
-    _save_npy_atomic(paths["positions"], local)
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    staged_files: dict[str, Path] = {
+        "positions": stage_dir / paths["positions"].name,
+        "preview": stage_dir / paths["preview"].name,
+        "meta": stage_dir / paths["meta"].name,
+    }
+    _save_npy_atomic(staged_files["positions"], local)
     if colors is not None:
-        _save_npy_atomic(paths["colors"], colors)
+        staged_files["colors"] = stage_dir / paths["colors"].name
+        _save_npy_atomic(staged_files["colors"], colors)
     if intensity is not None:
-        _save_npy_atomic(paths["intensity"], intensity)
+        staged_files["intensity"] = stage_dir / paths["intensity"].name
+        _save_npy_atomic(staged_files["intensity"], intensity)
 
     preview_arr, preview_count = build_preview(local, colors, intensity)
-    tmp_preview = paths["preview"].with_suffix(".bin.tmp")
+    tmp_preview = staged_files["preview"].with_suffix(".bin.tmp")
     preview_arr.tofile(tmp_preview)
-    tmp_preview.replace(paths["preview"])
+    tmp_preview.replace(staged_files["preview"])
 
     source_count = int(raw.metadata.get("source_point_count") or len(raw.xyz))
     decimated = bool(raw.metadata.get("decimated") or len(local) < source_count)
@@ -123,6 +246,10 @@ def ingest_cloud(
     except Exception:
         checksum = None
 
+    if _source_identity(source_path) != source_identity:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError("source identity changed while cloud import was running")
+
     metadata = {
         **{k: v for k, v in raw.metadata.items() if k not in {"has_color", "has_intensity"}},
         "origin": [float(x) for x in origin],
@@ -139,40 +266,24 @@ def ingest_cloud(
         "crash_safe": True,
         "source_unchanged": True,
         "checksum_sha256": checksum,
+        "source_identity": source_identity,
     }
-    write_json_atomic(paths["meta"], metadata)
+    write_json_atomic(staged_files["meta"], metadata)
 
-    now = utcnow()
-    execute(
-        """
-        UPDATE clouds SET
-            point_count = ?, ingested_count = ?, decimated = ?, size_bytes = ?, sha256 = ?,
-            origin_x = ?, origin_y = ?, origin_z = ?,
-            bbox_min_x = ?, bbox_min_y = ?, bbox_min_z = ?,
-            bbox_max_x = ?, bbox_max_y = ?, bbox_max_z = ?,
-            has_color = ?, has_intensity = ?, status = 'ready', error = NULL,
-            metadata_json = ?, updated_at = ?
-        WHERE id = ?
-        """,
-        (
-            source_count,
-            int(len(local)),
-            1 if decimated else 0,
-            int(source_path.stat().st_size),
-            checksum,
-            *[float(x) for x in origin],
-            *[float(x) for x in bbox_min],
-            *[float(x) for x in bbox_max],
-            1 if colors is not None else 0,
-            1 if intensity is not None else 0,
-            dumps(metadata),
-            now,
-            cloud_id,
-        ),
-    )
-    if progress:
-        progress(1.0, "cloud ready")
-    return {
+    cloud = {
+        "point_count": source_count,
+        "ingested_count": int(len(local)),
+        "decimated": decimated,
+        "size_bytes": int(source_path.stat().st_size),
+        "sha256": checksum,
+        "origin": [float(x) for x in origin],
+        "bbox_min": [float(x) for x in bbox_min],
+        "bbox_max": [float(x) for x in bbox_max],
+        "has_color": colors is not None,
+        "has_intensity": intensity is not None,
+        "metadata": metadata,
+    }
+    result = {
         "cloud_id": cloud_id,
         "point_count": source_count,
         "ingested_count": int(len(local)),
@@ -180,6 +291,20 @@ def ingest_cloud(
         "decimated": decimated,
         "warning": warning,
     }
+    files = {
+        key: {"name": staged.name, **_file_record(staged)}
+        for key, staged in staged_files.items()
+    }
+    manifest = {
+        "version": INGEST_CHECKPOINT_VERSION,
+        "cloud_id": cloud_id,
+        "source_identity": source_identity,
+        "files": files,
+        "cloud": cloud,
+        "result": result,
+    }
+    write_json_atomic(stage_dir / "manifest.json", manifest)
+    return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
 
 
 def cloud_meta(cloud_id: str) -> dict[str, Any]:

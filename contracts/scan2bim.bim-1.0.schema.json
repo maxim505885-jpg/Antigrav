@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scan2bim.local/contracts/scan2bim.bim-1.0.schema.json",
+  "title": "SCAN neutral BIM exchange model 1.0",
+  "type": "object",
+  "required": ["schema", "units", "coordinate_frame", "project", "source", "levels", "elements", "notes"],
+  "properties": {
+    "schema": {"const": "scan2bim.bim/1.0"},
+    "units": {"const": "m"},
+    "coordinate_frame": {
+      "type": "object",
+      "required": ["id", "units", "vertical_axis"],
+      "properties": {
+        "id": {"const": "source_cloud_world"},
+        "units": {"const": "m"},
+        "vertical_axis": {"const": "Z"}
+      },
+      "additionalProperties": true
+    },
+    "project": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    },
+    "source": {
+      "type": "object",
+      "required": ["cloud_id", "cloud_name", "format", "origin", "point_count", "snapshot_manifest"],
+      "properties": {
+        "cloud_id": {"type": "string", "minLength": 1},
+        "cloud_name": {"type": "string"},
+        "format": {"type": "string"},
+        "origin": {"$ref": "#/$defs/vector3"},
+        "point_count": {"type": "integer", "minimum": 0},
+        "snapshot_manifest": {"type": ["object", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "levels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "elevation"],
+        "properties": {"name": {"type": "string"}, "elevation": {"type": "number"}},
+        "additionalProperties": true
+      }
+    },
+    "elements": {"type": "array", "items": {"$ref": "#/$defs/element"}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "vector2": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+    "vector3": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+    "element": {
+      "type": "object",
+      "required": ["id", "class_name", "geometry", "bbox", "confidence", "confidence_kind", "measured", "inferred", "source", "review_status", "dimensions"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "class_name": {"type": "string", "minLength": 1},
+        "geometry": {"$ref": "#/$defs/geometry"},
+        "bbox": {
+          "type": "object", "required": ["min", "max"],
+          "properties": {"min": {"$ref": "#/$defs/vector3"}, "max": {"$ref": "#/$defs/vector3"}},
+          "additionalProperties": true
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "confidence_kind": {"type": "string", "minLength": 1},
+        "measured": {"type": "boolean"},
+        "inferred": {"type": "boolean"},
+        "source": {"type": "string", "minLength": 1},
+        "review_status": {"type": "string", "minLength": 1},
+        "dimensions": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "geometry": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {"kind": {"type": "string", "minLength": 1}},
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "oriented_box"}}, "required": ["kind"]},
+          "then": {
+            "required": ["center", "sizes"],
+            "properties": {
+              "center": {"$ref": "#/$defs/vector3"},
+              "rotation_z": {"type": "number"},
+              "sizes": {
+                "type": "object", "required": ["length", "thickness", "height"],
+                "properties": {
+                  "length": {"type": "number", "exclusiveMinimum": 0},
+                  "thickness": {"type": "number", "exclusiveMinimum": 0},
+                  "height": {"type": "number", "exclusiveMinimum": 0}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "member"}}, "required": ["kind"]},
+          "then": {
+            "required": ["p0", "p1"],
+            "properties": {
+              "p0": {"$ref": "#/$defs/vector3"}, "p1": {"$ref": "#/$defs/vector3"},
+              "section_m": {"type": "number", "exclusiveMinimum": 0}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "slab"}}, "required": ["kind"]},
+          "then": {
+            "required": ["polygon", "z"],
+            "properties": {
+              "polygon": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/vector2"}},
+              "z": {"type": "number"}, "assumed_thickness": {"type": "number", "exclusiveMinimum": 0}
+            },
+            "anyOf": [{"required": ["assumed_thickness"]}, {"required": ["thickness"]}]
+          }
+        }
+      ],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

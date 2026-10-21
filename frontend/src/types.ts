@@ -11,6 +11,7 @@ export interface Project {
 
 export interface Cloud {
   id: string;
+  import_job_id?: string | null;
   project_id: string;
   name: string;
   source_path: string;
@@ -24,7 +25,7 @@ export interface Cloud {
   bbox_max: [number, number, number] | null;
   has_color: boolean;
   has_intensity: boolean;
-  status: "processing" | "ready" | "failed" | string;
+  status: "processing" | "ready" | "failed" | "cancelled" | string;
   error?: string | null;
   preview_count: number;
   created_at: string;

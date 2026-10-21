@@ -1,13 +1,13 @@
 """Domain services shared by the REST API and plugins."""
 from __future__ import annotations
 
-import math
 from typing import Any
 
 from shapely.geometry import Polygon, box
 from shapely.ops import unary_union
 
 from .db import dumps, execute, loads, new_id, one, rows, utcnow
+from .geometry.bounds import derive_bbox
 from .learning.features import features_from_element
 from .learning.store import create_sample
 
@@ -49,58 +49,30 @@ def get_element(element_id: str) -> dict[str, Any]:
     return element_from_row(row)
 
 
+def _element_state(element: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: element.get(key)
+        for key in (
+            "id", "project_id", "cloud_id", "parent_id", "class_name", "geometry", "bbox",
+            "confidence", "confidence_kind", "measured", "inferred", "source", "review_status",
+            "dimensions", "metadata",
+        )
+    }
+
+
+def _restore_element_state(element_id: str, state: dict[str, Any]) -> dict[str, Any]:
+    fields = (
+        "parent_id", "class_name", "geometry", "bbox", "confidence", "confidence_kind", "measured",
+        "inferred", "source", "review_status", "dimensions", "metadata",
+    )
+    updates = {field: state[field] for field in fields if field in state and state[field] is not None}
+    if "geometry" in updates and "bbox" not in updates:
+        updates["bbox"] = derive_bbox(updates["geometry"], get_element(element_id)["bbox"])
+    return _update_element(element_id, updates)
+
+
 def list_elements(cloud_id: str) -> list[dict[str, Any]]:
     return [element_from_row(r) for r in rows("SELECT * FROM elements WHERE cloud_id = ? ORDER BY class_name, id", (cloud_id,))]
-
-
-def derive_bbox(geometry: dict[str, Any], fallback: dict[str, Any] | None = None) -> dict[str, Any]:
-    kind = geometry.get("kind")
-    if kind == "oriented_box":
-        cx, cy, cz = (float(v) for v in geometry["center"])
-        length = float(geometry["sizes"]["length"])
-        thickness = float(geometry["sizes"]["thickness"])
-        height = float(geometry["sizes"]["height"])
-        angle = float(geometry.get("rotation_z", 0.0))
-        ca, sa = math.cos(angle), math.sin(angle)
-        xs, ys = [], []
-        for lx, ly in (
-            (-length / 2, -thickness / 2),
-            (length / 2, -thickness / 2),
-            (length / 2, thickness / 2),
-            (-length / 2, thickness / 2),
-        ):
-            xs.append(cx + lx * ca - ly * sa)
-            ys.append(cy + lx * sa + ly * ca)
-        return {
-            "min": [round(min(xs), 3), round(min(ys), 3), round(cz - height / 2, 3)],
-            "max": [round(max(xs), 3), round(max(ys), 3), round(cz + height / 2, 3)],
-        }
-    if kind == "member" and geometry.get("p0") and geometry.get("p1"):
-        section = float(geometry.get("section_m", 0.15))
-        p0 = [float(v) for v in geometry["p0"]]
-        p1 = [float(v) for v in geometry["p1"]]
-        half = section / 2
-        return {
-            "min": [round(min(p0[0], p1[0]) - half, 3), round(min(p0[1], p1[1]) - half, 3), round(min(p0[2], p1[2]) - half, 3)],
-            "max": [round(max(p0[0], p1[0]) + half, 3), round(max(p0[1], p1[1]) + half, 3), round(max(p0[2], p1[2]) + half, 3)],
-        }
-    if kind == "slab" and geometry.get("polygon"):
-        pts = geometry["polygon"]
-        z = float(geometry.get("z", 0.0))
-        half = float(geometry.get("assumed_thickness", 0.2)) / 2
-        return {
-            "min": [
-                round(min(float(p[0]) for p in pts), 3),
-                round(min(float(p[1]) for p in pts), 3),
-                round(z - half, 3),
-            ],
-            "max": [
-                round(max(float(p[0]) for p in pts), 3),
-                round(max(float(p[1]) for p in pts), 3),
-                round(z + half, 3),
-            ],
-        }
-    return fallback or {"min": [0, 0, 0], "max": [0, 0, 0]}
 
 
 def _update_element(element_id: str, updates: dict[str, Any]) -> dict[str, Any]:
@@ -181,11 +153,7 @@ def review_element(
     note: str = "",
 ) -> dict[str, Any]:
     element = get_element(element_id)
-    before = {
-        "class_name": element["class_name"],
-        "geometry": element["geometry"],
-        "review_status": element["review_status"],
-    }
+    before = _element_state(element)
     updates: dict[str, Any] = {}
     if action == "confirm":
         updates["review_status"] = "confirmed"
@@ -214,6 +182,11 @@ def review_element(
     sample = None
     if action in {"confirm", "reclassify", "adjust_boundary"}:
         sample = _ensure_sample(updated, updated["class_name"])
+        if sample:
+            execute(
+                "UPDATE feedback SET after_json = ? WHERE id = ?",
+                (dumps({**updates, "id": element_id, "sample_id": sample["id"]}), feedback_id),
+            )
     return {"element": updated, "feedback_id": feedback_id, "sample": sample}
 
 
@@ -309,7 +282,17 @@ def merge_elements(
         },
     )
     feedback_id = _feedback(
-        target, "merge", before, {"merged_id": element_id, "removed_id": other_element_id}, engineer, note
+        target,
+        "merge",
+        before,
+        {
+            "merged_id": element_id,
+            "removed_id": other_element_id,
+            "target_after": _element_state(updated),
+            "other_after": _element_state(get_element(other_element_id)),
+        },
+        engineer,
+        note,
     )
     return {"element": updated, "feedback_id": feedback_id}
 
@@ -407,7 +390,12 @@ def split_element(
         element,
         "split",
         before,
-        {"children": [c["id"] for c in children], "axis": axis, "value": value},
+        {
+            "children": [c["id"] for c in children],
+            "children_state": [_element_state(child) for child in children],
+            "axis": axis,
+            "value": value,
+        },
         engineer,
         note,
     )
@@ -417,3 +405,79 @@ def split_element(
 def set_review_status(element_id: str, status: str, engineer: str = "", note: str = "") -> dict[str, Any]:
     action = "confirm" if status == "confirmed" else "reject"
     return review_element(element_id, action, engineer=engineer, note=note)
+
+
+def undo_feedback(element_id: str, feedback_id: str, engineer: str = "") -> dict[str, Any]:
+    entry = one("SELECT * FROM feedback WHERE id = ?", (feedback_id,))
+    if not entry or entry.get("element_id") != element_id:
+        raise KeyError(f"feedback {feedback_id} not found for element {element_id}")
+    if entry["action"] == "undo":
+        raise ValueError("an undo action cannot itself be undone")
+
+    history = rows("SELECT rowid AS sequence, * FROM feedback WHERE element_id = ? ORDER BY rowid DESC", (element_id,))
+    already_undone = {
+        loads(item.get("after_json"), {}).get("undo_of")
+        for item in history
+        if item["action"] == "undo"
+    }
+    latest = next((item for item in history if item["action"] != "undo" and item["id"] not in already_undone), None)
+    if not latest or latest["id"] != feedback_id:
+        raise ValueError("only the latest not-yet-undone action can be undone")
+
+    current = get_element(element_id)
+    before = loads(entry.get("before_json"), {})
+    after = loads(entry.get("after_json"), {})
+    restored: list[dict[str, Any]] = []
+    if entry["action"] == "merge":
+        target_before = before.get("target")
+        other_before = before.get("other")
+        other_id = (after.get("other_after") or {}).get("id") or (after.get("removed_id"))
+        if not target_before or not other_before or not other_id:
+            raise ValueError("merge history lacks source snapshots and cannot be safely undone")
+        other_current = get_element(other_id)
+        expected_other = after.get("other_after")
+        changed = (
+            any(
+                _element_state(other_current).get(key) != expected_other.get(key)
+                for key in _element_state(other_current)
+            )
+            if expected_other
+            else other_current.get("metadata", {}).get("merged_into") != element_id
+        )
+        if changed:
+            raise ValueError("merged element changed after the merge; refusing to overwrite it")
+        restored.append(_restore_element_state(element_id, target_before))
+        restored.append(_restore_element_state(other_id, other_before))
+    elif entry["action"] == "split":
+        child_ids = after.get("children", [])
+        expected_children = {item["id"]: item for item in after.get("children_state", [])}
+        for child_id in child_ids:
+            child = get_element(child_id)
+            expected = expected_children.get(child_id)
+            changed = expected and any(
+                _element_state(child).get(key) != expected.get(key)
+                for key in _element_state(child)
+            )
+            if not expected and rows("SELECT id FROM feedback WHERE element_id = ? LIMIT 1", (child_id,)):
+                changed = True
+            if child.get("parent_id") != element_id or child.get("metadata", {}).get("split_from") != element_id or changed:
+                raise ValueError("a split fragment changed after the split; refusing to overwrite it")
+            child_metadata = {**child.get("metadata", {}), "undone_split": feedback_id}
+            restored.append(_update_element(child_id, {"review_status": "rejected", "metadata": child_metadata}))
+        restored.insert(0, _restore_element_state(element_id, before))
+    else:
+        restored.append(_restore_element_state(element_id, before))
+        sample_id = after.get("sample_id")
+        if sample_id:
+            execute("UPDATE training_samples SET source = 'undone' WHERE id = ?", (sample_id,))
+
+    latest_element = get_element(element_id)
+    undo_id = _feedback(
+        current,
+        "undo",
+        _element_state(current),
+        {**_element_state(latest_element), "undo_of": feedback_id},
+        engineer,
+        f"Undo {entry['action']}",
+    )
+    return {"element": latest_element, "restored": restored, "feedback_id": undo_id, "undone_feedback_id": feedback_id}

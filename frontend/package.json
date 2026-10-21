@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types src/reviewQueue.test.ts && node --experimental-strip-types src/elementPointGeometry.test.ts && node --experimental-strip-types src/orientedBoxEditor.test.ts && node --experimental-strip-types src/api.test.ts && node --experimental-strip-types src/columnGroupGeometry.test.ts && node --experimental-strip-types src/columnSurfaceCoverage.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

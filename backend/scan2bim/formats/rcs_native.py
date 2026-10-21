@@ -272,37 +272,52 @@ def read_rcs_native(path: Path, max_points: int, progress=None):
         last = ""
         stray: list[str] = []
         seen_total = 0
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("PROGRESS "):
-                parts = line.split(" ", 3)
-                if progress:
-                    try:
-                        progress(float(parts[1]), f"streaming RCS: {parts[2]}")
-                    except (IndexError, ValueError):
-                        pass
-                last = line
-            elif line.startswith("DONE"):
-                last = line
-                bits = line.split()
-                if "SEEN" in bits:
-                    try:
-                        seen_total = int(bits[bits.index("SEEN") + 1])
-                    except (ValueError, IndexError):
-                        seen_total = 0
-            elif line.startswith("ERROR"):
-                last = line
-            else:
-                stray.append(line)
-                stray = stray[-12:]
         try:
-            code = proc.wait(timeout=60 * 60)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-            raise FormatError("native RCS read timed out after 60 minutes")
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("PROGRESS "):
+                    parts = line.split(" ", 3)
+                    if progress:
+                        try:
+                            progress(float(parts[1]), f"streaming RCS: {parts[2]}")
+                        except (IndexError, ValueError):
+                            pass
+                    last = line
+                elif line.startswith("DONE"):
+                    last = line
+                    bits = line.split()
+                    if "SEEN" in bits:
+                        try:
+                            seen_total = int(bits[bits.index("SEEN") + 1])
+                        except (ValueError, IndexError):
+                            seen_total = 0
+                elif line.startswith("ERROR"):
+                    last = line
+                else:
+                    stray.append(line)
+                    stray = stray[-12:]
+            try:
+                code = proc.wait(timeout=60 * 60)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+                raise FormatError("native RCS read timed out after 60 minutes")
+        except BaseException:
+            # A progress callback can cancel the job while this child is
+            # streaming. Stop it before TemporaryDirectory removes its output.
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except OSError:
+                    pass
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+            raise
         xyz_path = out_dir / "xyz.npy"
         if code != 0 or not xyz_path.exists():
             detail = last or (" | ".join(stray[-4:]) if stray else f"exit {code}")
