@@ -15,8 +15,8 @@
       --muted: light-dark(#667085, #a5aab2);
       --line: light-dark(#e5e7eb, #393b40);
       --green: light-dark(#16864a, #52d273);
-      --active: light-dark(#e9eefc, #293b67);
-      --active-text: light-dark(#183b83, #e5edff);
+      --active: light-dark(#f9eee7, #4b3023);
+      --active-text: light-dark(#8d3e1d, #ffeadb);
     }
     * { box-sizing: border-box; }
     body { margin: 0; padding: 18px 16px 28px; background: var(--page); color: var(--text); }
@@ -45,13 +45,13 @@
     <p class="subtitle">FARO → ReCap → AutoCAD 2026 / Revit 2027 · обновление раз в 30 секунд</p>
     <p><a href="superpowers/plans/2026-10-21-scan-workshop-execution-plan.md">Открыть полный исполняемый план: задачи, зависимости и критерии приёмки</a></p>
 
-    <p class="now"><strong>Делаем сейчас · A2: возобновление импорта</strong> Полный производный пакет теперь пишется во временную область, проверяется SHA-256 манифестом и идемпотентно переносится в готовое облако; после перезапуска API импорт помечается возобновляемым, а UI показывает кнопку. Смена пути/размера/mtime источника блокирует resume; checkpoint сохраняется для диагностики. SHA исходника пока не фиксируется, поэтому замена содержимого с теми же метаданными не выявляется. Полный backend suite: 249 passed; frontend-тесты и production-сборка проходят. Чтение исходника всё ещё целиком в памяти, checkpoint только после декодирования: bounded-RAM, промежуточные точки продолжения, полный маршрут облака и канонический формат остаются открытыми. Исходный `1.rcs` не открывался. В A6 нужны реальные физические ID/размеры; AutoCAD/Revit интерактивная приёмка также не пройдена. Интерфейс использует кремово-терракотовую тему. Bundle 736,91 kB; инженерный допуск не определён.</p>
+    <p class="now"><strong>Делаем сейчас · A2: полный RCS и продолжение импорта</strong> При `S2B_MAX_INGEST_POINTS=0` ReCap child пишет все RCS точки XYZ/RGB последовательными блоками; основной процесс делает memmap без полной копии облака. Синтетические тесты проверяют multi-block запись и итоговый импорт. Действует проверка резерва диска; default 40 млн оставлен. Полный комплект манифеста/возобновления и UI-кнопка готовы. Полный backend suite: 257 passed; frontend-тесты и production-сборка проходят. Остались checkpoint с середины RCS-прохода, потоковые адаптеры остальных форматов, source SHA, измерение полного 298M маршрута и канонический формат. Исходный `1.rcs` не открывался. В A6 нужны реальные физические ID/размеры; AutoCAD/Revit интерактивная приёмка не пройдена. Bundle 736,91 kB; инженерный допуск не определён.</p>
 
     <h2>Подготовка и облако точек</h2>
     <ul>
       <li class="done"><span class="mark" aria-label="Готово">✓</span><span><span class="phase">A0 · Исходная точка</span><span class="detail">Инвентаризация, резервная копия, базовые проверки</span></span></li>
       <li><span class="mark">○</span><span><span class="phase">A1 · Контрольный участок</span><span class="detail">Подготовлен шаблон 16 колонн и инструмент метрик; эталоны ещё не заполнены. Допуск пока не определён</span></span></li>
-      <li class="active" aria-current="step"><span class="mark">●</span><span><span class="phase">A2 · Расчётное облако</span><span class="detail"><span class="subdone">✓</span> Отмена и RCS-процесс; staged checkpoint, SHA-256 проверка, идемпотентная финализация, безопасное восстановление после перезапуска и кнопка возобновления. Остались streaming/bounded-RAM и checkpoint во время чтения, большой полный прогон и восстановление после отказа диска.</span></span></li>
+      <li class="active" aria-current="step"><span class="mark">●</span><span><span class="phase">A2 · Расчётное облако</span><span class="detail"><span class="subdone">✓</span> Отмена; native RCS all-points disk stream и memmap (режим 0), запас диска; staged checkpoint и resume финализации. Остались mid-read restart offsets, адаптеры остальных форматов, полный 298M прогон, замеры ресурсов и проверка контрольных сумм/восстановления.</span></span></li>
     </ul>
 
     <h2>Распознавание конструкций</h2>
@@ -77,3 +77,4 @@
   </main>
 </body>
 </html>
+

@@ -40,8 +40,10 @@ over the entire scan. Keep-decisions are computed vectorised per chunk before
 any point is touched, so getPosition/getColor run only for survivors.
 
 Protocol: parent runs ``python -m scan2bim.formats.rcs_native <rcs> <out_dir>
---max N``; the child writes ``<out_dir>/xyz.npy`` (float32 Nx3) and
-``<out_dir>/rgb.npy`` (uint8 Nx3) and prints::
+--max N`` for a uniform reservoir sample, writing ``xyz.npy`` (float32 Nx3)
+and ``rgb.npy`` (uint8 Nx3). In full-resolution mode, ``--all`` writes every
+point sequentially to ``xyz.f64`` and ``rgb.u8`` in bounded chunks. The child
+prints::
 
     PROGRESS 0 <seen> read (<rate> pts/s, <kept> kept)
     DONE <kept> SEEN <seen>
@@ -51,7 +53,9 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -79,6 +83,78 @@ M_CLOSE = r"?close@RCRcsDataSource@Export@RealityComputing@Autodesk@@UEAA_NXZ"
 
 CHUNK = 250_000
 RNG_SEED = 20261020
+MIN_FREE_DISK_BYTES = int(os.environ.get("S2B_INGEST_DISK_RESERVE_BYTES", str(1024**3)))
+STREAM_CHECKPOINT_VERSION = 1
+
+
+def _stream_source_identity(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "path": str(path.resolve()),
+        "size_bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _write_stream_checkpoint(
+    out_dir: Path, source_identity: dict[str, Any], committed_count: int, *, complete: bool
+) -> None:
+    checkpoint = {
+        "version": STREAM_CHECKPOINT_VERSION,
+        "source_identity": source_identity,
+        "committed_count": committed_count,
+        "chunk_size": CHUNK,
+        "complete": complete,
+    }
+    temporary = out_dir / "stream.json.tmp"
+    with temporary.open("w", encoding="utf-8") as handle:
+        json.dump(checkpoint, handle, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, out_dir / "stream.json")
+
+
+def _read_stream_checkpoint(out_dir: Path, source_identity: dict[str, Any]) -> dict[str, Any] | None:
+    path = out_dir / "stream.json"
+    if not path.exists():
+        return None
+    try:
+        checkpoint = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"RCS stream checkpoint is unreadable: {exc}") from exc
+    if checkpoint.get("version") != STREAM_CHECKPOINT_VERSION:
+        raise RuntimeError("RCS stream checkpoint version is unsupported")
+    if checkpoint.get("source_identity") != source_identity:
+        raise RuntimeError("RCS source identity changed; refusing to resume its stream checkpoint")
+    committed = checkpoint.get("committed_count")
+    if not isinstance(committed, int) or committed < 0:
+        raise RuntimeError("RCS stream checkpoint has an invalid committed point count")
+    if not isinstance(checkpoint.get("complete"), bool):
+        raise RuntimeError("RCS stream checkpoint has an invalid completion flag")
+    return checkpoint
+
+
+def _prepare_stream_files(out_dir: Path, checkpoint: dict[str, Any] | None) -> tuple[Any, Any, int]:
+    xyz_path = out_dir / "xyz.f64"
+    rgb_path = out_dir / "rgb.u8"
+    committed = int(checkpoint["committed_count"]) if checkpoint else 0
+    expected_xyz = committed * 3 * np.dtype("<f8").itemsize
+    expected_rgb = committed * 3 * np.dtype("u1").itemsize
+    if checkpoint is None:
+        xyz_out = xyz_path.open("w+b")
+        rgb_out = rgb_path.open("w+b")
+    else:
+        if not xyz_path.is_file() or not rgb_path.is_file():
+            raise RuntimeError("RCS stream checkpoint is missing its raw data files")
+        if xyz_path.stat().st_size < expected_xyz or rgb_path.stat().st_size < expected_rgb:
+            raise RuntimeError("RCS raw stream is shorter than its committed checkpoint")
+        xyz_out = xyz_path.open("r+b")
+        rgb_out = rgb_path.open("r+b")
+        xyz_out.truncate(expected_xyz)
+        rgb_out.truncate(expected_rgb)
+    xyz_out.seek(expected_xyz)
+    rgb_out.seek(expected_rgb)
+    return xyz_out, rgb_out, committed
 
 
 def native_available() -> dict[str, Any]:
@@ -125,6 +201,28 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int, stream_all: bool = F
     if max_points <= 0 and not stream_all:
         raise RuntimeError("reservoir sampling needs a positive point budget")
 
+    source_identity = _stream_source_identity(rcs_path) if stream_all else None
+    checkpoint = None
+    committed = 0
+    if stream_all:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint = _read_stream_checkpoint(out_dir, source_identity)
+        if checkpoint and checkpoint["complete"]:
+            count = int(checkpoint["committed_count"])
+            xyz_path = out_dir / "xyz.f64"
+            rgb_path = out_dir / "rgb.u8"
+            if (
+                count > 0
+                and xyz_path.is_file()
+                and rgb_path.is_file()
+                and xyz_path.stat().st_size == count * 3 * np.dtype("<f8").itemsize
+                and rgb_path.stat().st_size == count * 3 * np.dtype("u1").itemsize
+            ):
+                print(f"PROGRESS 0 {count:,} read ({count:,} kept)", flush=True)
+                print(f"DONE {count} SEEN {count} MODE all", flush=True)
+                return count
+            raise RuntimeError("completed RCS stream checkpoint has invalid raw file sizes")
+
     dll = RECAP_DIR / DLL_NAME
     if hasattr(os, "add_dll_directory"):
         os.add_dll_directory(str(RECAP_DIR))
@@ -161,22 +259,35 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int, stream_all: bool = F
 
     rng = np.random.default_rng(RNG_SEED)
     if stream_all:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        xyz_out = (out_dir / "xyz.f64").open("wb")
-        rgb_out = (out_dir / "rgb.u8").open("wb")
+        xyz_out, rgb_out, committed = _prepare_stream_files(out_dir, checkpoint)
         keep_xyz = np.empty((CHUNK, 3), dtype=np.float64)
         keep_rgb = np.empty((CHUNK, 3), dtype=np.uint8)
+        if checkpoint is None:
+            _write_stream_checkpoint(out_dir, source_identity, 0, complete=False)
     else:
         xyz_out = rgb_out = None
         keep_xyz = np.empty((max_points, 3), dtype=np.float32)
         keep_rgb = np.empty((max_points, 3), dtype=np.uint8)
     kept = 0
-    seen = 0
+    seen = committed
     slot = (ctypes.c_double * 3)()
     cs = (ctypes.c_ubyte * 4)()
     t0 = time.monotonic()
 
     try:
+        skip = committed
+        while skip:
+            advanced = 0
+            for _ in range(min(CHUNK, skip)):
+                if not adv(this_ptr):
+                    raise RuntimeError(
+                        "RCS source ended before its committed stream checkpoint; refusing to append"
+                    )
+                advanced += 1
+            skip -= advanced
+            rate = advanced / max(time.monotonic() - t0, 1e-6)
+            print(f"PROGRESS 0 {committed - skip:,} resumed ({rate:,.0f} pts/s)", flush=True)
+
         while True:
             # Decide the whole chunk's fate before touching a single point.
             idx = np.arange(seen, seen + CHUNK, dtype=np.int64)
@@ -210,20 +321,33 @@ def _stream(rcs_path: Path, out_dir: Path, max_points: int, stream_all: bool = F
                 n += 1
 
             if stream_all and n:
+                if shutil.disk_usage(out_dir).free < MIN_FREE_DISK_BYTES:
+                    raise RuntimeError(
+                        f"full-resolution RCS import paused to preserve disk reserve "
+                        f"({MIN_FREE_DISK_BYTES:,} bytes)"
+                    )
                 keep_xyz[:n].tofile(xyz_out)
                 keep_rgb[:n].tofile(rgb_out)
+                xyz_out.flush()
+                rgb_out.flush()
+                os.fsync(xyz_out.fileno())
+                os.fsync(rgb_out.fileno())
 
             seen += n
             kept = seen if stream_all else min(seen, max_points)
+            if stream_all:
+                _write_stream_checkpoint(out_dir, source_identity, seen, complete=False)
             # The true total is unknown (sentinel count), so no honest fraction
             # exists: report absolute progress with the measured rate instead.
-            if seen % (CHUNK * 40) < CHUNK or n < CHUNK:
+            if stream_all or seen % (CHUNK * 40) < CHUNK or n < CHUNK:
                 rate = seen / max(time.monotonic() - t0, 1e-6)
                 print(
                     f"PROGRESS 0 {seen:,} read ({rate:,.0f} pts/s, {kept:,} kept)",
                     flush=True,
                 )
             if n < CHUNK:
+                if stream_all:
+                    _write_stream_checkpoint(out_dir, source_identity, seen, complete=True)
                 break
     finally:
         try:
@@ -274,6 +398,34 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
     if not info["dll_exists"]:
         raise FormatError(f"ReCap DLL not found: {info['dll_path']}")
     out_dir.mkdir(parents=True, exist_ok=True)
+    source_identity = _stream_source_identity(path)
+    checkpoint = _read_stream_checkpoint(out_dir, source_identity)
+    if checkpoint and checkpoint["complete"]:
+        count = int(checkpoint["committed_count"])
+        xyz_path = out_dir / "xyz.f64"
+        rgb_path = out_dir / "rgb.u8"
+        if (
+            count > 0
+            and xyz_path.is_file()
+            and rgb_path.is_file()
+            and xyz_path.stat().st_size == count * 3 * np.dtype("<f8").itemsize
+            and rgb_path.stat().st_size == count * 3 * np.dtype("u1").itemsize
+        ):
+            if progress:
+                progress(0.55, f"RCS points already staged: {count:,}")
+            return {
+                "point_count": count,
+                "xyz_path": xyz_path,
+                "rgb_path": rgb_path,
+                "reader": {
+                    "reader": "recap-adskrcexport-dll",
+                    "reader_abi": info["abi"],
+                    "dll": info["dll_path"],
+                    "native_rcs_verified": True,
+                    "sampling": "none; full sequential RCS stream",
+                },
+            }
+        raise FormatError("completed RCS stream checkpoint has invalid raw file sizes")
     cmd = [
         sys.executable,
         "-m",
@@ -342,6 +494,11 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
     if code != 0 or count <= 0 or not xyz_path.is_file() or not rgb_path.is_file():
         detail = last or (" | ".join(stray[-4:]) if stray else f"exit {code}")
         raise FormatError(f"native RCS full-resolution stream failed: {detail}")
+    checkpoint = _read_stream_checkpoint(out_dir, source_identity)
+    if not checkpoint or not checkpoint["complete"]:
+        raise FormatError("native RCS child exited without completing its durable stream checkpoint")
+    if checkpoint["committed_count"] != count:
+        raise FormatError("native RCS stream count differs from its durable checkpoint")
     if xyz_path.stat().st_size != count * 3 * np.dtype("<f8").itemsize:
         raise FormatError("native RCS coordinate stream has an invalid byte count")
     if rgb_path.stat().st_size != count * 3 * np.dtype("u1").itemsize:

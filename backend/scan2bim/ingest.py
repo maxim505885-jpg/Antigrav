@@ -17,13 +17,14 @@ import numpy as np
 from .config import MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 from .db import dumps, execute, one, utcnow
 from .formats import read_cloud
-from .formats.rcs_native import extract_rcs_native
+from .formats.rcs_native import extract_rcs_native, native_available
 from .storage import cloud_paths, sha256_file, write_json_atomic
 
 PREVIEW_DTYPE = np.dtype(
     [("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("r", "u1"), ("g", "u1"), ("b", "u1")]
 )
 INGEST_CHECKPOINT_VERSION = 1
+MIN_INGEST_DISK_RESERVE_BYTES = int(os.environ.get("S2B_INGEST_DISK_RESERVE_BYTES", str(1024**3)))
 
 
 class CheckpointSourceChanged(ValueError):
@@ -134,8 +135,19 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
         return None
 
 
-def _discard_incomplete_stage(stage_dir: Path, paths: dict[str, Path]) -> None:
-    shutil.rmtree(stage_dir, ignore_errors=True)
+def _discard_incomplete_stage(
+    stage_dir: Path, paths: dict[str, Path], *, preserve_raw_stream: bool = False
+) -> None:
+    if preserve_raw_stream and (stage_dir / "raw").is_dir():
+        for child in stage_dir.iterdir():
+            if child.name == "raw":
+                continue
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+    else:
+        shutil.rmtree(stage_dir, ignore_errors=True)
     # These paths are exclusively derived outputs for this cloud. A source
     # upload lives in the separate `source/` directory and is never removed.
     for key in ("positions", "colors", "intensity", "preview", "meta"):
@@ -218,6 +230,15 @@ def _ingest_full_rcs_stream(
             valid_count += int(finite.sum())
     if valid_count == 0:
         raise ValueError("RCS stream contains no finite XYZ points")
+    derived_bytes = valid_count * (3 * np.dtype("<f4").itemsize + 3 * np.dtype("u1").itemsize)
+    preview_bytes = min(valid_count, MAX_PREVIEW_POINTS) * PREVIEW_DTYPE.itemsize
+    required_free = derived_bytes + preview_bytes + MIN_INGEST_DISK_RESERVE_BYTES
+    free_bytes = shutil.disk_usage(stage_dir).free
+    if free_bytes < required_free:
+        raise OSError(
+            "not enough free disk space to finalize full-resolution RCS import: "
+            f"need about {required_free:,} free bytes including reserve, have {free_bytes:,}"
+        )
     origin = (bbox_min + bbox_max) / 2.0
     if progress:
         progress(0.62, "RCS bounds measured; writing local memmaps")
@@ -344,10 +365,16 @@ def ingest_cloud(
     if manifest is not None:
         return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
 
+    full_rcs_stream = (
+        source_path.suffix.lower() in {".rcs", ".rcp"}
+        and MAX_INGEST_POINTS == 0
+        and native_available()["dll_exists"]
+    )
+    preserve_raw_stream = full_rcs_stream and (stage_dir / "raw" / "stream.json").is_file()
     if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
-        _discard_incomplete_stage(stage_dir, paths)
+        _discard_incomplete_stage(stage_dir, paths, preserve_raw_stream=preserve_raw_stream)
     source_identity = _source_identity(source_path)
-    if source_path.suffix.lower() in {".rcs", ".rcp"} and MAX_INGEST_POINTS == 0:
+    if full_rcs_stream:
         return _ingest_full_rcs_stream(
             project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress
         )

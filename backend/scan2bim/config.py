@@ -17,8 +17,9 @@ MODELS_DIR = DATA_DIR / "models"
 
 # Viewer preview is decimated to this many points; the full cloud is retained.
 MAX_PREVIEW_POINTS = int(os.environ.get("S2B_MAX_PREVIEW_POINTS", "2500000"))
-# Safety limit for ingestion. 0 = read every point. Large scans are uniformly
-# sampled and the decimation is reported in the cloud metadata.
+# Safety limit for ingestion. 0 = retain every point. Native RCS import uses a
+# bounded disk stream in this mode; other readers still have format-specific
+# whole-array memory behavior. Large limited scans are sampled and report this.
 MAX_INGEST_POINTS = int(os.environ.get("S2B_MAX_INGEST_POINTS", "40000000"))
 # Points retained for the 2D section overlay (the geometry is computed on all points).
 MAX_SECTION_PREVIEW_POINTS = int(os.environ.get("S2B_MAX_SECTION_POINTS", "150000"))

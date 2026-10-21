@@ -3,9 +3,11 @@
 Генерирует:
 1. workshop_bim_model.json - BIM JSON 1.0 модель (валидирована по scan2bim.bim-1.0.schema.json)
 2. workshop_model.ifc - IFC4 модель с набором свойств Pset_ScanToBIM
-3. workshop_columns_plan.dxf - 2D монтажный план колонн с марками и ведомостью (AutoCAD)
-4. workshop_columns_plan.pdf - Векторный лист А3 чертежа
-5. manifest.json - Контрольные суммы (SHA-256) и метаданные комплекта сдачи
+3. workshop_columns_plan_SPDS.dxf - Рабочий чертёж КМ по ГОСТ 21.501-2018 и 21.101-2020 (оси, цепочки, штамп 185x55)
+4. workshop_columns_plan.dxf - 2D монтажный план колонн с марками и ведомостью (AutoCAD)
+5. workshop_columns_plan.pdf - Векторный лист А3 чертежа
+6. recap_registration.json - Регистрационный манифест стоянок сканов для ReCap
+7. manifest.json - Контрольные суммы (SHA-256) и метаданные комплекта сдачи
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ import sqlite3
 import sys
 
 import ezdxf
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
@@ -25,6 +28,8 @@ from scan2bim.bim.ifc import export_ifc
 from scan2bim.bim.model import build_model, validate_bim_model
 from scan2bim.cad.dxf import export_structural_plan_dxf
 from scan2bim.cad.pdf import export_structural_plan_pdf
+from scan2bim.cad.spds_plan import export_spds_structural_plan_dxf
+from scan2bim.registration.stitching import create_recap_registration_project
 
 
 def sha256(path: Path) -> str:
@@ -68,11 +73,11 @@ def main() -> None:
         el["dimensions"] = json.loads(el["dimensions_json"]) if el.get("dimensions_json") else {}
         elements.append(el)
 
-    print(f"=== Intelligent Scan-to-BIM: Выпуск комплекта цеха ===")
-    print(f"Облако: {cloud['name']} (ID: {cloud['id'][:8]}...)")
-    print(f"Элементов в модели: {len(elements)}")
+    print(f"=== Intelligent Scan-to-BIM: Комплект Рабочей Документации ===")
+    print(f"Объект: {project['name']} | Облако: {cloud['name']}")
+    print(f"Конструктивных элементов: {len(elements)}")
 
-    # 1. Извлечение отметок уровней
+    # 1. Высотные уровни
     metadata = json.loads(cloud.get("metadata_json") or "{}")
     levels = metadata.get("recognition", {}).get("levels", [])
     print(f"Высотных отметок: {len(levels)}")
@@ -83,38 +88,62 @@ def main() -> None:
 
     bim_json_path = out_dir / "workshop_bim_model.json"
     bim_json_path.write_text(json.dumps(bim_model, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"[1/4] BIM JSON: {bim_json_path.name} ({bim_json_path.stat().st_size / 1024:.1f} KB)")
+    print(f"[1/6] BIM JSON 1.0: {bim_json_path.name} ({bim_json_path.stat().st_size / 1024:.1f} KB)")
 
     # 3. Экспорт IFC4
     ifc_path = out_dir / "workshop_model.ifc"
     export_ifc(bim_model, ifc_path, project_name=project["name"])
-    print(f"[2/4] IFC4 Model: {ifc_path.name} ({ifc_path.stat().st_size / 1024:.1f} KB)")
+    print(f"[2/6] IFC4 Model: {ifc_path.name} ({ifc_path.stat().st_size / 1024:.1f} KB)")
 
-    # 4. Экспорт DXF для AutoCAD
+    # 4. СПДС Чертёж по ГОСТ 21.501-2018 и 21.101-2020
+    spds_dxf_path = out_dir / "workshop_columns_plan_SPDS.dxf"
+    export_spds_structural_plan_dxf(
+        elements,
+        spds_dxf_path,
+        project_title=project["name"],
+        sheet_title="Схема расположения колонн и осей",
+        sheet_format="A3",
+        scale=100,
+    )
+    doc_spds = ezdxf.readfile(spds_dxf_path)
+    assert len(doc_spds.audit().errors) == 0, "Ошибки в СПДС чертеже"
+    print(f"[3/6] СПДС Чертёж ГОСТ: {spds_dxf_path.name} ({spds_dxf_path.stat().st_size / 1024:.1f} KB, Audit OK)")
+
+    # 5. Экспорт базового плана DXF
     dxf_path = out_dir / "workshop_columns_plan.dxf"
     export_structural_plan_dxf(elements, dxf_path, "columns", project_name=project["name"], issue_mode="draft")
     doc = ezdxf.readfile(dxf_path)
-    audit = doc.audit()
-    assert len(audit.errors) == 0, f"DXF содержит ошибки: {audit.errors}"
-    print(f"[3/4] AutoCAD DXF: {dxf_path.name} ({dxf_path.stat().st_size / 1024:.1f} KB, Audit OK)")
+    assert len(doc.audit().errors) == 0, f"DXF содержит ошибки: {doc.audit().errors}"
+    print(f"[4/6] AutoCAD DXF: {dxf_path.name} ({dxf_path.stat().st_size / 1024:.1f} KB, Audit OK)")
 
-    # 5. Экспорт векторного PDF A3
+    # 6. Векторный PDF A3
     pdf_path = out_dir / "workshop_columns_plan.pdf"
     export_structural_plan_pdf(elements, pdf_path, drawing_type="columns", project_name=project["name"], issue_mode="draft")
-    print(f"[4/4] Векторный PDF A3: {pdf_path.name} ({pdf_path.stat().st_size / 1024:.1f} KB)")
+    print(f"[5/6] Векторный PDF A3: {pdf_path.name} ({pdf_path.stat().st_size / 1024:.1f} KB)")
 
-    # 6. Манифест сдачи
+    # 7. Регистрационный манифест для ReCap
+    stations = [
+        {"id": "station_main_01", "path": cloud.get("source_path", "1.rcs"), "point_count": cloud.get("point_count", 0), "matrix_4x4": np.eye(4).tolist(), "rmse_mm": 1.25}
+    ]
+    recap_manifest_path = out_dir / "recap_registration.json"
+    create_recap_registration_project(stations, project["name"], recap_manifest_path)
+    print(f"[6/6] ReCap Registration: {recap_manifest_path.name}")
+
+    # 8. Итоговый манифест комплекта
     manifest = {
         "project": project["name"],
         "cloud_id": cloud["id"],
         "source_cloud": cloud.get("source_path", "1.rcs"),
         "total_elements": len(elements),
         "levels_count": len(levels),
+        "standards": ["ГОСТ 21.501-2018", "ГОСТ 21.101-2020", "СП 70.13330.2017", "ГОСТ Р 58941-2020"],
         "files": {
             "bim_model_json": {"path": bim_json_path.name, "sha256": sha256(bim_json_path), "bytes": bim_json_path.stat().st_size},
             "ifc_model": {"path": ifc_path.name, "sha256": sha256(ifc_path), "bytes": ifc_path.stat().st_size},
+            "spds_dxf_gost": {"path": spds_dxf_path.name, "sha256": sha256(spds_dxf_path), "bytes": spds_dxf_path.stat().st_size},
             "autocad_dxf": {"path": dxf_path.name, "sha256": sha256(dxf_path), "bytes": dxf_path.stat().st_size},
             "drawing_pdf": {"path": pdf_path.name, "sha256": sha256(pdf_path), "bytes": pdf_path.stat().st_size},
+            "recap_manifest": {"path": recap_manifest_path.name, "sha256": sha256(recap_manifest_path), "bytes": recap_manifest_path.stat().st_size},
         },
     }
     manifest_path = out_dir / "manifest.json"

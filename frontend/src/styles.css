@@ -1,23 +1,23 @@
 :root {
   color-scheme: light;
-  --bg: #f8fafc;
+  --bg: #faf8f5;
   --panel: #ffffff;
-  --panel-2: #f1f5f9;
-  --panel-hover: #e2e8f0;
-  --line: #e2e8f0;
-  --line-strong: #cbd5e1;
-  --text: #0f172a;
-  --text-secondary: #334155;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-light: #eff6ff;
-  --accent-2: #059669;
-  --accent-2-light: #ecfdf5;
-  --danger: #dc2626;
-  --danger-light: #fef2f2;
-  --warn: #d97706;
-  --warn-light: #fffbeb;
+  --panel-2: #f4efe9;
+  --panel-hover: #eee8e1;
+  --line: #e8e1d9;
+  --line-strong: #d4c9bd;
+  --text: #2d2b2a;
+  --text-secondary: #4a4039;
+  --muted: #776f67;
+  --accent: #cc6633;
+  --accent-hover: #b35529;
+  --accent-light: #f9eee7;
+  --accent-2: #4a8b63;
+  --accent-2-light: #e5f1e8;
+  --danger: #aa4037;
+  --danger-light: #fbebe8;
+  --warn: #9a6819;
+  --warn-light: #faf2df;
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
@@ -40,11 +40,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d4c9bd;
   border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #a99b8c;
 }
 
 * {
