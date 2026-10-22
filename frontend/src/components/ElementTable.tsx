@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
 import { elementEvidenceBadges } from "../elementEvidence";
+import { columnSectionObservationSummary } from "../columnSectionPresentation";
 
 interface Props {
   elements: Element[];
@@ -26,6 +27,8 @@ function dimensionSummary(element: Element): string {
     return `пролёт ${dims.span_m} × выс ${dims.height_m} м · панелей: ${dims.panels ?? "—"}${storeys}`;
   }
   if (element.class_name === "column") {
+    const incomplete = columnSectionObservationSummary(dims);
+    if (incomplete) return `${incomplete}${storeys}`;
     const measured = Array.isArray(dims.measured_section_m)
       ? `${Math.round(dims.measured_section_m[0] * 1000)}×${Math.round(dims.measured_section_m[1] * 1000)}`
       : null;

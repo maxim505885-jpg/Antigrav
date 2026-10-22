@@ -2265,8 +2265,8 @@ def typify_column_sections(
         "column_sections_snapped": 0,
         "column_sections_type_proposals": len(types),
         "column_sections_unique": unique,
-        "column_sections_from_two_sides": sum(
-            1 for m in measurements if m["status"] == "measured_2_axes"
+        "column_sections_two_axes_measured": sum(
+            1 for m in measurements if m["both_dimensions_measured"]
         ),
         "column_sections_partial": sum(
             1 for m in measurements if m["status"] == "partial_one_axis"
@@ -2354,7 +2354,7 @@ def detect_structural_frame(
             f"Предложены {len(sections['column_section_types'])} повторяющиеся группы "
             f"сечений (допуск группировки {int(sections['column_section_tolerance_m'] * 1000)} мм): "
             f"{labels}. Геометрия осталась измеренной; типы требуют проверки. "
-            f"Размеры с опорой на обе оси: {sections['column_sections_from_two_sides']}; "
+            f"Сечения с измерениями по обеим осям: {sections['column_sections_two_axes_measured']}; "
             f"частично измерено: {sections['column_sections_partial']}; "
             f"сечение неизвестно или видно только на грубой сетке: "
             f"{sections['column_sections_unconfirmed']}."

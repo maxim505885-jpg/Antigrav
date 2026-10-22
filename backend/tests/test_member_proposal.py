@@ -146,3 +146,39 @@ def test_builder_creates_stable_unconfirmed_beam_candidate_with_unknown_supports
         support_count_in_processing_sample=3,
     )
     assert reversed_proposal["id"] == proposal["id"]
+
+
+def test_builder_preserves_point_linked_internal_gap_candidates():
+    from scan2bim.structure.proposals import build_member_proposal
+
+    gap = {
+        "kind": "gap",
+        "position_m": 3.0,
+        "reason": "No core-line points; this may be occlusion or a physical joint.",
+        "source_point_ids": [11, 12, 19, 20],
+    }
+    proposal = build_member_proposal(
+        role="crane_girder",
+        axis_start_m=[0.0, 0.0, 5.0],
+        axis_end_m=[6.0, 0.0, 5.0],
+        source_point_ids=[11, 12, 13, 19, 20],
+        source_point_ids_sampled=False,
+        support_count_in_processing_sample=5,
+        joint_gaps=[gap],
+    )
+
+    assert validate_member_proposal(proposal) is proposal
+    assert proposal["joint_gaps"] == [gap]
+    assert proposal["review_state"] == "proposed"
+
+
+def test_member_gap_position_must_lie_on_the_proposed_axis():
+    proposal = _proposal()
+    proposal["joint_gaps"] = [{
+        "kind": "gap", "position_m": 6.1,
+        "reason": "No core-line points; physical cause unknown.",
+        "source_point_ids": [10, 12],
+    }]
+
+    with pytest.raises(ValueError, match="within the member axis"):
+        validate_member_proposal(proposal)

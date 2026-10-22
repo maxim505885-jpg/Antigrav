@@ -509,33 +509,33 @@ def test_point_supported_adjacent_faces_measure_both_section_dimensions():
 def test_opposite_faces_measure_only_one_section_axis():
     # 0.60 m: at 0.40 m the two face bands of a 0.10 m raster would overlap and
     # the synthetic section would look solid from every side.
-    grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "opposite")])
-    column = _section_column(2.0, 2.0, 0.60, 0.60)
+    grid = _section_grid([(2.0, 2.0, 0.60, 0.40, "opposite")])
+    column = _section_column(2.0, 2.0, 0.60, 0.40)
 
-    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.60, "opposite")}
+    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.40, "opposite")}
     typify_column_sections(grid, [column], np.zeros(3), measured)
 
     assert column.dimensions["sides_visible"] == 2
     assert column.dimensions["section_status"] == "partial_one_axis"
     assert column.dimensions["measured_section_axes_m"] == {
         "length": None,
-        "thickness": 0.6,
+        "thickness": 0.4,
     }
     assert "measured_section_m" not in column.dimensions
 
 
 def test_single_visible_side_does_not_invent_a_square():
     # One face fixes one axis only; the missing dimension remains unknown.
-    grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "one")])
-    column = _section_column(2.0, 2.0, 0.60, 0.60)
+    grid = _section_grid([(2.0, 2.0, 0.60, 0.40, "one")])
+    column = _section_column(2.0, 2.0, 0.60, 0.40)
 
-    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.60, "one")}
+    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.40, "one")}
     typify_column_sections(grid, [column], np.zeros(3), measured)
 
     assert column.dimensions["sides_visible"] == 1
     assert column.dimensions["section_status"] == "partial_one_axis"
     assert column.geometry["sizes"]["length"] == 0.60
-    assert column.geometry["sizes"]["thickness"] == 0.60
+    assert column.geometry["sizes"]["thickness"] == 0.40
     assert "measured_section_m" not in column.dimensions
 
 
