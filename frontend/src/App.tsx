@@ -781,6 +781,7 @@ export default function App() {
             </div>
             <Viewer3D
               cloud={cloud}
+              elements={elements}
               groupPositions={groupGeometry.positions}
               selectedElement={selectedElement}
               selectedElementPositions={selectedElementPositions}

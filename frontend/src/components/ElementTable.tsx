@@ -143,6 +143,15 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("pending");
   const [referenceFilter, setReferenceFilter] = useState<ReferenceFilter>("all");
+  const [classFilter, setClassFilter] = useState<string>("all");
+
+  const classCounts = useMemo(() => {
+    const res: Record<string, number> = { all: elements.length };
+    for (const el of elements) {
+      res[el.class_name] = (res[el.class_name] || 0) + 1;
+    }
+    return res;
+  }, [elements]);
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     elements.forEach((element) => {
@@ -157,10 +166,13 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
     rejected: filterReviewElements(elements, "rejected").length,
     all: elements.length,
   }), [elements]);
-  const visibleElements = useMemo(
-    () => filterReferenceElements(filterReviewElements(elements, reviewFilter), referenceFilter, referenceStates),
-    [elements, reviewFilter, referenceFilter, referenceStates],
-  );
+  const visibleElements = useMemo(() => {
+    let list = filterReferenceElements(filterReviewElements(elements, reviewFilter), referenceFilter, referenceStates);
+    if (classFilter !== "all") {
+      list = list.filter((el) => el.class_name === classFilter);
+    }
+    return list;
+  }, [elements, reviewFilter, referenceFilter, referenceStates, classFilter]);
   const reviewFilters: { id: ReviewFilter; label: string }[] = [
     { id: "pending", label: "К проверке" },
     { id: "conflicts", label: "Конфликты" },
@@ -207,6 +219,26 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
           onClick={() => setReferenceFilter(id)}>
           {label} <span className="review-count">{referenceCounts[id]}</span>
         </button>)}
+      </div>
+      <div className="segmented class-filters" style={{ margin: "6px 0", display: "flex", flexWrap: "wrap", gap: "4px" }} aria-label="Фильтр по типу конструкций">
+        {[
+          { id: "all", label: "Все" },
+          { id: "column", label: "🏢 Колонны" },
+          { id: "beam", label: "🏗️ Балки" },
+          { id: "brace", label: "⚡ Связи" },
+          { id: "truss", label: "📐 Фермы" },
+          { id: "wall", label: "🧱 Стены" },
+          { id: "slab", label: "Плиты" },
+        ].filter((f) => f.id === "all" || (classCounts[f.id] || 0) > 0).map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={classFilter === id ? "active" : ""}
+            onClick={() => setClassFilter(id)}
+          >
+            {label} <span className="review-count">{classCounts[id] || 0}</span>
+          </button>
+        ))}
       </div>
       <div className="counts">
         {Object.entries(counts).map(([name, value]) => (

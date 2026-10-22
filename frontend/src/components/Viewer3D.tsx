@@ -4,9 +4,11 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { api } from "../api";
 import type { Cloud, Element } from "../types";
 import { groupCameraDistance } from "../columnGroupGeometry";
+import { elementBoxLinePositions } from "../structuralFrameGeometry";
 
 interface Props {
   cloud: Cloud | null;
+  elements?: Element[];
   groupPositions: Float32Array;
   selectedElement: Element | null;
   selectedElementPositions: Float32Array;
@@ -44,7 +46,7 @@ function heightColors(z: Float32Array): Uint8Array {
   return colors;
 }
 
-export default function Viewer3D({ cloud, groupPositions, selectedElement, selectedElementPositions, selectedElementSections, pointSize, colorMode, showPlane, section }: Props) {
+export default function Viewer3D({ cloud, elements = [], groupPositions, selectedElement, selectedElementPositions, selectedElementSections, pointSize, colorMode, showPlane, section }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -57,6 +59,13 @@ export default function Viewer3D({ cloud, groupPositions, selectedElement, selec
   const rawRef = useRef<RawGeometry | null>(null);
   const planeRef = useRef<THREE.Mesh | null>(null);
   const groupSphereRef = useRef<THREE.Sphere | null>(null);
+  const bimGroupRef = useRef<THREE.Group | null>(null);
+  const [showCloud, setShowCloud] = useState(true);
+  const [showColumns, setShowColumns] = useState(true);
+  const [showBeams, setShowBeams] = useState(true);
+  const [showBraces, setShowBraces] = useState(true);
+  const [showTrusses, setShowTrusses] = useState(true);
+  const [showWalls, setShowWalls] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(0);
@@ -100,6 +109,10 @@ export default function Viewer3D({ cloud, groupPositions, selectedElement, selec
     grid.position.z = -0.001;
     scene.add(grid);
     scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const bimGroup = new THREE.Group();
+    bimGroup.name = "bim-structural-elements";
+    scene.add(bimGroup);
+    bimGroupRef.current = bimGroup;
     sceneRef.current = scene;
     cameraRef.current = camera;
     rendererRef.current = renderer;
@@ -133,6 +146,10 @@ export default function Viewer3D({ cloud, groupPositions, selectedElement, selec
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();
+      if (bimGroupRef.current) {
+        scene.remove(bimGroupRef.current);
+        bimGroupRef.current = null;
+      }
       renderer.dispose();
       if (renderer.domElement.parentElement === host) host.removeChild(renderer.domElement);
       scene.clear();
@@ -390,13 +407,174 @@ export default function Viewer3D({ cloud, groupPositions, selectedElement, selec
     scene.add(mesh);
     planeRef.current = mesh;
   }, [showPlane, section?.kind, section?.axis, section?.position, cloud?.id, cloud?.updated_at]);
+  const counts = (elements || []).reduce<Record<string, number>>((acc, el) => {
+    acc[el.class_name] = (acc[el.class_name] || 0) + 1;
+    return acc;
+  }, {});
+
+  useEffect(() => {
+    if (pointsRef.current) {
+      pointsRef.current.visible = showCloud;
+    }
+  }, [showCloud]);
+
+  useEffect(() => {
+    const bimGroup = bimGroupRef.current;
+    if (!bimGroup) return;
+
+    while (bimGroup.children.length > 0) {
+      const child = bimGroup.children[0] as THREE.LineSegments;
+      bimGroup.remove(child);
+      child.geometry?.dispose();
+      (child.material as THREE.Material)?.dispose();
+    }
+
+    if (!elements || elements.length === 0) return;
+    const origin = cloud?.origin || [0, 0, 0];
+
+    const layers: { key: string; color: number; visible: boolean; renderOrder: number }[] = [
+      { key: "column", color: 0x38bdf8, visible: showColumns, renderOrder: 10 },
+      { key: "beam", color: 0xf59e0b, visible: showBeams, renderOrder: 9 },
+      { key: "brace", color: 0xa855f7, visible: showBraces, renderOrder: 8 },
+      { key: "truss", color: 0x10b981, visible: showTrusses, renderOrder: 7 },
+      { key: "wall", color: 0x94a3b8, visible: showWalls, renderOrder: 6 },
+    ];
+
+    for (const layer of layers) {
+      if (!layer.visible) continue;
+      const positions = elementBoxLinePositions(elements, layer.key, origin);
+      if (positions.length === 0) continue;
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.LineBasicMaterial({
+        color: layer.color,
+        transparent: true,
+        opacity: 0.85,
+        depthTest: false,
+      });
+      const lines = new THREE.LineSegments(geometry, material);
+      lines.name = `bim-layer-${layer.key}`;
+      lines.renderOrder = layer.renderOrder;
+      lines.frustumCulled = false;
+      bimGroup.add(lines);
+    }
+  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls]);
+
 
   return (
     <div className="viewer">
       <div ref={hostRef} className="viewer-canvas" />
-      <div className="viewer-hud">
+      <div className="viewer-hud" style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
         {loading && <span>загрузка превью…</span>}
-        {!loading && loaded > 0 && <span>{loaded.toLocaleString()} точек</span>}
+        {!loading && loaded > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showCloud ? "#2563eb" : "#222",
+              color: "#fff",
+              border: "1px solid #3b82f6",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowCloud(!showCloud)}
+            title="Включить / скрыть облако точек"
+          >
+            ☁️ Облако ({loaded.toLocaleString()})
+          </button>
+        )}
+        {(counts.column || 0) > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showColumns ? "rgba(56, 189, 248, 0.25)" : "#222",
+              border: "1px solid #38bdf8",
+              color: showColumns ? "#38bdf8" : "#777",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowColumns(!showColumns)}
+            title="Показать / скрыть 3D колонны"
+          >
+            🏢 Колонны ({counts.column})
+          </button>
+        )}
+        {(counts.beam || 0) > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showBeams ? "rgba(245, 158, 11, 0.25)" : "#222",
+              border: "1px solid #f59e0b",
+              color: showBeams ? "#f59e0b" : "#777",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowBeams(!showBeams)}
+            title="Показать / скрыть подкрановые и продольные балки"
+          >
+            🏗️ Балки ({counts.beam})
+          </button>
+        )}
+        {(counts.brace || 0) > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showBraces ? "rgba(168, 85, 247, 0.25)" : "#222",
+              border: "1px solid #a855f7",
+              color: showBraces ? "#a855f7" : "#777",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowBraces(!showBraces)}
+            title="Показать / скрыть связи"
+          >
+            ⚡ Связи ({counts.brace})
+          </button>
+        )}
+        {(counts.truss || 0) > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showTrusses ? "rgba(16, 185, 129, 0.25)" : "#222",
+              border: "1px solid #10b981",
+              color: showTrusses ? "#10b981" : "#777",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowTrusses(!showTrusses)}
+            title="Показать / скрыть стропильные фермы"
+          >
+            📐 Фермы ({counts.truss})
+          </button>
+        )}
+        {(counts.wall || 0) > 0 && (
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showWalls ? "rgba(148, 163, 184, 0.25)" : "#222",
+              border: "1px solid #94a3b8",
+              color: showWalls ? "#94a3b8" : "#777",
+              borderRadius: "4px",
+              padding: "2px 8px",
+            }}
+            onClick={() => setShowWalls(!showWalls)}
+            title="Показать / скрыть стены"
+          >
+            🧱 Стены ({counts.wall})
+          </button>
+        )}
         {cloud?.decimated && <span className="warn">прорежено</span>}
         {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
       </div>
