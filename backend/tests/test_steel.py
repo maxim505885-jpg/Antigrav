@@ -505,9 +505,9 @@ def test_column_sections_snap_to_shared_types():
         (1.0, 1.0, 0.39, 0.39, "all"),
         (3.0, 1.0, 0.41, 0.40, "all"),
         (5.0, 1.0, 0.40, 0.41, "corner"),
-        (1.0, 4.0, 0.49, 0.49, "all"),
-        (3.0, 4.0, 0.51, 0.50, "all"),
-        (5.0, 4.0, 0.50, 0.51, "all"),
+        (1.0, 4.0, 0.54, 0.54, "all"),
+        (3.0, 4.0, 0.56, 0.55, "all"),
+        (5.0, 4.0, 0.55, 0.56, "all"),
     ]
     grid = _section_grid(specs)
     columns = [_section_column(*spec[:4]) for spec in specs]
@@ -519,7 +519,7 @@ def test_column_sections_snap_to_shared_types():
         (round(c.geometry["sizes"]["length"], 2), round(c.geometry["sizes"]["thickness"], 2))
         for c in columns
     }
-    assert sizes == {(0.40, 0.40), (0.50, 0.50)}
+    assert sizes == {(0.40, 0.40), (0.55, 0.55)}
     assert all(c.dimensions["section_source"] == "nominal" for c in columns)
     assert all(c.dimensions["section_type"] in {"К1", "К2"} for c in columns)
 
@@ -555,7 +555,12 @@ def test_typification_keeps_the_measured_section_as_evidence():
         assert column.dimensions["section_residual_mm"] >= 0
 
 
-def _column_cloud(length: float, thickness: float, tmp_path) -> CloudGeometry:
+def _column_cloud(
+    length: float,
+    thickness: float,
+    tmp_path,
+    center: tuple[float, float] = (0.0, 0.0),
+) -> CloudGeometry:
     """Hollow rectangular column as a point cloud (four faces, 1 cm sampling)."""
     rng = np.random.default_rng(3)
     along = np.arange(-length / 2, length / 2 + 1e-9, 0.01)
@@ -567,14 +572,16 @@ def _column_cloud(length: float, thickness: float, tmp_path) -> CloudGeometry:
         for y in (-thickness / 2, thickness / 2):
             faces.append(np.column_stack([along, np.full(along.size, y), np.full(along.size, z)]))
     points = np.vstack(faces)
+    points[:, 0] += center[0]
+    points[:, 1] += center[1]
     points = points + rng.normal(0.0, 0.004, points.shape)
     path = tmp_path / "positions.npy"
     np.save(path, points.astype(np.float32))
     return CloudGeometry(
         positions_path=path,
         origin=np.zeros(3),
-        bbox_min=np.array([-0.5, -0.5, 0.0]),
-        bbox_max=np.array([0.5, 0.5, 2.5]),
+        bbox_min=points.min(axis=0) - 0.10,
+        bbox_max=points.max(axis=0) + 0.10,
         count=int(points.shape[0]),
     )
 
@@ -593,6 +600,19 @@ def test_section_is_measured_from_points_not_grid_cells(tmp_path):
     assert record["faces_along"] == 2
     assert record["faces_across"] == 2
     assert abs(math.sin(2 * record["angle"])) <= 0.10
+
+
+def test_point_measurement_keeps_the_column_position(tmp_path):
+    # Regression: the centre was computed in window coordinates and the window
+    # origin was not added back, so every column collapsed onto the cloud
+    # origin and the whole hall showed ten column positions.
+    geom = _column_cloud(0.42, 0.21, tmp_path, center=(3.0, -4.0))
+    column = _section_column(3.0, -4.0, 0.50, 0.30)
+
+    measured = measure_column_sections(geom, [column])
+
+    assert abs(measured[0]["center"][0] - 3.0) <= 0.05
+    assert abs(measured[0]["center"][1] + 4.0) <= 0.05
 
 
 def test_point_measurement_feeds_the_type_size(tmp_path):

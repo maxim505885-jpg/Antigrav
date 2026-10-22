@@ -183,6 +183,96 @@ def test_column_annotation_snapshot_rejects_changed_source_cloud_hash(client, ap
     assert stale.status_code == 409
 
 
+def test_column_annotation_rechecks_snapshot_when_geometry_changes_during_save(client, api_data, monkeypatch):
+    import importlib
+
+    api_module = importlib.import_module("scan2bim.api.app")
+    cloud_id = api_data["clouds"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    body = {"source_snapshot_sha256": dataset["source_snapshot_sha256"], "annotator": "reviewer-a",
+            "state": "unknown", "physical_instance_id": None, "type_label": None,
+            "sides_m": None, "measurement_source": None, "z_measurements": [],
+            "visible_faces": [], "hidden_faces": [], "confidence": None,
+            "reason_unknown": "occluded", "note": ""}
+    original = api_module.column_snapshot_sha256
+    mutated = False
+
+    def change_after_snapshot(elements, cloud):
+        nonlocal mutated
+        digest = original(elements, cloud)
+        if not mutated:
+            mutated = True
+            geometry = json.loads(database.one("SELECT geometry_json FROM elements WHERE id='column-a1'")["geometry_json"])
+            geometry["center"][0] += 0.02
+            database.execute("UPDATE elements SET geometry_json=? WHERE id='column-a1'", (json.dumps(geometry),))
+        return digest
+
+    monkeypatch.setattr(api_module, "column_snapshot_sha256", change_after_snapshot)
+
+    stale = client.post(f"/api/v1/clouds/{cloud_id}/column-annotations/column-a1", json=body)
+
+    assert stale.status_code == 409
+    history = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/history").json()
+    assert history["history"] == []
+
+
+def test_concurrent_column_annotation_saves_get_distinct_revisions(client, api_data):
+    from concurrent.futures import ThreadPoolExecutor
+
+    cloud_id = api_data["clouds"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    body = {"source_snapshot_sha256": dataset["source_snapshot_sha256"], "annotator": "reviewer-a",
+            "state": "unknown", "physical_instance_id": None, "type_label": None,
+            "sides_m": None, "measurement_source": None, "z_measurements": [],
+            "visible_faces": [], "hidden_faces": [], "confidence": None,
+            "reason_unknown": "partially occluded", "note": "parallel save"}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(client.post, f"/api/v1/clouds/{cloud_id}/column-annotations/column-a1", json=body)
+                   for _ in range(2)]
+        responses = [future.result() for future in futures]
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert sorted(response.json()["revision"] for response in responses) == [1, 2]
+    history = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/history").json()
+    assert [row["revision"] for row in history["history"]] == [1, 2]
+
+
+def test_column_annotation_reappears_after_candidate_is_deleted_and_reimported(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    body = {"source_snapshot_sha256": dataset["source_snapshot_sha256"], "annotator": "reviewer-a",
+            "state": "unknown", "physical_instance_id": None, "type_label": None,
+            "sides_m": None, "measurement_source": None, "z_measurements": [],
+            "visible_faces": [], "hidden_faces": [], "confidence": None,
+            "reason_unknown": "candidate needs another review", "note": "retain manual knowledge"}
+
+    saved = client.post(f"/api/v1/clouds/{cloud_id}/column-annotations/column-a1", json=body)
+    assert saved.status_code == 200, saved.text
+    original_element = database.one("SELECT * FROM elements WHERE id='column-a1'")
+
+    database.execute("DELETE FROM elements WHERE id='column-a1'")
+    without_candidate = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    archived = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/history").json()
+    assert without_candidate["source_snapshot_sha256"] != dataset["source_snapshot_sha256"]
+    assert without_candidate["history"] == []
+    assert len(archived["history"]) == 1
+
+    columns = list(original_element)
+    placeholders = ",".join("?" for _ in columns)
+    database.execute(
+        f"INSERT INTO elements ({','.join(columns)}) VALUES ({placeholders})",
+        tuple(original_element[column] for column in columns),
+    )
+
+    restored = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    restored_row = next(row for row in restored["annotations"] if row["element_id"] == "column-a1")
+    assert restored["source_snapshot_sha256"] == dataset["source_snapshot_sha256"]
+    assert restored_row["state"] == "unknown"
+    assert restored_row["reason_unknown"] == "candidate needs another review"
+    assert restored["history"][0]["revision"] == 1
+
+
 def test_column_annotation_rejects_invalid_dimension_order_without_creating_revision(client, api_data):
     cloud_id = api_data["clouds"]["a"]
     dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()

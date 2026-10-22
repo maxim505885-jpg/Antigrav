@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type ColumnAnnotation, type ColumnAnnotationArchiveResponse, type ColumnAnnotationDataset, type ColumnAnnotationDraft } from "../api";
+import { restoreAnnotationAsDraft } from "../annotationRecovery";
 import type { Element } from "../types";
 
 interface Props { cloudId: string; element: Element; busy: boolean; onAnnotationSaved: (annotation: ColumnAnnotation) => void }
@@ -133,6 +134,27 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
     anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
+  function restoreArchived(item: ColumnAnnotationArchiveResponse["history"][number]) {
+    if (!dataset) return;
+    try {
+      const restored = restoreAnnotationAsDraft(item, dataset.source_snapshot_sha256);
+      const { source_snapshot_sha256: _snapshot, ...draftValues } = restored;
+      setDraft(draftValues);
+      setLongMm(restored.sides_m ? String(restored.sides_m.long * 1000) : "");
+      setShortMm(restored.sides_m ? String(restored.sides_m.short * 1000) : "");
+      setHeights(restored.z_measurements.map((measurement) => ({
+        z: String(measurement.z_m),
+        long: measurement.sides_m ? String(measurement.sides_m.long * 1000) : "",
+        short: measurement.sides_m ? String(measurement.sides_m.short * 1000) : "",
+        note: measurement.note || "",
+      })));
+      setError("");
+      setNotice(`Ревизия ${item.revision} из снимка ${item.source_snapshot_sha256.slice(0, 12)} загружена как черновик. Проверь соответствие текущей геометрии; изменения ещё не сохранены.`);
+    } catch (reason) {
+      setError(String(reason instanceof Error ? reason.message : reason));
+    }
+  }
+
   const toggleFace = (field: "visible_faces" | "hidden_faces", face: Face) => {
     setDraft((value) => ({ ...value, [field]: value[field].includes(face)
       ? value[field].filter((item) => item !== face) : [...value[field], face] }));
@@ -188,9 +210,10 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
       </details>}
       {archivedHistory.length > 0 && <details className="column-type-card"><summary>Разметка прежних снимков · {archivedHistory.length}</summary>
         <p className="hint">Эти решения привязаны к другим хешам исходного облака или геометрии и не переносятся на текущий кандидат автоматически.</p>
-        {archivedHistory.filter((item) => item.element_id === element.id).map((item) => <p key={`${item.source_snapshot_sha256}:${item.revision}`} className="hint">
-          {item.dataset_id} · v{item.revision} · {item.state}{item.type_label ? ` · ${item.type_label}` : ""} · {item.created_at}
-        </p>)}
+        {archivedHistory.filter((item) => item.element_id === element.id).map((item) => <article key={`${item.source_snapshot_sha256}:${item.revision}`} className="column-type-card">
+          <p className="hint">{item.dataset_id} · v{item.revision} · {item.state}{item.type_label ? ` · ${item.type_label}` : ""} · {item.created_at}</p>
+          <button type="button" disabled={busy || saving || loading} onClick={() => restoreArchived(item)}>Восстановить в черновик</button>
+        </article>)}
         <button type="button" onClick={downloadArchivedHistory}>Скачать историю старых снимков</button>
       </details>}
     </>}

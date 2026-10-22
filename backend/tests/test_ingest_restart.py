@@ -133,6 +133,7 @@ def test_restart_marks_interrupted_cloud_import_resumable_without_reading_source
 def test_changed_source_cannot_be_silently_imported_under_an_old_checkpoint(client, tmp_path, monkeypatch):
     source = tmp_path / "mutable-source.xyz"
     source.write_text("original source", encoding="utf-8")
+    original_stat = source.stat()
     project = client.post("/api/v1/projects", json={"name": "changed checkpoint source"}).json()
     cloud_id = new_id()
     now = utcnow()
@@ -153,12 +154,45 @@ def test_changed_source_cannot_be_silently_imported_under_an_old_checkpoint(clie
         ingest.ingest_cloud(project["id"], cloud_id, source, progress=interrupt_after_checkpoint)
     checkpoint = cloud_paths(project["id"], cloud_id)["dir"] / ".ingest-stage" / "manifest.json"
     assert checkpoint.exists()
-    source.write_text("different source now", encoding="utf-8")
+    source.write_text("changed source!", encoding="utf-8")
+    import os
+    os.utime(source, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
 
     def must_not_reimport(*_args, **_kwargs):
         pytest.fail("changed source was silently read under the existing cloud ID")
 
     monkeypatch.setattr(ingest, "read_cloud", must_not_reimport)
-    with pytest.raises(ValueError, match="source changed since ingest checkpoint"):
+    with pytest.raises(ValueError, match="content SHA-256 differs"):
         ingest.ingest_cloud(project["id"], cloud_id, source)
     assert checkpoint.exists(), "changed-source checkpoint is retained for diagnosis"
+
+
+def test_same_size_same_mtime_source_replacement_during_import_is_rejected(client, tmp_path, monkeypatch):
+    source = tmp_path / "same-stat-source.xyz"
+    source.write_bytes(b"original points!\n")
+    original_stat = source.stat()
+    project = client.post("/api/v1/projects", json={"name": "source integrity"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], "mutable", str(source), "xyz", original_stat.st_size, "processing", now, now),
+    )
+
+    def replace_source_during_read(*_args, **_kwargs):
+        source.write_bytes(b"changed points!!\n")
+        import os
+        os.utime(source, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        return RawCloud(np.array([[1.0, 2.0, 3.0]]))
+
+    monkeypatch.setattr(ingest, "read_cloud", replace_source_during_read)
+
+    with pytest.raises(RuntimeError, match="source content changed"):
+        ingest.ingest_cloud(project["id"], cloud_id, source)
+
+    row = one("SELECT status,sha256 FROM clouds WHERE id=?", (cloud_id,))
+    assert row["status"] == "processing"
+    assert row["sha256"] is None
+    assert not cloud_paths(project["id"], cloud_id)["positions"].exists()

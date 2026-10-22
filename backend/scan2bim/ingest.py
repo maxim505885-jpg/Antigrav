@@ -6,6 +6,7 @@ in metadata and can be added back to obtain world coordinates.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -38,6 +39,29 @@ def _save_npy_atomic(path: Path, array: np.ndarray) -> None:
     tmp = path.with_name(path.name + ".tmp.npy")
     np.save(tmp, array)
     tmp.replace(path)
+
+
+def _sha256_array(array: np.ndarray) -> str:
+    return hashlib.sha256(memoryview(np.ascontiguousarray(array))).hexdigest()
+
+
+def _fsync_path(path: Path) -> None:
+    with path.open("r+b") as fh:
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def _write_json_durable(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    try:
+        with temporary.open("w", encoding="utf-8") as fh:
+            json.dump(value, fh, ensure_ascii=False, separators=(",", ":"))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _preview_indices(count: int, target: int) -> np.ndarray | None:
@@ -117,8 +141,13 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
         # Once a complete, checksummed derived package exists, finalization no
         # longer depends on the source still being present. If it is present,
         # however, its recorded identity must still match.
-        if not current_identity.get("missing") and current_identity != identity:
-            raise CheckpointSourceChanged("source changed since ingest checkpoint: file identity differs")
+        if not current_identity.get("missing"):
+            stat_keys = ("path", "size_bytes", "mtime_ns")
+            if any(current_identity.get(key) != identity.get(key) for key in stat_keys):
+                raise CheckpointSourceChanged("source changed since ingest checkpoint: file identity differs")
+            expected_sha256 = identity.get("sha256")
+            if expected_sha256 and sha256_file(source_path) != expected_sha256:
+                raise CheckpointSourceChanged("source changed since ingest checkpoint: content SHA-256 differs")
         records = manifest["files"]
         for key, record in records.items():
             if key not in {"positions", "colors", "intensity", "preview", "meta"}:
@@ -137,9 +166,23 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
 
 
 def _discard_incomplete_stage(
-    stage_dir: Path, paths: dict[str, Path], *, preserve_raw_stream: bool = False
+    stage_dir: Path, paths: dict[str, Path], *, preserve_raw_stream: bool = False,
+    preserve_e57_stream: bool = False,
 ) -> None:
-    if preserve_raw_stream and (stage_dir / "raw").is_dir():
+    if preserve_e57_stream and (stage_dir / "e57-write-checkpoint.json").is_file():
+        preserved = {"e57-write-checkpoint.json", paths["positions"].name}
+        if paths["colors"].exists() or (stage_dir / paths["colors"].name).exists():
+            preserved.add(paths["colors"].name)
+        if paths["intensity"].exists() or (stage_dir / paths["intensity"].name).exists():
+            preserved.add(paths["intensity"].name)
+        for child in stage_dir.iterdir():
+            if child.name in preserved:
+                continue
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+    elif preserve_raw_stream and (stage_dir / "raw").is_dir():
         for child in stage_dir.iterdir():
             if child.name == "raw":
                 continue
@@ -351,7 +394,7 @@ def _ingest_full_rcs_stream(
     manifest = {
         "version": INGEST_CHECKPOINT_VERSION,
         "cloud_id": cloud_id,
-        "source_identity": source_identity,
+        "source_identity": {**source_identity, "sha256": checksum},
         "files": files,
         "cloud": cloud,
         "result": result,
@@ -371,10 +414,10 @@ def _ingest_full_e57_stream(
 ) -> dict[str, Any]:
     """Ingest full-resolution E57 with bounded point buffers and disk-backed arrays.
 
-    Two sequential passes measure the exact world-space bounds and fill the
-    final memmaps. The current pye57 reader cannot seek to a record, so a failed
-    pass is restarted from the beginning; completed files still use the normal
-    hashed ingest manifest/finalization path.
+    Two sequential passes measure bounds and fill disk-backed arrays. If the
+    write pass is interrupted, checksummed output blocks survive and the reader
+    replays the committed input prefix (pye57 seek is unavailable) before it
+    appends new blocks.
     """
     checksum = sha256_file(source_path)
     info = e57_stream_info(source_path)
@@ -430,38 +473,125 @@ def _ingest_full_e57_stream(
     if info["has_intensity"]:
         staged_files["intensity"] = stage_dir / paths["intensity"].name
 
+    checkpoint_path = stage_dir / "e57-write-checkpoint.json"
+    checkpoint_identity = {**source_identity, "sha256": checksum}
+    checkpoint = None
+    if checkpoint_path.is_file():
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"E57 write checkpoint is unreadable: {exc}") from exc
+        expected = {
+            "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+            "source_point_count": source_count, "valid_point_count": valid_count,
+            "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+            "has_color": bool(info["has_color"]), "has_intensity": bool(info["has_intensity"]),
+        }
+        if any(checkpoint.get(key) != value for key, value in expected.items()):
+            raise CheckpointSourceChanged("E57 source or measured bounds changed since write checkpoint")
+
     positions = colors = intensity_values = None
-    out_start = 0
+    out_start = int(checkpoint.get("committed_points", 0)) if checkpoint else 0
     try:
-        positions = np.lib.format.open_memmap(
-            staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+        mode = "r+" if checkpoint else "w+"
+        positions = (
+            np.load(staged_files["positions"], mmap_mode="r+") if checkpoint else
+            np.lib.format.open_memmap(
+                staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+            )
         )
         colors = (
+            np.load(staged_files["colors"], mmap_mode="r+") if checkpoint and info["has_color"] else
             np.lib.format.open_memmap(
-                staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
+                staged_files["colors"], mode=mode, dtype="u1", shape=(valid_count, 3)
             ) if info["has_color"] else None
         )
         intensity_values = (
+            np.load(staged_files["intensity"], mmap_mode="r+") if checkpoint and info["has_intensity"] else
             np.lib.format.open_memmap(
-                staged_files["intensity"], mode="w+", dtype="<f4", shape=(valid_count,)
+                staged_files["intensity"], mode=mode, dtype="<f4", shape=(valid_count,)
             ) if info["has_intensity"] else None
         )
+        if positions.shape != (valid_count, 3) or positions.dtype != np.dtype("<f4"):
+            raise RuntimeError("E57 positions checkpoint has an invalid array shape or dtype")
+        if colors is not None and (colors.shape != (valid_count, 3) or colors.dtype != np.dtype("u1")):
+            raise RuntimeError("E57 colors checkpoint has an invalid array shape or dtype")
+        if intensity_values is not None and (
+            intensity_values.shape != (valid_count,) or intensity_values.dtype != np.dtype("<f4")
+        ):
+            raise RuntimeError("E57 intensity checkpoint has an invalid array shape or dtype")
+        blocks = list(checkpoint.get("blocks", [])) if checkpoint else []
+        if checkpoint:
+            verified_end = 0
+            for block in blocks:
+                start, end = int(block["start"]), int(block["end"])
+                if start != verified_end or end <= start or end > out_start:
+                    raise RuntimeError("E57 checkpoint block ranges are inconsistent")
+                arrays = {"positions": positions[start:end]}
+                if colors is not None:
+                    arrays["colors"] = colors[start:end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[start:end]
+                if {key: _sha256_array(value) for key, value in arrays.items()} != block.get("sha256"):
+                    raise RuntimeError("E57 checkpoint block checksum does not match stored arrays")
+                verified_end = end
+            if verified_end != out_start or out_start > valid_count:
+                raise RuntimeError("E57 committed point count does not match verified blocks")
+
+        skipped = out_start
         for xyz, rgb, intensity in iter_e57_chunks(source_path, chunk_points=chunk_points):
             if info["has_color"] != (rgb is not None):
                 raise RuntimeError("E57 color fields changed between point stream passes")
             if info["has_intensity"] != (intensity is not None):
                 raise RuntimeError("E57 intensity fields changed between point stream passes")
             count = len(xyz)
+            if skipped:
+                consumed = min(skipped, count)
+                xyz = xyz[consumed:]
+                rgb = rgb[consumed:] if rgb is not None else None
+                intensity = intensity[consumed:] if intensity is not None else None
+                skipped -= consumed
+                count = len(xyz)
             if count:
                 out_end = out_start + count
+                if out_end > valid_count:
+                    raise RuntimeError("E57 point count increased between bounds and write passes")
                 positions[out_start:out_end] = (xyz - origin).astype(np.float32)
                 if colors is not None and rgb is not None:
                     colors[out_start:out_end] = rgb
                 if intensity_values is not None and intensity is not None:
                     intensity_values[out_start:out_end] = intensity
+                positions.flush()
+                if colors is not None:
+                    colors.flush()
+                if intensity_values is not None:
+                    intensity_values.flush()
+                for staged in staged_files.values():
+                    if staged in {staged_files["positions"], staged_files.get("colors"),
+                                  staged_files.get("intensity")} and staged.exists():
+                        _fsync_path(staged)
+                arrays = {"positions": positions[out_start:out_end]}
+                if colors is not None:
+                    arrays["colors"] = colors[out_start:out_end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[out_start:out_end]
+                blocks.append({
+                    "start": out_start, "end": out_end,
+                    "sha256": {key: _sha256_array(value) for key, value in arrays.items()},
+                })
                 out_start = out_end
+                state = {
+                    "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+                    "source_point_count": source_count, "valid_point_count": valid_count,
+                    "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+                    "has_color": bool(info["has_color"]), "has_intensity": bool(info["has_intensity"]),
+                    "committed_points": out_start, "blocks": blocks,
+                }
+                _write_json_durable(checkpoint_path, state)
             if progress:
                 progress(0.58 + 0.30 * (out_start / valid_count), "writing full-resolution E57 memmaps")
+        if skipped:
+            raise RuntimeError("E57 stream ended before the committed output prefix")
         if out_start != valid_count:
             raise RuntimeError("E57 point count changed between bounds and write passes")
         positions.flush()
@@ -511,7 +641,7 @@ def _ingest_full_e57_stream(
         "has_intensity": bool(info["has_intensity"]),
         "bounded_memory": True,
         "stream_chunk_points": chunk_points,
-        "restart_policy": "replay_from_source_start",
+        "restart_policy": "replay_committed_prefix_then_continue",
         "crash_safe": True,
         "source_unchanged": True,
         "checksum_sha256": checksum,
@@ -543,7 +673,7 @@ def _ingest_full_e57_stream(
     manifest = {
         "version": INGEST_CHECKPOINT_VERSION,
         "cloud_id": cloud_id,
-        "source_identity": source_identity,
+        "source_identity": {**source_identity, "sha256": checksum},
         "files": files,
         "cloud": cloud,
         "result": result,
@@ -731,7 +861,7 @@ def _ingest_full_las_stream(
     manifest = {
         "version": INGEST_CHECKPOINT_VERSION,
         "cloud_id": cloud_id,
-        "source_identity": source_identity,
+        "source_identity": {**source_identity, "sha256": checksum},
         "files": files,
         "cloud": cloud,
         "result": result,
@@ -761,8 +891,12 @@ def ingest_cloud(
     full_e57_stream = source_path.suffix.lower() == ".e57" and MAX_INGEST_POINTS == 0
     full_las_stream = source_path.suffix.lower() in {".las", ".laz"} and MAX_INGEST_POINTS == 0
     preserve_raw_stream = full_rcs_stream and (stage_dir / "raw" / "stream.json").is_file()
+    preserve_e57_stream = full_e57_stream and (stage_dir / "e57-write-checkpoint.json").is_file()
     if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
-        _discard_incomplete_stage(stage_dir, paths, preserve_raw_stream=preserve_raw_stream)
+        _discard_incomplete_stage(
+            stage_dir, paths, preserve_raw_stream=preserve_raw_stream,
+            preserve_e57_stream=preserve_e57_stream,
+        )
     source_identity = _source_identity(source_path)
     if full_e57_stream:
         return _ingest_full_e57_stream(
@@ -778,6 +912,10 @@ def ingest_cloud(
         )
     if progress:
         progress(0.01, "открытие исходного файла")
+    # Stat identity alone misses same-size/same-mtime replacement. Hash before
+    # decode and again before committing, including sources larger than 2 GiB.
+    source_checksum = sha256_file(source_path)
+    source_identity = {**source_identity, "sha256": source_checksum}
     raw = read_cloud(source_path, max_points=MAX_INGEST_POINTS, progress=progress)
     if len(raw.xyz) == 0:
         raise ValueError("облако точек не содержит точек")
@@ -820,16 +958,11 @@ def ingest_cloud(
             "конвертируйте в LAS/E57 для работы в полном разрешении."
         )
 
-    checksum = None
-    try:
-        if source_path.stat().st_size <= 2 * 1024 * 1024 * 1024:
-            checksum = sha256_file(source_path)
-    except Exception:
-        checksum = None
-
-    if _source_identity(source_path) != source_identity:
+    checksum = source_checksum
+    stat_identity = {key: value for key, value in source_identity.items() if key != "sha256"}
+    if _source_identity(source_path) != stat_identity or sha256_file(source_path) != source_checksum:
         _discard_incomplete_stage(stage_dir, paths)
-        raise RuntimeError("source identity changed while cloud import was running")
+        raise RuntimeError("source content changed while cloud import was running")
 
     metadata = {
         **{k: v for k, v in raw.metadata.items() if k not in {"has_color", "has_intensity"}},

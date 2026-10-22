@@ -94,9 +94,13 @@ COLUMN_MEASURE_CELL_MIN = 2
 COLUMN_MEASURE_MIN_POINTS = 60
 COLUMN_SIDE_BAND_CELLS = 1.5
 COLUMN_SIDE_MIN_COVERAGE = 0.50
-COLUMN_SECTION_TOLERANCE_M = 0.05
+# The coarse footprint that crops the measurement window is quantized to its
+# 0.10 m grid, so a section can never be resolved finer than that; grouping at
+# 50 mm split one physical size into 0.41 / 0.51 / 0.61 "types".
+COLUMN_SECTION_TOLERANCE_M = 0.10
 COLUMN_SECTION_MAX_RESIDUAL_M = 0.12
 COLUMN_NOMINAL_ROUND_M = 0.005
+COLUMN_SECTION_MAX_FILL = 0.92
 
 # Column typing.
 COLUMN_TYPE_SOLID = "rectangular_solid"
@@ -1245,6 +1249,7 @@ def classify_column_sections(
 def measure_column_sections(
     geom: CloudGeometry,
     columns: list[DetectedElement],
+    levels: list[dict[str, Any]] | None = None,
 ) -> dict[int, dict[str, Any]]:
     """Measure every column section from the cloud points at 2 cm.
 
@@ -1259,6 +1264,13 @@ def measure_column_sections(
     res = COLUMN_MEASURE_RES
     minx = float(geom.bbox_min[0] - geom.origin[0])
     miny = float(geom.bbox_min[1] - geom.origin[1])
+    # Floor slabs and roof planes run through every window; measuring on them
+    # turns a column into a 1.2 m blob. Their levels are skipped.
+    level_z = [
+        float(level["z_local"])
+        for level in (levels or [])
+        if level.get("z_local") is not None
+    ]
     coarse = 0.5
     ncx = int(math.ceil((float(geom.bbox_max[0] - geom.origin[0]) - minx) / coarse)) + 2
     ncy = int(math.ceil((float(geom.bbox_max[1] - geom.origin[1]) - miny) / coarse)) + 2
@@ -1273,7 +1285,22 @@ def measure_column_sections(
         cells = max(10, int(math.ceil(2.0 * half / res)) + 1)
         ox = cx - half
         oy = cy - half
-        windows.append({"ox": ox, "oy": oy, "n": cells, "cx": cx, "cy": cy})
+        # Only the column's own height: the floor slab and the beam above run
+        # through the same plan window and would otherwise define the section.
+        z0 = float(element.bbox["min"][2]) - float(geom.origin[2])
+        z1 = float(element.bbox["max"][2]) - float(geom.origin[2])
+        inset = min(0.35, 0.25 * max(0.0, z1 - z0))
+        windows.append(
+            {
+                "ox": ox,
+                "oy": oy,
+                "n": cells,
+                "cx": cx,
+                "cy": cy,
+                "z0": z0 + inset,
+                "z1": z1 - inset,
+            }
+        )
         ix0 = max(0, int((ox - minx) / coarse))
         ix1 = min(ncx - 1, int((ox + cells * res - minx) / coarse))
         iy0 = max(0, int((oy - miny) / coarse))
@@ -1290,9 +1317,12 @@ def measure_column_sections(
     ox_arr = np.array([w["ox"] for w in windows], dtype=np.float64)
     oy_arr = np.array([w["oy"] for w in windows], dtype=np.float64)
     n_arr = np.array([int(w["n"]) for w in windows], dtype=np.int64)
+    z0_arr = np.array([float(w["z0"]) for w in windows], dtype=np.float64)
+    z1_arr = np.array([float(w["z1"]) for w in windows], dtype=np.float64)
     for chunk in _iter_positions(geom.positions_path):
         x = chunk[:, 0].astype(np.float64)
         y = chunk[:, 1].astype(np.float64)
+        z = chunk[:, 2].astype(np.float64)
         ix = ((x - minx) / coarse).astype(np.int64)
         iy = ((y - miny) / coarse).astype(np.int64)
         inside = (ix >= 0) & (ix < ncx) & (iy >= 0) & (iy < ncy)
@@ -1306,9 +1336,13 @@ def measure_column_sections(
         column_index = column_index[hit]
         px = x[inside][hit]
         py = y[inside][hit]
+        pz = z[inside][hit]
         lx = ((px - ox_arr[column_index]) / res).astype(np.int64)
         ly = ((py - oy_arr[column_index]) / res).astype(np.int64)
         local = (lx >= 0) & (ly >= 0) & (lx < n_arr[column_index]) & (ly < n_arr[column_index])
+        local &= (pz >= z0_arr[column_index]) & (pz <= z1_arr[column_index])
+        for level in level_z:
+            local &= np.abs(pz - level) > 0.35
         if not local.any():
             continue
         column_index = column_index[local]
@@ -1326,6 +1360,21 @@ def measure_column_sections(
         weights = raster[iy, ix].astype(np.float64)
         xs = (ix + 0.5) * res + float(window["ox"]) - float(window["cx"])
         ys = (iy + 0.5) * res + float(window["oy"]) - float(window["cy"])
+        # Crop to the footprint the coarse stage found (plus one grid cell of
+        # slack): the window also catches a wall crossing it, and a wall would
+        # otherwise define the section. A hollow column keeps its faces.
+        element = columns[index]
+        coarse_angle = float(element.geometry.get("rotation_z") or 0.0)
+        coarse_length = float(element.dimensions.get("length_m") or 0.2)
+        coarse_thickness = float(element.dimensions.get("thickness_m") or 0.2)
+        cca, csa = math.cos(coarse_angle), math.sin(coarse_angle)
+        crop = (np.abs(xs * cca + ys * csa) <= coarse_length / 2 + 0.15) & (
+            np.abs(-xs * csa + ys * cca) <= coarse_thickness / 2 + 0.15
+        )
+        if int(crop.sum()) >= 8:
+            xs = xs[crop]
+            ys = ys[crop]
+            weights = weights[crop]
         weight_sum = float(weights.sum())
         mx = float((xs * weights).sum() / weight_sum)
         my = float((ys * weights).sum() / weight_sum)
@@ -1345,9 +1394,19 @@ def measure_column_sections(
         thickness = max(res, c1 - c0)
         u_mid = (a0 + a1) / 2
         v_mid = (c0 + c1) / 2
-        center_x = mx + u_mid * ca - v_mid * sa + float(geom.origin[0])
-        center_y = my + u_mid * sa + v_mid * ca + float(geom.origin[1])
-        faces_along, faces_across = _section_faces(along, across, res, length, thickness)
+        # ``mx``/``my`` are in window coordinates, so the window centre must be
+        # added back: without it every column lands on the cloud origin.
+        center_x = float(window["cx"]) + mx + u_mid * ca - v_mid * sa + float(geom.origin[0])
+        center_y = float(window["cy"]) + my + u_mid * sa + v_mid * ca + float(geom.origin[1])
+        bbox_cells = max(1.0, (a1 - a0) / res) * max(1.0, (c1 - c0) / res)
+        fill = min(1.0, float(len(xs)) / bbox_cells)
+        if fill > COLUMN_SECTION_MAX_FILL:
+            # The window is filled solid: a hollow column leaves its interior
+            # empty, so this is clutter (equipment, stored goods, merged
+            # geometry) and its "faces" mean nothing.
+            faces_along = faces_across = 0
+        else:
+            faces_along, faces_across = _section_faces(along, across, res, length, thickness)
         measured[index] = {
             "center": (center_x, center_y),
             "angle": angle,
@@ -1355,6 +1414,7 @@ def measure_column_sections(
             "thickness": thickness,
             "faces_along": faces_along,
             "faces_across": faces_across,
+            "fill": round(fill, 3),
             "points": int(raster.sum()),
         }
 
@@ -1614,7 +1674,13 @@ def typify_column_sections(
             }
         )
 
-    reliable = [(m["length"], m["thickness"]) for m in measurements if m["sides"] >= 2]
+    reliable = [
+        (m["length"], m["thickness"])
+        for m in measurements
+        if m["sides"] >= 2
+        and min(m["length"], m["thickness"]) >= 0.15
+        and m["length"] * m["thickness"] >= 0.05
+    ]
     clusters = _cluster_sections(reliable, COLUMN_SECTION_TOLERANCE_M) if reliable else []
     # A size seen on ONE column is an outlier (mis-measurement or a genuinely
     # single column), not a hall type: it cannot define a nominal size.
@@ -1761,7 +1827,7 @@ def detect_structural_frame(
     # the area-profile typing so that stage sees the final footprint.
     if progress:
         progress(0.955, "измерение сечений колонн по точкам")
-    measured_sections = measure_column_sections(geom, columns)
+    measured_sections = measure_column_sections(geom, columns, levels)
     if progress:
         progress(0.965, "типоразмеры сечений колонн")
     sections = typify_column_sections(grid, columns, geom.origin, measured_sections)

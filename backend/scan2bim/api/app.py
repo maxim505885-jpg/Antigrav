@@ -825,6 +825,18 @@ def create_app() -> FastAPI:
 
         with db_session() as con:
             con.execute("BEGIN IMMEDIATE")
+            # The initial snapshot is read before the write lock. Recognition or
+            # re-ingest may commit in that gap, so validate the snapshot again
+            # while BEGIN IMMEDIATE prevents another writer from changing it.
+            current_cloud = _cloud(cloud_id)
+            current_elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+            try:
+                current_source_hash = column_snapshot_sha256(current_elements, current_cloud)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if current_source_hash != source_hash:
+                raise HTTPException(409, "column snapshot changed while saving; reload the annotation dataset")
+            cloud = current_cloud
             current = con.execute(
                 "SELECT element_id,payload_json,MAX(revision) AS revision FROM column_annotations "
                 "WHERE cloud_id=? AND source_snapshot_sha256=? GROUP BY element_id",

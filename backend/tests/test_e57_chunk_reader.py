@@ -131,6 +131,79 @@ def test_unlimited_e57_ingest_writes_full_cloud_through_disk_backed_arrays(
     assert not (paths["dir"] / ".ingest-stage").exists()
 
 
+def test_unlimited_e57_ingest_resumes_from_last_checksummed_output_block(
+    client, tmp_path: Path, monkeypatch
+):
+    from scan2bim.jobs import JobCancelled
+
+    path = tmp_path / "resumable.e57"
+    path.write_bytes(b"synthetic e57 fixture")
+    xyz = [np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+           np.array([[2.0, 0.0, 0.0], [3.0, 0.0, 0.0]]),
+           np.array([[4.0, 0.0, 0.0], [5.0, 0.0, 0.0]])]
+    rgb = [np.full((2, 3), i, dtype=np.uint8) for i in (10, 20, 30)]
+    intensity = [np.full(2, i, dtype=np.float32) for i in (1, 2, 3)]
+    monkeypatch.setattr(ingest, "e57_stream_info", lambda *_: {
+        "reader": "synthetic", "source_point_count": 6, "scan_count": 1,
+        "has_color": True, "has_intensity": True,
+    })
+    monkeypatch.setattr(ingest, "iter_e57_chunks", lambda *_a, **_k: iter(
+        (points, colors, values) for points, colors, values in zip(xyz, rgb, intensity)
+    ))
+    monkeypatch.setattr(ingest, "read_cloud", lambda *_a, **_k: pytest.fail("whole-cloud E57 reader used"))
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    monkeypatch.setattr(ingest, "MAX_PREVIEW_POINTS", 3)
+    monkeypatch.setattr(ingest, "MIN_INGEST_DISK_RESERVE_BYTES", 0)
+
+    project = client.post("/api/v1/projects", json={"name": "resumable E57"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], path.name, str(path), "e57", path.stat().st_size, "processing", now, now),
+    )
+
+    def interrupt_after_first_committed_block(_value, message):
+        if message == "writing full-resolution E57 memmaps" and _value > 0.58:
+            raise JobCancelled("synthetic interruption after durable E57 block")
+
+    with pytest.raises(JobCancelled):
+        ingest.ingest_cloud(project["id"], cloud_id, path, progress=interrupt_after_first_committed_block)
+
+    paths = cloud_paths(project["id"], cloud_id)
+    checkpoint_path = paths["dir"] / ".ingest-stage" / "e57-write-checkpoint.json"
+    assert checkpoint_path.exists()
+    checkpoint = __import__("json").loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["committed_points"] == 2
+
+    origin = (np.concatenate(xyz).min(axis=0) + np.concatenate(xyz).max(axis=0)) / 2
+    expected_xyz = (np.concatenate(xyz) - origin).astype(np.float32)
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0] = 999.0  # Committed data corruption must be detected before resume.
+    positions.flush()
+    positions._mmap.close()
+    with pytest.raises(RuntimeError, match="checkpoint block checksum"):
+        ingest.ingest_cloud(project["id"], cloud_id, path)
+
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0] = expected_xyz[0]
+    positions[2] = 999.0  # Uncommitted tail must be overwritten during replay.
+    positions.flush()
+    positions._mmap.close()
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, path)
+
+    expected_rgb = np.concatenate(rgb)
+    expected_intensity = np.concatenate(intensity)
+    np.testing.assert_array_equal(np.load(paths["positions"]), expected_xyz)
+    np.testing.assert_array_equal(np.load(paths["colors"]), expected_rgb)
+    np.testing.assert_array_equal(np.load(paths["intensity"]), expected_intensity)
+    assert result["ingested_count"] == 6
+    assert not checkpoint_path.parent.exists()
+
+
 def _write_las(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     import laspy
 
@@ -194,3 +267,60 @@ def test_unlimited_las_ingest_writes_full_cloud_without_whole_cloud_reader(
     assert row["point_count"] == len(xyz) == row["ingested_count"]
     assert row["sha256"]
     assert not (paths["dir"] / ".ingest-stage").exists()
+
+
+@pytest.mark.parametrize("suffix", ["las", "laz"])
+def test_unlimited_las_ingest_resumes_after_last_checksummed_output_block(
+    client, tmp_path: Path, monkeypatch, suffix: str
+):
+    from scan2bim.jobs import JobCancelled
+
+    path = tmp_path / f"resumable.{suffix}"
+    path.write_bytes(b"synthetic las fixture")
+    xyz = [np.array([[float(i), 2.0, 3.0], [float(i + 1), 2.0, 3.0]]) for i in (0, 2, 4)]
+    rgb = [np.full((2, 3), i, dtype=np.uint8) for i in (10, 20, 30)]
+    intensity = [np.full(2, i, dtype=np.float32) for i in (1, 2, 3)]
+    monkeypatch.setattr(ingest, "las_stream_info", lambda *_: {
+        "reader": "synthetic", "source_point_count": 6, "has_color": True,
+        "has_intensity": True, "las_version": "1.2", "point_format": 3,
+    })
+    monkeypatch.setattr(ingest, "iter_las_chunks", lambda *_a, **_k: iter(
+        (points, colors, values) for points, colors, values in zip(xyz, rgb, intensity)
+    ))
+    monkeypatch.setattr(ingest, "read_cloud", lambda *_a, **_k: pytest.fail("whole-cloud LAS reader used"))
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    monkeypatch.setattr(ingest, "MAX_PREVIEW_POINTS", 3)
+    monkeypatch.setattr(ingest, "MIN_INGEST_DISK_RESERVE_BYTES", 0)
+
+    project = client.post("/api/v1/projects", json={"name": "resumable LAS"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], path.name, str(path), suffix, path.stat().st_size, "processing", now, now),
+    )
+
+    def interrupt_after_first_block(_value, message):
+        if message == "writing full-resolution LAS/LAZ memmaps" and _value > 0.58:
+            raise JobCancelled("synthetic LAS interruption")
+
+    with pytest.raises(JobCancelled):
+        ingest.ingest_cloud(project["id"], cloud_id, path, progress=interrupt_after_first_block)
+
+    paths = cloud_paths(project["id"], cloud_id)
+    checkpoint_path = paths["dir"] / ".ingest-stage" / "las-write-checkpoint.json"
+    assert checkpoint_path.exists()
+    checkpoint = __import__("json").loads(checkpoint_path.read_text(encoding="utf-8"))
+    assert checkpoint["committed_points"] == 2
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, path)
+
+    all_xyz = np.concatenate(xyz)
+    origin = (all_xyz.min(axis=0) + all_xyz.max(axis=0)) / 2
+    np.testing.assert_array_equal(np.load(paths["positions"]), (all_xyz - origin).astype(np.float32))
+    np.testing.assert_array_equal(np.load(paths["colors"]), np.concatenate(rgb))
+    np.testing.assert_array_equal(np.load(paths["intensity"]), np.concatenate(intensity))
+    assert result["ingested_count"] == 6
+    assert not checkpoint_path.parent.exists()

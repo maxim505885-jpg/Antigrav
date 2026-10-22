@@ -24,6 +24,19 @@ function dimensionSummary(element: Element): string {
   if (element.class_name === "truss" && dims.span_m) {
     return `пролёт ${dims.span_m} × выс ${dims.height_m} м · панелей: ${dims.panels ?? "—"}${storeys}`;
   }
+  if (element.class_name === "column") {
+    const measured = Array.isArray(dims.measured_section_m)
+      ? `${Math.round(dims.measured_section_m[0] * 1000)}×${Math.round(dims.measured_section_m[1] * 1000)}`
+      : null;
+    if (dims.section_type_label) {
+      const type = `${dims.section_type ?? ""} ${dims.section_type_label}`.trim();
+      const residual = dims.section_residual_mm ? ` · откл. ${dims.section_residual_mm} мм` : "";
+      return `сечение ${type}${measured ? ` (измерено ${measured})` : ""}${residual}${storeys}`;
+    }
+    if (measured) {
+      return `сечение ${measured} мм — тип не подтверждён${storeys}`;
+    }
+  }
   if (dims.length_m && dims.role_label) {
     return `${dims.length_m} м · ${dims.role_label}${dims.orientation ? ` (${dims.orientation === "vertical" ? "верт." : "гориз."})` : ""}`;
   }
@@ -58,6 +71,19 @@ function extraBadges(element: Element) {
     badges.push({
       text: `была ${classLabel(dims.demoted_from)}`,
       title: "Класс понижен: объект виден только на одном этаже многоэтажного здания — это не несущая колонна",
+      cls: "inferred",
+    });
+  }
+  if (dims.section_status === "completed_from_2_sides" || dims.section_status === "completed_square_1_side") {
+    badges.push({
+      text:
+        dims.section_status === "completed_from_2_sides"
+          ? "достроено по 2 сторонам"
+          : "достроено по 1 стороне",
+      title:
+        dims.section_status === "completed_from_2_sides"
+          ? "Скан видел две стороны колонны — прямоугольник достроен по ним"
+          : "Скан видел одну сторону — вторую сторону приняли равной первой (квадрат) и уточнили по типоразмеру",
       cls: "inferred",
     });
   }
