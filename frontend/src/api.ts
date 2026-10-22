@@ -1,4 +1,4 @@
-import type { Cloud, Element, Job, ModelInfo, Project, Section } from "./types";
+import type { Cloud, Element, Job, ModelInfo, Project, Section, LodManifest } from "./types";
 
 const BASE = "/api/v1";
 
