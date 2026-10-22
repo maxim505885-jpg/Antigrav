@@ -10,9 +10,13 @@ empty element IDs before opening a Revit transaction. Older 1.0 files without
 the additive frame descriptor remain supported.
 
 The output is editable as DirectShape geometry and carries element class and
-review status. It is not a parametric family. Unsupported or malformed
-geometries are counted and skipped; existing SCAN shapes absent from a later
-JSON file are preserved.
+review status. A versioned SCAN Extensible Storage entity also keeps the source
+cloud snapshot, coordinate frame, element dimensions and recognition metadata,
+including sampled source point-row IDs. It is not a parametric family.
+Unsupported or malformed geometries are counted and skipped. If an incoming ID
+becomes unsupported, its old SCAN shape is removed in the same transaction and
+counted separately so stale geometry is not shown as current; shapes whose IDs
+are absent from the incoming JSON are preserved.
 
 ## Build
 

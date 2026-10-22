@@ -27,8 +27,22 @@ SHEET_SIZES_MM: dict[str, tuple[float, float]] = {
 
 def setup_spds_layers_and_styles(doc: ezdxf.document.Drawing) -> None:
     """Register standard SPDS layers with standard line weights and colors."""
+    # Register standard text styles
+    for style_name in ["Standard", "SPDS_TITLE", "SPDS_TEXT"]:
+        if style_name not in doc.styles:
+            doc.styles.new(style_name, dxfattribs={"font": "isocpeur.ttf"})
+        else:
+            doc.styles.get(style_name).dxf.font = "isocpeur.ttf"
+
+    # Register linetypes if missing
+    if "DASHDOT" not in doc.linetypes:
+        try:
+            doc.linetypes.add(name="DASHDOT", pattern=[0.5, 0.25, -0.05, 0.0, -0.05], description="Dash dot _ . _ . _")
+        except Exception:
+            pass
+
     layers = {
-        "SPDS-AXES": {"color": 1, "lineweight": 18, "linetype": "DASHDOT"},       # Осевые линии (красный тонкий)
+        "SPDS-AXES": {"color": 1, "lineweight": 18, "linetype": "Continuous"},       # Осевые линии (Continuous для максимальной совместимости)
         "SPDS-AXES-BUBBLES": {"color": 7, "lineweight": 35, "linetype": "Continuous"}, # Кружки осей
         "SPDS-DIMS": {"color": 3, "lineweight": 18, "linetype": "Continuous"},       # Размерные цепочки (зеленый тонкий)
         "SPDS-FRAME": {"color": 7, "lineweight": 70, "linetype": "Continuous"},      # Основная рамка листа (толстая 0.7 мм)
@@ -43,11 +57,6 @@ def setup_spds_layers_and_styles(doc: ezdxf.document.Drawing) -> None:
     for name, attrs in layers.items():
         if name not in doc.layers:
             doc.layers.add(name, color=attrs["color"], lineweight=attrs["lineweight"], linetype=attrs.get("linetype", "Continuous"))
-
-    # Ensure font style uses clean sans-serif/ISOCPEUR
-    standard_style = doc.styles.get("Standard")
-    if standard_style:
-        standard_style.dxf.font = "isocpeur.ttf"
 
 
 def draw_spds_sheet_frame(

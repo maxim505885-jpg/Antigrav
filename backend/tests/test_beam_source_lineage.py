@@ -58,6 +58,88 @@ def test_strip_measurement_can_return_exact_local_support_rows():
     assert measured[4].tolist() == [0, 1, 2, 3, 4]
 
 
+def test_vertical_profile_reports_separated_layers_without_assigning_a_rail_role():
+    rng = np.random.default_rng(905)
+    lower = rng.normal(4.96, 0.018, 700)
+    upper = rng.normal(5.20, 0.018, 500)
+    profile = steel._vertical_layer_evidence(np.concatenate((lower, upper)))
+
+    assert profile is not None
+    assert profile["layer_centers_m"] == pytest.approx([4.96, 5.20], abs=0.02)
+    assert profile["layer_separation_m"] == pytest.approx(0.24, abs=0.03)
+    assert profile["interpretation"] == "ambiguous_vertical_profile"
+
+
+def test_single_vertical_profile_does_not_trigger_layer_ambiguity():
+    rng = np.random.default_rng(907)
+    profile = steel._vertical_layer_evidence(rng.normal(5.0, 0.045, 1500))
+
+    assert profile is None
+
+
+def test_terminal_cross_strip_is_reported_as_ambiguous_end_detail():
+    rng = np.random.default_rng(908)
+    along = rng.uniform(-3.0, 3.0, 2400)
+    across = rng.normal(0.0, 0.035, len(along))
+    beam = np.column_stack((along, across))
+    end_plate = np.column_stack((
+        rng.normal(2.99, 0.012, 400), rng.uniform(-0.28, 0.28, 400),
+    ))
+
+    evidence = steel._beam_terminal_evidence(
+        np.concatenate((beam, end_plate)), np.zeros(2), np.array([1.0, 0.0]), 6.0,
+    )
+
+    assert evidence is not None
+    assert evidence["ambiguous_end_regions"] == ["end"]
+    assert evidence["interpretation"] == "possible_end_plate_or_connection_detail"
+
+
+def test_uniform_beam_section_has_no_terminal_ambiguity():
+    rng = np.random.default_rng(909)
+    points = np.column_stack((rng.uniform(-3.0, 3.0, 2400), rng.normal(0.0, 0.035, 2400)))
+
+    assert steel._beam_terminal_evidence(
+        points, np.zeros(2), np.array([1.0, 0.0]), 6.0,
+    ) is None
+
+
+def test_horizontal_beam_candidate_flags_end_detail_without_moving_its_axis(monkeypatch):
+    rng = np.random.default_rng(910)
+    along = rng.uniform(-3.0, 3.0, 2400)
+    across = rng.normal(0.0, 0.035, len(along))
+    beam = np.column_stack((along, across, rng.normal(5.0, 0.015, len(along))))
+    plate = np.column_stack((
+        rng.normal(2.99, 0.012, 400), rng.uniform(-0.28, 0.28, 400),
+        rng.normal(5.0, 0.015, 400),
+    ))
+    xyz = np.concatenate((beam, plate))
+    monkeypatch.setattr(steel, "_iter_positions", lambda _path: iter([xyz]))
+    direction = np.array([1.0, 0.0])
+    segment = {
+        "p0": np.array([-3.0, 0.0]), "p1": np.array([3.0, 0.0]),
+        "mid": np.zeros(2), "dir": direction, "angle": 0.0, "length": 6.0,
+    }
+    monkeypatch.setattr(steel, "_plan_segments", lambda _xy, **_kwargs: [segment])
+    monkeypatch.setattr(steel, "_axis_from_segments", lambda *_args: 0.0)
+    monkeypatch.setattr(steel, "_wall_continued", lambda *_args: False)
+    cloud = CloudGeometry(
+        Path("derived.npy"), np.zeros(3), np.array([-4.0, -1.0, 0.0]),
+        np.array([4.0, 1.0, 10.0]), len(xyz),
+    )
+    levels = [{"z": z, "z_local": z} for z in (0.0, 3.0, 5.0, 7.0, 10.0)]
+    grid = {"res": 0.1, "min": [-4.0, -1.0, 0.0], "band_occ": np.zeros((2, 2, 2), dtype=bool)}
+
+    elements, *_ = steel._horizontal_members(cloud, levels, grid)
+
+    girder = next(item for item in elements if item.dimensions.get("role") == "crane_girder")
+    assert girder.metadata["terminal_evidence"]["ambiguous_end_regions"] == ["end"]
+    proposal = girder.metadata["member_proposal"]
+    assert proposal["axis"]["start"] == pytest.approx([-3.0, 0.0, 5.0], abs=0.01)
+    assert proposal["axis"]["end"] == pytest.approx([3.0, 0.0, 5.0], abs=0.01)
+    assert proposal["support_evidence"]["end"]["status"] == "unknown"
+
+
 def test_beam_element_keeps_sampled_source_rows_as_explicit_evidence():
     cloud = CloudGeometry(
         Path("derived.npy"), np.array([100.0, 200.0, 0.0]),
@@ -138,3 +220,37 @@ def test_crane_girder_detection_traces_measured_points_back_to_cloud_rows(monkey
         "physical_role_review", "physical_span_boundary", "start_support",
         "end_support", "cross_section", "joint_locations",
     ]
+
+
+def test_crane_girder_with_multiple_height_layers_stays_an_ambiguous_review_candidate(monkeypatch):
+    rng = np.random.default_rng(906)
+    x = rng.uniform(-3.0, 3.0, 1200)
+    y = rng.normal(0.0, 0.035, len(x))
+    lower = rng.normal(4.96, 0.018, len(x))
+    upper = rng.normal(5.20, 0.018, len(x))
+    xyz = np.concatenate((np.column_stack((x, y, lower)), np.column_stack((x, y, upper))))
+    monkeypatch.setattr(steel, "_iter_positions", lambda _path: iter([xyz]))
+    angle = 0.0
+    direction = np.array([1.0, 0.0])
+    segments = [{
+        "p0": np.array([-3.0, 0.0]), "p1": np.array([3.0, 0.0]),
+        "mid": np.zeros(2), "dir": direction, "angle": angle, "length": 6.0,
+    }]
+    monkeypatch.setattr(steel, "_plan_segments", lambda xy, **_kwargs: segments)
+    monkeypatch.setattr(steel, "_axis_from_segments", lambda *_args: angle)
+    monkeypatch.setattr(steel, "_wall_continued", lambda *_args: False)
+    cloud = CloudGeometry(
+        Path("derived.npy"), np.zeros(3), np.array([-4.0, -1.0, 0.0]),
+        np.array([4.0, 1.0, 10.0]), len(xyz),
+    )
+    levels = [{"z": z, "z_local": z} for z in (0.0, 3.0, 5.0, 7.0, 10.0)]
+    grid = {"res": 0.1, "min": [-4.0, -1.0, 0.0], "band_occ": np.zeros((2, 2, 2), dtype=bool)}
+
+    elements, *_ = steel._horizontal_members(cloud, levels, grid)
+
+    girder = next(item for item in elements if item.dimensions.get("role") == "crane_girder")
+    evidence = girder.metadata["vertical_profile_evidence"]
+    assert evidence["interpretation"] == "ambiguous_vertical_profile"
+    assert evidence["layer_centers_m"] == pytest.approx([4.96, 5.20], abs=0.02)
+    assert evidence["role_assignment"] == "unresolved"
+    assert "автоматически не разделены" in girder.metadata["notes"]

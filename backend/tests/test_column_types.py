@@ -139,6 +139,43 @@ def test_descriptor_requires_an_element_id_for_type_membership():
     assert "missing_element_id" in result["reasons"]
 
 
+def test_descriptor_excludes_columns_with_only_partial_or_coarse_section_evidence():
+    partial = _column()
+    partial["dimensions"].update({
+        "section_status": "partial_one_axis",
+        "measured_section_axes_m": {"length": None, "thickness": 0.30},
+    })
+    coarse = _column()
+    coarse["dimensions"]["section_status"] = "coarse_grid_only"
+
+    partial_result = column_descriptor(partial)
+    coarse_result = column_descriptor(coarse)
+
+    assert partial_result["eligible"] is False
+    assert "incomplete_section_measurement" in partial_result["reasons"]
+    assert coarse_result["eligible"] is False
+    assert "incomplete_section_measurement" in coarse_result["reasons"]
+
+
+def test_descriptor_prefers_point_measured_dimensions_over_coarse_box_sizes():
+    element = _column(length=0.50, thickness=0.40)
+    element["dimensions"].update({
+        "section_status": "measured_4_sides",
+        "measured_section_m": [0.42, 0.30],
+    })
+
+    result = column_descriptor(element)
+
+    assert result["eligible"] is True
+    assert result["long_side_m"] == 0.42
+    assert result["short_side_m"] == 0.30
+    assert result["measurement_sources"] == {
+        "long_side_m": "dimensions.measured_section_m[0]",
+        "short_side_m": "dimensions.measured_section_m[1]",
+        "rotation_z": "geometry.rotation_z",
+    }
+
+
 def test_repeated_measured_sections_form_a_deterministic_proposal():
     elements = [_column(), _column(length=0.421, thickness=0.301)]
     elements[0]["id"] = "column-b"

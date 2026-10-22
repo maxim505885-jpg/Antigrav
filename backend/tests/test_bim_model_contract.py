@@ -77,6 +77,33 @@ def test_bim_exchange_derives_missing_bbox_from_supported_geometry_without_mutat
     assert column_snapshot_sha256([element], cloud) == column_snapshot_sha256(model["elements"], cloud)
 
 
+def test_bim_exchange_does_not_invent_member_thickness_when_section_is_unknown():
+    project, cloud, element = _inputs()
+    element["geometry"] = {"kind": "member", "p0": [1.0, 2.0, 3.0], "p1": [4.0, 6.0, 8.0]}
+    element["bbox"] = {}
+
+    model = build_model(project, cloud, [element])
+
+    assert model["elements"][0]["bbox"] == {
+        "min": [1.0, 2.0, 3.0], "max": [4.0, 6.0, 8.0],
+    }
+    assert "section_m" not in model["elements"][0]["geometry"]
+
+
+def test_bim_exchange_expands_member_bounds_only_by_explicit_section():
+    project, cloud, element = _inputs()
+    element["geometry"] = {
+        "kind": "member", "p0": [1.0, 2.0, 3.0], "p1": [4.0, 6.0, 8.0], "section_m": 0.2,
+    }
+    element["bbox"] = {}
+
+    model = build_model(project, cloud, [element])
+
+    assert model["elements"][0]["bbox"] == {
+        "min": [0.9, 1.9, 2.9], "max": [4.1, 6.1, 8.1],
+    }
+
+
 def test_ifc_export_revalidates_versioned_exchange_contract(tmp_path):
     from scan2bim.bim.ifc import export_ifc
 

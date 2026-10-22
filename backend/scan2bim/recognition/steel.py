@@ -28,6 +28,8 @@ unimplemented.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from typing import Any
 
@@ -36,6 +38,7 @@ from scipy import ndimage
 from skimage.morphology import skeletonize
 from skimage.transform import probabilistic_hough_line
 
+from ..geometry.bounds import derive_bbox
 from ..geometry.section import CloudGeometry
 from ..structure.proposals import build_assembly_proposal, build_member_proposal
 from .geometric import CHUNK, DetectedElement, _iter_positions
@@ -324,6 +327,134 @@ def _measure_strip(
     return result
 
 
+def _vertical_layer_evidence(points_z: np.ndarray) -> dict[str, Any] | None:
+    """Flag clearly separated height modes without assigning member identities.
+
+    A rail and girder can occupy the same plan line.  This small diagnostic
+    detects distinct Z bands in the line support, but a multi-level profile can
+    also be a single built-up section, so it must never split or reclassify a
+    member on its own.
+    """
+    z = np.asarray(points_z, dtype=float)
+    z = z[np.isfinite(z)]
+    if len(z) < 60 or float(np.ptp(z)) < 0.12:
+        return None
+    bin_width = 0.02
+    edges = np.arange(float(z.min()) - bin_width, float(z.max()) + 2 * bin_width, bin_width)
+    counts, edges = np.histogram(z, bins=edges)
+    profile = ndimage.gaussian_filter1d(counts.astype(float), sigma=1.0)
+    from scipy.signal import find_peaks
+
+    min_distance = max(1, int(math.ceil(0.12 / bin_width)))
+    peaks, _ = find_peaks(
+        profile, distance=min_distance,
+        prominence=max(2.0, float(profile.max()) * 0.12),
+    )
+    if len(peaks) < 2:
+        return None
+    candidates = sorted(peaks.tolist(), key=lambda peak: profile[peak], reverse=True)
+    min_support = max(30, int(math.ceil(0.10 * len(z))))
+    qualifying: list[int] = []
+    for peak in candidates:
+        if not qualifying:
+            qualifying.append(peak)
+            continue
+        if all(abs(peak - prior) * bin_width >= 0.12 for prior in qualifying):
+            qualifying.append(peak)
+    qualifying.sort()
+    if len(qualifying) < 2:
+        return None
+
+    centers: list[float] = []
+    supports: list[int] = []
+    for index, peak in enumerate(qualifying):
+        left = float(z.min()) if index == 0 else (
+            edges[(qualifying[index - 1] + peak) // 2 + 1]
+        )
+        right = float(z.max()) if index == len(qualifying) - 1 else (
+            edges[(peak + qualifying[index + 1]) // 2 + 1]
+        )
+        cluster = z[(z >= left) & (z <= right)]
+        if len(cluster) < min_support:
+            continue
+        centers.append(float(np.median(cluster)))
+        supports.append(int(len(cluster)))
+    if len(centers) < 2:
+        return None
+    separations = np.diff(centers)
+    if not np.any(separations >= 0.12):
+        return None
+    return {
+        "interpretation": "ambiguous_vertical_profile",
+        "layer_centers_m": [round(value, 4) for value in centers],
+        "layer_support_counts": supports,
+        "layer_separation_m": round(float(max(separations)), 4),
+        "role_assignment": "unresolved",
+    }
+
+
+def _beam_terminal_evidence(
+    points_xy: np.ndarray,
+    center: np.ndarray,
+    direction: np.ndarray,
+    length: float,
+) -> dict[str, Any] | None:
+    """Flag a cross-strip concentrated at a candidate beam end.
+
+    This is evidence of an end detail (plate, connection, or nearby clutter),
+    not evidence that the beam is supported or that its physical span ends
+    there. The candidate's measured Hough axis remains unchanged.
+    """
+    points = np.asarray(points_xy, dtype=float)
+    center = np.asarray(center, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+    if (points.ndim != 2 or points.shape[1] != 2 or center.shape != (2,)
+            or direction.shape != (2,) or not np.isfinite(points).all()
+            or not np.isfinite(center).all() or not np.isfinite(direction).all()
+            or not math.isfinite(length) or length <= 0):
+        raise ValueError("beam terminal evidence needs finite plan points and a valid axis")
+    norm = float(np.linalg.norm(direction))
+    if norm <= 1e-12:
+        raise ValueError("beam terminal evidence axis must be non-zero")
+    direction = direction / norm
+    normal = np.array([-direction[1], direction[0]])
+    rel = points - center
+    along = rel @ direction
+    across = rel @ normal
+    ambiguous: list[str] = []
+    evidence: dict[str, dict[str, float | int]] = {}
+    for name, endpoint in (("start", -length / 2), ("end", length / 2)):
+        endpoint_mask = (np.abs(along - endpoint) <= 0.08) & (np.abs(across) <= 0.60)
+        interior_mask = (
+            (np.abs(along - endpoint) >= 0.30)
+            & (np.abs(along - endpoint) <= 0.80)
+            & (np.abs(across) <= 0.60)
+        )
+        if int(endpoint_mask.sum()) < 15 or int(interior_mask.sum()) < 30:
+            continue
+        endpoint_span = float(np.percentile(across[endpoint_mask], 90)
+                              - np.percentile(across[endpoint_mask], 10))
+        interior_span = float(np.percentile(across[interior_mask], 90)
+                              - np.percentile(across[interior_mask], 10))
+        if endpoint_span >= max(0.25, interior_span * 2.5):
+            ambiguous.append(name)
+            evidence[name] = {
+                "terminal_support_count": int(endpoint_mask.sum()),
+                "interior_support_count": int(interior_mask.sum()),
+                "terminal_cross_span_m": round(endpoint_span, 4),
+                "interior_cross_span_m": round(interior_span, 4),
+            }
+    if not ambiguous:
+        return None
+    return {
+        "interpretation": "possible_end_plate_or_connection_detail",
+        "ambiguous_end_regions": ambiguous,
+        "end_region_evidence": evidence,
+        "physical_support": "unknown",
+        "axis_changed": False,
+    }
+
+
 def _line_concentration(
     points_xy: np.ndarray,
     center: np.ndarray,
@@ -458,6 +589,8 @@ def _beam_element(
     source_point_ids: np.ndarray | None = None,
     source_band_point_count: int | None = None,
     source_band_points_used: int | None = None,
+    vertical_profile_evidence: dict[str, Any] | None = None,
+    terminal_evidence: dict[str, Any] | None = None,
 ) -> DetectedElement:
     angle = math.atan2(float(direction[1]), float(direction[0]))
     height = max(0.05, z1_local - z0_local)
@@ -534,6 +667,18 @@ def _beam_element(
         )
         metadata["member_proposal_id"] = proposal["id"]
         metadata["member_proposal"] = proposal
+    if vertical_profile_evidence is not None:
+        metadata["vertical_profile_evidence"] = vertical_profile_evidence
+        metadata["notes"] += (
+            " Точки образуют несколько высотных слоёв; рельс, пояс и другие части "
+            "сечения автоматически не разделены и требуют проверки."
+        )
+    if terminal_evidence is not None:
+        metadata["terminal_evidence"] = terminal_evidence
+        metadata["notes"] += (
+            " У конца оси есть поперечно расширенная группа точек; это может быть "
+            "торцевая пластина, соединительная деталь или помеха, опора не подтверждена."
+        )
     return DetectedElement(
         class_name="beam",
         geometry={
@@ -573,7 +718,7 @@ def _member_element(
     geom: CloudGeometry,
     p0_world: np.ndarray,
     p1_world: np.ndarray,
-    section_m: float,
+    section_m: float | None,
     role: str,
     orientation: str,
     confidence: float,
@@ -591,10 +736,14 @@ def _member_element(
         "truss_post": "стойка фермы",
         "truss_web": "раскос фермы",
     }.get(role, role)
+    section_note = (
+        "" if section_m is not None
+        else "; поперечное сечение не определено, показана только измеренная ось"
+    )
     metadata: dict[str, Any] = {
         "method": method,
         "confidence_kind": "heuristic",
-        "notes": "стержень конструкции; роль и узлы остаются предложениями для проверки",
+        "notes": "стержень конструкции; роль, сечение и узлы остаются предложениями для проверки" + section_note,
     }
     if source_point_ids is not None:
         source_rows = np.asarray(source_point_ids)
@@ -625,23 +774,20 @@ def _member_element(
             metadata["member_proposal"] = proposal
         else:
             metadata["source_evidence_status"] = "insufficient"
+    geometry: dict[str, Any] = {
+        "kind": "member",
+        "p0": [round(float(v), 4) for v in p0_world],
+        "p1": [round(float(v), 4) for v in p1_world],
+        "note": f"diagonal member measured between two points ({orientation} bracing)",
+    }
+    if section_m is not None:
+        if not math.isfinite(section_m) or section_m <= 0:
+            raise ValueError("member section_m must be finite and positive when provided")
+        geometry["section_m"] = round(section_m, 3)
     return DetectedElement(
         class_name=class_name,
-        geometry={
-            "kind": "member",
-            "p0": [round(float(v), 4) for v in p0_world],
-            "p1": [round(float(v), 4) for v in p1_world],
-            "section_m": round(section_m, 3),
-            "note": f"diagonal member measured between two points ({orientation} bracing)",
-        },
-        bbox={
-            "min": [round(min(p0_world[0], p1_world[0]) - section_m / 2, 3),
-                    round(min(p0_world[1], p1_world[1]) - section_m / 2, 3),
-                    round(min(p0_world[2], p1_world[2]) - section_m / 2, 3)],
-            "max": [round(max(p0_world[0], p1_world[0]) + section_m / 2, 3),
-                    round(max(p0_world[1], p1_world[1]) + section_m / 2, 3),
-                    round(max(p0_world[2], p1_world[2]) + section_m / 2, 3)],
-        },
+        geometry=geometry,
+        bbox=derive_bbox(geometry),
         confidence=round(float(max(0.2, min(0.9, confidence))), 3),
         measured=True,
         inferred=False,
@@ -670,10 +816,18 @@ def _section_member_source_rows(
     rows = np.asarray(source_rows)
     center = np.asarray(center_vz, dtype=float)
     direction = np.asarray(direction_vz, dtype=float)
-    if points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1 or len(points) != len(rows):
+    if (points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1
+            or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)
+            or np.any(rows < 0)):
         raise ValueError("section points and source rows must be aligned N x 2 arrays")
-    if center.shape != (2,) or direction.shape != (2,) or not np.isfinite(points).all():
+    if (center.shape != (2,) or direction.shape != (2,) or not np.isfinite(points).all()
+            or not np.isfinite(center).all() or not np.isfinite(direction).all()
+            or not math.isfinite(length) or length <= 0):
         raise ValueError("section member line must contain finite 2D coordinates")
+    direction_norm = float(np.linalg.norm(direction))
+    if direction_norm <= 1e-12:
+        raise ValueError("section member direction must be non-zero")
+    direction = direction / direction_norm
     normal = np.array([-direction[1], direction[0]])
     offset = points - center
     along = offset @ direction
@@ -683,6 +837,55 @@ def _section_member_source_rows(
         & (np.abs(across) <= max_line_offset_m)
     )
     return np.unique(rows[selected].astype(np.int64, copy=False))
+
+
+def _section_node_evidence(
+    members: list[tuple[tuple[np.ndarray, np.ndarray, float], str]],
+    points_vz: np.ndarray,
+    source_rows: np.ndarray,
+    *,
+    node_support_radius_m: float = 0.20,
+    node_merge_distance_m: float = 0.10,
+) -> list[dict[str, Any]]:
+    """Propose point-supported intersections without claiming a joint."""
+    points = np.asarray(points_vz, dtype=float)
+    rows = np.asarray(source_rows)
+    if (points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1
+            or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)):
+        raise ValueError("section node points and source rows must be aligned")
+    proposals: list[dict[str, Any]] = []
+    for i, (line_a, member_a) in enumerate(members):
+        center_a, direction_a, length_a = line_a
+        start_a = center_a - direction_a * length_a / 2
+        for line_b, member_b in members[i + 1:]:
+            if member_a == member_b:
+                continue
+            center_b, direction_b, length_b = line_b
+            start_b = center_b - direction_b * length_b / 2
+            matrix = np.column_stack((direction_a, -direction_b))
+            if abs(float(np.linalg.det(matrix))) <= 1e-6:
+                continue
+            distance_a, distance_b = np.linalg.solve(matrix, start_b - start_a)
+            if (not (-0.03 <= distance_a <= length_a + 0.03)
+                    or not (-0.03 <= distance_b <= length_b + 0.03)):
+                continue
+            point_vz = start_a + distance_a * direction_a
+            nearby = np.linalg.norm(points - point_vz, axis=1) <= node_support_radius_m
+            node_rows = np.unique(rows[nearby].astype(np.int64, copy=False))
+            if len(node_rows) < 5:
+                continue
+            existing = next((node for node in proposals
+                             if np.linalg.norm(node["point_vz"] - point_vz) <= node_merge_distance_m), None)
+            if existing is None:
+                proposals.append({
+                    "point_vz": point_vz,
+                    "candidate_member_proposal_ids": {member_a, member_b},
+                    "source_point_ids": set(node_rows.tolist()),
+                })
+            else:
+                existing["candidate_member_proposal_ids"].update((member_a, member_b))
+                existing["source_point_ids"].update(node_rows.tolist())
+    return proposals
 
 
 def _diagonals_in_slices(
@@ -774,8 +977,21 @@ def _dedup_brace_candidates(
 def _emit_horizontal_braces(
     geom: CloudGeometry,
     candidates: list[tuple[np.ndarray, np.ndarray, float, float, float, float, float, int]],
+    *,
+    source_points: np.ndarray | None = None,
+    source_rows: np.ndarray | None = None,
+    source_points_sampled: bool = False,
 ) -> list[DetectedElement]:
     """One brace element per deduplicated horizontal bracing member."""
+    if (source_points is None) != (source_rows is None):
+        raise ValueError("horizontal brace source points and rows must be provided together")
+    if source_points is not None:
+        source_points = np.asarray(source_points)
+        source_rows = np.asarray(source_rows)
+        if (source_points.ndim != 2 or source_points.shape[1] != 3
+                or source_rows.ndim != 1 or len(source_points) != len(source_rows)
+                or not np.issubdtype(source_rows.dtype, np.integer)):
+            raise ValueError("horizontal brace source points and rows must be aligned")
     out: list[DetectedElement] = []
     for center, direction, length, conc, thickness, bz0, bz1, _support in candidates:
         center_z = (bz0 + bz1) / 2
@@ -793,12 +1009,23 @@ def _emit_horizontal_braces(
                 center_z,
             ]
         ) + geom.origin
+        member_source_rows = None
+        if source_points is not None and source_rows is not None:
+            normal = np.array([-direction[1], direction[0]])
+            rel_xy = source_points[:, :2] - center
+            member_mask = (
+                (np.abs(rel_xy @ direction) <= length / 2 + 0.30)
+                & (np.abs(rel_xy @ normal) <= max(0.20, min(thickness, 0.35)))
+                & (source_points[:, 2] >= bz0 - 0.15)
+                & (source_points[:, 2] <= bz1 + 0.15)
+            )
+            member_source_rows = source_rows[member_mask]
         out.append(
             _member_element(
                 geom,
                 p0,
                 p1,
-                section_m=max(0.10, min(thickness, 0.4)),
+                section_m=None,
                 role="brace",
                 orientation="horizontal",
                 confidence=0.35
@@ -809,6 +1036,8 @@ def _emit_horizontal_braces(
                     "by dedup; diagonal 25..65 deg from hall axis; accepted by "
                     f"line concentration >= {BRACE_MIN_CONCENTRATION:.2f}"
                 ),
+                source_point_ids=member_source_rows,
+                source_point_ids_sampled=source_points_sampled,
             )
         )
     return out
@@ -930,6 +1159,12 @@ def _horizontal_members(
                     source_point_ids=source_rows[support_indices],
                     source_band_point_count=source_band_count,
                     source_band_points_used=len(points),
+                    vertical_profile_evidence=_vertical_layer_evidence(
+                        points[support_indices, 2]
+                    ),
+                    terminal_evidence=_beam_terminal_evidence(
+                        points[support_indices, :2], center, direction, length,
+                    ),
                 )
             )
             role_counts[role] = role_counts.get(role, 0) + 1
@@ -943,7 +1178,11 @@ def _horizontal_members(
             if progress:
                 progress(0.885, f"горизонтальные связи в полосе {label}")
             diag_candidates.extend(_diagonals_in_slices(points, axis))
-        braces = _emit_horizontal_braces(geom, _dedup_brace_candidates(diag_candidates))
+        braces = _emit_horizontal_braces(
+            geom, _dedup_brace_candidates(diag_candidates),
+            source_points=points, source_rows=source_rows,
+            source_points_sampled=source_band_count > len(points),
+        )
         if braces:
             elements.extend(braces)
             role_counts["brace_horizontal"] = role_counts.get("brace_horizontal", 0) + len(braces)
@@ -1113,24 +1352,27 @@ def _detect_trusses(
 
         def emit_truss_member(
             line: tuple[np.ndarray, np.ndarray, float], role: str, member_class: str,
-        ) -> None:
+        ) -> str | None:
             center_vz, direction_vz, member_length = line
             member_source_rows = _section_member_source_rows(
                 vz, plane_source_rows, center_vz, direction_vz, member_length,
             )
             if len(member_source_rows) < 5:
                 stats["truss_member_untraceable"] += 1
-                return
+                return None
             p0 = world_section_point(center_vz - direction_vz * member_length / 2)
             p1 = world_section_point(center_vz + direction_vz * member_length / 2)
-            elements.append(_member_element(
-                geom, p0, p1, section_m=0.15, role=role,
+            member_element = _member_element(
+                geom, p0, p1, section_m=None, role=role,
                 orientation="vertical" if abs(float(direction_vz[0])) < 0.25 else "diagonal",
                 confidence=0.55, method="(v,z) section Hough; source rows selected around member axis",
                 source_point_ids=member_source_rows,
                 source_point_ids_sampled=zone_sampled,
                 class_name=member_class,
-            ))
+            )
+            elements.append(member_element)
+            member_proposal_id = member_element.metadata.get("member_proposal_id")
+            return str(member_proposal_id) if member_proposal_id else None
         section, fill = _vertical_hough(vz, res=0.10, min_len_m=0.8)
         if not section:
             continue
@@ -1236,14 +1478,23 @@ def _detect_trusses(
             )
             elements.append(truss_envelope)
             truss_member_start = len(elements)
+            truss_member_lines: list[tuple[tuple[np.ndarray, np.ndarray, float], str]] = []
             for line in top_chords:
-                emit_truss_member(line, "truss_top_chord", "beam")
+                proposal_id = emit_truss_member(line, "truss_top_chord", "beam")
+                if proposal_id:
+                    truss_member_lines.append((line, proposal_id))
             for line in bot_chords:
-                emit_truss_member(line, "truss_bottom_chord", "beam")
+                proposal_id = emit_truss_member(line, "truss_bottom_chord", "beam")
+                if proposal_id:
+                    truss_member_lines.append((line, proposal_id))
             for line in posts:
-                emit_truss_member(line, "truss_post", "brace")
+                proposal_id = emit_truss_member(line, "truss_post", "brace")
+                if proposal_id:
+                    truss_member_lines.append((line, proposal_id))
             for line in merged_d:
-                emit_truss_member(line, "truss_web", "brace")
+                proposal_id = emit_truss_member(line, "truss_web", "brace")
+                if proposal_id:
+                    truss_member_lines.append((line, proposal_id))
             truss_envelope.metadata["member_proposal_ids"] = [
                 item.metadata["member_proposal_id"]
                 for item in elements[truss_member_start:]
@@ -1254,9 +1505,36 @@ def _detect_trusses(
                 truss_envelope.metadata["member_proposal_ids"]
             )
             if truss_envelope.metadata["member_proposal_ids"]:
+                node_candidates = []
+                for node in _section_node_evidence(truss_member_lines, vz, plane_source_rows):
+                    world_position = [
+                        round(float(value), 4)
+                        for value in world_section_point(node["point_vz"])
+                    ]
+                    node_source_rows = sorted(node["source_point_ids"])
+                    if len(node_source_rows) > 512:
+                        node_source_rows = [
+                            node_source_rows[index]
+                            for index in np.linspace(0, len(node_source_rows) - 1, 512, dtype=np.int64)
+                        ]
+                    node_identity = json.dumps(
+                        {
+                            "position_m": world_position,
+                            "member_ids": sorted(node["candidate_member_proposal_ids"]),
+                            "source_point_ids": node_source_rows,
+                        }, sort_keys=True, separators=(",", ":"),
+                    ).encode("utf-8")
+                    node_candidates.append({
+                        "id": "node-proposal-" + hashlib.sha256(node_identity).hexdigest()[:24],
+                        "position_m": world_position,
+                        "candidate_member_proposal_ids": sorted(node["candidate_member_proposal_ids"]),
+                        "source_point_ids": node_source_rows,
+                        "status": "proposed",
+                    })
                 truss_envelope.metadata["assembly_proposal"] = build_assembly_proposal(
                     assembly_type="roof_truss",
                     member_proposal_ids=truss_envelope.metadata["member_proposal_ids"],
+                    node_candidates=node_candidates,
                 )
             stats["truss_count"] += 1
             planes_meta.append({"u": plane_world_u, "kind": "truss", "span": span, "posts": len(posts)})
@@ -1284,7 +1562,7 @@ def _detect_trusses(
                 elements.append(
                     _member_element(
                         geom, p0, p1,
-                        section_m=0.15,
+                        section_m=None,
                         role="brace",
                         orientation="vertical",
                         confidence=0.35 + 0.05 * min(1.0, diag_length / 4.0),
@@ -1832,13 +2110,11 @@ def typify_column_sections(
     origin: np.ndarray,
     measured: dict[int, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Complete partially seen column sections and snap them to shared sizes.
+    """Record point-supported column sides and propose repeated sections.
 
-    Two visible sides determine a rectangular section, so such a column is
-    drawn as a full rectangle even when the other two sides were never
-    scanned. One visible side fixes a single axis only, and those are made
-    square and then corrected by the type size. Measured sizes are always
-    kept as evidence; the drawn size comes from the type.
+    Both section axes must have point-supported visible faces before a full
+    section is measured. Repeated sizes stay proposals; they never replace a
+    member's measured dimensions without explicit review.
     """
     if not columns:
         return {"column_section_types": [], "column_sections_total": 0}
@@ -1866,38 +2142,50 @@ def typify_column_sections(
             along, across = _column_plan_cells(plan_occ, res, min_xy, element, origin)
             faces_along, faces_across = _section_faces(along, across, res, length, thickness)
         visible = faces_along + faces_across
-        completed_length, completed_thickness = length, thickness
-        if visible == 4:
+        # The coarse occupancy grid can help locate visible faces, but its
+        # 10 cm cell dimensions are not a section measurement. Only the local
+        # point-derived record can supply measured side lengths.
+        length_measured = record is not None and faces_across > 0
+        thickness_measured = record is not None and faces_along > 0
+        both_dimensions_measured = length_measured and thickness_measured
+        measured_axes = {
+            "length": round(length, 3) if length_measured else None,
+            "thickness": round(thickness, 3) if thickness_measured else None,
+        }
+        if record is None:
+            status = "coarse_grid_only" if visible else "unconfirmed"
+        elif both_dimensions_measured and visible == 4:
             status = "measured_4_sides"
-        elif visible == 3:
+        elif both_dimensions_measured and visible == 3:
             status = "measured_3_sides"
-        elif visible == 2:
-            status = "completed_from_2_sides"
-        elif visible == 1:
-            # One face fixes one axis; mirror it. A face perpendicular to the
-            # ALONG axis is seen as its extent on ACROSS (that dimension is the
-            # reliable one) while the along extent collapses to the face
-            # thickness. Steel columns are square in plan far more often than
-            # not, and the type stage corrects the size as soon as a
-            # neighbouring column is measured on two sides.
-            if faces_along and not faces_across:
-                completed_length = thickness
-            else:
-                completed_thickness = length
-            status = "completed_square_1_side"
-            # The completed square is drawn even when no type size exists yet.
-            _apply_column_section(element, completed_length, completed_thickness)
+        elif both_dimensions_measured:
+            status = "measured_2_axes"
         else:
-            status = "unconfirmed"
+            status = "partial_one_axis" if length_measured or thickness_measured else "unconfirmed"
         element.dimensions["sides_visible"] = visible
         element.dimensions["section_status"] = status
-        element.dimensions["measured_section_m"] = [round(length, 3), round(thickness, 3)]
+        element.dimensions["measured_section_axes_m"] = measured_axes
+        if both_dimensions_measured:
+            element.dimensions["measured_section_m"] = [round(length, 3), round(thickness, 3)]
+            element.dimensions["section_source"] = "measured"
+            # Only point-derived dimensions with visible evidence on both axes
+            # may replace the coarse recognition footprint.
+            if record is not None:
+                _apply_column_section(element, length, thickness)
+        else:
+            element.dimensions.pop("measured_section_m", None)
+            element.dimensions["section_source"] = (
+                "partial_measurement" if record is not None and visible
+                else "coarse_grid" if visible
+                else "unknown"
+            )
         measurements.append(
             {
                 "element": element,
-                "length": completed_length,
-                "thickness": completed_thickness,
+                "length": length,
+                "thickness": thickness,
                 "sides": visible,
+                "both_dimensions_measured": both_dimensions_measured,
                 "status": status,
             }
         )
@@ -1905,7 +2193,7 @@ def typify_column_sections(
     reliable = [
         (m["length"], m["thickness"])
         for m in measurements
-        if m["sides"] >= 2
+        if m["both_dimensions_measured"]
         and min(m["length"], m["thickness"]) >= 0.15
         and m["length"] * m["thickness"] >= 0.05
     ]
@@ -1926,19 +2214,21 @@ def typify_column_sections(
         )
         types.append(
             {
-                "id": f"К{index + 1}",
+                "id": f"proposal-{index + 1}",
                 "length": nominal_length,
                 "thickness": nominal_thickness,
-                "assigned": 0,
+                "member_count": len(members),
+                "status": "proposed",
             }
         )
 
-    snapped = 0
     unique = 0
     for m in measurements:
         element = m["element"]
         length = float(m["length"])
         thickness = float(m["thickness"])
+        if not m["both_dimensions_measured"]:
+            continue
         best = None
         best_residual = None
         for column_type in types:
@@ -1949,18 +2239,9 @@ def typify_column_sections(
             if best_residual is None or residual < best_residual:
                 best, best_residual = column_type, residual
         if best is not None and best_residual is not None and best_residual <= COLUMN_SECTION_MAX_RESIDUAL_M:
-            _apply_column_section(element, best["length"], best["thickness"])
-            best["assigned"] += 1
-            element.dimensions["section_type"] = best["id"]
-            element.dimensions["section_type_label"] = (
-                f"{int(round(best['length'] * 1000))}×{int(round(best['thickness'] * 1000))} мм"
-            )
+            element.dimensions["section_type_proposal_id"] = best["id"]
             element.dimensions["section_residual_mm"] = int(round(best_residual * 1000))
-            element.dimensions["section_source"] = "nominal"
-            snapped += 1
         else:
-            # Nothing in this hall matches: keep what was measured instead of
-            # forcing a size the scan does not support.
             element.dimensions["section_source"] = "measured"
             if types and m["status"] != "unconfirmed":
                 element.dimensions["section_status"] = "unique_section"
@@ -1975,19 +2256,23 @@ def typify_column_sections(
                 "label_mm": (
                     f"{int(round(t['length'] * 1000))}×{int(round(t['thickness'] * 1000))}"
                 ),
-                "count": t["assigned"],
+                "member_count": t["member_count"],
+                "status": t["status"],
             }
             for t in types
-            if t["assigned"]
         ],
         "column_sections_total": len(measurements),
-        "column_sections_snapped": snapped,
+        "column_sections_snapped": 0,
+        "column_sections_type_proposals": len(types),
         "column_sections_unique": unique,
         "column_sections_from_two_sides": sum(
-            1 for m in measurements if m["status"] == "completed_from_2_sides"
+            1 for m in measurements if m["status"] == "measured_2_axes"
         ),
-        "column_sections_square_completed": sum(
-            1 for m in measurements if m["status"] == "completed_square_1_side"
+        "column_sections_partial": sum(
+            1 for m in measurements if m["status"] == "partial_one_axis"
+        ),
+        "column_sections_unconfirmed": sum(
+            1 for m in measurements if m["status"] in {"coarse_grid_only", "unconfirmed"}
         ),
         "column_section_tolerance_m": COLUMN_SECTION_TOLERANCE_M,
     }
@@ -2050,9 +2335,9 @@ def detect_structural_frame(
     else:
         warnings.append("Фермы и связи не распознаны: ось зала не определена.")
 
-    # Sections are measured from the points (2 cm local raster), completed by
-    # their visible sides and snapped to shared type sizes. This runs BEFORE
-    # the area-profile typing so that stage sees the final footprint.
+    # Sections are measured from the points (2 cm local raster). Repeated
+    # sizes remain review proposals; only point-supported dimensions update
+    # the footprint and no nominal type silently replaces the measurement.
     if progress:
         progress(0.955, "измерение сечений колонн по точкам")
     measured_sections = measure_column_sections(geom, columns, levels)
@@ -2062,16 +2347,17 @@ def detect_structural_frame(
     stats.update(sections)
     if sections.get("column_section_types"):
         labels = ", ".join(
-            f"{t['id']} {t['label_mm']} мм — {t['count']} шт"
+            f"{t['id']} {t['label_mm']} мм — {t['member_count']} колонн"
             for t in sections["column_section_types"]
         )
         warnings.append(
-            f"Сечения колонн сведены к {len(sections['column_section_types'])} "
-            f"типоразмерам (допуск {int(sections['column_section_tolerance_m'] * 1000)} мм): "
-            f"{labels}. Достроено по двум видимым сторонам: "
-            f"{sections['column_sections_from_two_sides']}, по одной стороне (принято "
-            f"квадратным): {sections['column_sections_square_completed']}; не совпало с "
-            f"типами и оставлено измеренным: {sections['column_sections_unique']}."
+            f"Предложены {len(sections['column_section_types'])} повторяющиеся группы "
+            f"сечений (допуск группировки {int(sections['column_section_tolerance_m'] * 1000)} мм): "
+            f"{labels}. Геометрия осталась измеренной; типы требуют проверки. "
+            f"Размеры с опорой на обе оси: {sections['column_sections_from_two_sides']}; "
+            f"частично измерено: {sections['column_sections_partial']}; "
+            f"сечение неизвестно или видно только на грубой сетке: "
+            f"{sections['column_sections_unconfirmed']}."
         )
 
     if progress:

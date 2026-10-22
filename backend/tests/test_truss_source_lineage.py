@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from scan2bim.geometry.section import CloudGeometry
+from scan2bim.geometry.bounds import derive_bbox
 from scan2bim.recognition import steel
 
 
@@ -106,6 +107,8 @@ def test_vertical_brace_detection_links_each_crossing_member_to_its_own_rows(mon
     assert len(second_ids & second_bar_rows) / len(second_ids) > 0.80
     assert first_ids | second_ids <= set(source_rows.tolist())
     assert all(item.metadata["member_proposal"]["review_state"] == "proposed" for item in members)
+    assert all("section_m" not in item.geometry for item in members)
+    assert all(item.bbox == derive_bbox(item.geometry) for item in members)
 
 
 def test_roof_truss_candidate_emits_source_linked_chords_and_posts(monkeypatch):
@@ -158,13 +161,19 @@ def test_roof_truss_candidate_emits_source_linked_chords_and_posts(monkeypatch):
     }
     assert all(item.metadata["member_proposal"]["source_point_ids"] for item in members)
     assert all(item.metadata["member_proposal"]["review_state"] == "proposed" for item in members)
+    assert all("section_m" not in item.geometry for item in members)
+    assert all(item.bbox == derive_bbox(item.geometry) for item in members)
     assert envelope.metadata["member_count_traced"] == len(members)
     assert set(envelope.metadata["member_proposal_ids"]) == {
         item.metadata["member_proposal_id"] for item in members
     }
     assembly = envelope.metadata["assembly_proposal"]
     assert assembly["member_proposal_ids"] == sorted(envelope.metadata["member_proposal_ids"])
-    assert assembly["node_candidates"] == []
+    assert assembly["node_candidates"]
+    assert all(node["status"] == "proposed" for node in assembly["node_candidates"])
+    assert all(set(node["candidate_member_proposal_ids"]).issubset(assembly["member_proposal_ids"])
+               for node in assembly["node_candidates"])
+    assert all(len(node["source_point_ids"]) >= 5 for node in assembly["node_candidates"])
     assert assembly["review_state"] == "proposed"
     for item in members:
         role = item.dimensions["role"]
@@ -176,3 +185,32 @@ def test_roof_truss_candidate_emits_source_linked_chords_and_posts(monkeypatch):
         rows = set(item.metadata["member_proposal"]["source_point_ids"])
         own_rows = set(source_rows[own_line * 520 : (own_line + 1) * 520].tolist())
         assert len(rows & own_rows) / len(rows) > 0.70
+
+
+def test_horizontal_brace_candidate_carries_only_its_near_axis_rows():
+    rng = np.random.default_rng(85)
+    direction = np.array([math.sqrt(0.5), math.sqrt(0.5)])
+    normal = np.array([-direction[1], direction[0]])
+    along = rng.uniform(-3.0, 3.0, 600)
+    across = rng.normal(0.0, 0.025, len(along))
+    brace_xy = along[:, None] * direction + across[:, None] * normal
+    brace_xyz = np.column_stack((brace_xy, rng.uniform(4.95, 5.05, len(along))))
+    clutter_xy = along[:, None] * direction + 0.5 * normal
+    clutter_xyz = np.column_stack((clutter_xy, rng.uniform(4.95, 5.05, len(along))))
+    xyz = np.vstack((brace_xyz, clutter_xyz))
+    source_rows = np.arange(8000, 8000 + len(xyz), dtype=np.int64)
+    candidate = (np.zeros(2), direction, 6.0, 0.9, 0.08, 4.95, 5.05, len(along))
+    cloud = CloudGeometry(Path("derived.npy"), np.zeros(3), xyz.min(0), xyz.max(0), len(xyz))
+
+    members = steel._emit_horizontal_braces(
+        cloud, [candidate], source_points=xyz, source_rows=source_rows,
+    )
+
+    assert len(members) == 1
+    proposal = members[0].metadata["member_proposal"]
+    selected = set(proposal["source_point_ids"])
+    assert selected
+    assert selected <= set(source_rows[: len(along)].tolist())
+    assert proposal["role"] == {"value": "brace", "status": "proposed"}
+    assert "section_m" not in members[0].geometry
+    assert members[0].bbox == derive_bbox(members[0].geometry)

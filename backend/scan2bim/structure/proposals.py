@@ -256,14 +256,25 @@ def validate_assembly_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(nodes, list):
         raise ValueError("node_candidates must be a list")
     node_ids: set[str] = set()
+    assembly_member_ids = set(member_ids)
     for index, node in enumerate(nodes):
         if (not isinstance(node, dict)
-                or set(node) != {"id", "position_m", "source_point_ids", "status"}):
+                or set(node) != {
+                    "id", "position_m", "candidate_member_proposal_ids",
+                    "source_point_ids", "status",
+                }):
             raise ValueError(f"node_candidates[{index}] has an invalid shape")
         if not isinstance(node["id"], str) or not node["id"].strip() or node["id"] in node_ids:
             raise ValueError(f"node_candidates[{index}].id must be unique and non-empty")
         node_ids.add(node["id"])
         _point3(node["position_m"], f"node_candidates[{index}].position_m")
+        node_members = node["candidate_member_proposal_ids"]
+        if (not isinstance(node_members, list) or len(node_members) < 2
+                or any(not isinstance(item, str) or not item.strip() for item in node_members)
+                or len(set(node_members)) != len(node_members)):
+            raise ValueError(f"node_candidates[{index}] requires unique candidate member IDs")
+        if not set(node_members).issubset(assembly_member_ids):
+            raise ValueError(f"node_candidates[{index}] references a member outside the assembly proposal")
         _source_ids(node["source_point_ids"], f"node_candidates[{index}]")
         if node["status"] != "proposed":
             raise ValueError("node candidates must remain proposed until explicit review")
@@ -284,18 +295,26 @@ def build_assembly_proposal(
     node_candidates: Sequence[dict[str, Any]] = (),
 ) -> AssemblyProposal:
     """Build a stable proposal for an assembly without claiming connectivity."""
-    members = sorted(member_proposal_ids)
+    if isinstance(member_proposal_ids, (str, bytes)):
+        raise ValueError("assembly proposal requires a sequence of member proposal IDs")
+    raw_members = list(member_proposal_ids)
+    if (not raw_members
+            or any(not isinstance(item, str) or not item.strip() for item in raw_members)
+            or len(set(raw_members)) != len(raw_members)):
+        raise ValueError("assembly proposal requires unique member proposal IDs")
+    members = sorted(raw_members)
     nodes = list(node_candidates)
+    known_type = isinstance(assembly_type, str) and bool(assembly_type.strip()) and assembly_type.strip() != "unknown"
+    type_value = assembly_type.strip() if known_type else "unknown"
     identity_document = json.dumps(
-        {"assembly_type": assembly_type, "member_proposal_ids": members},
+        {"assembly_type": type_value, "member_proposal_ids": members},
         sort_keys=True, separators=(",", ":"),
     ).encode("utf-8")
     assembly_id = "assembly-proposal-" + hashlib.sha256(identity_document).hexdigest()[:24]
-    known_type = isinstance(assembly_type, str) and bool(assembly_type.strip()) and assembly_type.strip() != "unknown"
     proposal: AssemblyProposal = {
         "id": assembly_id,
         "assembly_type": {
-            "value": assembly_type if known_type else "unknown",
+            "value": type_value,
             "status": "proposed" if known_type else "unknown",
         },
         "member_proposal_ids": members,

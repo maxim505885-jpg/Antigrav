@@ -53,14 +53,20 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                     continue;
                 }
 
+                var hasPriorShape = existing.Remove(id, out var prior);
                 if (!TryCreateShape(item, out var category, out var solid))
                 {
+                    if (hasPriorShape && prior is not null)
+                    {
+                        document.Delete(prior.Id);
+                        counts.RemovedUnsupported++;
+                    }
                     counts.Unsupported++;
                     continue;
                 }
 
                 DirectShape shape;
-                if (existing.Remove(id, out var prior) && prior.Category.Id == category)
+                if (hasPriorShape && prior is not null && prior.Category.Id == category)
                 {
                     shape = prior;
                     counts.Updated++;
@@ -79,6 +85,11 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                 shape.ApplicationId = ApplicationId;
                 shape.ApplicationDataId = id;
                 SetComments(shape, item, id);
+                JsonElement? coordinateFrame = root.TryGetProperty("coordinate_frame", out var frame)
+                    ? frame
+                    : null;
+                ElementProvenanceStorage.Attach(shape, ScanProvenancePayload.Serialize(
+                    id, item, root.GetProperty("source"), coordinateFrame));
             }
 
             counts.Unchanged = existing.Count;
@@ -86,7 +97,9 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
             Autodesk.Revit.UI.TaskDialog.Show(
                 "SCAN BIM",
                 $"Импорт завершён.\nСоздано: {counts.Created}\nОбновлено: {counts.Updated}\n" +
-                $"Старые элементы сохранены: {counts.Unchanged}\nНеподдержанные: {counts.Unsupported}\n\n" +
+                $"Старые элементы сохранены: {counts.Unchanged}\n" +
+                $"Удалено ставших неподдержанными: {counts.RemovedUnsupported}\n" +
+                $"Неподдержанные: {counts.Unsupported}\n\n" +
                 "Формы созданы как DirectShape. Сложные элементы не преобразуются в параметрические семейства."
             );
             return Result.Succeeded;
@@ -193,6 +206,11 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
 
         if (kind == "member")
         {
+            // The exchange schema allows a missing section for unknown members.
+            // Do not fabricate a 150 mm solid: keep the item reported as unsupported.
+            if (!MemberSectionPolicy.TryGetPositiveSectionMetres(geometry, out var sectionMetres))
+                return false;
+
             var geometryStart = Vector(geometry.GetProperty("p0"));
             var geometryEnd = Vector(geometry.GetProperty("p1"));
             var delta = geometryEnd - geometryStart;
@@ -203,7 +221,7 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
             var helper = Math.Abs(axis.DotProduct(XYZ.BasisZ)) > 0.9 ? XYZ.BasisY : XYZ.BasisZ;
             var localX = axis.CrossProduct(helper).Normalize();
             var localY = axis.CrossProduct(localX).Normalize();
-            var section = ToInternal(OptionalNumber(geometry, "section_m", 0.15));
+            var section = ToInternal(sectionMetres);
             var corners = new[]
             {
                 geometryStart - localX * (section / 2) - localY * (section / 2),
@@ -268,6 +286,7 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
         public int Created { get; set; }
         public int Updated { get; set; }
         public int Unchanged { get; set; }
+        public int RemovedUnsupported { get; set; }
         public int Unsupported { get; set; }
         public int LevelsCreated { get; set; }
         public int LevelsReused { get; set; }

@@ -472,44 +472,71 @@ def _section_column(cx: float, cy: float, length: float, thickness: float) -> De
     )
 
 
-def test_section_is_completed_from_two_visible_sides():
-    # A corner of two adjacent faces is enough to draw the full rectangle: a
-    # leg of the corner spans the whole length, the other spans the whole
-    # thickness.
+def _measured_section_record(cx, cy, length, thickness, faces="all"):
+    along, across = {
+        "all": (2, 2), "corner": (1, 1), "opposite": (2, 0), "one": (1, 0),
+    }[faces]
+    return {
+        "center": (cx, cy), "angle": 0.0, "length": length,
+        "thickness": thickness, "faces_along": along, "faces_across": across,
+    }
+
+
+def test_coarse_grid_corner_does_not_claim_a_measured_full_section():
     grid = _section_grid([(2.0, 2.0, 0.40, 0.30, "corner")])
     column = _section_column(2.0, 2.0, 0.40, 0.30)
 
     typify_column_sections(grid, [column], np.zeros(3))
 
     assert column.dimensions["sides_visible"] == 2
-    assert column.dimensions["section_status"] == "completed_from_2_sides"
-    assert abs(column.geometry["sizes"]["length"] - 0.40) <= 0.005
-    assert abs(column.geometry["sizes"]["thickness"] - 0.30) <= 0.005
+    assert column.dimensions["section_status"] == "coarse_grid_only"
+    assert "measured_section_m" not in column.dimensions
 
 
-def test_section_is_completed_from_two_opposite_sides():
+def test_point_supported_adjacent_faces_measure_both_section_dimensions():
+    grid = _section_grid([(2.0, 2.0, 0.40, 0.30, "corner")])
+    column = _section_column(2.0, 2.0, 0.50, 0.50)
+    measured = {0: _measured_section_record(2.0, 2.0, 0.40, 0.30, "corner")}
+
+    typify_column_sections(grid, [column], np.zeros(3), measured)
+
+    assert column.dimensions["section_status"] == "measured_2_axes"
+    assert column.dimensions["measured_section_m"] == [0.4, 0.3]
+    assert column.geometry["sizes"]["length"] == 0.4
+    assert column.geometry["sizes"]["thickness"] == 0.3
+
+
+def test_opposite_faces_measure_only_one_section_axis():
     # 0.60 m: at 0.40 m the two face bands of a 0.10 m raster would overlap and
     # the synthetic section would look solid from every side.
     grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "opposite")])
     column = _section_column(2.0, 2.0, 0.60, 0.60)
 
-    typify_column_sections(grid, [column], np.zeros(3))
+    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.60, "opposite")}
+    typify_column_sections(grid, [column], np.zeros(3), measured)
 
     assert column.dimensions["sides_visible"] == 2
-    assert column.dimensions["section_status"] == "completed_from_2_sides"
+    assert column.dimensions["section_status"] == "partial_one_axis"
+    assert column.dimensions["measured_section_axes_m"] == {
+        "length": None,
+        "thickness": 0.6,
+    }
+    assert "measured_section_m" not in column.dimensions
 
 
-def test_single_visible_side_is_made_square():
-    # One face fixes one axis only; the other is mirrored so the plan drawing
-    # still gets a closed rectangle.
+def test_single_visible_side_does_not_invent_a_square():
+    # One face fixes one axis only; the missing dimension remains unknown.
     grid = _section_grid([(2.0, 2.0, 0.60, 0.60, "one")])
     column = _section_column(2.0, 2.0, 0.60, 0.60)
 
-    typify_column_sections(grid, [column], np.zeros(3))
+    measured = {0: _measured_section_record(2.0, 2.0, 0.60, 0.60, "one")}
+    typify_column_sections(grid, [column], np.zeros(3), measured)
 
     assert column.dimensions["sides_visible"] == 1
-    assert column.dimensions["section_status"] == "completed_square_1_side"
-    assert abs(column.geometry["sizes"]["length"] - column.geometry["sizes"]["thickness"]) <= 0.005
+    assert column.dimensions["section_status"] == "partial_one_axis"
+    assert column.geometry["sizes"]["length"] == 0.60
+    assert column.geometry["sizes"]["thickness"] == 0.60
+    assert "measured_section_m" not in column.dimensions
 
 
 def test_corner_cells_do_not_fake_extra_visible_sides():
@@ -523,7 +550,7 @@ def test_corner_cells_do_not_fake_extra_visible_sides():
     assert column.dimensions["sides_visible"] == 2
 
 
-def test_column_sections_snap_to_shared_types():
+def test_column_sections_propose_repeated_types_without_replacing_measurements():
     specs = [
         (1.0, 1.0, 0.39, 0.39, "all"),
         (3.0, 1.0, 0.41, 0.40, "all"),
@@ -535,16 +562,21 @@ def test_column_sections_snap_to_shared_types():
     grid = _section_grid(specs)
     columns = [_section_column(*spec[:4]) for spec in specs]
 
-    stats = typify_column_sections(grid, columns, np.zeros(3))
+    measured = {
+        index: _measured_section_record(*spec[:4], faces=spec[4])
+        for index, spec in enumerate(specs)
+    }
+    stats = typify_column_sections(grid, columns, np.zeros(3), measured)
 
     assert len(stats["column_section_types"]) == 2
-    sizes = {
-        (round(c.geometry["sizes"]["length"], 2), round(c.geometry["sizes"]["thickness"], 2))
+    sizes = [
+        (c.geometry["sizes"]["length"], c.geometry["sizes"]["thickness"])
         for c in columns
-    }
-    assert sizes == {(0.40, 0.40), (0.55, 0.55)}
-    assert all(c.dimensions["section_source"] == "nominal" for c in columns)
-    assert all(c.dimensions["section_type"] in {"К1", "К2"} for c in columns)
+    ]
+    assert sizes == [(spec[2], spec[3]) for spec in specs]
+    assert all(c.dimensions["section_source"] == "measured" for c in columns)
+    assert all("section_type" not in c.dimensions for c in columns)
+    assert all(item["status"] == "proposed" for item in stats["column_section_types"])
 
 
 def test_off_type_column_keeps_its_measured_size():
@@ -556,25 +588,35 @@ def test_off_type_column_keeps_its_measured_size():
     grid = _section_grid(specs)
     columns = [_section_column(*spec[:4]) for spec in specs]
 
-    stats = typify_column_sections(grid, columns, np.zeros(3))
+    measured = {
+        index: _measured_section_record(*spec[:4], faces=spec[4])
+        for index, spec in enumerate(specs)
+    }
+    stats = typify_column_sections(grid, columns, np.zeros(3), measured)
 
     assert len(stats["column_section_types"]) == 1
     big = columns[2]
     assert big.dimensions["section_source"] == "measured"
     assert big.dimensions["section_status"] == "unique_section"
     assert abs(big.geometry["sizes"]["length"] - 0.80) <= 0.01
+    assert "section_type" not in big.dimensions
 
 
 def test_typification_keeps_the_measured_section_as_evidence():
     specs = [(1.0, 1.0, 0.39, 0.41, "all"), (3.0, 1.0, 0.41, 0.39, "all")]
     grid = _section_grid(specs)
     columns = [_section_column(*spec[:4]) for spec in specs]
+    measured_records = {
+        index: _measured_section_record(*spec[:4], faces=spec[4])
+        for index, spec in enumerate(specs)
+    }
 
-    typify_column_sections(grid, columns, np.zeros(3))
+    typify_column_sections(grid, columns, np.zeros(3), measured_records)
 
     for column, spec in zip(columns, specs):
         measured = column.dimensions["measured_section_m"]
         assert measured == [round(spec[2], 3), round(spec[3], 3)]
+        assert column.dimensions["section_type_proposal_id"]
         assert column.dimensions["section_residual_mm"] >= 0
 
 

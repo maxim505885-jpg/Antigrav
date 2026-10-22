@@ -71,12 +71,34 @@ def column_descriptor(element: dict[str, Any]) -> dict[str, Any]:
     if element.get("inferred") is True:
         reasons.append("inferred_geometry")
 
-    length, length_source, invalid_length = _measured_side(
-        geometry, dimensions, "length", "length_m"
-    )
-    thickness, thickness_source, invalid_thickness = _measured_side(
-        geometry, dimensions, "thickness", "thickness_m"
-    )
+    section_status = dimensions.get("section_status")
+    point_measured_statuses = {
+        "measured_2_axes", "measured_3_sides", "measured_4_sides", "unique_section",
+    }
+    incomplete_statuses = {"partial_one_axis", "coarse_grid_only", "unconfirmed"}
+    if section_status in incomplete_statuses:
+        reasons.append("incomplete_section_measurement")
+
+    if section_status in point_measured_statuses:
+        measured_section = dimensions.get("measured_section_m")
+        if not isinstance(measured_section, (list, tuple)) or len(measured_section) != 2:
+            length = thickness = None
+            length_source = thickness_source = None
+            invalid_length = invalid_thickness = True
+        else:
+            length = _finite_positive(measured_section[0])
+            thickness = _finite_positive(measured_section[1])
+            length_source = "dimensions.measured_section_m[0]" if length is not None else None
+            thickness_source = "dimensions.measured_section_m[1]" if thickness is not None else None
+            invalid_length = length is None
+            invalid_thickness = thickness is None
+    else:
+        length, length_source, invalid_length = _measured_side(
+            geometry, dimensions, "length", "length_m"
+        )
+        thickness, thickness_source, invalid_thickness = _measured_side(
+            geometry, dimensions, "thickness", "thickness_m"
+        )
     if length is None:
         reasons.append("invalid_long_side" if invalid_length else "missing_long_side")
     if thickness is None:

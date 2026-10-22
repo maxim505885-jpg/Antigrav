@@ -100,6 +100,7 @@ export interface Element {
   source: string;
   review_status: string;
   dimensions: Record<string, any>;
+  metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
 }

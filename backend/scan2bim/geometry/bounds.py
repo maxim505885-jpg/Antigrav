@@ -24,10 +24,16 @@ def derive_bbox(geometry: dict[str, Any], fallback: dict[str, Any] | None = None
             "max": [round(max(x for x, _ in corners), 3), round(max(y for _, y in corners), 3), round(cz + height / 2, 3)],
         }
     if kind == "member" and geometry.get("p0") and geometry.get("p1"):
-        section = float(geometry.get("section_m", 0.15))
+        section_value = geometry.get("section_m")
+        if section_value is None:
+            half = 0.0
+        else:
+            section = float(section_value)
+            if not math.isfinite(section) or section <= 0:
+                raise ValueError("member section_m must be finite and positive when provided")
+            half = section / 2
         p0 = [float(v) for v in geometry["p0"]]
         p1 = [float(v) for v in geometry["p1"]]
-        half = section / 2
         return {
             "min": [round(min(p0[i], p1[i]) - half, 3) for i in range(3)],
             "max": [round(max(p0[i], p1[i]) + half, 3) for i in range(3)],

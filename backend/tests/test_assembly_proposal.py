@@ -44,3 +44,35 @@ def test_assembly_proposal_cannot_be_marked_confirmed():
 
     with pytest.raises(ValueError, match="proposed"):
         validate_assembly_proposal(proposal)
+
+
+def test_assembly_proposal_accepts_source_supported_node_candidates():
+    proposal = build_assembly_proposal(
+        assembly_type="roof_truss",
+        member_proposal_ids=["member-a", "member-b"],
+        node_candidates=[{
+            "id": "node-candidate-1",
+            "position_m": [2.0, 3.0, 4.0],
+            "candidate_member_proposal_ids": ["member-a", "member-b"],
+            "source_point_ids": [100, 101, 102, 103, 104],
+            "status": "proposed",
+        }],
+    )
+
+    assert proposal["node_candidates"][0]["status"] == "proposed"
+    assert "member_connectivity" in proposal["unresolved_fields"]
+
+
+def test_assembly_proposal_rejects_nodes_linked_to_unknown_members():
+    with pytest.raises(ValueError, match="member"):
+        build_assembly_proposal(
+            assembly_type="roof_truss",
+            member_proposal_ids=["member-a"],
+            node_candidates=[{
+                "id": "node-candidate-1",
+                "position_m": [2.0, 3.0, 4.0],
+                "candidate_member_proposal_ids": ["missing-member", "member-a"],
+                "source_point_ids": [100, 101, 102, 103, 104],
+                "status": "proposed",
+            }],
+        )

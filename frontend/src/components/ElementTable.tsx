@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
+import { elementEvidenceBadges } from "../elementEvidence";
 
 interface Props {
   elements: Element[];
@@ -53,6 +54,7 @@ function dimensionSummary(element: Element): string {
 function extraBadges(element: Element) {
   const dims = element.dimensions || {};
   const badges: { text: string; title: string; cls: string }[] = [];
+  badges.push(...elementEvidenceBadges(element.metadata));
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
     badges.push({
       text: "проверить повторный кандидат",
@@ -88,16 +90,31 @@ function extraBadges(element: Element) {
       cls: "inferred",
     });
   }
-  if (dims.section_status === "completed_from_2_sides" || dims.section_status === "completed_square_1_side") {
+  if (["measured_2_axes", "measured_3_sides", "measured_4_sides"].includes(dims.section_status)) {
     badges.push({
-      text:
-        dims.section_status === "completed_from_2_sides"
-          ? "достроено по 2 сторонам"
-          : "достроено по 1 стороне",
-      title:
-        dims.section_status === "completed_from_2_sides"
-          ? "Скан видел две стороны колонны — прямоугольник достроен по ним"
-          : "Скан видел одну сторону — вторую сторону приняли равной первой (квадрат) и уточнили по типоразмеру",
+      text: dims.section_status === "measured_2_axes" ? "измерено по 2 осям" : "измерены видимые грани",
+      title: "Обе размерности сечения опираются на точки облака; повторяющийся тип остаётся предложением до проверки",
+      cls: "measured",
+    });
+  }
+  if (dims.section_status === "partial_one_axis") {
+    badges.push({
+      text: "одна размерность сечения неизвестна",
+      title: "Точки подтверждают только одну размерность; вторая не достраивается автоматически",
+      cls: "inferred",
+    });
+  }
+  if (dims.section_status === "coarse_grid_only") {
+    badges.push({
+      text: "размеры по грубой сетке не подтверждены",
+      title: "10 см сетка помогает найти видимые грани, но не подтверждает размеры сечения",
+      cls: "inferred",
+    });
+  }
+  if (["completed_from_2_sides", "completed_square_1_side"].includes(dims.section_status)) {
+    badges.push({
+      text: "старое предположение сечения требует проверки",
+      title: "Этот элемент создан прежней версией авто-достройки; проверьте его размеры по точкам",
       cls: "inferred",
     });
   }
