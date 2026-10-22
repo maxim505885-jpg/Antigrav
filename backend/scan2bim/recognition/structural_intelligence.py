@@ -1,28 +1,16 @@
-"""Structural Intelligence Recognizer (Интеллектуальный конструктивный распознаватель).
+"""Propose grid correspondences for tall point-derived column candidates.
 
-Принципы работы:
-1. Конструктивная логика промышленного цеха:
-   - Шаг колонн кратен 6 000 мм (модуль 6М по ГОСТ 28984-2011).
-   - Пролеты цеха кратны 6М (12м, 18м, 24м, 30м).
-   - Колонны стоят СТРОГО в створах координационных осей.
-2. Многоуровневая валидация каждого элемента по облаку точек:
-   - Непрерывная вертикальная протяженность (высота) >= 4.5м.
-   - Наличие массивного фундамента/базы на отм. пола (Z <= 0.000).
-   - Отсутствие отрыва от пола (отсекает подвесные трубы, вентиляцию, короба).
-3. Инженерная классификация:
-   - Крайние ряды (А, Г) -> Колонны прямоугольного сечения 500x500 / 600x500 под наружные стены и фахверк.
-   - Средние ряды (Б, В) -> Двухветвевые ступенчатые колонны 800x600 с консолями под подкрановые балки (на отм. +6.800).
-   - Верхний ярус (+9.600) -> Опирание стропильных ферм покрытия.
+Grid proximity can suggest an axis label, but cannot verify a physical column,
+its section type, support, or dimensions. Every result remains review-only.
 """
 from __future__ import annotations
 
 import math
 from typing import Any
-import numpy as np
 
 
 class StructuralWorkshopClassifier:
-    """Интеллектуальный классификатор несущего остова производственного здания."""
+    """Консервативные предложения соответствия кандидатов заданной сетке."""
 
     def __init__(
         self,
@@ -40,8 +28,8 @@ class StructuralWorkshopClassifier:
         known_x_bays: list[float],
         known_y_rows: dict[str, float],
     ) -> list[dict[str, Any]]:
-        """Превращает сырые облачные кластеры в выверенные элементы строительных конструкций."""
-        verified_members = []
+        """Return unreviewed grid-match proposals without assigning a column type."""
+        proposals = []
 
         for candidate in raw_candidates:
             center = candidate.get("geometry", {}).get("center")
@@ -84,31 +72,39 @@ class StructuralWorkshopClassifier:
                 continue
 
             bay_idx, bay_x = best_bay
+            raw_confidence = candidate.get("confidence")
+            confidence = None
+            if (not isinstance(raw_confidence, bool)
+                    and isinstance(raw_confidence, (int, float))
+                    and math.isfinite(float(raw_confidence))):
+                confidence = float(raw_confidence)
 
-            # 4. Определение конструктивной роли и марки
-            is_middle = row_letter in ("Б", "В")
-            col_type = "К-2 (ступенчатая средняя)" if is_middle else "К-1 (крайняя рядовая)"
-            profile_w = 0.80 if is_middle else 0.60
-            profile_t = 0.60 if is_middle else 0.50
-
-            verified_members.append({
+            proposals.append({
                 "id": candidate.get("id"),
-                "class_name": "column",
-                "mark": f"К-{row_letter}{bay_idx}",
-                "type": col_type,
-                "row_axis": row_letter,
-                "bay_axis": str(bay_idx),
-                "grid_center": [bay_x, row_y, cz],
-                "actual_center": [cx, cy, cz],
-                "deviation_dx_mm": int(round((cx - bay_x) * 1000)),
-                "deviation_dy_mm": int(round((cy - row_y) * 1000)),
-                "dimensions": {
-                    "width_m": profile_w,
-                    "thickness_m": profile_t,
-                    "height_m": max(height, 8.4),
+                "class_name": "column_candidate",
+                "review_state": "proposed",
+                "status": "unreviewed",
+                "grid_match": {
+                    "row_axis": row_letter,
+                    "bay_axis": str(bay_idx),
+                    "mark_candidate": f"К-{row_letter}{bay_idx}",
+                    "status": "proposed",
+                    "grid_center_m": [bay_x, row_y, cz],
+                    "observed_center_m": [cx, cy, cz],
+                    "residual_dx_mm": int(round((cx - bay_x) * 1000)),
+                    "residual_dy_mm": int(round((cy - row_y) * 1000)),
+                    "tolerance_m": self.grid_tolerance,
                 },
-                "confidence": 0.95,
-                "status": "verified_structural_column",
+                "measured_height_m": height,
+                "section_type": {"value": "unknown", "status": "unknown"},
+                "section_dimensions_m": {"width": None, "depth": None},
+                "source_geometry": candidate.get("geometry", {}),
+                "confidence": confidence,
+                "confidence_kind": candidate.get("confidence_kind", "not_calibrated"),
+                "unresolved_fields": [
+                    "physical_column_identity", "section_type", "section_dimensions",
+                    "supports", "grid_axis_confirmation",
+                ],
             })
 
-        return verified_members
+        return proposals

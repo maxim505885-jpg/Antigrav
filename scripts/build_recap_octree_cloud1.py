@@ -1,19 +1,23 @@
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path("backend").resolve()))
-
+"""Legacy filename: create a sampled web preview, not a ReCap project."""
+import argparse
 import json
-from scan2bim.pointdata.octree import ReCapOctreeBuilder
+from pathlib import Path
+import sys
 
-# Point to cloud 1
-cloud_dir = Path("data/projects/3f6321f10c9145db909ec27b1c2ba044/clouds/2621e5a320df49949d04aa1b7399539e")
-positions_p = cloud_dir / "positions.npy"
-out_octree = Path("data/output/workshop_release/recap_octree")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-builder = ReCapOctreeBuilder()
-manifest = builder.build_lod_pyramid(positions_p, out_octree)
+from scan2bim.pointdata.octree import PreviewLodBuilder
 
-assert (out_octree / "lod_0.npy").exists()
-assert (out_octree / "lod_1.npy").exists()
-assert (out_octree / "octree_manifest.json").exists()
-print("ReCap Octree Pyramid generation verified!")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("positions", type=Path, help="path to a derived positions.npy file")
+    parser.add_argument("--output", type=Path, default=Path("data/output/web_preview"))
+    args = parser.parse_args()
+    manifest = PreviewLodBuilder().build_lod_pyramid(args.positions, args.output)
+    print(json.dumps(manifest, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

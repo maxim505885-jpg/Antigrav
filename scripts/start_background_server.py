@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PYTHON = sys.executable
+PYTHON = str(ROOT / ".venv" / "Scripts" / "python.exe")
 BACKEND = ROOT / "backend"
 
 env = os.environ.copy()

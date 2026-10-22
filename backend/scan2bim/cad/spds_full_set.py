@@ -540,7 +540,13 @@ def generate_sheet_5_executive_deviation_scheme(
     return out_dxf
 
 
-def generate_full_spds_album(elements: list[dict[str, Any]], out_dir: str | Path | None = None, output_dir: str | Path | None = None, project_title: str = "Производственный корпус") -> dict[str, Any]:
+def generate_full_spds_album(
+    elements: list[dict[str, Any]],
+    out_dir: str | Path | None = None,
+    output_dir: str | Path | None = None,
+    project_title: str = "Производственный корпус",
+    source_frame: str = "source_cloud_world",
+) -> dict[str, Any]:
     out_dir = Path(output_dir if output_dir is not None else out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     aligned = align_elements_to_grid(elements)
@@ -582,7 +588,7 @@ def generate_full_spds_album(elements: list[dict[str, Any]], out_dir: str | Path
         "grid_alignment_version": "repeat-density-v1",
         "grid_rotation_deg": aligned["rot_angle_deg"],
         "coordinate_transform": {
-            "source_frame": "source_cloud_world",
+            "source_frame": source_frame,
             "target_frame": "spds_sheet_local",
             "units": "m",
             "source_to_sheet_4x4": aligned["source_to_sheet_4x4"],

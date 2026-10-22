@@ -1,28 +1,55 @@
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path("backend").resolve()))
+import pytest
 
-import json
 from scan2bim.recognition.structural_intelligence import StructuralWorkshopClassifier
 
-# Test classifier
-classifier = StructuralWorkshopClassifier(bay_step_m=6.0, grid_tolerance_m=1.0, min_column_height_m=4.5)
 
-raw_candidates = [
-    # 1. Real column on grid
-    {"id": "col_1", "geometry": {"center": [-60.02, -4.78, 2.0], "sizes": {"height": 9.5}}},
-    # 2. Pipe/clutter in aisle (cy = 0.0)
-    {"id": "clutter_pipe", "geometry": {"center": [-60.0, 0.5, 2.0], "sizes": {"height": 8.0}}},
-    # 3. Machine post (short height)
-    {"id": "machine_post", "geometry": {"center": [-60.0, -4.8, 0.5], "sizes": {"height": 1.2}}},
-]
+@pytest.fixture
+def classifier():
+    return StructuralWorkshopClassifier(
+        bay_step_m=6.0, grid_tolerance_m=1.0, min_column_height_m=4.5,
+    )
 
-known_x_bays = [-66.0, -60.0, -54.0]
-known_y_rows = {"А": -17.5, "Б": -4.8, "В": 7.5, "Г": 20.5}
 
-res = classifier.classify_and_regularize(raw_candidates, known_x_bays, known_y_rows)
-assert len(res) == 1, f"Expected 1 column, got {len(res)}"
-assert res[0]["id"] == "col_1"
-assert res[0]["mark"] == "К-Б2"
-assert res[0]["type"] == "К-2 (ступенчатая средняя)"
-print("Structural Intelligence Classifier unit test: 100% PASSED!")
+def test_grid_match_remains_a_review_proposal_and_does_not_invent_section(classifier):
+    raw_candidates = [{
+        "id": "column-candidate-1",
+        "geometry": {
+            "center": [-60.02, -4.78, 2.0],
+            "sizes": {"height": 9.5},
+        },
+        "confidence": 0.42,
+        "confidence_kind": "heuristic",
+    }]
+
+    proposals = classifier.classify_and_regularize(
+        raw_candidates,
+        known_x_bays=[-66.0, -60.0, -54.0],
+        known_y_rows={"А": -17.5, "Б": -4.8, "В": 7.5, "Г": 20.5},
+    )
+
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal["review_state"] == "proposed"
+    assert proposal["status"] == "unreviewed"
+    assert proposal["grid_match"]["row_axis"] == "Б"
+    assert proposal["grid_match"]["bay_axis"] == "2"
+    assert proposal["grid_match"]["mark_candidate"] == "К-Б2"
+    assert proposal["grid_match"]["status"] == "proposed"
+    assert proposal["section_type"] == {"value": "unknown", "status": "unknown"}
+    assert proposal["section_dimensions_m"] == {"width": None, "depth": None}
+    assert proposal["measured_height_m"] == pytest.approx(9.5)
+    assert proposal["confidence"] == pytest.approx(0.42)
+    assert proposal["confidence_kind"] == "heuristic"
+
+
+def test_tall_candidate_away_from_axes_is_not_labeled_as_structural_column(classifier):
+    result = classifier.classify_and_regularize(
+        [{
+            "id": "pipe-candidate",
+            "geometry": {"center": [-60.0, 0.5, 2.0], "sizes": {"height": 8.0}},
+        }],
+        known_x_bays=[-66.0, -60.0, -54.0],
+        known_y_rows={"А": -17.5, "Б": -4.8, "В": 7.5, "Г": 20.5},
+    )
+
+    assert result == []

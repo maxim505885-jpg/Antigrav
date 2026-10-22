@@ -1,13 +1,24 @@
-import sys
+"""Run geometry-based recognition and produce a review-only draft package."""
+import argparse
+import json
 from pathlib import Path
-sys.path.insert(0, str(Path("backend").resolve()))
+import sys
 
-from scan2bim.pipeline_single_pass import SinglePassWorkshopEngine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-cloud_file = Path("data/projects/3f6321f10c9145db909ec27b1c2ba044/clouds/2621e5a320df49949d04aa1b7399539e/positions.npy")
-engine = SinglePassWorkshopEngine(output_root="data/output/single_pass_release")
+from scan2bim.pipeline_single_pass import WorkshopPipeline
 
-res = engine.execute_pipeline(cloud_file, project_title="Производственный цех 1.rcs (40 млн точек)")
-print("\nРЕЗУЛЬТАТ ОДНОПРОХОДНОГО ПАЙПЛАЙНА:")
-for k, v in res.items():
-    print(f"  {k}: {v}")
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("positions", type=Path, help="path to a derived positions.npy cloud")
+    parser.add_argument("--output", type=Path, default=Path("data/output/workshop_draft"))
+    parser.add_argument("--title", default="Производственный корпус")
+    args = parser.parse_args()
+    result = WorkshopPipeline(args.output).execute_pipeline(args.positions, project_title=args.title)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

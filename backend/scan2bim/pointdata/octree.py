@@ -1,105 +1,82 @@
-"""ReCap-style Hierarchical Spatial LOD Octree Builder (Движок пространственного октодерева).
+"""Small deterministic point samples for fast web previews.
 
-Обеспечивает:
-1. Иерархическую пространственную нарезку (как в Autodesk ReCap ADOCT / Potree / Entwine).
-2. Пирамиду уровней детализации (LOD 0, LOD 1, LOD 2, LOD 3) для мгновенной потоковой отдачи в 3D WebGL / Three.js.
-3. Посегментную выгрузку вокселей без загрузки 14 ГБ в оперативную память.
+This is not a spatial octree and does not create Autodesk ReCap RCP/RCS data.
+It samples rows from an existing NPY point array and leaves the full array
+untouched for local inspection and recognition.
 """
 from __future__ import annotations
 
 import json
-import math
-import os
 from pathlib import Path
-import time
 from typing import Any
 
 import numpy as np
 
 
-class ReCapOctreeBuilder:
-    """Генератор пирамиды октодерева уровней детализации по аналогии с ReCap ADOCT."""
+class PreviewLodBuilder:
+    """Create deterministic file-order samples for a web viewer preview."""
 
-    def __init__(
-        self,
-        max_points_per_voxel: int = 50_000,
-        max_lod_depth: int = 4,
-        base_voxel_size_m: float = 12.0,
-    ):
-        self.max_pts = max_points_per_voxel
-        self.max_depth = max_lod_depth
-        self.base_voxel_size = base_voxel_size_m
+    def __init__(self, overview_limit: int = 50_000, medium_limit: int = 200_000):
+        if overview_limit < 1 or medium_limit < overview_limit:
+            raise ValueError("preview limits must be positive and medium_limit >= overview_limit")
+        self.overview_limit = int(overview_limit)
+        self.medium_limit = int(medium_limit)
+
+    @staticmethod
+    def _sample(points: np.ndarray, limit: int) -> np.ndarray:
+        count = min(len(points), limit)
+        indices = np.linspace(0, len(points) - 1, count, dtype=np.int64)
+        return np.asarray(points[indices], dtype=np.float32)
 
     def build_lod_pyramid(
         self,
         positions_path: str | Path,
         output_dir: str | Path,
-        colors_path: str | Path | None = None,
     ) -> dict[str, Any]:
-        """Строит и сохраняет иерархическую структуру LOD для облака точек."""
-        out_path = Path(output_dir)
-        out_path.mkdir(parents=True, exist_ok=True)
-        pos = np.load(positions_path, mmap_mode="r")
-        total_pts = len(pos)
+        """Write overview/medium samples and a manifest; no spatial tree is built."""
+        source = Path(positions_path)
+        points = np.load(source, mmap_mode="r")
+        if points.ndim != 2 or points.shape[1] < 3 or len(points) == 0:
+            raise ValueError("positions.npy must contain a non-empty N x >=3 array")
+        if not (np.issubdtype(points.dtype, np.integer) or np.issubdtype(points.dtype, np.floating)):
+            raise ValueError("positions.npy coordinates must be real numeric values")
 
-        # Вычисляем габаритные границы облака
-        min_bounds = pos.min(axis=0).tolist()
-        max_bounds = pos.max(axis=0).tolist()
-        center = [float((min_bounds[i] + max_bounds[i]) / 2.0) for i in range(3)]
-        size = [float(max_bounds[i] - min_bounds[i]) for i in range(3)]
+        output = Path(output_dir)
+        output.mkdir(parents=True, exist_ok=True)
+        bounds_min = np.asarray(points[:, :3].min(axis=0), dtype=np.float64)
+        bounds_max = np.asarray(points[:, :3].max(axis=0), dtype=np.float64)
+        if not np.isfinite(bounds_min).all() or not np.isfinite(bounds_max).all():
+            raise ValueError("positions.npy coordinates must be finite")
 
-        # 1. Формируем LOD 0 (Глобальный обзорный срез: 50 000 точек для мгновенного превью)
-        sample_step_lod0 = max(1, total_pts // 50_000)
-        idx_lod0 = np.arange(0, total_pts, sample_step_lod0, dtype=np.int64)[:50_000]
-        pts_lod0 = np.asarray(pos[idx_lod0], dtype=np.float32)
-        np.save(out_path / "lod_0.npy", pts_lod0)
-
-        # 2. Формируем структуру воксельной сетки (LOD 1 - средний обзор, шаг 100 000 точек)
-        sample_step_lod1 = max(1, total_pts // 200_000)
-        idx_lod1 = np.arange(0, total_pts, sample_step_lod1, dtype=np.int64)[:200_000]
-        pts_lod1 = np.asarray(pos[idx_lod1], dtype=np.float32)
-        np.save(out_path / "lod_1.npy", pts_lod1)
-
-        # 3. Формируем манифест октодерева для Web-клиента
-        manifest = {
-            "version": "recap_octree_v1",
-            "total_points": total_pts,
-            "bounds": {
-                "min": min_bounds,
-                "max": max_bounds,
-                "center": center,
-                "size": size,
+        overview = self._sample(points, self.overview_limit)
+        medium = self._sample(points, self.medium_limit)
+        np.save(output / "overview.npy", overview)
+        np.save(output / "medium.npy", medium)
+        manifest: dict[str, Any] = {
+            "version": "scan_web_preview_samples_v1",
+            "product": "web_preview_only",
+            "native_recap_package": False,
+            "spatial_octree": False,
+            "sampling_method": "evenly spaced source row indices; not spatially uniform",
+            "source_file": source.name,
+            "total_points": int(len(points)),
+            "bounds_local_m": {
+                "min": bounds_min.tolist(),
+                "max": bounds_max.tolist(),
             },
-            "lods": [
-                {
-                    "level": 0,
-                    "file": "lod_0.npy",
-                    "points_count": len(pts_lod0),
-                    "resolution_m": 0.5,
-                    "target": "overview_60fps",
-                },
-                {
-                    "level": 1,
-                    "file": "lod_1.npy",
-                    "points_count": len(pts_lod1),
-                    "resolution_m": 0.15,
-                    "target": "medium_distance",
-                },
-                {
-                    "level": 2,
-                    "file": "full_positions",
-                    "points_count": total_pts,
-                    "resolution_m": 0.01,
-                    "target": "local_inspection_full_detail",
-                },
+            "levels": [
+                {"level": 0, "file": "overview.npy", "points_count": len(overview)},
+                {"level": 1, "file": "medium.npy", "points_count": len(medium)},
+                {"level": 2, "file": source.name, "points_count": int(len(points)), "is_source": True},
             ],
-            "voxel_grid": {
-                "base_size_m": self.base_voxel_size,
-                "depth": self.max_depth,
-            },
+            "resolution_m": None,
+            "resolution_note": "unknown; no spatial voxelization or decimation-error analysis was performed",
         }
-
-        manifest_path = out_path / "octree_manifest.json"
+        manifest_path = output / "preview_manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"ReCap Octree Pyramid built successfully in {out_path} ({total_pts:,} total points)")
         return manifest
+
+
+# Compatibility alias for the earlier experimental script; it never produced
+# a native ReCap package despite the old name.
+ReCapOctreeBuilder = PreviewLodBuilder
