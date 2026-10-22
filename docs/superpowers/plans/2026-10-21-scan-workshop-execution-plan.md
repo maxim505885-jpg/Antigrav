@@ -43,7 +43,7 @@ Working branch: `feature/workshop-pilot`, based on current HEAD `538cbe5`. The t
 | A0 baseline and data preservation | Done for the present pilot | Backup, pilot protocol, environment notes, immutable-source rule and derived-data reports are recorded. Re-run baseline before any release build. |
 | A1 ground truth and accuracy | Open | 16 candidate rows have pending annotations; no independent physical dimensions and no agreed tolerance. 6000 mm pitch is known. |
 | A2 full-resolution point access | Partial | Indexed/streaming path has been checked on a 4,004,372-row ROI and a 40-million-point derived set. Native RCS, E57 and LAS/LAZ full-resolution ingest use bounded blocks/memmaps on synthetic fixtures with checksummed output-block recovery; sequential source replay remains necessary. The approximately 298-million-point source route has not been accepted end-to-end. |
-| A3 shared structural model | In progress | Versioned BIM JSON 1.0 now declares metres and source-cloud world coordinates; schema validation rejects duplicate IDs and invalid/non-finite geometry. Full structural-member contract, database migration, and cross-format evidence round-trip remain open. |
+| A3 shared structural model | Done for the synthetic interchange contract | Versioned `StructuralMember` schema covers axis/local frame, section variants including unknown and built-up, evidence, review state and reversible transforms. Additive SQLite storage has a pre-migration backup/restore regression. One synthetic element round-trips through API, BIM JSON, DXF XRECORD and IFC4 properties with ID, role, geometry, units, review and provenance intact. Native CAD/BIM application acceptance remains in A7/A8. |
 | A4 columns and crane girders | In progress | Type grouping/catalog/reuse and a conservative section fitter exist. The pilot scan has 0 closed automatic section proposals; real type precision/recall is unknown. Girder roles, supports, joints and profiles remain unaccepted. |
 | A5 trusses and bracing | Not started for production acceptance | Current candidate counts are exploratory; member axes, nodes, panel topology, assemblies and control annotations remain. |
 | A6 engineer review and project learning | Partial | Review queue, history, undo, groups, type memory and a column slice measurement panel exist. Annotation saves revalidate the candidate snapshot under a SQLite write lock; parallel saves receive unique revisions; delete/reimport recovery is tested for an identical snapshot. Synthetic scenarios are not real-pilot acceptance; real labels and verified grids/levels remain. |
@@ -148,16 +148,21 @@ The available user direction is to proceed without pauses. Therefore do all engi
 
 **Interfaces:** Versioned `StructuralMember` fields: stable ID; element and project/cloud IDs; role/class; measured or proposed axis start/end; local frame; cross-section representation (catalog profile, arbitrary polygon, built-up, circular, stepped, unknown); assemblies; measured dimensions; evidence/source rows; method/version/parameters; confidence and review state; source/local/world transforms. Existing v1 element APIs remain readable through an adapter.
 
-- [ ] Add contract tests for horizontal, rotated, sloped and vertical members; unknown and built-up sections; local/world transform round-trip; duplicate and stable IDs; old v1 payload compatibility.
+- [x] Add contract tests for horizontal, rotated, sloped and vertical members; unknown and built-up sections; local/world transform round-trip; duplicate and stable IDs; old v1 payload compatibility.
 - [x] Add versioned BIM JSON schema validation and explicit metre/source-cloud-world coordinate-frame fields; reject duplicate IDs, non-finite values and degenerate geometry. IFC export revalidates versioned models.
 - [x] Preserve recognizer metadata as an optional additive BIM 1.0 field and serialize it into IFC `MetadataJSON`; older v1 payloads without metadata still validate.
-- [ ] Add an additive DB migration and rollback/backup test; do not rewrite old records or IDs.
+- [x] Preserve member elements with missing sections in IFC without inventing geometry; retain stable ID and an explicit unsupported geometry status. Known single-width member envelopes are labeled as square approximations.
+- [x] Add an additive DB migration and rollback/backup test; do not rewrite old records or IDs.
 - [x] Keep nominal grid axes as annotations/reference geometry; alignment never snaps measured bays to the nominal 6000 mm step, and the original observations remain unchanged. `source_to_sheet_4x4` records an invertible presentation transform.
-- [ ] Round-trip the same fixture through API, JSON, DXF and IFC and assert ID, class/role, units, transform, review state and evidence match.
+- [x] Round-trip the same fixture through API, JSON, DXF and IFC and assert ID, class/role, units, transform, review state and evidence match.
 
 **Gate:** every downstream format can represent the same member and its uncertainty without silently dropping fields.
 
 **Progress note (22 Oct 2026):** a regression test showed that BIM JSON dropped element recognition metadata even though the database retained it. `metadata` is now returned by `/elements`, emitted in BIM JSON, remains optional for older 1.0 payloads, and is preserved in IFC as compact `MetadataJSON`. Contract/IFC tests and the end-to-end API → BIM JSON → IFC provenance assertion pass. SPDS manifest now records an invertible source-cloud-world → sheet-local 4×4 transform; the observed geometry remains unchanged and nominal 6000 mm is not applied as a snap. Full geometric model, migration and cross-format identity/evidence round-trip remain open.
+
+**Progress note (22 Oct 2026):** IFC export no longer substitutes a 150 mm member section when section data is absent. The IFC proxy keeps the original element ID and records `unsupported_missing_section` with no shape; supported one-width rectangular envelopes carry `square_envelope_approximation`. A versioned `StructuralMember` TypedDict/JSON Schema and validator now cover member axes, section variants, evidence, review and inverse transforms. The additive `structural_members` table is created idempotently without rewriting existing rows; SQLite backup/restore is tested. DXF entities carry an XRECORD with identity, geometry, units and review evidence; IFC Psets preserve geometry, role, dimensions and recognition provenance. The same API fixture was compared across BIM JSON, DXF and IFC; the targeted 16-test interchange/contract suite passes. Full backend rerun remains pending.
+
+**Verification update (22 Oct 2026):** complete backend suite after A3 and the A4 two-known-sides API regression: 340 passed, exit code 0; only the existing Starlette/httpx deprecation warning remains.
 
 ### Task 4: Isolate and measure real column surfaces; establish repeatable types
 
@@ -181,6 +186,7 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [x] Implement `fit_column_section_series` and tests: `test_section_series_preserves_steps_and_dimension_ranges`, `test_section_series_reports_repeatable_dimensions_without_assigning_a_type`, `test_section_series_keeps_sparse_heights_unknown_and_maps_source_ids`, `test_section_series_does_not_call_profile_constant_across_an_unknown_height`, `test_section_series_completes_only_explicit_known_dimensions`, and `test_section_series_rejects_duplicate_z_and_bad_source_mapping`. Verified per-height outputs, sorted Z, unmodified inputs, source-point mapping, incomplete-profile status, and `engineering_status=not_assessed`; this only reports measured ranges and does not name a column type.
 - [x] Link tracks to source points with `fit_column_track_sections`; tests cover four-edge section reconstruction, explicit two-side completion, unassigned-track exclusion, missing height, source-row mismatch, and input immutability. Read-only run on frozen v15 produced `column-track-section-series-v2.json`: candidate IDs preserved, all 5 input hashes stayed unchanged, 16 candidates/38 excluded tracks/666 unknown height bins/0 proposals. v15 was not overwritten. v1 is retained as an immutable superseded report because its serialization lost candidate IDs.
 - [x] Add a full-ring circular-section hypothesis with source-row evidence, radial residuals and angular coverage. Across independent Z slices, report diameter changes without assigning a type; partial arcs and I-shaped built-up profiles stay shape-unknown, while ambiguous rectangle envelopes remain review proposals. Synthetic verification covers complete rings, clutter, incomplete arcs, composite outlines and changing diameters.
+- [x] Verify the selected-column API path with two explicit measured sides and two adjacent observed faces: returns four corners, labels two edges observed/two inferred, preserves source rows, and leaves candidate geometry/review untouched until the engineer applies it.
 - [ ] Fit physically supported pilot sections at multiple independent heights; recognize/measure built-up and steel catalogue profiles without forcing their outer envelope into a structural type. Existing pilot evidence has no supported candidate-edge tracks.
 - [ ] Propose repeated types from measured descriptors and the confirmed project catalog; keep a type unknown where visibility does not support comparison.
 - [ ] Evaluate false merge/split and dimension residuals on train and held-out physical members; preserve null metrics where truth is absent.
@@ -198,7 +204,13 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [ ] Infer member axes from full-resolution points and plane/surface evidence; do not merge separate spans across joints or a long row into one member.
 - [ ] Detect each physical support at columns and preserve unsupported ends as unknown; keep rail and girder as distinct roles.
 - [ ] Fit only supported profile properties; label hidden flange/web/seat attributes unknown.
-- [ ] Test rotations, partial occlusion, overlaid rail, connected end plates, repeated spans and non-structural lookalikes.
+- [x] Add a synthetic RED/GREEN safeguard: collinear Hough segments that only touch at a support remain separate unless their measured overlap exceeds 0.10 m; overlapping fragments still merge. This does not identify a physical joint or validate a real span.
+- [x] Define and validate the review-only `MemberProposal` contract: one non-zero world-metre axis, unique source rows, endpoint support states, observed/unknown profile, joint/gap evidence, unresolved fields, and a forced `proposed` review state. Verified by `backend/tests/test_member_proposal.py`; the recognizer does not emit this contract yet.
+- [x] Preserve original point-row IDs through horizontal-member height-band sampling and selected-strip measurement; attach at most 512 deterministic source IDs plus explicit band/sample counts to each beam candidate.
+- [x] Emit each horizontal beam candidate as a validated `MemberProposal` with a repeatable geometry/evidence ID, source-row index space, proposed role, and explicit unknown supports, profile, joint locations and physical span boundary. End-to-end synthetic 6 m crane-girder coverage is in `backend/tests/test_beam_source_lineage.py`; this does not confirm real beam roles or supports.
+- [x] Add synthetic rotation and partial-occlusion cases; preserve the measured axis and selected source-row evidence through both.
+- [x] Keep distinct close parallel spans separate: RED/GREEN test covers 6 m axes 0.30 m apart; merge lateral tolerance is limited to 0.20 m. This is an algorithm threshold, not an engineering tolerance.
+- [ ] Test overlaid rail, connected end plates, repeated spans and non-structural lookalikes.
 - [ ] Report span/level/support residuals and precision/recall against independent labels.
 
 **Gate:** the engineer can review separate spans and supports, and held-out role/profile metrics meet agreed limits.
@@ -213,6 +225,7 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [ ] Recover member centerlines and node candidates; cluster only endpoints supported within the algorithm's measurement model.
 - [ ] Classify chord/web/brace roles as proposals with explainable topology and evidence; retain `unknown` for ambiguous intersections.
 - [ ] Test crossed braces, nearly coincident bars, overlapping bays, partial trusses, non-planar members and missing nodes.
+- [x] Preserve original `positions.npy` row IDs for detected vertical-brace members, select rows around each individual `(v,z)` axis, and emit a review-only `MemberProposal`; crossing-node points may be shared instead of being assigned falsely to one bar. Tests cover chunk row offsets, explicit downsampling, and a synthetic X-brace.
 - [ ] Evaluate member detection, endpoint residuals, connectivity and assembly attribution on held-out bays.
 
 **Gate:** individual members and connectivity are reviewable and stable across repeat processing; no assembly is called confirmed from a visual silhouette alone.
@@ -342,12 +355,12 @@ The available user direction is to proceed without pauses. Therefore do all engi
 
 ## Immediate Next Actions
 
-1. Preserve the recorded baseline and original pending annotation fixture; the independent annotation UI/API/export is implemented, but no physical labels have been entered. The frozen v15 track-to-section diagnostic found 0 supported candidate tracks. Use the annotation panel to record only physically observable IDs/visibility, creating a new snapshot-bound revision; never infer physical IDs from candidate IDs or counts.
-2. Independently continue Task 8: open representative DXF/PDF in AutoCAD 2026 and check units, text, dimensions, editing and printing. Fragment pages now show visible geometry extents; measured axis chains, DWG and the user's sheet template remain open.
-3. Follow `docs/validation/REVIT_PILOT.md`: register the compiled command in Revit 2027, run the three prepared JSON scenarios in a disposable RVT, verify exact counters/IDs and rollback, then save/close/reopen and record evidence. The fixture package and expected counts are ready; in-app acceptance remains open.
-4. Continue Task 4 on shape cases that remain open: physically supported multi-height sections, built-up/steel profiles, and their source-linked measurements. Keep circle candidates, rectangular envelopes, candidate counts and types distinct; v15 and annotations stay immutable.
-5. Continue Task 2 by measuring complete-cloud preprocessing and restartability on derived files, then process the full available point set without changing the original RCS. Report real counts, timing, memory and resolution.
-6. When independent field measurements are available, record the engineering tolerance and control dimensions for the accuracy gate. Until then, preserve raw residuals and leave accuracy unassessed.
+1. Continue Task 4 on column sections: keep unsupported pilot heights unknown; prepare the 16-row physical annotation set for later engineer review without inventing physical IDs or changing frozen v15 reports.
+2. Complete the Task 5 beam handoff: turn measured horizontal candidates into `MemberProposal` records carrying source-row evidence, while leaving both supports, physical role and full profile unknown unless evidence supports them. Add rotated, occluded, rail-over-girder and joint-gap fixtures.
+3. Advance Task 6 on synthetic truss/bracing bays: emit individual member proposals, preserve node/source evidence and leave ambiguous intersections unknown.
+4. Continue Task 2 on a separate derived full-resolution dataset: measure point count, omissions, resolution, wall time, peak RAM and disk; test cancellation/restart. Do not access the protected original RCS.
+5. Keep AutoCAD 2026 and Revit 2027 host acceptance in their later release stages, after the structural proposals and review flow are stable. Their GUI launch/import tests are not the active work item.
+6. When independent field measurements become available, record the engineering tolerance and control dimensions. Until then, preserve raw residuals and leave pass/fail accuracy unassessed. ReCap registration remains conditional on separate FARO stations and control observations.
 
 ## Progress Tracking Rules
 

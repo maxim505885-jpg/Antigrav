@@ -20,10 +20,10 @@ class WorkshopColumnValidator:
 
     def __init__(
         self,
-        min_structural_height_m: float = 4.5,
-        min_section_dim_m: float = 0.30,
-        max_section_dim_m: float = 1.40,
-        grid_tolerance_m: float = 1.20,
+        min_structural_height_m: float = 2.5,
+        min_section_dim_m: float = 0.25,
+        max_section_dim_m: float = 1.60,
+        grid_tolerance_m: float = 1.50,
     ):
         self.min_height = min_structural_height_m
         self.min_dim = min_section_dim_m

@@ -6,6 +6,7 @@ coordinates using the section frame offset.
 """
 from __future__ import annotations
 
+import json
 import math
 from datetime import date
 from pathlib import Path
@@ -53,6 +54,30 @@ def _setup_document() -> ezdxf.document.Drawing:
         dimstyle.dxf.dimtih = 0
         dimstyle.dxf.dimtoh = 0
     return doc
+
+
+def _set_element_provenance(entity: Any, element: dict[str, Any]) -> None:
+    """Keep exchange identity and review evidence beside editable DXF geometry."""
+    payload = {
+        "schema": "scan2bim.dxf-provenance/1",
+        "id": str(element.get("id", "")),
+        "class_name": str(element.get("class_name", "other")),
+        "role": (element.get("dimensions") or {}).get("role", ""),
+        "units": "m",
+        "coordinate_frame": "source_cloud_world",
+        "geometry": element.get("geometry") or {},
+        "confidence": element.get("confidence"),
+        "measured": element.get("measured"),
+        "inferred": element.get("inferred"),
+        "source": element.get("source", "geometric"),
+        "review_status": element.get("review_status", "unreviewed"),
+        "dimensions": element.get("dimensions") or {},
+        "metadata": element.get("metadata") or {},
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    record = entity.new_extension_dict().add_xrecord("SCAN_PROVENANCE_V1")
+    record.extend([(1, "scan2bim.dxf-provenance/1")])
+    record.extend((1, serialized[index:index + 240]) for index in range(0, len(serialized), 240))
 
 
 def _bounds(polygons: list[dict[str, Any]], offset: tuple[float, float]) -> tuple[float, float, float, float]:
@@ -260,12 +285,13 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
     for el in elements:
         layer = layer_map.get(el.get("class_name", ""), "S2B-CONTOURS")
         geom = el.get("geometry", {})
+        exported_entities = []
         if geom.get("kind") == "slab" and geom.get("polygon"):
-            msp.add_lwpolyline(
+            exported_entities.append(msp.add_lwpolyline(
                 [(float(x), float(y)) for x, y in geom["polygon"]],
                 close=True,
                 dxfattribs={"layer": layer, "elevation": float(geom.get("z", 0.0))},
-            )
+            ))
         elif geom.get("kind") == "oriented_box":
             cx, cy, cz = geom["center"]
             length = float(geom["sizes"]["length"])
@@ -279,13 +305,13 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
             for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
                 lx, ly = sx * length / 2, sy * thickness / 2
                 pts.append((cx + lx * ca - ly * sa, cy + lx * sa + ly * ca, z_bottom))
-            msp.add_polyline3d(pts + [pts[0]], dxfattribs={"layer": layer})
-            msp.add_polyline3d(
+            exported_entities.append(msp.add_polyline3d(pts + [pts[0]], dxfattribs={"layer": layer}))
+            exported_entities.append(msp.add_polyline3d(
                 [(x, y, z_top) for x, y, _ in pts] + [(pts[0][0], pts[0][1], z_top)],
                 dxfattribs={"layer": layer},
-            )
+            ))
             for p in pts:
-                msp.add_line(p, (p[0], p[1], z_top), dxfattribs={"layer": layer})
+                exported_entities.append(msp.add_line(p, (p[0], p[1], z_top), dxfattribs={"layer": layer}))
         elif geom.get("kind") == "member":
             p0 = geom.get("p0")
             p1 = geom.get("p1")
@@ -297,7 +323,9 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
                 continue
             if math.dist(start, end) <= 1e-9:
                 continue
-            msp.add_line(start, end, dxfattribs={"layer": layer})
+            exported_entities.append(msp.add_line(start, end, dxfattribs={"layer": layer}))
+        for entity in exported_entities:
+            _set_element_provenance(entity, el)
     msp.add_text(project_name or "Intelligent Scan-to-BIM elements", height=0.4).set_placement((0, 0))
     doc.saveas(out_path)
     return out_path

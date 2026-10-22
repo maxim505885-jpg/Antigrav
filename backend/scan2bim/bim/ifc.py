@@ -147,6 +147,7 @@ def _property_set(ifc, product, element: dict[str, Any]) -> None:
     props = [
         ("ElementId", "IfcText", str(element["id"])),
         ("ClassName", "IfcText", str(element["class_name"])),
+        ("Role", "IfcText", str((element.get("dimensions") or {}).get("role", ""))),
         ("Confidence", "IfcReal", float(element.get("confidence", 0.0))),
         ("ConfidenceKind", "IfcText", str(element.get("confidence_kind", "heuristic"))),
         ("Measured", "IfcBoolean", bool(element.get("measured", True))),
@@ -154,6 +155,8 @@ def _property_set(ifc, product, element: dict[str, Any]) -> None:
         ("Source", "IfcText", str(element.get("source", "geometric"))),
         ("ReviewStatus", "IfcText", str(element.get("review_status", "unreviewed"))),
         ("GeometryStatus", "IfcText", str(element.get("ifc_geometry_status", "supported"))),
+        ("GeometryJSON", "IfcText", json.dumps(element.get("geometry", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
+        ("DimensionsJSON", "IfcText", json.dumps(element.get("dimensions", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
         ("MetadataJSON", "IfcText", json.dumps(element.get("metadata", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
     ]
     ifc_props = []

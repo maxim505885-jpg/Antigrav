@@ -37,11 +37,20 @@ from skimage.morphology import skeletonize
 from skimage.transform import probabilistic_hough_line
 
 from ..geometry.section import CloudGeometry
+from ..structure.proposals import build_assembly_proposal, build_member_proposal
 from .geometric import CHUNK, DetectedElement, _iter_positions
 
 # Physical thresholds. They encode what a structural engineer recognises as a
 # frame member, not merely "a line of points".
 BEAM_MIN_LENGTH_M = 2.5
+# Hough fragments are merged only when they overlap by more than one 10 cm
+# plan-raster cell. A touch or gap at a possible support is ambiguous joint
+# evidence and stays as separate review candidates instead of assumed continuity.
+SEGMENT_MERGE_MIN_OVERLAP_M = 0.10
+# Nearby parallel axes may belong to separate runway members. Keep the merge
+# tolerance near the 10 cm plan-raster resolution instead of joining members
+# separated by a substantial fraction of a metre.
+SEGMENT_MERGE_MAX_LATERAL_M = 0.20
 # A beam is at most 0.70 m wide in plan; anything thicker is a wall, a walkway
 # bundle or merged clutter, not a member an engineer would call a beam.
 BEAM_MAX_THICKNESS_M = 0.70
@@ -79,6 +88,7 @@ BRACE_MIN_DIAGONAL_M = 1.5
 TRUSS_MAX_SECTION_FILL = 0.35
 
 BAND_CAP_POINTS = 3_000_000
+TRUSS_ZONE_CAP_POINTS = 6_000_000
 HOUGH_SEED = 20261020
 
 # Column section completion and typification. A scan measures each column with
@@ -117,26 +127,41 @@ def _angle_diff(a: float, b: float) -> float:
     return min(d, math.pi - d)
 
 
-def _bands_points(geom: CloudGeometry, bands: list[tuple[float, float]]) -> list[np.ndarray]:
-    """Points of the cloud inside several local z bands in ONE pass."""
-    collectors: list[list[np.ndarray]] = [[] for _ in bands]
+def _bands_points_with_source_ids(
+    geom: CloudGeometry, bands: list[tuple[float, float]],
+) -> list[tuple[np.ndarray, np.ndarray, int]]:
+    """Return band points and their original row indices in one cloud pass."""
+    point_collectors: list[list[np.ndarray]] = [[] for _ in bands]
+    row_collectors: list[list[np.ndarray]] = [[] for _ in bands]
+    source_offset = 0
     for chunk in _iter_positions(geom.positions_path):
         z = chunk[:, 2]
+        row_ids = np.arange(source_offset, source_offset + len(chunk), dtype=np.int64)
         for index, (z0, z1) in enumerate(bands):
             mask = (z >= z0) & (z < z1)
             if mask.any():
-                collectors[index].append(chunk[mask])
-    out: list[np.ndarray] = []
-    for parts in collectors:
-        if not parts:
-            out.append(np.zeros((0, 3), dtype=np.float32))
+                point_collectors[index].append(chunk[mask])
+                row_collectors[index].append(row_ids[mask])
+        source_offset += len(chunk)
+    out: list[tuple[np.ndarray, np.ndarray, int]] = []
+    for point_parts, row_parts in zip(point_collectors, row_collectors):
+        if not point_parts:
+            out.append((np.zeros((0, 3), dtype=np.float32), np.zeros(0, dtype=np.int64), 0))
             continue
-        points = np.concatenate(parts)
+        points = np.concatenate(point_parts)
+        source_rows = np.concatenate(row_parts)
+        full_band_count = len(points)
         if len(points) > BAND_CAP_POINTS:
             stride = int(math.ceil(len(points) / BAND_CAP_POINTS))
             points = points[::stride]
-        out.append(points)
+            source_rows = source_rows[::stride]
+        out.append((points, source_rows, full_band_count))
     return out
+
+
+def _bands_points(geom: CloudGeometry, bands: list[tuple[float, float]]) -> list[np.ndarray]:
+    """Points of the cloud inside several local z bands in ONE pass."""
+    return [points for points, _source_rows, _total in _bands_points_with_source_ids(geom, bands)]
 
 
 def _band_points(geom: CloudGeometry, z0: float, z1: float) -> np.ndarray:
@@ -220,7 +245,7 @@ def _group_segments(segments: list[dict[str, Any]]) -> list[list[dict[str, Any]]
             if _angle_diff(si["angle"], sj["angle"]) > math.radians(12):
                 continue
             normal = np.array([-si["dir"][1], si["dir"][0]])
-            if abs(float(np.dot(sj["mid"] - si["mid"], normal))) > 0.45:
+            if abs(float(np.dot(sj["mid"] - si["mid"], normal))) > SEGMENT_MERGE_MAX_LATERAL_M:
                 continue
             projections = [
                 float(np.dot(sj["p0"] - si["mid"], si["dir"])),
@@ -229,7 +254,7 @@ def _group_segments(segments: list[dict[str, Any]]) -> list[list[dict[str, Any]]
             overlap = min(max(projections), si["length"] / 2) - max(
                 min(projections), -si["length"] / 2
             )
-            if overlap > -0.5:
+            if overlap > SEGMENT_MERGE_MIN_OVERLAP_M:
                 uf.union(i, j)
     groups: dict[int, list[dict[str, Any]]] = {}
     for i, segment in enumerate(segments):
@@ -257,7 +282,9 @@ def _measure_strip(
     center: np.ndarray,
     direction: np.ndarray,
     length: float,
-) -> tuple[float, float, float, int]:
+    *,
+    return_indices: bool = False,
+) -> tuple[float, float, float, int] | tuple[float, float, float, int, np.ndarray]:
     """Thickness across the line, z extent, and point support along it."""
     normal = np.array([-direction[1], direction[0]])
     rel = points_xy - center
@@ -291,7 +318,10 @@ def _measure_strip(
         z1 = float(np.percentile(zs, 98))
     else:
         z0 = z1 = 0.0
-    return thickness, z0, z1, int(selected.sum())
+    result = (thickness, z0, z1, int(selected.sum()))
+    if return_indices:
+        return (*result, np.flatnonzero(selected))
+    return result
 
 
 def _line_concentration(
@@ -425,6 +455,9 @@ def _beam_element(
     confidence: float,
     band_label: str,
     support: int,
+    source_point_ids: np.ndarray | None = None,
+    source_band_point_count: int | None = None,
+    source_band_points_used: int | None = None,
 ) -> DetectedElement:
     angle = math.atan2(float(direction[1]), float(direction[0]))
     height = max(0.05, z1_local - z0_local)
@@ -450,6 +483,57 @@ def _beam_element(
         "purlin": "прогон",
         "floor_beam": "балка перекрытия",
     }.get(role, role)
+    metadata = {
+        "method": "thin-band plan raster + skeleton + probabilistic Hough + collinear merge",
+        "band_label": band_label,
+        "support_points": support,
+        "confidence_kind": "heuristic",
+        "notes": role_note,
+    }
+    if source_point_ids is not None:
+        source_rows = np.asarray(source_point_ids)
+        if source_rows.ndim != 1 or not np.issubdtype(source_rows.dtype, np.integer):
+            raise ValueError("beam source_point_ids must be a one-dimensional integer array")
+        source_rows = np.unique(source_rows.astype(np.int64, copy=False))
+        sampled_for_size = len(source_rows) > 512
+        band_was_downsampled = (
+            source_band_point_count is not None
+            and source_band_points_used is not None
+            and source_band_point_count > source_band_points_used
+        )
+        if sampled_for_size:
+            sample_indices = np.linspace(0, len(source_rows) - 1, 512, dtype=np.int64)
+            source_rows = source_rows[sample_indices]
+        metadata.update({
+            "source_point_ids": source_rows.tolist(),
+            "support_count_in_processing_sample": int(support),
+            "source_point_ids_sampled": bool(sampled_for_size or band_was_downsampled),
+            "source_point_id_space": "positions.npy row index",
+        })
+        if source_band_point_count is not None and source_band_points_used is not None:
+            metadata["source_band_point_count"] = int(source_band_point_count)
+            metadata["source_band_points_used"] = int(source_band_points_used)
+            metadata["source_band_downsampled_for_recognition"] = bool(band_was_downsampled)
+        axis_start = [
+            float(center[0] - direction[0] * length / 2 + geom.origin[0]),
+            float(center[1] - direction[1] * length / 2 + geom.origin[1]),
+            float(z_center + geom.origin[2]),
+        ]
+        axis_end = [
+            float(center[0] + direction[0] * length / 2 + geom.origin[0]),
+            float(center[1] + direction[1] * length / 2 + geom.origin[1]),
+            float(z_center + geom.origin[2]),
+        ]
+        proposal = build_member_proposal(
+            role=role,
+            axis_start_m=axis_start,
+            axis_end_m=axis_end,
+            source_point_ids=source_rows.tolist(),
+            source_point_ids_sampled=bool(sampled_for_size or band_was_downsampled),
+            support_count_in_processing_sample=int(support),
+        )
+        metadata["member_proposal_id"] = proposal["id"]
+        metadata["member_proposal"] = proposal
     return DetectedElement(
         class_name="beam",
         geometry={
@@ -481,13 +565,7 @@ def _beam_element(
             "height_source": "percentiles within sampled level band, not full profile height",
             "thickness_source": "supported strip envelope, not a catalogue profile",
         },
-        metadata={
-            "method": "thin-band plan raster + skeleton + probabilistic Hough + collinear merge",
-            "band_label": band_label,
-            "support_points": support,
-            "confidence_kind": "heuristic",
-            "notes": role_note,
-        },
+        metadata=metadata,
     )
 
 
@@ -500,14 +578,55 @@ def _member_element(
     orientation: str,
     confidence: float,
     method: str,
+    source_point_ids: np.ndarray | None = None,
+    source_point_ids_sampled: bool = False,
+    class_name: str = "brace",
 ) -> DetectedElement:
     length = float(np.linalg.norm(p1_world - p0_world))
     mid = (p0_world + p1_world) / 2
     label = {
         "brace": "связь",
+        "truss_top_chord": "верхний пояс фермы",
+        "truss_bottom_chord": "нижний пояс фермы",
+        "truss_post": "стойка фермы",
+        "truss_web": "раскос фермы",
     }.get(role, role)
+    metadata: dict[str, Any] = {
+        "method": method,
+        "confidence_kind": "heuristic",
+        "notes": "стержень конструкции; роль и узлы остаются предложениями для проверки",
+    }
+    if source_point_ids is not None:
+        source_rows = np.asarray(source_point_ids)
+        if source_rows.ndim != 1 or not np.issubdtype(source_rows.dtype, np.integer):
+            raise ValueError("member source_point_ids must be a one-dimensional integer array")
+        source_rows = np.unique(source_rows.astype(np.int64, copy=False))
+        if len(source_rows):
+            sampled = bool(source_point_ids_sampled or len(source_rows) > 512)
+            if len(source_rows) > 512:
+                source_rows = source_rows[np.linspace(0, len(source_rows) - 1, 512, dtype=np.int64)]
+            metadata.update({
+                "source_point_ids": source_rows.tolist(),
+                "source_point_id_space": "positions.npy row index",
+                "source_point_ids_sampled": sampled,
+                "support_count_in_processing_sample": int(len(np.asarray(source_point_ids))),
+            })
+            proposal = build_member_proposal(
+                role=role,
+                axis_start_m=p0_world.tolist(),
+                axis_end_m=p1_world.tolist(),
+                source_point_ids=source_rows.tolist(),
+                source_point_ids_sampled=sampled,
+                support_count_in_processing_sample=max(
+                    int(len(np.asarray(source_point_ids))), len(source_rows),
+                ),
+            )
+            metadata["member_proposal_id"] = proposal["id"]
+            metadata["member_proposal"] = proposal
+        else:
+            metadata["source_evidence_status"] = "insufficient"
     return DetectedElement(
-        class_name="brace",
+        class_name=class_name,
         geometry={
             "kind": "member",
             "p0": [round(float(v), 4) for v in p0_world],
@@ -532,12 +651,38 @@ def _member_element(
             "role_label": label,
             "orientation": orientation,
         },
-        metadata={
-            "method": method,
-            "confidence_kind": "heuristic",
-            "notes": "диагональная распорка; класс — гипотеза, проверьте в редакторе",
-        },
+        metadata=metadata,
     )
+
+
+def _section_member_source_rows(
+    points_vz: np.ndarray,
+    source_rows: np.ndarray,
+    center_vz: np.ndarray,
+    direction_vz: np.ndarray,
+    length: float,
+    *,
+    max_line_offset_m: float = 0.20,
+    endpoint_buffer_m: float = 0.30,
+) -> np.ndarray:
+    """Return source rows near one measured line in a vertical section."""
+    points = np.asarray(points_vz, dtype=float)
+    rows = np.asarray(source_rows)
+    center = np.asarray(center_vz, dtype=float)
+    direction = np.asarray(direction_vz, dtype=float)
+    if points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1 or len(points) != len(rows):
+        raise ValueError("section points and source rows must be aligned N x 2 arrays")
+    if center.shape != (2,) or direction.shape != (2,) or not np.isfinite(points).all():
+        raise ValueError("section member line must contain finite 2D coordinates")
+    normal = np.array([-direction[1], direction[0]])
+    offset = points - center
+    along = offset @ direction
+    across = offset @ normal
+    selected = (
+        (np.abs(along) <= length / 2 + endpoint_buffer_m)
+        & (np.abs(across) <= max_line_offset_m)
+    )
+    return np.unique(rows[selected].astype(np.int64, copy=False))
 
 
 def _diagonals_in_slices(
@@ -690,7 +835,10 @@ def _horizontal_members(
         elif crane_index is not None and index == crane_index:
             kind = "crane"
         band_data.append((zl - 0.50, zl + 0.50, f"{float(level['z']):.2f} м", kind))
-    band_points = _bands_points(geom, [(z0, z1) for z0, z1, *_ in band_data])
+    indexed_band_points = _bands_points_with_source_ids(
+        geom, [(z0, z1) for z0, z1, *_ in band_data]
+    )
+    band_points = [points for points, _source_rows, _total in indexed_band_points]
     segments_by_band = [
         _plan_segments(points[:, :2], res=0.10, min_length_m=BEAM_MIN_LENGTH_M)
         if len(points) >= 500 else [] for points in band_points
@@ -703,7 +851,9 @@ def _horizontal_members(
         warnings.append("Не удалось определить ось зала для распознавания горизонтальных связей и балок.")
     elements: list[DetectedElement] = []
     role_counts: dict[str, int] = {}
-    for (z0, z1, label, kind), points, segments in zip(band_data, band_points, segments_by_band):
+    for (z0, z1, label, kind), (points, source_rows, source_band_count), segments in zip(
+        band_data, indexed_band_points, segments_by_band
+    ):
         if progress:
             progress(0.88, f"горизонтальные члены в полосе {label}")
         band_xy.append(points[:, :2])
@@ -717,8 +867,9 @@ def _horizontal_members(
             center, direction, length = _group_line(group)
             if length < BEAM_MIN_LENGTH_M:
                 continue
-            thickness, bz0, bz1, support = _measure_strip(
-                points[:, :2], points[:, 2], center, direction, length
+            thickness, bz0, bz1, support, support_indices = _measure_strip(
+                points[:, :2], points[:, 2], center, direction, length,
+                return_indices=True,
             )
             if support < 5:
                 continue
@@ -776,6 +927,9 @@ def _horizontal_members(
                     confidence=confidence,
                     band_label=label,
                     support=support,
+                    source_point_ids=source_rows[support_indices],
+                    source_band_point_count=source_band_count,
+                    source_band_points_used=len(points),
                 )
             )
             role_counts[role] = role_counts.get(role, 0) + 1
@@ -821,20 +975,33 @@ def _truss_zone(geom: CloudGeometry, levels: list[dict[str, Any]]) -> tuple[floa
     return zone
 
 
-def _collect_zone(geom: CloudGeometry, z0: float, z1: float) -> np.ndarray:
+def _collect_zone_with_source_ids(
+    geom: CloudGeometry, z0: float, z1: float,
+) -> tuple[np.ndarray, np.ndarray, bool]:
     parts: list[np.ndarray] = []
-    total = 0
+    row_parts: list[np.ndarray] = []
+    row_offset = 0
     for chunk in _iter_positions(geom.positions_path):
         mask = (chunk[:, 2] >= z0) & (chunk[:, 2] < z1)
         if mask.any():
             parts.append(chunk[mask])
-            total += int(mask.sum())
+            row_parts.append(np.flatnonzero(mask).astype(np.int64) + row_offset)
+        row_offset += len(chunk)
     if not parts:
-        return np.zeros((0, 3), dtype=np.float32)
+        return np.zeros((0, 3), dtype=np.float32), np.zeros(0, dtype=np.int64), False
     points = np.concatenate(parts)
-    if len(points) > 6_000_000:
-        stride = int(math.ceil(len(points) / 6_000_000))
+    source_rows = np.concatenate(row_parts)
+    sampled = len(points) > TRUSS_ZONE_CAP_POINTS
+    if sampled:
+        stride = int(math.ceil(len(points) / TRUSS_ZONE_CAP_POINTS))
         points = points[::stride]
+        source_rows = source_rows[::stride]
+    return points, source_rows, sampled
+
+
+def _collect_zone(geom: CloudGeometry, z0: float, z1: float) -> np.ndarray:
+    """Collect a height band; retained as a compatibility wrapper."""
+    points, _source_rows, _sampled = _collect_zone_with_source_ids(geom, z0, z1)
     return points
 
 
@@ -899,9 +1066,9 @@ def _detect_trusses(
     """Truss planes and inter-truss bracing planes, perpendicular to the axis."""
     if progress:
         progress(0.9, "поиск плоскостей ферм и связей")
-    points = _collect_zone(geom, zone[0], zone[1])
+    points, source_rows, zone_sampled = _collect_zone_with_source_ids(geom, zone[0], zone[1])
     elements: list[DetectedElement] = []
-    stats = {"truss_count": 0, "brace_vertical": 0}
+    stats = {"truss_count": 0, "brace_vertical": 0, "truss_member_untraceable": 0}
     planes_meta: list[dict[str, Any]] = []
     if len(points) < 2000:
         return elements, planes_meta, stats
@@ -935,6 +1102,35 @@ def _detect_trusses(
         if int(slice_mask.sum()) < 300:
             continue
         vz = np.column_stack([v[slice_mask], z[slice_mask]])
+        plane_source_rows = source_rows[slice_mask]
+
+        def world_section_point(vz_point: np.ndarray) -> np.ndarray:
+            return np.array([
+                center2[0] + direction[0] * plane_u + normal[0] * float(vz_point[0]),
+                center2[1] + direction[1] * plane_u + normal[1] * float(vz_point[0]),
+                float(vz_point[1]),
+            ]) + geom.origin
+
+        def emit_truss_member(
+            line: tuple[np.ndarray, np.ndarray, float], role: str, member_class: str,
+        ) -> None:
+            center_vz, direction_vz, member_length = line
+            member_source_rows = _section_member_source_rows(
+                vz, plane_source_rows, center_vz, direction_vz, member_length,
+            )
+            if len(member_source_rows) < 5:
+                stats["truss_member_untraceable"] += 1
+                return
+            p0 = world_section_point(center_vz - direction_vz * member_length / 2)
+            p1 = world_section_point(center_vz + direction_vz * member_length / 2)
+            elements.append(_member_element(
+                geom, p0, p1, section_m=0.15, role=role,
+                orientation="vertical" if abs(float(direction_vz[0])) < 0.25 else "diagonal",
+                confidence=0.55, method="(v,z) section Hough; source rows selected around member axis",
+                source_point_ids=member_source_rows,
+                source_point_ids_sampled=zone_sampled,
+                class_name=member_class,
+            ))
         section, fill = _vertical_hough(vz, res=0.10, min_len_m=0.8)
         if not section:
             continue
@@ -1000,46 +1196,68 @@ def _detect_trusses(
             xs = [c[0] for c in corners]
             ys = [c[1] for c in corners]
             confidence = 0.5 + 0.15 * min(1.0, len(posts) / 4.0) + 0.1 * min(1.0, span / 20.0)
-            elements.append(
-                DetectedElement(
-                    class_name="truss",
-                    geometry={
-                        "kind": "oriented_box",
-                        "center": [round(float(c), 4) for c in world_center],
-                        "sizes": {
-                            "length": round(span, 3),
-                            "thickness": 0.4,
-                            "height": round(height, 3),
-                        },
-                        "rotation_z": round(angle_truss, 5),
-                        "note": "ферма: пояса измерены по горизонтальным сегментам плоскости, стойки — по вертикальным",
+            truss_envelope = DetectedElement(
+                class_name="truss",
+                geometry={
+                    "kind": "oriented_box",
+                    "center": [round(float(c), 4) for c in world_center],
+                    "sizes": {
+                        "length": round(span, 3),
+                        "thickness": 0.4,
+                        "height": round(height, 3),
                     },
-                    bbox={
-                        "min": [round(min(xs), 3), round(min(ys), 3), round(bot_z + float(geom.origin[2]), 3)],
-                        "max": [round(max(xs), 3), round(max(ys), 3), round(top_z + float(geom.origin[2]), 3)],
-                    },
-                    confidence=round(min(0.85, confidence), 3),
-                    measured=True,
-                    inferred=False,
-                    dimensions={
-                        "span_m": round(span, 3),
-                        "height_m": round(height, 3),
-                        "top_chord_z": round(top_z + float(geom.origin[2]), 3),
-                        "bottom_chord_z": round(bot_z + float(geom.origin[2]), 3),
-                        "panels": len(posts),
-                        "diagonals": len(merged_d),
-                        "section_fill": round(fill, 3),
-                    },
-                    metadata={
-                        "method": "u-histogram peaks + (v,z) section Hough: chords/posts/diagonals",
-                        "confidence_kind": "heuristic",
-                        "notes": (
-                            "Нижний пояс часто сливается с уровнем низкой кровли; "
-                            "число раскосов может быть занижено из-за частичной видимости."
-                        ),
-                    },
-                )
+                    "rotation_z": round(angle_truss, 5),
+                    "note": "ферма: пояса измерены по горизонтальным сегментам плоскости, стойки — по вертикальным",
+                },
+                bbox={
+                    "min": [round(min(xs), 3), round(min(ys), 3), round(bot_z + float(geom.origin[2]), 3)],
+                    "max": [round(max(xs), 3), round(max(ys), 3), round(top_z + float(geom.origin[2]), 3)],
+                },
+                confidence=round(min(0.85, confidence), 3),
+                measured=True,
+                inferred=False,
+                dimensions={
+                    "span_m": round(span, 3),
+                    "height_m": round(height, 3),
+                    "top_chord_z": round(top_z + float(geom.origin[2]), 3),
+                    "bottom_chord_z": round(bot_z + float(geom.origin[2]), 3),
+                    "panels": len(posts),
+                    "diagonals": len(merged_d),
+                    "section_fill": round(fill, 3),
+                },
+                metadata={
+                    "method": "u-histogram peaks + (v,z) section Hough: chords/posts/diagonals",
+                    "confidence_kind": "heuristic",
+                    "notes": (
+                        "Нижний пояс часто сливается с уровнем низкой кровли; "
+                        "число раскосов может быть занижено из-за частичной видимости."
+                    ),
+                },
             )
+            elements.append(truss_envelope)
+            truss_member_start = len(elements)
+            for line in top_chords:
+                emit_truss_member(line, "truss_top_chord", "beam")
+            for line in bot_chords:
+                emit_truss_member(line, "truss_bottom_chord", "beam")
+            for line in posts:
+                emit_truss_member(line, "truss_post", "brace")
+            for line in merged_d:
+                emit_truss_member(line, "truss_web", "brace")
+            truss_envelope.metadata["member_proposal_ids"] = [
+                item.metadata["member_proposal_id"]
+                for item in elements[truss_member_start:]
+                if item.dimensions.get("role", "").startswith("truss_")
+                and item.metadata.get("member_proposal_id")
+            ]
+            truss_envelope.metadata["member_count_traced"] = len(
+                truss_envelope.metadata["member_proposal_ids"]
+            )
+            if truss_envelope.metadata["member_proposal_ids"]:
+                truss_envelope.metadata["assembly_proposal"] = build_assembly_proposal(
+                    assembly_type="roof_truss",
+                    member_proposal_ids=truss_envelope.metadata["member_proposal_ids"],
+                )
             stats["truss_count"] += 1
             planes_meta.append({"u": plane_world_u, "kind": "truss", "span": span, "posts": len(posts)})
         elif len(merged_d) >= 2 and fill <= 0.5 and not has_chords:
@@ -1074,6 +1292,16 @@ def _detect_trusses(
                             "inter-truss (v,z) section Hough, collinear diagonal "
                             "fragments merged, diagonal without chords"
                         ),
+                        source_point_ids=plane_source_rows[
+                            (
+                                np.abs((vz - center_vz) @ dir_vz) <= diag_length / 2 + 0.30
+                            )
+                            & (
+                                np.abs((vz - center_vz) @ np.array([-dir_vz[1], dir_vz[0]]))
+                                <= 0.20
+                            )
+                        ],
+                        source_point_ids_sampled=zone_sampled,
                     )
                 )
                 stats["brace_vertical"] += 1

@@ -83,6 +83,17 @@ CREATE TABLE IF NOT EXISTS elements (
     updated_at TEXT NOT NULL
 );
 
+-- Additive structural contract storage. Existing element IDs and geometry stay
+-- authoritative; this row stores the richer versioned interpretation beside it.
+CREATE TABLE IF NOT EXISTS structural_members (
+    id TEXT PRIMARY KEY,
+    element_id TEXT NOT NULL UNIQUE REFERENCES elements(id) ON DELETE CASCADE,
+    schema_version TEXT NOT NULL DEFAULT 'scan2bim.structural/1.0',
+    member_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS feedback (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

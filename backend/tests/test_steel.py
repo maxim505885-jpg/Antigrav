@@ -374,6 +374,29 @@ def test_collinear_diagonal_fragments_merge_into_one_member():
     assert merged[0][2] > 3.5  # merged extent, not a 1.7 m stub
 
 
+def test_collinear_segments_touching_at_a_support_remain_separate_spans():
+    # Two physical girder spans can meet at a column cap. A shared endpoint
+    # alone is not evidence that the same fabricated member continues through
+    # that support, so preserve two proposals for engineer review.
+    left_span = _hough_segment((0.0, 0.0), (6.0, 0.0))
+    right_span = _hough_segment((6.0, 0.0), (12.0, 0.0))
+
+    groups = _group_segments([left_span, right_span])
+
+    assert len(groups) == 2
+
+
+def test_close_parallel_spans_remain_separate_members():
+    # Distinct parallel runway members can run within the old 0.45 m grouping
+    # window. Their projected overlap must not merge the two physical axes.
+    first = _hough_segment((0.0, 0.0), (6.0, 0.0))
+    second = _hough_segment((0.0, 0.30), (6.0, 0.30))
+
+    groups = _group_segments([first, second])
+
+    assert len(groups) == 2
+
+
 def test_parallel_diagonals_of_a_cross_brace_stay_separate():
     # X bracing: two diagonals crossing in the same plane are different members.
     rising = _hough_segment((0.0, 0.0), (3.0, 3.0))

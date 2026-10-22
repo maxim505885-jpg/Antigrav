@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 
 import ezdxf
@@ -70,9 +71,74 @@ def test_full_pipeline(client):
     bim_json = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=json")
     assert bim_json.status_code == 200, bim_json.text
     exchange = bim_json.json()
+    assert exchange["units"] == "m"
+    assert exchange["coordinate_frame"]["id"] == "source_cloud_world"
     source_element = next(item for item in elements if item["metadata"])
     exchanged_element = next(item for item in exchange["elements"] if item["id"] == source_element["id"])
     assert exchanged_element["metadata"] == source_element["metadata"]
+
+    elements_dxf = client.get(f"/api/v1/clouds/{cloud['id']}/elements.dxf")
+    assert elements_dxf.status_code == 200, elements_dxf.text
+    elements_dxf_path = Path("data_test_elements_provenance.dxf")
+    elements_dxf_path.write_bytes(elements_dxf.content)
+    try:
+        elements_doc = ezdxf.readfile(elements_dxf_path)
+    finally:
+        elements_dxf_path.unlink(missing_ok=True)
+    dxf_provenance = []
+    for entity in elements_doc.modelspace():
+        if not entity.has_extension_dict:
+            continue
+        extension = entity.get_extension_dict()
+        if "SCAN_PROVENANCE_V1" not in extension:
+            continue
+        chunks = [tag.value for tag in extension["SCAN_PROVENANCE_V1"].tags if tag.code == 1]
+        assert chunks[0] == "scan2bim.dxf-provenance/1"
+        dxf_provenance.append(json.loads("".join(chunks[1:])))
+    dxf_element = next(item for item in dxf_provenance if item["id"] == source_element["id"])
+    assert dxf_element["class_name"] == exchanged_element["class_name"]
+    assert dxf_element["role"] == source_element["dimensions"].get("role", "")
+    assert dxf_element["geometry"] == exchanged_element["geometry"]
+    assert dxf_element["confidence"] == source_element["confidence"]
+    assert dxf_element["measured"] == source_element["measured"]
+    assert dxf_element["inferred"] == source_element["inferred"]
+    assert dxf_element["review_status"] == source_element["review_status"]
+    assert dxf_element["metadata"] == exchanged_element["metadata"]
+    assert elements_doc.header["$INSUNITS"] == 6
+
+    ifc_response = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=ifc")
+    assert ifc_response.status_code == 200, ifc_response.text
+    assert ifc_response.content[:7] == b"ISO-103"
+
+    import ifcopenshell
+    from ifcopenshell.util.element import get_psets
+
+    ifc_path = Path("data_test_export.ifc")
+    ifc_path.write_bytes(ifc_response.content)
+    try:
+        ifc = ifcopenshell.open(ifc_path)
+    finally:
+        ifc_path.unlink(missing_ok=True)
+    assert len(ifc.by_type("IfcWall")) >= 1
+    assert len(ifc.by_type("IfcPropertySet")) >= 1
+    ifc_provenance = next(
+        get_psets(product)["Pset_ScanToBIM"]
+        for product in ifc.by_type("IfcProduct")
+        if "Pset_ScanToBIM" in get_psets(product)
+        and get_psets(product)["Pset_ScanToBIM"]["ElementId"] == source_element["id"]
+    )
+    assert ifc_provenance["ClassName"] == exchanged_element["class_name"]
+    assert ifc_provenance["Role"] == source_element["dimensions"].get("role", "")
+    assert json.loads(ifc_provenance["GeometryJSON"]) == exchanged_element["geometry"]
+    assert json.loads(ifc_provenance["DimensionsJSON"]) == source_element["dimensions"]
+    assert ifc_provenance["Confidence"] == source_element["confidence"]
+    assert ifc_provenance["Measured"] == source_element["measured"]
+    assert ifc_provenance["Inferred"] == source_element["inferred"]
+    assert ifc_provenance["ReviewStatus"] == source_element["review_status"]
+    assert json.loads(ifc_provenance["MetadataJSON"]) == exchanged_element["metadata"]
+    project_units = ifc.by_type("IfcProject")[0].UnitsInContext.Units
+    length_units = [unit for unit in project_units if unit.UnitType == "LENGTHUNIT"]
+    assert [(unit.Name, unit.Prefix) for unit in length_units] == [("METRE", None)]
 
     column = next(item for item in elements if item["class_name"] == "column")
     fit_response = client.post(
@@ -189,24 +255,6 @@ def test_full_pipeline(client):
     assert model["metrics"]["eligible_for_activation"] is False
     activation = client.post(f"/api/v1/models/{model['id']}/activate")
     assert activation.status_code == 409
-
-    ifc_response = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=ifc")
-    assert ifc_response.status_code == 200, ifc_response.text
-    assert ifc_response.content[:7] == b"ISO-103"
-
-    import ifcopenshell
-    from ifcopenshell.util.element import get_psets
-
-    ifc_path = Path("data_test_export.ifc")
-    ifc_path.write_bytes(ifc_response.content)
-    try:
-        ifc = ifcopenshell.open(ifc_path)
-    finally:
-        ifc_path.unlink(missing_ok=True)
-    assert len(ifc.by_type("IfcWall")) >= 1
-    assert len(ifc.by_type("IfcPropertySet")) >= 1
-    wall = ifc.by_type("IfcWall")[0]
-    assert "MetadataJSON" in get_psets(wall)["Pset_ScanToBIM"]
 
     clouds = client.get(f"/api/v1/projects/{project_id}/clouds").json()
     assert clouds and clouds[0]["id"] == cloud["id"]

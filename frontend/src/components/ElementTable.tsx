@@ -67,6 +67,20 @@ function extraBadges(element: Element) {
       cls: "measured",
     });
   }
+  if (dims.structural_status === "verified_structural_column") {
+    badges.push({
+      text: "несущая колонна каркаса (проверено агентом)",
+      title: "Элемент верифицирован конструктивным агентом: проходит по габаритам сечения, непрерывной высоте от пола и привязке к сетке цеха",
+      cls: "measured",
+    });
+  }
+  if (dims.structural_status === "rejected_non_structural" || dims.rejection_reason) {
+    badges.push({
+      text: "не конструктив (отсеяно агентом)",
+      title: dims.rejection_reason || "Отсеяно конструктивным агентом: труба, венткороб, стойка оборудования или подвес",
+      cls: "inferred",
+    });
+  }
   if (dims.demoted_from) {
     badges.push({
       text: `была ${classLabel(dims.demoted_from)}`,

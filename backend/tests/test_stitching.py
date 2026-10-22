@@ -41,6 +41,7 @@ def test_rigid_icp_convergence(tmp_path):
 
     result = rigid_icp(source_cloud, base_cloud, max_iterations=30, tolerance_m=1e-5)
     assert result["converged"] is True
+    assert result["iterations"] > 1  # a real convergence check cannot stop on the first update
     assert result["rmse_mm"] < 5.0  # sub-5mm precision
 
     # Test ReCap manifest creation
@@ -55,3 +56,13 @@ def test_rigid_icp_convergence(tmp_path):
     assert manifest["format"] == "SCAN station-registration manifest"
     assert manifest["recap_project_generated"] is False
     assert manifest["registration_verified"] is False
+
+
+def test_rigid_icp_reports_missing_residual_when_no_correspondences():
+    source = np.tile(np.array([[-10.0, 0.0, 0.0], [10.0, 0.0, 0.0]]), (10, 1))
+    target = np.tile(np.array([[0.0, -10.0, 0.0], [0.0, 10.0, 0.0]]), (10, 1))
+
+    result = rigid_icp(source, target, max_iterations=10)
+
+    assert result["converged"] is False
+    assert result["rmse_mm"] is None

@@ -60,3 +60,14 @@ def test_export_stitched_cloud_and_recap(tmp_path):
     manifest = json.loads(recap_proj.read_text(encoding="utf-8"))
     assert manifest["station_count"] == 2
     assert manifest["stations"][0]["station_id"] == "station_01"
+
+
+def test_recap_manifest_preserves_missing_registration_residual(tmp_path):
+    out = tmp_path / "unverified-registration.json"
+
+    create_recap_registration_project(
+        [{"id": "station_01", "rmse_mm": None}], "Workshop", out
+    )
+
+    manifest = json.loads(out.read_text(encoding="utf-8"))
+    assert manifest["stations"][0]["rmse_mm"] is None

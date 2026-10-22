@@ -32,6 +32,7 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from .geometric import DetectedElement
+from .column_validator import WorkshopColumnValidator
 
 # Merge tolerances (metres / radians).
 WALL_MERGE_ANGLE_DEG = 10.0
@@ -384,12 +385,36 @@ def consolidate(
 
     zones = _zones(levels)
 
-    # Multi-storey support filter: a column seen on a single inter-level zone of
-    # a multi-storey building is far more likely a equipment stand, a pipe rack
-    # leg or scan clutter than a structural column. It keeps its measured
-    # geometry but loses the structural class, so the engineer still sees it.
+    # Multi-storey & Structural Workshop Validator filter:
+    # 1. First run the WorkshopColumnValidator to reject pipes, HVAC ducts, thin posts and suspended elements.
+    validator = WorkshopColumnValidator()
+    kept_columns: list[DetectedElement] = []
+    for column in columns:
+        col_dict = {
+            "class_name": column.class_name,
+            "geometry": column.geometry,
+            "bbox": column.bbox,
+            "dimensions": column.dimensions,
+        }
+        is_true, reason = validator.is_true_column(col_dict)
+        if not is_true:
+            column.class_name = "unknown"
+            column.dimensions["demoted_from"] = "column"
+            column.dimensions["rejection_reason"] = reason
+            column.dimensions["structural_status"] = "rejected_non_structural"
+            column.metadata["method"] = "workshop structural validator"
+            column.metadata["notes"] = reason
+            column.confidence = round(min(column.confidence, 0.25), 3)
+            report.columns_demoted += 1
+            others.append(column)
+        else:
+            column.dimensions["structural_status"] = "verified_structural_column"
+            kept_columns.append(column)
+    columns = kept_columns
+
+    # 2. Multi-storey support filter (if building has multi levels)
     if len(zones) >= 2:
-        kept_columns: list[DetectedElement] = []
+        kept_columns = []
         for column in columns:
             z0, z1 = _z_range(column)
             storeys = _storeys_of(z0, z1, zones)

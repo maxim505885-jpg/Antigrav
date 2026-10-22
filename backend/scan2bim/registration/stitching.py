@@ -63,7 +63,9 @@ def rigid_icp(
 
     tree = cKDTree(target_points)
     current_r = np.eye(3, dtype=np.float64)
-    current_t = np.zeros(3, dtype=np.float64)
+    # Remove the bulk translation before nearest-neighbour matching. This
+    # enlarges the basin of convergence for scans captured from nearby poses.
+    current_t = np.mean(target_points, axis=0) - np.mean(src, axis=0)
     prev_rmse = float("inf")
 
     converged = False
@@ -81,17 +83,36 @@ def rigid_icp(
         current_r = step_r @ current_r
         current_t = step_r @ current_t + step_t
 
-        rmse = float(np.sqrt(np.mean(distances[valid] ** 2)))
-        prev_rmse = rmse
-        if abs(prev_rmse - rmse) < tolerance_m:
+        transformed_src = (current_r @ src.T).T + current_t
+        updated_distances, _ = tree.query(transformed_src, k=1)
+        updated_valid = updated_distances < max_correspondence_distance_m
+        if np.sum(updated_valid) < 10:
+            break
+
+        rmse = float(np.sqrt(np.mean(updated_distances[updated_valid] ** 2)))
+        rotation_step = float(
+            np.arccos(np.clip((np.trace(step_r) - 1.0) / 2.0, -1.0, 1.0))
+        )
+        translation_step = float(np.linalg.norm(step_t))
+        if abs(prev_rmse - rmse) < tolerance_m or (
+            rotation_step < tolerance_m and translation_step < tolerance_m
+        ):
             converged = True
             break
+        prev_rmse = rmse
 
     t4x4 = np.eye(4, dtype=np.float64)
     t4x4[:3, :3] = current_r
     t4x4[:3, 3] = current_t
 
-    final_rmse = 0.0 if prev_rmse == float("inf") else round(float(prev_rmse * 1000.0), 3)
+    final_points = (current_r @ src.T).T + current_t
+    final_distances, _ = tree.query(final_points, k=1)
+    final_valid = final_distances < max_correspondence_distance_m
+    final_rmse = (
+        None
+        if not np.any(final_valid)
+        else round(float(np.sqrt(np.mean(final_distances[final_valid] ** 2)) * 1000.0), 3)
+    )
 
     return {
         "rotation": current_r.tolist(),
@@ -127,7 +148,9 @@ def create_recap_registration_project(
                 "file_path": str(s.get("path", "")),
                 "point_count": int(s.get("point_count", 0)),
                 "matrix_4x4": s.get("matrix_4x4", np.eye(4).tolist()),
-                "rmse_mm": float(s.get("rmse_mm", 0.0)),
+                "rmse_mm": (
+                    float(s["rmse_mm"]) if s.get("rmse_mm") is not None else None
+                ),
             }
             for idx, s in enumerate(stations)
         ],
