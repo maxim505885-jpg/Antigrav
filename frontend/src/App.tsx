@@ -167,9 +167,17 @@ export default function App() {
 
   const refreshProjects = async () => {
     const list = await api.listProjects();
-    setProjects(list);
-    setProject((current) => current ?? (list.length > 0 ? list[0] : null));
-    return list;
+    const workshop = list.find((p) => p.id === "workshop_project");
+    const sorted = workshop ? [workshop, ...list.filter((p) => p.id !== "workshop_project")] : list;
+    setProjects(sorted);
+    setProject((current) => {
+      if (current) {
+        const found = sorted.find((p) => p.id === current.id);
+        if (found && !found.name.toLowerCase().includes("demo")) return found;
+      }
+      return workshop ?? (sorted.length > 0 ? sorted[0] : null);
+    });
+    return sorted;
   };
 
   useEffect(() => {

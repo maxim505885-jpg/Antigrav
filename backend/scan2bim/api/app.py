@@ -1316,34 +1316,6 @@ def create_app() -> FastAPI:
         export_elements_dxf(elements, path, project_name=project["name"])
         return FileResponse(path, media_type="application/dxf", filename=path.name)
 
-    @api.get("/clouds/{cloud_id}/spds-album.zip")
-    def spds_album(cloud_id: str):
-        cloud = _cloud(cloud_id)
-        export_id, folder = new_export_dir(cloud["project_id"], f"spds_album_draft_{cloud_id[:8]}")
-        try:
-            from ..cad.spds_full_set import generate_full_spds_album
-
-            manifest = generate_full_spds_album(list_elements(cloud_id), folder / "sheets")
-        except Exception as exc:
-            raise HTTPException(500, f"SPDS album generation failed: {type(exc).__name__}: {exc}") from exc
-
-        public_manifest = dict(manifest)
-        public_manifest["album_pdf_path"] = Path(manifest["album_pdf_path"]).name
-        public_manifest["sheets"] = [
-            {**sheet, "dxf_path": Path(sheet["dxf_path"]).name, "pdf_path": Path(sheet["pdf_path"]).name}
-            for sheet in manifest["sheets"]
-        ]
-        manifest_path = folder / "manifest.json"
-        manifest_path.write_text(json.dumps(public_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        archive_path = folder / "spds_album_draft.zip"
-        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.write(manifest_path, "manifest.json")
-            archive.write(Path(manifest["album_pdf_path"]), "spds_album.pdf")
-            for sheet in manifest["sheets"]:
-                for key in ("dxf_path", "pdf_path"):
-                    path = Path(sheet[key])
-                    archive.write(path, path.name)
-        return FileResponse(archive_path, media_type="application/zip", filename=archive_path.name)
 
     @api.get("/clouds/{cloud_id}/structural-plan.dxf")
     def structural_plan_dxf(
@@ -1428,6 +1400,9 @@ def create_app() -> FastAPI:
                     zf.write(dxf_file, arcname=dxf_file.name)
                 if pdf_file.exists():
                     zf.write(pdf_file, arcname=pdf_file.name)
+                dwg_file = dxf_file.with_suffix(".dwg")
+                if dwg_file.exists():
+                    zf.write(dwg_file, arcname=dwg_file.name)
             alb_pdf = Path(manifest["album_pdf_path"])
             if alb_pdf.exists():
                 zf.write(alb_pdf, arcname=alb_pdf.name)
