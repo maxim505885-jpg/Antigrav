@@ -1394,8 +1394,8 @@ def create_app() -> FastAPI:
         zip_path = folder / "ALBUM_RD_KR_KM_SPDS.zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for s in manifest["sheets"]:
-                dxf_file = Path(s["dxf_path"])
-                pdf_file = Path(s["pdf_path"])
+                dxf_file = folder / s["dxf_path"] if not Path(s["dxf_path"]).is_absolute() else Path(s["dxf_path"])
+                pdf_file = folder / s["pdf_path"] if not Path(s["pdf_path"]).is_absolute() else Path(s["pdf_path"])
                 if dxf_file.exists():
                     zf.write(dxf_file, arcname=dxf_file.name)
                 if pdf_file.exists():
@@ -1403,9 +1403,12 @@ def create_app() -> FastAPI:
                 dwg_file = dxf_file.with_suffix(".dwg")
                 if dwg_file.exists():
                     zf.write(dwg_file, arcname=dwg_file.name)
-            alb_pdf = Path(manifest["album_pdf_path"])
+            alb_pdf = folder / manifest["album_pdf_path"] if not Path(manifest["album_pdf_path"]).is_absolute() else Path(manifest["album_pdf_path"])
             if alb_pdf.exists():
                 zf.write(alb_pdf, arcname=alb_pdf.name)
+            manifest_file = folder / "manifest.json"
+            if manifest_file.exists():
+                zf.write(manifest_file, arcname=manifest_file.name)
         return FileResponse(zip_path, media_type="application/zip", filename=zip_path.name)
 
     # ------------------------------------------------------------ learning
