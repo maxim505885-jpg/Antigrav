@@ -66,6 +66,67 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const [showBraces, setShowBraces] = useState(true);
   const [showTrusses, setShowTrusses] = useState(true);
   const [showWalls, setShowWalls] = useState(true);
+  const [activePreset, setActivePreset] = useState<string>("all");
+
+  const setPresetAll = () => {
+    setActivePreset("all");
+    setShowCloud(true);
+    setShowColumns(true);
+    setShowBeams(true);
+    setShowBraces(true);
+    setShowTrusses(true);
+    setShowWalls(true);
+  };
+
+  const setPresetColumnsAndBeams = () => {
+    setActivePreset("columns_beams");
+    setShowCloud(false);
+    setShowColumns(true);
+    setShowBeams(true);
+    setShowBraces(false);
+    setShowTrusses(false);
+    setShowWalls(false);
+  };
+
+  const setPresetWallsOnly = () => {
+    setActivePreset("walls_only");
+    setShowCloud(false);
+    setShowColumns(false);
+    setShowBeams(false);
+    setShowBraces(false);
+    setShowTrusses(false);
+    setShowWalls(true);
+  };
+
+  const setPresetTrussesAndBraces = () => {
+    setActivePreset("trusses_braces");
+    setShowCloud(false);
+    setShowColumns(false);
+    setShowBeams(false);
+    setShowBraces(true);
+    setShowTrusses(true);
+    setShowWalls(false);
+  };
+
+  const setPresetCleanBim = () => {
+    setActivePreset("clean_bim");
+    setShowCloud(false);
+    setShowColumns(true);
+    setShowBeams(true);
+    setShowBraces(true);
+    setShowTrusses(true);
+    setShowWalls(true);
+  };
+
+  const setPresetCloudOnly = () => {
+    setActivePreset("cloud_only");
+    setShowCloud(true);
+    setShowColumns(false);
+    setShowBeams(false);
+    setShowBraces(false);
+    setShowTrusses(false);
+    setShowWalls(false);
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(0);
@@ -465,118 +526,225 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   return (
     <div className="viewer">
       <div ref={hostRef} className="viewer-canvas" />
-      <div className="viewer-hud" style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-        {loading && <span>загрузка превью…</span>}
-        {!loading && loaded > 0 && (
+      <div className="viewer-hud">
+        {/* Preset Mode Bar */}
+        <div className="viewer-hud-row" style={{ borderBottom: "1px solid rgba(200, 190, 180, 0.4)", paddingBottom: "5px" }}>
+          <span style={{ fontWeight: 600, color: "#555", marginRight: "2px" }}>Режимы:</span>
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showCloud ? "#2563eb" : "#222",
-              color: "#fff",
-              border: "1px solid #3b82f6",
+              background: activePreset === "all" ? "#2563eb" : "#f0ebe4",
+              color: activePreset === "all" ? "#fff" : "#444",
+              border: "1px solid #2563eb",
               borderRadius: "4px",
               padding: "2px 8px",
             }}
-            onClick={() => setShowCloud(!showCloud)}
-            title="Включить / скрыть облако точек"
+            onClick={setPresetAll}
+            title="Показать все слои модели"
           >
-            ☁️ Облако ({loaded.toLocaleString()})
+            🔘 Все слои
           </button>
-        )}
-        {(counts.column || 0) > 0 && (
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showColumns ? "rgba(56, 189, 248, 0.25)" : "#222",
-              border: "1px solid #38bdf8",
-              color: showColumns ? "#38bdf8" : "#777",
+              background: activePreset === "columns_beams" ? "#0284c7" : "#f0ebe4",
+              color: activePreset === "columns_beams" ? "#fff" : "#0284c7",
+              border: "1px solid #0284c7",
               borderRadius: "4px",
               padding: "2px 8px",
+              fontWeight: activePreset === "columns_beams" ? 700 : 500,
             }}
-            onClick={() => setShowColumns(!showColumns)}
-            title="Показать / скрыть 3D колонны"
+            onClick={setPresetColumnsAndBeams}
+            title="Показать только колонны и балки (основной каркас)"
           >
-            🏢 Колонны ({counts.column})
+            🏢+🏗️ Только колонны и балки
           </button>
-        )}
-        {(counts.beam || 0) > 0 && (
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showBeams ? "rgba(245, 158, 11, 0.25)" : "#222",
-              border: "1px solid #f59e0b",
-              color: showBeams ? "#f59e0b" : "#777",
+              background: activePreset === "walls_only" ? "#475569" : "#f0ebe4",
+              color: activePreset === "walls_only" ? "#fff" : "#475569",
+              border: "1px solid #475569",
               borderRadius: "4px",
               padding: "2px 8px",
+              fontWeight: activePreset === "walls_only" ? 700 : 500,
             }}
-            onClick={() => setShowBeams(!showBeams)}
-            title="Показать / скрыть подкрановые и продольные балки"
+            onClick={setPresetWallsOnly}
+            title="Показать только стены"
           >
-            🏗️ Балки ({counts.beam})
+            🧱 Только стены
           </button>
-        )}
-        {(counts.brace || 0) > 0 && (
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showBraces ? "rgba(168, 85, 247, 0.25)" : "#222",
-              border: "1px solid #a855f7",
-              color: showBraces ? "#a855f7" : "#777",
+              background: activePreset === "trusses_braces" ? "#7c3aed" : "#f0ebe4",
+              color: activePreset === "trusses_braces" ? "#fff" : "#7c3aed",
+              border: "1px solid #7c3aed",
               borderRadius: "4px",
               padding: "2px 8px",
             }}
-            onClick={() => setShowBraces(!showBraces)}
-            title="Показать / скрыть связи"
+            onClick={setPresetTrussesAndBraces}
+            title="Показать фермы и связи (система жесткости)"
           >
-            ⚡ Связи ({counts.brace})
+            📐+⚡ Фермы и связи
           </button>
-        )}
-        {(counts.truss || 0) > 0 && (
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showTrusses ? "rgba(16, 185, 129, 0.25)" : "#222",
-              border: "1px solid #10b981",
-              color: showTrusses ? "#10b981" : "#777",
+              background: activePreset === "clean_bim" ? "#059669" : "#f0ebe4",
+              color: activePreset === "clean_bim" ? "#fff" : "#059669",
+              border: "1px solid #059669",
               borderRadius: "4px",
               padding: "2px 8px",
             }}
-            onClick={() => setShowTrusses(!showTrusses)}
-            title="Показать / скрыть стропильные фермы"
+            onClick={setPresetCleanBim}
+            title="Чистый 3D BIM каркас без точек облака"
           >
-            📐 Фермы ({counts.truss})
+            🏛️ Чистый каркас
           </button>
-        )}
-        {(counts.wall || 0) > 0 && (
           <button
             type="button"
             className="hud-chip"
             style={{
               cursor: "pointer",
-              background: showWalls ? "rgba(148, 163, 184, 0.25)" : "#222",
-              border: "1px solid #94a3b8",
-              color: showWalls ? "#94a3b8" : "#777",
+              background: activePreset === "cloud_only" ? "#4b5563" : "#f0ebe4",
+              color: activePreset === "cloud_only" ? "#fff" : "#4b5563",
+              border: "1px solid #4b5563",
               borderRadius: "4px",
               padding: "2px 8px",
             }}
-            onClick={() => setShowWalls(!showWalls)}
-            title="Показать / скрыть стены"
+            onClick={setPresetCloudOnly}
+            title="Только исходное облако точек"
           >
-            🧱 Стены ({counts.wall})
+            ☁️ Только облако
           </button>
-        )}
-        {cloud?.decimated && <span className="warn">прорежено</span>}
-        {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
+        </div>
+
+        {/* Individual Layer Toggles */}
+        <div className="viewer-hud-row">
+          <span style={{ fontWeight: 600, color: "#555", marginRight: "2px" }}>Слои:</span>
+          {loading && <span>загрузка превью…</span>}
+          {!loading && loaded > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showCloud ? "#2563eb" : "#f5f2ed",
+                color: showCloud ? "#fff" : "#888",
+                border: "1px solid #2563eb",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowCloud(!showCloud); }}
+              title="Включить / скрыть облако точек"
+            >
+              ☁️ Облако ({loaded.toLocaleString()})
+            </button>
+          )}
+          {(counts.column || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showColumns ? "#0284c7" : "#f5f2ed",
+                color: showColumns ? "#fff" : "#888",
+                border: "1px solid #0284c7",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowColumns(!showColumns); }}
+              title="Показать / скрыть 3D колонны"
+            >
+              🏢 Колонны ({counts.column})
+            </button>
+          )}
+          {(counts.beam || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showBeams ? "#d97706" : "#f5f2ed",
+                color: showBeams ? "#fff" : "#888",
+                border: "1px solid #d97706",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowBeams(!showBeams); }}
+              title="Показать / скрыть подкрановые и продольные балки"
+            >
+              🏗️ Балки ({counts.beam})
+            </button>
+          )}
+          {(counts.brace || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showBraces ? "#7c3aed" : "#f5f2ed",
+                color: showBraces ? "#fff" : "#888",
+                border: "1px solid #7c3aed",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowBraces(!showBraces); }}
+              title="Показать / скрыть связи"
+            >
+              ⚡ Связи ({counts.brace})
+            </button>
+          )}
+          {(counts.truss || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showTrusses ? "#059669" : "#f5f2ed",
+                color: showTrusses ? "#fff" : "#888",
+                border: "1px solid #059669",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowTrusses(!showTrusses); }}
+              title="Показать / скрыть стропильные фермы"
+            >
+              📐 Фермы ({counts.truss})
+            </button>
+          )}
+          {(counts.wall || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showWalls ? "#475569" : "#f5f2ed",
+                color: showWalls ? "#fff" : "#888",
+                border: "1px solid #475569",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowWalls(!showWalls); }}
+              title="Показать / скрыть стены"
+            >
+              🧱 Стены ({counts.wall})
+            </button>
+          )}
+          {cloud?.decimated && <span className="warn">прорежено</span>}
+          {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
+        </div>
       </div>
       {error && <div className="viewer-error">{error}</div>}
       {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}

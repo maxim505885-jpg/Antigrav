@@ -85,7 +85,7 @@ export default function App() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pointSize, setPointSize] = useState(2.2);
   const [colorMode, setColorMode] = useState<"rgb" | "height">("rgb");
-  const [showPlane, setShowPlane] = useState(true);
+  const [showPlane, setShowPlane] = useState(false);
 
   const [section, setSection] = useState<Section | null>(null);
   const [sectionForm, setSectionForm] = useState({

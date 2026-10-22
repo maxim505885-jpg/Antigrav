@@ -481,15 +481,36 @@ input[type="checkbox"] {
   left: 12px;
   top: 10px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   font-size: 11px;
   color: #746b63;
-  background: rgba(255, 253, 250, 0.88);
+  background: rgba(255, 253, 250, 0.95);
   border: 1px solid rgba(201, 185, 169, 0.7);
-  box-shadow: 0 3px 12px rgba(70, 47, 30, 0.08);
-  border-radius: 5px;
-  padding: 3px 7px;
-  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(70, 47, 30, 0.12);
+  border-radius: 6px;
+  padding: 6px 10px;
+  pointer-events: auto;
+  z-index: 10;
+}
+.viewer-hud button,
+.viewer-hud .hud-chip {
+  pointer-events: auto;
+  user-select: none;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+}
+.viewer-hud button:hover,
+.viewer-hud .hud-chip:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+.viewer-hud-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .viewer-hud .warn {
   color: #9a6819;

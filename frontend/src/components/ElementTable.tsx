@@ -168,7 +168,11 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   }), [elements]);
   const visibleElements = useMemo(() => {
     let list = filterReferenceElements(filterReviewElements(elements, reviewFilter), referenceFilter, referenceStates);
-    if (classFilter !== "all") {
+    if (classFilter === "columns_beams") {
+      list = list.filter((el) => el.class_name === "column" || el.class_name === "beam");
+    } else if (classFilter === "trusses_braces") {
+      list = list.filter((el) => el.class_name === "truss" || el.class_name === "brace");
+    } else if (classFilter !== "all") {
       list = list.filter((el) => el.class_name === classFilter);
     }
     return list;
@@ -222,21 +226,24 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
       </div>
       <div className="segmented class-filters" style={{ margin: "6px 0", display: "flex", flexWrap: "wrap", gap: "4px" }} aria-label="Фильтр по типу конструкций">
         {[
-          { id: "all", label: "Все" },
-          { id: "column", label: "🏢 Колонны" },
-          { id: "beam", label: "🏗️ Балки" },
-          { id: "brace", label: "⚡ Связи" },
-          { id: "truss", label: "📐 Фермы" },
-          { id: "wall", label: "🧱 Стены" },
-          { id: "slab", label: "Плиты" },
-        ].filter((f) => f.id === "all" || (classCounts[f.id] || 0) > 0).map(({ id, label }) => (
+          { id: "all", label: "Все", count: elements.length },
+          { id: "columns_beams", label: "🏢+🏗️ Колонны и балки", count: (classCounts["column"] || 0) + (classCounts["beam"] || 0) },
+          { id: "wall", label: "🧱 Только стены", count: classCounts["wall"] || 0 },
+          { id: "column", label: "🏢 Колонны", count: classCounts["column"] || 0 },
+          { id: "beam", label: "🏗️ Балки", count: classCounts["beam"] || 0 },
+          { id: "trusses_braces", label: "📐+⚡ Фермы и связи", count: (classCounts["truss"] || 0) + (classCounts["brace"] || 0) },
+          { id: "brace", label: "⚡ Связи", count: classCounts["brace"] || 0 },
+          { id: "truss", label: "📐 Фермы", count: classCounts["truss"] || 0 },
+          { id: "slab", label: "Плиты", count: classCounts["slab"] || 0 },
+        ].filter((f) => f.count > 0).map(({ id, label, count }) => (
           <button
             key={id}
             type="button"
             className={classFilter === id ? "active" : ""}
+            style={classFilter === id ? { background: "#2563eb", color: "#fff", fontWeight: 600 } : {}}
             onClick={() => setClassFilter(id)}
           >
-            {label} <span className="review-count">{classCounts[id] || 0}</span>
+            {label} <span className="review-count">{count}</span>
           </button>
         ))}
       </div>
