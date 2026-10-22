@@ -566,15 +566,17 @@ def generate_full_spds_album(
             "num": idx,
             "name": stem,
             "title": title,
-            "dxf_path": dxf_path.name,
-            "pdf_path": pdf_path.name,
+            "dxf_path": str(dxf_path.resolve()),
+            "pdf_path": str(pdf_path.resolve()),
+            "dxf_filename": dxf_path.name,
+            "pdf_filename": pdf_path.name,
             "issue": "draft"
         })
 
     album_pdf = out_dir / "spds_album.pdf"
     with PdfPages(album_pdf) as pdf:
         for sheet in sheets:
-            doc = ezdxf.readfile(out_dir / sheet["dxf_path"])
+            doc = ezdxf.readfile(Path(sheet["dxf_path"]))
             fig = plt.figure(figsize=(33.11, 23.39), dpi=300)
             ax = fig.add_axes([0, 0, 1, 1])
             _draw_dxf_page(doc, ax)
@@ -596,7 +598,7 @@ def generate_full_spds_album(
         "source_elements_sha256": hashlib.sha256(canonical_elements).hexdigest(),
         "source_element_ids": sorted(str(element["id"]) for element in elements if element.get("id") is not None),
         "sheets": sheets,
-        "album_pdf_path": album_pdf.name,
+        "album_pdf_path": str(album_pdf.resolve()),
     }
     manifest_path = out_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -68,3 +68,63 @@ def test_validator_identifies_crane_girder():
     assert res["is_structural"] is True
     assert res["structural_role"] == "crane_girder"
     assert res["elevation_mark"] == "+6.800"
+    assert res["mark"] == "БП-В3-4"
+    assert res["tolerance_status"] == "compliant"
+
+
+def test_validator_tolerance_evaluation():
+    validator = StructuralTopologyValidator()
+    topo = validator.topo
+
+    u_target = topo.transverse_u_coords[0]
+    v_target = topo.v_row_a_m
+    w_x, w_y, w_z = topo.to_world(u_target, v_target, -6.0)
+
+    # Compliant (exact match, delta = 0)
+    res_exact = validator.classify_element_role("column", (w_x, w_y, w_z), (0.6, 0.5, 9.0))
+    assert res_exact["delta_r_mm"] == 0
+    assert res_exact["tolerance_status"] == "compliant"
+    assert "В допуске СП 70" in res_exact["tolerance_badge"]
+
+    # Marginal (delta = 20 mm)
+    u_off = u_target + 0.020
+    w_x_off, w_y_off, w_z_off = topo.to_world(u_off, v_target, -6.0)
+    res_marg = validator.classify_element_role("column", (w_x_off, w_y_off, w_z_off), (0.6, 0.5, 9.0))
+    assert res_marg["tolerance_status"] == "marginal"
+
+    # Exceeded (delta = 40 mm)
+    u_bad = u_target + 0.040
+    w_x_bad, w_y_bad, w_z_bad = topo.to_world(u_bad, v_target, -6.0)
+    res_bad = validator.classify_element_role("column", (w_x_bad, w_y_bad, w_z_bad), (0.6, 0.5, 9.0))
+    assert res_bad["tolerance_status"] == "exceeded"
+
+
+def test_regularize_workshop_model_full():
+    from scan2bim.structure.workshop_topology import regularize_workshop_model
+
+    topo = WorkshopGridTopology()
+    w_x, w_y, w_z = topo.to_world(topo.transverse_u_coords[0], topo.v_row_a_m, -6.0)
+    
+    mock_elements = [
+        {
+            "id": "col1",
+            "class_name": "column",
+            "geometry": {"center": [w_x, w_y, w_z], "sizes": {"length": 0.6, "thickness": 0.5, "height": 9.0}},
+            "dimensions": {},
+        },
+        {
+            "id": "col_clutter",
+            "class_name": "column",
+            "geometry": {"center": [w_x, w_y + 6.0, w_z], "sizes": {"length": 0.6, "thickness": 0.5, "height": 3.0}},
+            "dimensions": {},
+        },
+    ]
+
+    regularized, summary = regularize_workshop_model(mock_elements)
+    assert summary["status"] == "success"
+    assert summary["columns"]["total"] == 1
+    assert summary["columns"]["compliant"] == 1
+    assert regularized[0]["dimensions"]["mark"] == "К-А1"
+    # Clutter column was rejected and marked unknown
+    assert len(regularized) == 1
+

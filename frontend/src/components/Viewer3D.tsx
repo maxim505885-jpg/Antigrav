@@ -902,7 +902,35 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
             )}
             {selectedElement.dimensions?.dx_mm != null && (
               <div style={{ color: "#7dd3fc" }}>
-                Геодезическое отклонение СПДС: <b>ΔX = {selectedElement.dimensions.dx_mm} мм</b>, <b>ΔY = {selectedElement.dimensions.dy_mm} мм</b>
+                Геодезическое отклонение СПДС: <b>ΔU = {selectedElement.dimensions.dx_mm} мм</b>, <b>ΔV = {selectedElement.dimensions.dy_mm} мм</b>
+                {selectedElement.dimensions?.dr_mm != null && <span> (радиальное <b>ΔR = {selectedElement.dimensions.dr_mm} мм</b>)</span>}
+              </div>
+            )}
+            {selectedElement.dimensions?.tolerance_badge && (
+              <div style={{
+                marginTop: "6px",
+                padding: "3px 8px",
+                borderRadius: "4px",
+                background: selectedElement.dimensions.tolerance_status === "compliant"
+                  ? "rgba(34, 197, 94, 0.25)"
+                  : selectedElement.dimensions.tolerance_status === "marginal"
+                    ? "rgba(245, 158, 11, 0.25)"
+                    : "rgba(239, 68, 68, 0.25)",
+                border: selectedElement.dimensions.tolerance_status === "compliant"
+                  ? "1px solid #22c55e"
+                  : selectedElement.dimensions.tolerance_status === "marginal"
+                    ? "1px solid #f59e0b"
+                    : "1px solid #ef4444",
+                color: "#fff",
+                fontSize: "11px",
+                fontWeight: 600,
+              }}>
+                {selectedElement.dimensions.tolerance_badge}
+              </div>
+            )}
+            {selectedElement.dimensions?.description && (
+              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>
+                {selectedElement.dimensions.description}
               </div>
             )}
           </div>

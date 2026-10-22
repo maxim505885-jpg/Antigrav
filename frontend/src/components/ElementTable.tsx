@@ -73,6 +73,13 @@ function extraBadges(element: Element) {
       cls: "measured",
     });
   }
+  if (dims.tolerance_badge) {
+    badges.push({
+      text: dims.tolerance_badge,
+      title: `Геодезическое отклонение СП 70: ΔU=${dims.dx_mm ?? 0} мм, ΔV=${dims.dy_mm ?? 0} мм, ΔR=${dims.dr_mm ?? 0} мм`,
+      cls: dims.tolerance_status === "compliant" ? "measured" : "inferred",
+    });
+  }
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
     badges.push({
       text: "проверить повторный кандидат",
@@ -162,16 +169,19 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   const exportCsv = () => {
     const header = [
       "ID",
-      "Марка/Позиция",
+      "Марка_СПДС",
       "Класс",
       "Ряд",
-      "Ось",
-      "Тип сечения",
+      "Ось_Пролет",
+      "Тип_сечения",
       "Длина_м",
       "Толщина_м",
       "Высота_м",
-      "Отклонение_dX_мм",
-      "Отклонение_dY_мм",
+      "Отклонение_dU_мм",
+      "Отклонение_dV_мм",
+      "Суммарное_dR_мм",
+      "Статус_СП_70",
+      "Описание_конструкции",
       "Статус_проверки",
     ];
     const rows = visibleElements.map((el) => {
@@ -188,6 +198,9 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
         d.height_m ?? "—",
         d.dx_mm ?? "—",
         d.dy_mm ?? "—",
+        d.dr_mm ?? "—",
+        d.tolerance_badge || "—",
+        d.description || "—",
         el.review_status || "unreviewed",
       ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";");
     });
