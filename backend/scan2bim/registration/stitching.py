@@ -82,20 +82,22 @@ def rigid_icp(
         current_t = step_r @ current_t + step_t
 
         rmse = float(np.sqrt(np.mean(distances[valid] ** 2)))
+        prev_rmse = rmse
         if abs(prev_rmse - rmse) < tolerance_m:
             converged = True
             break
-        prev_rmse = rmse
 
     t4x4 = np.eye(4, dtype=np.float64)
     t4x4[:3, :3] = current_r
     t4x4[:3, 3] = current_t
 
+    final_rmse = 0.0 if prev_rmse == float("inf") else round(float(prev_rmse * 1000.0), 3)
+
     return {
         "rotation": current_r.tolist(),
         "translation": current_t.tolist(),
         "matrix_4x4": t4x4.tolist(),
-        "rmse_mm": round(float(prev_rmse * 1000.0), 3),
+        "rmse_mm": final_rmse,
         "iterations": iteration + 1,
         "converged": converged,
     }
@@ -121,13 +123,13 @@ def create_recap_registration_project(
         "station_count": len(stations),
         "stations": [
             {
-                "station_id": s["id"],
+                "station_id": s.get("id") or s.get("station_id") or f"station_{idx+1}",
                 "file_path": str(s.get("path", "")),
                 "point_count": int(s.get("point_count", 0)),
                 "matrix_4x4": s.get("matrix_4x4", np.eye(4).tolist()),
                 "rmse_mm": float(s.get("rmse_mm", 0.0)),
             }
-            for s in stations
+            for idx, s in enumerate(stations)
         ],
     }
     output_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")

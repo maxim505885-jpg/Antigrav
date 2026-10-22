@@ -357,6 +357,35 @@ export const api = {
   openInReCap: (path?: string) => request<{ status: string; app: string }>("/desktop/open-recap", { method: "POST", body: JSON.stringify({ path: path || "" }) }),
   openInExplorer: (path: string) => request<{ status: string; path: string }>("/desktop/open-explorer", { method: "POST", body: JSON.stringify({ path }) }),
   pickFileWindows: (title?: string) => request<{ cancelled: boolean; path?: string; filename?: string; size_bytes?: number; extension?: string }>("/desktop/pick-file", { method: "POST", body: JSON.stringify({ title: title || "Выберите файл облака точек" }) }),
+
+  // Registration & Stitching
+  matchCloudsIcp: (sourceCloudId: string, targetCloudId: string, samplePoints = 20000, maxIterations = 30) =>
+    request<{
+      rotation: number[][];
+      translation: number[];
+      matrix_4x4: number[][];
+      rmse_mm: number;
+      iterations: number;
+      converged: boolean;
+    }>("/registration/match", {
+      method: "POST",
+      body: JSON.stringify({
+        source_cloud_id: sourceCloudId,
+        target_cloud_id: targetCloudId,
+        sample_points: samplePoints,
+        max_iterations: maxIterations,
+      }),
+    }),
+  exportStitchedPly: (projectName: string, stations: any[]) =>
+    request<{ status: string; output_path: string; size_bytes: number }>("/registration/export-ply", {
+      method: "POST",
+      body: JSON.stringify({ project_name: projectName, stations }),
+    }),
+  exportRecapProject: (projectName: string, stations: any[]) =>
+    request<{ status: string; output_path: string; stations_count: number }>("/registration/export-recap", {
+      method: "POST",
+      body: JSON.stringify({ project_name: projectName, stations }),
+    }),
 };
 
 export async function waitForJob(
