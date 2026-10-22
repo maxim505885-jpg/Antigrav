@@ -1,5 +1,11 @@
 import numpy as np
-from scan2bim.registration.stitching import rigid_icp, kabsch_fit, create_recap_registration_project
+import json
+from scan2bim.registration.stitching import (
+    rigid_icp,
+    kabsch_fit,
+    create_recap_registration_project,
+    merge_and_save_unified_cloud,
+)
 
 
 def test_kabsch_fit_exact():
@@ -52,7 +58,7 @@ def test_rigid_icp_convergence(tmp_path):
     manifest_path = tmp_path / "recap_project.json"
     create_recap_registration_project(stations, "Цех 1.rcs", manifest_path)
     assert manifest_path.exists()
-    manifest = __import__("json").loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["format"] == "SCAN station-registration manifest"
     assert manifest["recap_project_generated"] is False
     assert manifest["registration_verified"] is False
@@ -66,3 +72,35 @@ def test_rigid_icp_reports_missing_residual_when_no_correspondences():
 
     assert result["converged"] is False
     assert result["rmse_mm"] is None
+
+
+def test_merge_and_save_unified_cloud(tmp_path):
+    pts1 = np.array([[10.0, 20.0, 1.0], [12.0, 22.0, 2.0]], dtype=np.float32)
+    pts2 = np.array([[30.0, 40.0, 3.0], [32.0, 42.0, 4.0]], dtype=np.float32)
+
+    stations = [
+        {"name": "Scan_1", "points": pts1, "matrix_4x4": np.eye(4).tolist()},
+        {"name": "Scan_2", "points": pts2, "matrix_4x4": np.eye(4).tolist()},
+    ]
+
+    out_dir = tmp_path / "unified_test"
+    res = merge_and_save_unified_cloud(stations, out_dir, project_title="Test Merged Cloud", export_ply=True)
+
+    assert res["status"] == "success"
+    assert res["total_points"] == 4
+    assert (out_dir / "positions.npy").exists()
+    assert (out_dir / "meta.json").exists()
+    assert (out_dir / "registration_manifest.json").exists()
+    assert (out_dir / "unified_cloud.ply").exists()
+
+    meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["stored_point_count"] == 4
+    assert meta["unified_merge"] is True
+
+    # Check bounds consistency for pipeline _load_geometry
+    positions = np.load(out_dir / "positions.npy")
+    origin = np.array(meta["origin"])
+    bbox_min = np.array(meta["bbox_min"])
+    bbox_max = np.array(meta["bbox_max"])
+    np.testing.assert_allclose(bbox_min - origin, positions.min(axis=0), atol=1e-3)
+    np.testing.assert_allclose(bbox_max - origin, positions.max(axis=0), atol=1e-3)

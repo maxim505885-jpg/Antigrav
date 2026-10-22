@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
-import { elementEvidenceBadges } from "../elementEvidence";
+import { columnCandidateStatusBadges, elementEvidenceBadges } from "../elementEvidence";
 import { columnSectionObservationSummary } from "../columnSectionPresentation";
 
 interface Props {
@@ -58,6 +58,7 @@ function extraBadges(element: Element) {
   const dims = element.dimensions || {};
   const badges: { text: string; title: string; cls: string }[] = [];
   badges.push(...elementEvidenceBadges(element.metadata));
+  badges.push(...columnCandidateStatusBadges(dims));
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
     badges.push({
       text: "проверить повторный кандидат",
@@ -70,20 +71,6 @@ function extraBadges(element: Element) {
       text: `сращено из ${dims.merged_from}`,
       title: `Несколько фрагментов объединены в одну конструкцию (максимальный разрыв ${dims.merged_gap_m ?? "—"} м)`,
       cls: "measured",
-    });
-  }
-  if (dims.structural_status === "structural_candidate" || dims.structural_status === "verified_structural_column") {
-    badges.push({
-      text: "кандидат колонны · нужна проверка",
-      title: "Кандидат проходит геометрические фильтры, но облако точек не подтверждает конструктивную роль, физический ID или сечение",
-      cls: "inferred",
-    });
-  }
-  if (dims.structural_status === "failed_structural_heuristic" || dims.structural_status === "rejected_non_structural" || dims.rejection_reason) {
-    badges.push({
-      text: "кандидат не прошёл фильтр · проверить",
-      title: dims.rejection_reason || "Геометрическая эвристика не выбрала этот объект как колонну; это не подтверждённое заключение о физической конструкции",
-      cls: "inferred",
     });
   }
   if (dims.demoted_from) {

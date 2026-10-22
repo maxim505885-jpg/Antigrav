@@ -13,10 +13,23 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def is_valid_dwg(file_path: Path) -> bool:
+    """Проверяет валидность заголовка бинарного DWG файла (AutoCAD AC10xx)."""
+    if not file_path.is_file() or file_path.stat().st_size < 1024:
+        return False
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(6)
+        return header.startswith(b"AC10")
+    except Exception:
+        return False
+
+
 def convert_dxf_to_dwg_native(
     dxf_path: str | Path,
     dwg_path: str | Path | None = None,
     zoom_extents: bool = True,
+    force_recompile: bool = False,
 ) -> Path:
     """Конвертирует DXF файл в нативный бинарный DWG файл через AutoCAD Automation API."""
     import win32com.client
@@ -28,14 +41,17 @@ def convert_dxf_to_dwg_native(
     dest_dwg = Path(dwg_path).resolve() if dwg_path is not None else src_dxf.with_suffix(".dwg")
     dest_dwg.parent.mkdir(parents=True, exist_ok=True)
 
-    if dest_dwg.exists():
-        try:
+    # Если уже есть скомпилированный валидный DWG файл и он новее или равен DXF, возвращаем его
+    if not force_recompile and is_valid_dwg(dest_dwg) and dest_dwg.stat().st_mtime >= src_dxf.stat().st_mtime:
+        return dest_dwg
+
+    try:
+        if dest_dwg.exists():
             dest_dwg.unlink()
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     acad = win32com.client.Dispatch("AutoCAD.Application")
-    # Открываем DXF в фоновом режиме через Document Management
     doc = acad.Documents.Open(str(src_dxf))
 
     try:
@@ -47,13 +63,12 @@ def convert_dxf_to_dwg_native(
         # Сохраняем как нативный бинарный DWG (формат AC1032)
         doc.SaveAs(str(dest_dwg))
     finally:
-        # Закрываем рабочий документ без повторного сохранения
         try:
             doc.Close(False)
         except Exception:
             pass
 
-    if not dest_dwg.is_file() or dest_dwg.stat().st_size == 0:
+    if not is_valid_dwg(dest_dwg):
         raise RuntimeError(f"Не удалось скомпилировать бинарный DWG: {dest_dwg}")
 
     return dest_dwg
@@ -71,6 +86,11 @@ def batch_convert_album_to_dwg(album_dir: str | Path) -> list[Path]:
             created_dwgs.append(dwg)
             print(f"Скомпилирован нативный DWG: {dwg.name} ({dwg.stat().st_size / 1024:.1f} KB)")
         except Exception as e:
+            dest_dwg = dxf.with_suffix(".dwg")
+            if is_valid_dwg(dest_dwg):
+                created_dwgs.append(dest_dwg)
+                print(f"Использован существующий валидный DWG: {dest_dwg.name} ({dest_dwg.stat().st_size / 1024:.1f} KB)")
+                continue
             print(f"Ошибка при компиляции {dxf.name} в DWG: {e}")
 
     return created_dwgs

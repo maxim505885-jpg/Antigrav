@@ -27,6 +27,8 @@ def _block_record(xyz: np.ndarray, rgb: np.ndarray) -> dict[str, object]:
 def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
     client, tmp_path, monkeypatch, replace_source_during_read
 ):
+    monkeypatch.setattr(ingest, "MIN_INGEST_DISK_RESERVE_BYTES", 0)
+    monkeypatch.setattr(rcs_native, "MIN_FREE_DISK_BYTES", 0)
     source = tmp_path / "synthetic-faro.rcs"
     source.write_bytes(b"synthetic RCS marker; the proprietary reader is replaced in this test")
     project = client.post("/api/v1/projects", json={"name": "streamed RCS"}).json()
@@ -117,6 +119,7 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
 
 
 def test_native_rcs_child_writes_every_point_in_bounded_blocks(tmp_path, monkeypatch):
+    monkeypatch.setattr(rcs_native, "MIN_FREE_DISK_BYTES", 0)
     source = tmp_path / "synthetic.rcs"
     source.write_bytes(b"synthetic")
     out_dir = tmp_path / "raw"
@@ -313,6 +316,7 @@ def test_native_rcs_source_identity_detects_same_size_same_mtime_replacement(tmp
 
 
 def test_native_rcs_stream_resumes_after_last_committed_chunk(tmp_path, monkeypatch):
+    monkeypatch.setattr(rcs_native, "MIN_FREE_DISK_BYTES", 0)
     source = tmp_path / "synthetic-resumable.rcs"
     source.write_bytes(b"synthetic")
     out_dir = tmp_path / "resumable-raw"

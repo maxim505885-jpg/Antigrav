@@ -15,10 +15,9 @@ statement rather than a cosmetic count reduction:
    1.2 m (doorways, occlusions) become one wall. The gap is recorded.
 3. Column shaft merge — column fragments whose plan footprints overlap and
    whose height ranges touch (gap <= 0.6 m) become one shaft.
-4. Multi-storey support filter — in a building with >= 2 inter-level zones, a
-   "column" seen on only one zone is not a structural column (roof clutter,
-   equipment legs, scan noise). It is DOWNGRADED to ``unknown``, never deleted:
-   the points are real, the classification was not.
+4. Multi-storey coverage heuristic — in a building with >= 2 inter-level
+   zones, a "column" seen on one zone is flagged for review, not removed;
+   partial scan coverage can produce the same observation as clutter.
 
 Confidences stay heuristic. Nothing here invents geometry that was not measured.
 """
@@ -50,7 +49,8 @@ class ConsolidationReport:
     walls_produced: int = 0             # continuous walls produced
     columns_merged_into: int = 0        # fragments consumed by shaft merging
     columns_produced: int = 0
-    columns_demoted: int = 0            # single-storey columns -> unknown
+    columns_demoted: int = 0            # legacy counter; candidates are no longer demoted
+    columns_flagged_for_review: int = 0
     unknowns_demoted: int = 0           # single-storey unknowns kept as unknown
     columns_embedded_in_walls: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -59,13 +59,14 @@ class ConsolidationReport:
         return {
             "method": (
                 "level binding + collinear wall merge + column shaft merge "
-                "+ multi-storey support filter"
+                "+ multi-storey coverage heuristic"
             ),
             "wall_fragments_merged": self.walls_merged_into,
             "continuous_walls_produced": self.walls_produced,
             "column_fragments_merged": self.columns_merged_into,
             "column_shafts_produced": self.columns_produced,
             "single_storey_columns_demoted_to_unknown": self.columns_demoted,
+            "columns_flagged_for_review": self.columns_flagged_for_review,
             "columns_embedded_in_walls": self.columns_embedded_in_walls,
         }
 
@@ -398,44 +399,42 @@ def consolidate(
         }
         is_candidate, reason = validator.is_column_candidate(col_dict)
         if not is_candidate:
-            column.class_name = "unknown"
-            column.dimensions["demoted_from"] = "column"
             column.dimensions["rejection_reason"] = reason
             column.dimensions["structural_status"] = "failed_structural_heuristic"
             column.metadata["method"] = "workshop column-candidate geometry filter"
             column.metadata["notes"] = reason
             column.confidence = round(min(column.confidence, 0.25), 3)
-            report.columns_demoted += 1
-            others.append(column)
         else:
             column.dimensions["structural_status"] = "structural_candidate"
-            kept_columns.append(column)
+        kept_columns.append(column)
     columns = kept_columns
 
-    # 2. Multi-storey support filter (if building has multi levels)
+    # 2. Multi-storey coverage heuristic (if building has multiple levels)
     if len(zones) >= 2:
         kept_columns = []
         for column in columns:
             z0, z1 = _z_range(column)
             storeys = _storeys_of(z0, z1, zones)
             if len(storeys) < 2:
-                column.class_name = "unknown"
-                column.dimensions["demoted_from"] = "column"
                 column.dimensions["storey_count"] = len(storeys)
-                column.metadata["method"] = (
-                    "consolidation: demoted column (single-storey support in a "
-                    "multi-storey building)"
-                )
+                column.dimensions["structural_status"] = "single_storey_coverage_candidate"
+                column.metadata["method"] = "consolidation: single-storey coverage heuristic"
                 column.metadata["notes"] = (
-                    "measured vertical object seen on one storey only; not a "
-                    "structural column — verify in the editor"
+                    "candidate is supported in one detected level zone only; "
+                    "partial scan coverage or occlusion may explain this — verify in the editor"
                 )
                 column.confidence = round(min(column.confidence, 0.3), 3)
-                report.columns_demoted += 1
-                others.append(column)
-            else:
-                kept_columns.append(column)
+            kept_columns.append(column)
         columns = kept_columns
+
+    # Count review items rather than diagnostic reasons. A single candidate can
+    # fail the geometry filter and also have coverage in only one level zone.
+    report.columns_flagged_for_review = sum(
+        1
+        for column in columns
+        if column.dimensions.get("rejection_reason")
+        or column.dimensions.get("structural_status") == "single_storey_coverage_candidate"
+    )
 
     # Columns whose footprint lies inside a wall line are double-counted scan
     # returns (wall corners, pilasters). Flag them; do not delete: a real column
@@ -484,11 +483,11 @@ def consolidate(
             f"Консолидация колонн: {report.columns_merged_into} фрагментов объединены в "
             f"{report.columns_produced} стояков по совпадению следа и высоты."
         )
-    if report.columns_demoted:
+    if report.columns_flagged_for_review:
         report.warnings.append(
-            f"{report.columns_demoted} «колонн» видны ТОЛЬКО на одном этаже из "
-            f"{len(zones) + 1} — это оборудование, стойки или шум скана, а не несущие "
-            "колонны; в конструктивную модель они не включаются."
+            f"{report.columns_flagged_for_review} кандидатов колонн требуют ручной проверки: "
+            "они не прошли один из геометрических фильтров или видны только в одной "
+            "зоне уровня; частичное покрытие скана не исключено. Кандидаты сохранены."
         )
     if embedded:
         report.warnings.append(

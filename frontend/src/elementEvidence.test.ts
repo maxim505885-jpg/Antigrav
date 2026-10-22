@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { elementEvidenceBadges } from "./elementEvidence.ts";
+import { columnCandidateStatusBadges, elementEvidenceBadges } from "./elementEvidence.ts";
+
+test("labels geometry-passing column as a candidate pending review", () => {
+  assert.deepEqual(columnCandidateStatusBadges({ structural_status: "structural_candidate" }), [{
+    text: "кандидат колонны · нужна проверка",
+    title: "Кандидат проходит геометрические фильтры, но облако точек не подтверждает конструктивную роль, физический ID или сечение",
+    cls: "inferred",
+  }]);
+});
+
+test("keeps failed and single-level candidates visible with uncertainty badges", () => {
+  assert.deepEqual(columnCandidateStatusBadges({
+    structural_status: "single_storey_coverage_candidate",
+    rejection_reason: "Короткий кандидат",
+  }), [
+    {
+      text: "кандидат не прошёл фильтр · проверить",
+      title: "Короткий кандидат",
+      cls: "inferred",
+    },
+    {
+      text: "видна на одном уровне · проверить",
+      title: "Неполное сканирование или закрытие поверхности может объяснить отсутствие точек на других уровнях; кандидат сохранён для ручной проверки",
+      cls: "inferred",
+    },
+  ]);
+  assert.deepEqual(columnCandidateStatusBadges({ structural_status: "failed_structural_heuristic" })[0].cls, "inferred");
+  assert.deepEqual(columnCandidateStatusBadges(null), []);
+});
 
 test("shows unresolved vertical layer diagnostics without claiming a member role", () => {
   assert.deepEqual(elementEvidenceBadges({

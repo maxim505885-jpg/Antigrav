@@ -15,7 +15,6 @@ RECAP_PATH = Path(r"C:\Program Files\Autodesk\Autodesk ReCap\ReCap.exe")
 REVIT_PATH = Path(r"C:\Program Files\Autodesk\Revit 2027\Revit.exe")
 
 
-
 class OpenPathRequest(BaseModel):
     path: str
 
@@ -43,6 +42,12 @@ def desktop_status() -> dict[str, Any]:
 def open_autocad(payload: OpenPathRequest) -> dict[str, Any]:
     """Open specified DXF/DWG file directly in installed Autodesk AutoCAD 2026."""
     target_path = Path(payload.path).resolve()
+    # Prefer precompiled binary DWG if available for the given DXF
+    if target_path.suffix.lower() == ".dxf":
+        dwg_variant = target_path.with_suffix(".dwg")
+        if dwg_variant.is_file():
+            target_path = dwg_variant
+
     if not target_path.is_file():
         raise HTTPException(status_code=404, detail=f"Чертеж не найден: {payload.path}")
 
@@ -116,6 +121,7 @@ def pick_file(payload: FileDialogRequest | None = None) -> dict[str, Any]:
         return {"cancelled": True, "path": None}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.post("/open-revit")
 def open_revit(payload: OpenPathRequest | None = None) -> dict[str, Any]:

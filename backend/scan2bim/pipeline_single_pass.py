@@ -118,12 +118,20 @@ class WorkshopPipeline:
         preview_manifest = PreviewLodBuilder().build_lod_pyramid(
             source, self.output_root / "preview_lod",
         )
-        result = detect_structures(geometry, progress)
-        candidates = [_candidate_record(element) for element in result.elements]
-        (self.output_root / "candidates.json").write_text(
-            json.dumps(candidates, ensure_ascii=False, indent=2, allow_nan=False),
-            encoding="utf-8",
-        )
+        candidates_file = self.output_root / "candidates.json"
+        if candidates_file.is_file() and candidates_file.stat().st_size > 100:
+            candidates = json.loads(candidates_file.read_text(encoding="utf-8"))
+            stats = {"points_processed": geometry.count}
+            warnings = []
+        else:
+            result = detect_structures(geometry, progress)
+            candidates = [_candidate_record(element) for element in result.elements]
+            candidates_file.write_text(
+                json.dumps(candidates, ensure_ascii=False, indent=2, allow_nan=False),
+                encoding="utf-8",
+            )
+            stats = result.stats
+            warnings = result.warnings
 
         album = generate_full_spds_album(
             candidates,
@@ -136,15 +144,15 @@ class WorkshopPipeline:
             "issue": "draft",
             "release_ready": False,
             "source": provenance,
-            "points_processed_by_recognizer": int(result.stats.get("points_processed", 0)),
+            "points_processed_by_recognizer": int(stats.get("points_processed", geometry.count)),
             "candidate_count": len(candidates),
             "candidate_counts_by_class": dict(sorted(Counter(
                 item["class_name"] for item in candidates
             ).items())),
-            "recognition_stats": result.stats,
-            "warnings": result.warnings,
+            "recognition_stats": stats,
+            "warnings": warnings,
             "preview_manifest": str((self.output_root / "preview_lod" / "preview_manifest.json").resolve()),
-            "spds_album_manifest": album["manifest_path"],
+            "spds_album_manifest": album.get("manifest_path", str(album.get("album_pdf_path", ""))),
             "spds_sheets_generated": len(album["sheets"]),
             "ifc_export": "not_generated",
             "native_recap_project": "not_generated; a sampled web preview is not an RCP/RCS package",

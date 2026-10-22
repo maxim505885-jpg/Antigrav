@@ -16,6 +16,13 @@ from scan2bim.jobs import JobCancelled, create_job, get_job, update_job
 from scan2bim.storage import cloud_paths
 
 
+@pytest.fixture(autouse=True)
+def synthetic_streams_do_not_require_production_disk_reserve(monkeypatch):
+    # These tests use tiny synthetic clouds; a 1 GiB host reserve makes their
+    # outcome depend on whatever free space happens to be available to pytest.
+    monkeypatch.setattr(ingest, "MIN_INGEST_DISK_RESERVE_BYTES", 0)
+
+
 def test_ingest_resumes_finalization_from_a_complete_checkpoint(client, tmp_path, monkeypatch):
     source = tmp_path / "synthetic-source.xyz"
     source.write_text("synthetic test source", encoding="utf-8")

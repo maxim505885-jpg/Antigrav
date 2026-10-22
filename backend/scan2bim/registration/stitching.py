@@ -2,16 +2,21 @@
 
 Provides:
 - Robust Iterative Closest Point (ICP) using SVD / Kabsch algorithm and cKDTree.
-- Transformation matrix calculation in SE(3).
+- SE(3) Transformation matrix calculation.
 - ReCap-compatible registration manifest and unified point cloud export.
+- Batch merging of multiple RCS/PLY scans into unified positions.npy with meta.json.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 import numpy as np
 from scipy.spatial import cKDTree
+
+logger = logging.getLogger(__name__)
 
 
 def kabsch_fit(source: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -55,20 +60,27 @@ def rigid_icp(
     - rmse_mm: root mean square error in millimeters
     - converged: bool
     """
+    # Safe O(k) memory sampling to prevent OpenBLAS / RAM exhaustion on large scans
     if len(source_points) > sample_size:
-        indices = np.random.choice(len(source_points), sample_size, replace=False)
-        src = source_points[indices].copy()
+        indices = np.random.randint(0, len(source_points), size=sample_size)
+        src = np.asarray(source_points[indices], dtype=np.float64).copy()
     else:
-        src = source_points.copy()
+        src = np.asarray(source_points, dtype=np.float64).copy()
 
-    tree = cKDTree(target_points)
+    if len(target_points) > sample_size * 2:
+        tgt_indices = np.random.randint(0, len(target_points), size=sample_size * 2)
+        tgt = np.asarray(target_points[tgt_indices], dtype=np.float64)
+    else:
+        tgt = np.asarray(target_points, dtype=np.float64)
+
+    tree = cKDTree(tgt)
     current_r = np.eye(3, dtype=np.float64)
-    # Remove the bulk translation before nearest-neighbour matching. This
-    # enlarges the basin of convergence for scans captured from nearby poses.
-    current_t = np.mean(target_points, axis=0) - np.mean(src, axis=0)
+    # Remove bulk translation before nearest-neighbour matching
+    current_t = np.mean(tgt, axis=0) - np.mean(src, axis=0)
     prev_rmse = float("inf")
 
     converged = False
+    iteration = 0
     for iteration in range(max_iterations):
         transformed_src = (current_r @ src.T).T + current_t
         distances, indices = tree.query(transformed_src, k=1)
@@ -78,7 +90,7 @@ def rigid_icp(
         if np.sum(valid) < 10:
             break
 
-        step_r, step_t = kabsch_fit(transformed_src[valid], target_points[indices[valid]])
+        step_r, step_t = kabsch_fit(transformed_src[valid], tgt[indices[valid]])
 
         current_r = step_r @ current_r
         current_t = step_r @ current_t + step_t
@@ -215,3 +227,103 @@ end_header
 
     return output_path
 
+
+def merge_and_save_unified_cloud(
+    stations: list[dict[str, Any]],
+    output_dir: str | Path,
+    project_title: str = "Сводное облако цеха (1.rcs + 2.rcs)",
+    export_ply: bool = False,
+) -> dict[str, Any]:
+    """Merge multiple scan stations into a unified dataset with positions.npy and meta.json.
+
+    Each station in `stations` contains:
+    - 'id' or 'name': str
+    - 'points': np.ndarray (Nx3)
+    - 'matrix_4x4': optional 4x4 SE(3) transformation matrix (defaults to identity)
+    - 'path': optional str / Path
+
+    Returns dict with paths to positions.npy, meta.json, registration_manifest.json, and point count.
+    """
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    transformed_clouds = []
+    total_count = 0
+    station_meta = []
+
+    for idx, st in enumerate(stations):
+        pts = np.asarray(st["points"], dtype=np.float32)
+        mat = np.asarray(st.get("matrix_4x4", np.eye(4)), dtype=np.float32)
+
+        r = mat[:3, :3]
+        t = mat[:3, 3]
+        transformed_pts = (r @ pts.T).T + t
+        transformed_clouds.append(transformed_pts)
+        total_count += len(transformed_pts)
+
+        station_meta.append({
+            "station_id": st.get("id") or st.get("name") or f"station_{idx+1}",
+            "path": str(st.get("path", "")),
+            "point_count": len(pts),
+            "matrix_4x4": mat.tolist(),
+            "rmse_mm": st.get("rmse_mm"),
+        })
+
+    merged_world = np.vstack(transformed_clouds)
+
+    # Compute global world bounding box
+    world_min = merged_world.min(axis=0).astype(np.float64)
+    world_max = merged_world.max(axis=0).astype(np.float64)
+    origin = ((world_min + world_max) / 2.0).astype(np.float64)
+
+    # Local coordinates centered around origin
+    local_positions = (merged_world - origin).astype(np.float32)
+    local_min = local_positions.min(axis=0).astype(np.float64)
+    local_max = local_positions.max(axis=0).astype(np.float64)
+
+    # Save positions.npy
+    positions_file = out_path / "positions.npy"
+    np.save(positions_file, local_positions)
+
+    # Compute SHA-256
+    hasher = hashlib.sha256()
+    with open(positions_file, "rb") as f:
+        while chunk := f.read(4 * 1024 * 1024):
+            hasher.update(chunk)
+    sha256_hash = hasher.hexdigest()
+
+    meta = {
+        "reader": "multi_scan_unified_stitcher",
+        "name": project_title,
+        "source_point_count": total_count,
+        "stored_point_count": total_count,
+        "origin": origin.tolist(),
+        "bbox_min": (local_min + origin).tolist(),
+        "bbox_max": (local_max + origin).tolist(),
+        "checksum_sha256": sha256_hash,
+        "station_count": len(stations),
+        "unified_merge": True,
+    }
+    meta_file = out_path / "meta.json"
+    meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Registration manifest
+    manifest_file = out_path / "registration_manifest.json"
+    create_recap_registration_project(station_meta, project_title, manifest_file)
+
+    ply_path = None
+    if export_ply:
+        ply_file = out_path / "unified_cloud.ply"
+        export_stitched_cloud([{"points": merged_world}], ply_file)
+        ply_path = str(ply_file)
+
+    return {
+        "status": "success",
+        "positions_file": str(positions_file),
+        "meta_file": str(meta_file),
+        "manifest_file": str(manifest_file),
+        "ply_file": ply_path,
+        "total_points": total_count,
+        "origin": origin.tolist(),
+        "world_bounds": {"min": world_min.tolist(), "max": world_max.tolist()},
+    }

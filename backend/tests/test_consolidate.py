@@ -151,6 +151,16 @@ def test_candidate_that_fails_a_geometry_filter_is_kept_for_manual_review():
     assert report.columns_flagged_for_review == 1
 
 
+def test_review_count_counts_columns_once_when_multiple_heuristics_flag_them():
+    # The short candidate fails the height filter and only overlaps the upper
+    # detected zone. It is one review item, even though two diagnostics apply.
+    short_upper = _box("column", (4.0, 4.0, 3.9), 0.4, 0.4, 1.8)
+    result, report = consolidate([short_upper], LEVELS)
+
+    assert len([item for item in result if item.class_name == "column"]) == 1
+    assert report.columns_flagged_for_review == 1
+
+
 def test_column_spanning_two_storeys_survives():
     tall = _box("column", (7.0, 7.0, 3.0), 0.5, 0.5, 6.0)
     result, report = consolidate([tall], LEVELS)

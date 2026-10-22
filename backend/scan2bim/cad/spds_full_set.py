@@ -1022,6 +1022,17 @@ def _legacy_generate_full_spds_album(
     for s in sheets:
         s["generator"](aligned, s["dxf_path"], s["pdf_path"], project_title=project_title)
 
+    # Automatically compile native binary DWG for each sheet if AutoCAD is available
+    try:
+        from .dwg_compiler import batch_convert_album_to_dwg
+        batch_convert_album_to_dwg(out_dir)
+        for s in sheets:
+            expected_dwg = Path(s["dxf_path"]).with_suffix(".dwg")
+            if expected_dwg.is_file():
+                s["dwg_path"] = str(expected_dwg)
+    except Exception as exc:
+        logger.warning("AutoCAD binary DWG compilation skipped: %s", exc)
+
     album_pdf = out_dir / "ALBUM_RD_KR_KM_SPDS.pdf"
     # Copy or combine into album (first sheet or merge if pypdf available)
     try:
@@ -1035,7 +1046,8 @@ def _legacy_generate_full_spds_album(
         import shutil
         shutil.copy2(sheets[0]["pdf_path"], album_pdf)
 
-    return {
+    manifest_file = out_dir / "spds_album_manifest.json"
+    manifest_data = {
         "status": "success",
         "sheets": sheets,
         "album_pdf_path": str(album_pdf),
@@ -1043,5 +1055,14 @@ def _legacy_generate_full_spds_album(
             "rotation_deg": aligned["rot_angle_deg"],
             "bays_count": len(aligned["x_bays"]),
             "spans_count": len(aligned["y_spans"]),
-        }
+        },
+    }
+    manifest_file.write_text(json.dumps(manifest_data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    return {
+        "status": "success",
+        "sheets": sheets,
+        "manifest_path": str(manifest_file),
+        "album_pdf_path": str(album_pdf),
+        "aligned_summary": manifest_data["aligned_summary"],
     }

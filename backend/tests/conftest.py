@@ -6,6 +6,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Ensure OpenBLAS and OpenMP use bounded threads on Windows to prevent memory exhaustion
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 os.environ.setdefault("S2B_DATA_DIR", tempfile.mkdtemp(prefix="s2b_test_"))
