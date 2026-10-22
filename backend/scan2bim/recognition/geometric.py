@@ -440,6 +440,32 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     elements = elements + steel_elements
     warnings.extend(steel_warnings)
 
+    # Structural Workshop Topology Enforcement:
+    # On industrial halls (>= 15 columns), enforce the 4-row / 6000 mm bay grid.
+    # Non-grid vertical clutter in the clear span is marked unknown to be excluded.
+    cols = [e for e in elements if e.class_name == "column"]
+    if len(cols) >= 15:
+        from ..structure.workshop_topology import StructuralTopologyValidator
+        val = StructuralTopologyValidator()
+        for el in cols:
+            center = el.geometry.get("center") if el.geometry else None
+            sizes = el.geometry.get("sizes") if el.geometry else None
+            if center and sizes:
+                lens = (float(sizes.get("length", 0.6)), float(sizes.get("thickness", 0.5)), float(sizes.get("height", 3.0)))
+                res = val.classify_element_role("column", (center[0], center[1], center[2]), lens)
+                if not res.get("is_structural", True):
+                    el.class_name = "unknown"
+                    el.dimensions["rejection_reason"] = res.get("rejection_reason")
+                else:
+                    if "mark" in res:
+                        el.dimensions["mark"] = res["mark"]
+                        el.dimensions["row"] = res["row"]
+                        el.dimensions["axis"] = res["axis"]
+                        el.dimensions["type"] = res["type"]
+                        el.dimensions["dx_mm"] = res["delta_u_mm"]
+                        el.dimensions["dy_mm"] = res["delta_v_mm"]
+                        el.dimensions["structural_status"] = "confirmed_grid_column"
+
     # "Только конструктив, лишнего не надо": the baseline also emits
     # non-structural fragments as ``unknown`` (blobs too long to be a column
     # and too short to be a wall, plus single-storey shafts demoted by the
