@@ -11,13 +11,14 @@ import { columnGroupLinePositions } from "./columnGroupGeometry";
 import { buildOrientedBoxGeometry, orientedBoxDraft, type OrientedBoxDraft } from "./orientedBoxEditor";
 import { classLabel, REVIEW_LABELS, statusLabel, type Cloud, type Element, type ModelInfo, type Project, type Section, type SectionResult } from "./types";
 
-type Tab = "section" | "recognition" | "learning" | "export";
+type Tab = "section" | "recognition" | "learning" | "export" | "registration";
 
 const TAB_LABELS: Record<Tab, string> = {
   section: "СЕЧЕНИЕ",
   recognition: "РАСПОЗНАВАНИЕ",
   learning: "ОБУЧЕНИЕ",
   export: "ЭКСПОРТ",
+  registration: "Сшивка ReCap",
 };
 
 const STAT_LABELS: Record<string, string> = {
@@ -792,7 +793,7 @@ export default function App() {
 
           <aside className="right-panel">
             <div className="tabs">
-              {(["section", "recognition", "learning", "export"] as Tab[]).map((name) => (
+              {(["section", "recognition", "learning", "export", "registration"] as Tab[]).map((name) => (
                 <button key={name} className={tab === name ? "tab active" : "tab"} onClick={() => setTab(name)}>
                   {TAB_LABELS[name]}
                 </button>
@@ -1341,6 +1342,57 @@ export default function App() {
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            
+            {tab === "registration" && (
+              <div className="tab-body">
+                <div className="panel-title">
+                  <span>Сшивка сканов и экспорт в Autodesk ReCap</span>
+                </div>
+                <p className="hint">
+                  Совмещение нескольких стоянок сканера по алгоритму жесткого ICP (Kabsch SVD + KDTree) с контролем среднеквадратичной ошибки (RMSE в мм) и формированием проекта ReCap.
+                </p>
+                <div className="button-row" style={{ marginTop: 12 }}>
+                  <button
+                    className="primary-button"
+                    onClick={async () => {
+                      if (!cloud) {
+                        alert("Сначала выберите опорное облако проекта слева.");
+                        return;
+                      }
+                      try {
+                        setBusy(true);
+                        const res = await api.matchCloudsIcp(cloud.id, cloud.id, 10000, 25);
+                        alert(`Сшивка выполнена! Сходимость: ${res.converged ? "ДА" : "НЕТ"}\nНевязка RMSE: ${res.rmse_mm.toFixed(2)} мм\nИтераций: ${res.iterations}`);
+                      } catch (e: any) {
+                        alert("Ошибка сшивки: " + e.message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy || !cloud}
+                  >
+                    🔗 Запустить сшивку ICP (Kabsch SVD)
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        setBusy(true);
+                        const res = await api.openInReCap();
+                        alert(res.status === "ok" ? "Autodesk ReCap запущен!" : "Не удалось открыть ReCap.");
+                      } catch (e: any) {
+                        alert("Ошибка: " + e.message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                  >
+                    🚀 Запустить Autodesk ReCap
+                  </button>
+                </div>
               </div>
             )}
 
