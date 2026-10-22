@@ -27,6 +27,13 @@ function dimensionSummary(element: Element): string {
     return `пролёт ${dims.span_m} × выс ${dims.height_m} м · панелей: ${dims.panels ?? "—"}${storeys}`;
   }
   if (element.class_name === "column") {
+    if (dims.mark) {
+      const dev = (dims.dx_mm != null && dims.dy_mm != null) ? ` · откл: ΔX=${dims.dx_mm} мм, ΔY=${dims.dy_mm} мм` : "";
+      const sec = (dims.length_m && dims.thickness_m) ? ` · ${Math.round(dims.length_m * 1000)}×${Math.round(dims.thickness_m * 1000)} мм` : "";
+      const h = dims.height_m ? ` · h=${dims.height_m} м` : "";
+      const rowAxis = (dims.row && dims.axis) ? ` (Ряд ${dims.row}, Ось ${dims.axis})` : "";
+      return `${dims.mark}${rowAxis}${sec}${h}${dev}`;
+    }
     const incomplete = columnSectionObservationSummary(dims);
     if (incomplete) return `${incomplete}${storeys}`;
     const measured = Array.isArray(dims.measured_section_m)
@@ -59,6 +66,13 @@ function extraBadges(element: Element) {
   const badges: { text: string; title: string; cls: string }[] = [];
   badges.push(...elementEvidenceBadges(element.metadata));
   badges.push(...columnCandidateStatusBadges(dims));
+  if (dims.structural_status === "confirmed_grid_column") {
+    badges.push({
+      text: `Сетка ГОСТ: Ряд ${dims.row ?? "—"}, Ось ${dims.axis ?? "—"}`,
+      title: `Несущая колонна каркаса цеха на координационной сетке осей (шаг 6000 мм). Отклонение: ΔX=${dims.dx_mm ?? 0} мм, ΔY=${dims.dy_mm ?? 0} мм`,
+      cls: "measured",
+    });
+  }
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
     badges.push({
       text: "проверить повторный кандидат",
@@ -144,6 +158,48 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("pending");
   const [referenceFilter, setReferenceFilter] = useState<ReferenceFilter>("all");
   const [classFilter, setClassFilter] = useState<string>("all");
+
+  const exportCsv = () => {
+    const header = [
+      "ID",
+      "Марка/Позиция",
+      "Класс",
+      "Ряд",
+      "Ось",
+      "Тип сечения",
+      "Длина_м",
+      "Толщина_м",
+      "Высота_м",
+      "Отклонение_dX_мм",
+      "Отклонение_dY_мм",
+      "Статус_проверки",
+    ];
+    const rows = visibleElements.map((el) => {
+      const d = el.dimensions || {};
+      return [
+        el.id,
+        d.mark || "—",
+        classLabel(el.class_name),
+        d.row || "—",
+        d.axis ?? "—",
+        d.type || d.section_type || "—",
+        d.length_m ?? "—",
+        d.thickness_m ?? "—",
+        d.height_m ?? "—",
+        d.dx_mm ?? "—",
+        d.dy_mm ?? "—",
+        el.review_status || "unreviewed",
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";");
+    });
+    const csvContent = "\uFEFF" + [header.join(";"), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `specifikaciya_elementov_SPDS_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const classCounts = useMemo(() => {
     const res: Record<string, number> = { all: elements.length };
@@ -246,6 +302,32 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
             {label} <span className="review-count">{count}</span>
           </button>
         ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0" }}>
+        <button
+          type="button"
+          className="hud-chip"
+          style={{
+            cursor: "pointer",
+            background: "#059669",
+            color: "#fff",
+            border: "1px solid #059669",
+            borderRadius: "4px",
+            padding: "4px 12px",
+            fontWeight: 600,
+            fontSize: "13px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+          onClick={exportCsv}
+          title="Выгрузить спецификацию в формате CSV для Microsoft Excel / LibreOffice"
+        >
+          📊 Экспорт спецификации в Excel (CSV)
+        </button>
+        <span style={{ fontSize: "12px", color: "#64748b" }}>
+          Отображается: <b>{visibleElements.length}</b> из <b>{elements.length}</b> элементов
+        </span>
       </div>
       <div className="counts">
         {Object.entries(counts).map(([name, value]) => (

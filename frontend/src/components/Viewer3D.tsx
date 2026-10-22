@@ -5,6 +5,8 @@ import { api } from "../api";
 import type { Cloud, Element } from "../types";
 import { groupCameraDistance } from "../columnGroupGeometry";
 import { elementBoxLinePositions } from "../structuralFrameGeometry";
+import { computeStructuralGridGeometry } from "../structuralGrid3D";
+import { classLabel } from "../types";
 
 interface Props {
   cloud: Cloud | null;
@@ -60,6 +62,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const planeRef = useRef<THREE.Mesh | null>(null);
   const groupSphereRef = useRef<THREE.Sphere | null>(null);
   const bimGroupRef = useRef<THREE.Group | null>(null);
+  const gridGroupRef = useRef<THREE.Group | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
   const [showCloud, setShowCloud] = useState(true);
   const [showColumns, setShowColumns] = useState(true);
   const [showBeams, setShowBeams] = useState(true);
@@ -70,6 +74,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   const setPresetAll = () => {
     setActivePreset("all");
+    setShowGrid(true);
     setShowCloud(true);
     setShowColumns(true);
     setShowBeams(true);
@@ -80,6 +85,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   const setPresetColumnsAndBeams = () => {
     setActivePreset("columns_beams");
+    setShowGrid(true);
     setShowCloud(false);
     setShowColumns(true);
     setShowBeams(true);
@@ -110,6 +116,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   const setPresetCleanBim = () => {
     setActivePreset("clean_bim");
+    setShowGrid(true);
     setShowCloud(false);
     setShowColumns(true);
     setShowBeams(true);
@@ -120,6 +127,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   const setPresetCloudOnly = () => {
     setActivePreset("cloud_only");
+    setShowGrid(false);
     setShowCloud(true);
     setShowColumns(false);
     setShowBeams(false);
@@ -479,6 +487,100 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     }
   }, [showCloud]);
 
+  // Structural SPDS Grid Effect (3 Spans, 4 Rows: А, Б, В, Г, 24 Axes: 1..24, step 6000 mm)
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    if (gridGroupRef.current) {
+      scene.remove(gridGroupRef.current);
+      gridGroupRef.current.traverse((child) => {
+        if (child instanceof THREE.LineSegments || child instanceof THREE.Sprite) {
+          child.geometry?.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+          else child.material?.dispose();
+        }
+      });
+      gridGroupRef.current = null;
+    }
+
+    if (!showGrid) return;
+
+    const origin = cloud?.origin || [0, 0, 0];
+    const gridData = computeStructuralGridGeometry(origin);
+    const group = new THREE.Group();
+    group.name = "structural-spds-grid";
+
+    // 1. Transverse lines (Axes 1..24, step 6000 mm)
+    const tGeom = new THREE.BufferGeometry();
+    tGeom.setAttribute("position", new THREE.BufferAttribute(gridData.transverseLinePositions, 3));
+    const tMat = new THREE.LineBasicMaterial({
+      color: 0x64748b, // SPDS axis slate blue
+      transparent: true,
+      opacity: 0.65,
+      depthTest: false,
+    });
+    const tLines = new THREE.LineSegments(tGeom, tMat);
+    tLines.renderOrder = 4;
+    group.add(tLines);
+
+    // 2. Longitudinal lines (Rows А, Б, В, Г for the 3 spans)
+    const lGeom = new THREE.BufferGeometry();
+    lGeom.setAttribute("position", new THREE.BufferAttribute(gridData.longitudinalLinePositions, 3));
+    const lMat = new THREE.LineBasicMaterial({
+      color: 0x0284c7, // Structural blue
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+    });
+    const lLines = new THREE.LineSegments(lGeom, lMat);
+    lLines.renderOrder = 4;
+    group.add(lLines);
+
+    // 3. Axis bubbles with crisp high-res canvas sprites
+    const createBubbleTexture = (text: string, isRow: boolean) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.beginPath();
+      ctx.arc(64, 64, 56, 0, Math.PI * 2);
+      ctx.fillStyle = isRow ? "#0284c7" : "#334155";
+      ctx.fill();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 52px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 64, 64);
+
+      return new THREE.CanvasTexture(canvas);
+    };
+
+    gridData.bubbleNodes.forEach((node) => {
+      const tex = createBubbleTexture(node.label, node.type === "row");
+      if (!tex) return;
+      const spriteMat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        depthTest: false,
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.set(node.position[0], node.position[1], node.position[2]);
+      sprite.scale.set(2.4, 2.4, 1.0);
+      sprite.renderOrder = 12;
+      group.add(sprite);
+    });
+
+    scene.add(group);
+    gridGroupRef.current = group;
+  }, [showGrid, cloud?.origin]);
+
   useEffect(() => {
     const bimGroup = bimGroupRef.current;
     if (!bimGroup) return;
@@ -652,6 +754,23 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
               ☁️ Облако ({loaded.toLocaleString()})
             </button>
           )}
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: showGrid ? "#475569" : "#f5f2ed",
+              color: showGrid ? "#fff" : "#888",
+              border: "1px solid #475569",
+              borderRadius: "4px",
+              padding: "2px 8px",
+              fontWeight: showGrid ? 700 : 500,
+            }}
+            onClick={() => setShowGrid(!showGrid)}
+            title="Показать / скрыть координационные оси 1..24 и А..Г (шаг 6000 мм)"
+          >
+            📐 Сетка осей (6000 мм)
+          </button>
           {(counts.column || 0) > 0 && (
             <button
               type="button"
@@ -746,6 +865,49 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
           {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
         </div>
       </div>
+      {selectedElement && (
+        <div
+          className="viewer-selected-card"
+          style={{
+            position: "absolute",
+            bottom: "16px",
+            left: "16px",
+            background: "rgba(15, 23, 42, 0.90)",
+            backdropFilter: "blur(10px)",
+            color: "#fff",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            border: "1px solid rgba(56, 189, 248, 0.6)",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.35)",
+            fontSize: "13px",
+            maxWidth: "460px",
+            pointerEvents: "auto",
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+            <span style={{ fontWeight: 700, fontSize: "15px", color: "#38bdf8" }}>
+              {selectedElement.dimensions?.mark || classLabel(selectedElement.class_name)}
+            </span>
+            <span style={{ fontSize: "11px", background: "#0284c7", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
+              {selectedElement.dimensions?.type || classLabel(selectedElement.class_name)}
+            </span>
+          </div>
+          <div style={{ color: "#cbd5e1", lineHeight: "1.45" }}>
+            {selectedElement.dimensions?.row && selectedElement.dimensions?.axis && (
+              <div>Координаты: Ряд <b>{selectedElement.dimensions.row}</b> · Поперечная ось <b>{selectedElement.dimensions.axis}</b> (шаг 6000 мм)</div>
+            )}
+            {selectedElement.dimensions?.height_m && (
+              <div>Высота: <b>{selectedElement.dimensions.height_m} м</b> · Сечение: <b>{Math.round((selectedElement.dimensions.length_m || 0.6) * 1000)}×{Math.round((selectedElement.dimensions.thickness_m || 0.5) * 1000)} мм</b></div>
+            )}
+            {selectedElement.dimensions?.dx_mm != null && (
+              <div style={{ color: "#7dd3fc" }}>
+                Геодезическое отклонение СПДС: <b>ΔX = {selectedElement.dimensions.dx_mm} мм</b>, <b>ΔY = {selectedElement.dimensions.dy_mm} мм</b>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {error && <div className="viewer-error">{error}</div>}
       {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}
     </div>
