@@ -9,6 +9,7 @@ Produces 4 complete engineering sheets:
 from __future__ import annotations
 
 from .spds_tables import draw_spds_specification_table
+from ..recognition.column_validator import WorkshopColumnValidator
 
 import math
 import hashlib
@@ -283,7 +284,15 @@ def _geom_size(element: dict[str, Any], *names: str) -> float | None:
 
 def generate_sheet_1_columns_plan(aligned: dict[str, Any], out_dxf: str | Path, out_pdf: str | Path) -> tuple[Path, Path]:
     elements = aligned.get("elements", [])
-    columns = [element for element in elements if element.get("class_name") == "column"]
+    raw_columns = [element for element in elements if element.get("class_name") == "column"]
+    
+    # Экспертная валидация Агента-Конструктора: исключаем трубы, стойки оборудования и мусор
+    validator = WorkshopColumnValidator()
+    x_bays = aligned.get("x_bays") or []
+    y_spans = aligned.get("y_spans") or []
+    columns, rejected = validator.filter_column_candidates(raw_columns, known_x_bays=x_bays, known_y_spans=y_spans)
+    if not columns and raw_columns:
+        columns = raw_columns  # fallback if grid is not established yet
     doc = _new_sheet("План расположения колонн на отм. 0.000", 1, columns)
     msp = doc.modelspace()
     centers = [(_center(element), element) for element in columns]
