@@ -126,26 +126,37 @@ def test_columns_on_different_footprints_stay_separate():
     assert len([e for e in result if e.class_name == "column"]) == 2
 
 
-def test_single_storey_column_is_demoted_to_unknown():
-    # A 2 m object on storey 2 only, in a 3-storey building: not a column.
+def test_single_storey_column_remains_visible_as_a_coverage_candidate():
+    # A partial scan can make a real column look single-storey; keep it reviewable.
     clutter = _box("column", (4.0, 4.0, 4.2), 0.4, 0.4, 2.0)
     real = _box("column", (7.0, 7.0, 3.0), 0.5, 0.5, 6.0)
     result, report = consolidate([clutter, real], LEVELS)
     columns = [e for e in result if e.class_name == "column"]
     unknowns = [e for e in result if e.class_name == "unknown"]
+    assert len(columns) == 2
+    assert unknowns == []
+    partial = next(item for item in columns if item.dimensions["height_m"] == 2.0)
+    assert partial.dimensions["structural_status"] == "single_storey_coverage_candidate"
+    assert partial.dimensions["length_m"] == 0.4
+    assert report.columns_flagged_for_review >= 1
+
+
+def test_candidate_that_fails_a_geometry_filter_is_kept_for_manual_review():
+    short = _box("column", (4.0, 4.0, 0.9), 0.4, 0.4, 1.8)
+    result, report = consolidate([short], LEVELS[:2])
+
+    columns = [item for item in result if item.class_name == "column"]
     assert len(columns) == 1
-    assert columns[0].dimensions["height_m"] == 6.0
-    assert len(unknowns) == 1
-    assert unknowns[0].dimensions["demoted_from"] == "column"
-    # The measured geometry survives: nothing is deleted, only reclassified.
-    assert unknowns[0].dimensions["length_m"] == 0.4
-    assert report.columns_demoted == 1
+    assert columns[0].dimensions["structural_status"] == "failed_structural_heuristic"
+    assert report.columns_flagged_for_review == 1
 
 
 def test_column_spanning_two_storeys_survives():
     tall = _box("column", (7.0, 7.0, 3.0), 0.5, 0.5, 6.0)
     result, report = consolidate([tall], LEVELS)
-    assert [e for e in result if e.class_name == "column"]
+    columns = [e for e in result if e.class_name == "column"]
+    assert columns
+    assert columns[0].dimensions["structural_status"] == "structural_candidate"
     assert report.columns_demoted == 0
 
 

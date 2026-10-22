@@ -385,8 +385,8 @@ def consolidate(
 
     zones = _zones(levels)
 
-    # Multi-storey & Structural Workshop Validator filter:
-    # 1. First run the WorkshopColumnValidator to reject pipes, HVAC ducts, thin posts and suspended elements.
+    # Apply geometric heuristics, while keeping their outcome explicitly
+    # provisional: cloud shape and vertical extent do not prove structural role.
     validator = WorkshopColumnValidator()
     kept_columns: list[DetectedElement] = []
     for column in columns:
@@ -396,19 +396,19 @@ def consolidate(
             "bbox": column.bbox,
             "dimensions": column.dimensions,
         }
-        is_true, reason = validator.is_true_column(col_dict)
-        if not is_true:
+        is_candidate, reason = validator.is_column_candidate(col_dict)
+        if not is_candidate:
             column.class_name = "unknown"
             column.dimensions["demoted_from"] = "column"
             column.dimensions["rejection_reason"] = reason
-            column.dimensions["structural_status"] = "rejected_non_structural"
-            column.metadata["method"] = "workshop structural validator"
+            column.dimensions["structural_status"] = "failed_structural_heuristic"
+            column.metadata["method"] = "workshop column-candidate geometry filter"
             column.metadata["notes"] = reason
             column.confidence = round(min(column.confidence, 0.25), 3)
             report.columns_demoted += 1
             others.append(column)
         else:
-            column.dimensions["structural_status"] = "verified_structural_column"
+            column.dimensions["structural_status"] = "structural_candidate"
             kept_columns.append(column)
     columns = kept_columns
 

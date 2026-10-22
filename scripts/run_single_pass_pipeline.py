@@ -1,4 +1,4 @@
-"""Run geometry-based recognition and produce a review-only draft package."""
+"""Legacy filename: run the bounded geometry workflow and make a review-only draft."""
 import argparse
 import json
 from pathlib import Path

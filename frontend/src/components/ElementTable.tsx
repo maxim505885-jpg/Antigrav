@@ -72,24 +72,24 @@ function extraBadges(element: Element) {
       cls: "measured",
     });
   }
-  if (dims.structural_status === "verified_structural_column") {
+  if (dims.structural_status === "structural_candidate" || dims.structural_status === "verified_structural_column") {
     badges.push({
-      text: "несущая колонна каркаса (проверено агентом)",
-      title: "Элемент верифицирован конструктивным агентом: проходит по габаритам сечения, непрерывной высоте от пола и привязке к сетке цеха",
-      cls: "measured",
+      text: "кандидат колонны · нужна проверка",
+      title: "Кандидат проходит геометрические фильтры, но облако точек не подтверждает конструктивную роль, физический ID или сечение",
+      cls: "inferred",
     });
   }
-  if (dims.structural_status === "rejected_non_structural" || dims.rejection_reason) {
+  if (dims.structural_status === "failed_structural_heuristic" || dims.structural_status === "rejected_non_structural" || dims.rejection_reason) {
     badges.push({
-      text: "не конструктив (отсеяно агентом)",
-      title: dims.rejection_reason || "Отсеяно конструктивным агентом: труба, венткороб, стойка оборудования или подвес",
+      text: "кандидат не прошёл фильтр · проверить",
+      title: dims.rejection_reason || "Геометрическая эвристика не выбрала этот объект как колонну; это не подтверждённое заключение о физической конструкции",
       cls: "inferred",
     });
   }
   if (dims.demoted_from) {
     badges.push({
-      text: `была ${classLabel(dims.demoted_from)}`,
-      title: "Класс понижен: объект виден только на одном этаже многоэтажного здания — это не несущая колонна",
+      text: `кандидат понижен: ${classLabel(dims.demoted_from)}`,
+      title: "Кандидат не прошёл текущую эвристику покрытия этажей; частичное сканирование или закрытие поверхности требуют ручной проверки",
       cls: "inferred",
     });
   }

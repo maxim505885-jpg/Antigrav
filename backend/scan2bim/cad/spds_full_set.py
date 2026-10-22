@@ -286,7 +286,7 @@ def generate_sheet_1_columns_plan(aligned: dict[str, Any], out_dxf: str | Path, 
     elements = aligned.get("elements", [])
     raw_columns = [element for element in elements if element.get("class_name") == "column"]
     
-    # Экспертная валидация Агента-Конструктора: исключаем трубы, стойки оборудования и мусор
+    # Draft-only geometry prefilter: retained items are still unreviewed candidates.
     validator = WorkshopColumnValidator()
     x_bays = aligned.get("x_bays") or []
     y_spans = aligned.get("y_spans") or []
