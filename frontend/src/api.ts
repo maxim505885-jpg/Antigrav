@@ -251,6 +251,10 @@ export const api = {
   getCloud: (id: string) => request<Cloud>(`/clouds/${id}`),
   resumeImport: (id: string) => request<Cloud>(`/clouds/${encodeURIComponent(id)}/resume`, { method: "POST" }),
   previewUrl: (id: string) => `${BASE}/clouds/${id}/preview`,
+  getLodManifest: (cloudId: string) =>
+    request<LodManifest>(`/clouds/${encodeURIComponent(cloudId)}/lod/manifest`),
+  lodBinaryUrl: (cloudId: string, level: number) =>
+    `${BASE}/clouds/${encodeURIComponent(cloudId)}/lod/${level}`,
   deleteCloud: (id: string) => request<{ deleted: string }>(`/clouds/${id}`, { method: "DELETE" }),
   demo: () =>
     request<{ project: Project; cloud: Cloud; truth: Record<string, any> }>("/demo", {

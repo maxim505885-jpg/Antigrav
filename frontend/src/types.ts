@@ -200,3 +200,32 @@ export const CLASSES = [
   "other",
   "unknown",
 ];
+
+export interface LodLevelInfo {
+  level: number;
+  name: string;
+  file: string;
+  points_count: number;
+  distance_min: number;
+  distance_max: number;
+  point_size: number;
+  target_fps: number;
+  byte_size: number;
+  description: string;
+}
+
+export interface LodManifest {
+  version: string;
+  format: string;
+  stride_bytes: number;
+  cloud_id: string;
+  total_points: number;
+  bounds: {
+    min: [number, number, number];
+    max: [number, number, number];
+    center: [number, number, number];
+    size: [number, number, number];
+  };
+  levels: LodLevelInfo[];
+}
+

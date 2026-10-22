@@ -42,9 +42,15 @@ def desktop_status() -> dict[str, Any]:
 def open_autocad(payload: OpenPathRequest) -> dict[str, Any]:
     """Open specified DXF/DWG file directly in installed Autodesk AutoCAD 2026."""
     target_path = Path(payload.path).resolve()
-    # Prefer precompiled binary DWG if available for the given DXF
+    # Prefer precompiled binary DWG if available for the given DXF (or compile on the fly)
     if target_path.suffix.lower() == ".dxf":
         dwg_variant = target_path.with_suffix(".dwg")
+        if not dwg_variant.is_file():
+            try:
+                from ..cad.dwg_compiler import convert_dxf_to_dwg_native
+                convert_dxf_to_dwg_native(target_path)
+            except Exception:
+                pass
         if dwg_variant.is_file():
             target_path = dwg_variant
 
@@ -139,3 +145,25 @@ def open_revit(payload: OpenPathRequest | None = None) -> dict[str, Any]:
 
     subprocess.Popen(cmd)
     return {"status": "ok", "app": "Autodesk Revit 2027", "command": cmd}
+
+@router.post("/compile-dwg")
+def compile_dwg_endpoint(payload: OpenPathRequest) -> dict[str, Any]:
+    """Compile specified DXF file or directory into native AutoCAD 2026 binary DWG (AC1032)."""
+    target = Path(payload.path).resolve()
+    if target.is_dir():
+        from ..cad.dwg_compiler import batch_convert_album_to_dwg
+        results = batch_convert_album_to_dwg(target)
+        return {
+            "status": "completed",
+            "compiled_files": [str(p) for p in results],
+            "count": len(results),
+        }
+    if target.is_file() and target.suffix.lower() == ".dxf":
+        from ..cad.dwg_compiler import convert_dxf_to_dwg_native
+        res = convert_dxf_to_dwg_native(target)
+        return {
+            "status": "completed",
+            "dwg_path": str(res),
+            "size_bytes": res.stat().st_size,
+        }
+    raise HTTPException(400, "Укажите путь к .dxf файлу или папке с чертежами")

@@ -1078,3 +1078,48 @@ input[type="checkbox"] {
   .annotation-height-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .annotation-height-row button { grid-column: 2; }
 }
+
+.viewer-hud .lod-hud-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.viewer-hud .lod-badge {
+  font-weight: 600;
+  color: #2b2520;
+}
+.viewer-hud .lod-dist {
+  color: #746b63;
+  font-size: 11px;
+}
+.viewer-hud .lod-buttons {
+  display: flex;
+  gap: 4px;
+}
+.viewer-hud .lod-btn {
+  background: rgba(240, 235, 227, 0.9);
+  border: 1px solid #c9b9a9;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  color: #554b42;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  pointer-events: auto;
+}
+.viewer-hud .lod-btn:hover {
+  background: #e2d7c9;
+  color: #1a1614;
+}
+.viewer-hud .lod-btn.active {
+  background: #b55631;
+  color: #ffffff;
+  border-color: #92401f;
+  font-weight: 600;
+}
+.viewer-hud .lod-streaming-pill {
+  color: #b55631;
+  font-weight: 600;
+}
