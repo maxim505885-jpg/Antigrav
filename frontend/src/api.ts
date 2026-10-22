@@ -386,6 +386,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_name: projectName, stations }),
     }),
+
+  // AI Workshop Construction Expert Agent
+  askWorkshopExpert: (query: string, cloudContext?: any) =>
+    request<{
+      topic: string;
+      answer: string;
+      recommendations: string[];
+      referenced_norms: string[];
+      cad_shortcut_tips: string[];
+    }>("/expert/ask", {
+      method: "POST",
+      body: JSON.stringify({ query, cloud_context: cloudContext }),
+    }),
 };
 
 export async function waitForJob(
