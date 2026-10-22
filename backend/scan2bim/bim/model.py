@@ -97,6 +97,9 @@ def _element_for_exchange(element: dict[str, Any]) -> dict[str, Any]:
         "source": element.get("source", "geometric"),
         "review_status": element.get("review_status", "unreviewed"),
         "dimensions": element.get("dimensions", {}),
+        # Recognition method, support counts, and any source-point references
+        # are part of the review trail shared with IFC/Revit consumers.
+        "metadata": element.get("metadata", {}),
     }
 
 

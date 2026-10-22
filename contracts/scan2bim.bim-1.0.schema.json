@@ -69,7 +69,8 @@
         "inferred": {"type": "boolean"},
         "source": {"type": "string", "minLength": 1},
         "review_status": {"type": "string", "minLength": 1},
-        "dimensions": {"type": "object"}
+        "dimensions": {"type": "object"},
+        "metadata": {"type": "object", "description": "Recognition method, evidence counts, and source-point provenance when available."}
       },
       "additionalProperties": true
     },

@@ -511,3 +511,55 @@
 - Проверки: целевые E57 streaming tests — 2 passed; полный `backend/tests` — 289 passed, одно существующее предупреждение Starlette/httpx. Исходный FARO RCS не открывался; fixture синтетический.
 - Остались durable resume LAS/LAZ, bounded-memory PLY/PCD/text, повтор прохода границ на E57 resume, полный FARO RCS маршрут и runtime/RAM/disk benchmark.
 
+## A2: durable output checkpoints для LAS/LAZ — 22 октября 2026
+
+- LAS/LAZ full-resolution второй проход теперь подтверждает каждый записанный XYZ/RGB/intensity блок: memmap flush + fsync, SHA-256 массива и атомарное сохранение source identity/hash, bounds, ожидаемых точек и committed count.
+- При возобновлении source SHA и два прохода формата проверяются заново; committed array ranges сравниваются с block hashes, source prefix последовательно перечитывается и пропускается при записи. Незакоммиченный хвост перезаписывается.
+- TDD: обе synthetic `.las`/`.laz` interruption проверки до реализации упали из-за отсутствующего checkpoint. Теперь каждая прерывается после первого блока, затем возобновляет полный набор с точным XYZ/RGB/intensity и без дублей.
+- Проверки: целевой LAS/LAZ resume плюс full LAS ingest — 3 passed; полный `backend/tests` — 291 passed, одно существующее предупреждение Starlette/httpx. FARO исходник не использовался.
+- Остались потоковые PLY/PCD/text, проверка порчи LAS/LAZ committed блока, полный FARO маршрут и замеры runtime/RAM/disk.
+
+## A2: bounded-memory streaming для TXT/PTS/XYZ/CSV — 22 октября 2026
+
+- Читатель text cloud теперь отдаёт XYZ/RGB/intensity порциями ограниченного размера. Полный режим выполняет bounds pass, затем пишет NPY memmaps; каждый блок fsync-ится и получает SHA-256 checkpoint вместе с source SHA, точным bbox и количеством точек.
+- Resume проверяет checksum подтверждённых массивов, повторно читает последовательный префикс источника и дописывает только неподтверждённый хвост. Source content SHA проверяется до и после операции.
+- PTS count header, CSV с запятой, цвета и intensity проверены на synthetic данных; fault-injection тест прерывает импорт после блока, портит подтверждённый XYZ и проверяет отказ, затем возвращает значение и проверяет корректное продолжение без дублей.
+- Проверки: 293 backend tests passed; один cancellation-cleanup test deselected, потому что Windows запретила удалять временный каталог. Полный сбор дополнительно блокирует незакоммиченный `backend/tests/test_spds_full_set.py`, импортирующий отсутствующий `scan2bim.cad.spds_full_set`; файл не изменялся.
+- Далее: bounded PCD/PLY, проверка fault injection LAS/LAZ, полный FARO источник и замеры peak RAM, диска, времени и потерь преобразования.
+
+## A2: bounded-memory streaming и durable resume для PCD — 22 октября 2026
+
+- Реализован `iter_pcd_chunks`: ASCII парсится порциями; binary payload читается напрямую через read-only mmap и возвращает независимые XYZ/RGB/intensity буферы. Поддержаны поля RGB отдельно и упакованный PCL float `rgb`/`rgba`; `binary_compressed` остаётся неподдержанным.
+- Обычный `read_pcd` теперь использует тот же chunk reader. При `S2B_MAX_INGEST_POINTS=0` PCD проходит bounds pass, пишет memmap и подтверждает каждый блок SHA-256; resume перепроверяет записанное и воспроизводит последовательный префикс, не дублируя точки.
+- Проверки на synthetic ASCII/binary: числовые координаты, отдельный RGB, упакованный RGB float, интенсивность, chunk boundary, interrupted import и resume без дублей. Целевой набор — 7 passed; полный допустимый backend набор — 298 passed.
+- Для полного набора исключён один cancellation-cleanup test из-за WinError 5 при удалении временной папки. Незакоммиченный `test_spds_full_set.py` отдельно мешает collection, так как импортирует отсутствующий `scan2bim.cad.spds_full_set`; не изменял его.
+- Далее: PLY streaming, воспроизведение реального полного FARO маршрута только после выбора отдельного производного файла, и замеры RAM/disk/runtime. `1.rcs` не читался.
+
+## A2: bounded-memory streaming и durable resume для PLY — 22 октября 2026
+
+- `iter_ply_chunks` читает ASCII порциями и использует read-only memmap для binary little/big endian; XYZ, integer/normalized float RGB и интенсивность копируются как независимые ограниченные блоки. Обычный `read_ply` тоже читает через этот итератор.
+- Полноразмерный PLY импорт подключён к общему stream writer: bounds pass, NPY memmap, per-block SHA/fsync, source SHA/identity, проверка подтверждённого префикса и продолжение без дубликатов.
+- Synthetic tests покрывают ASCII, binary little/big endian, цвета uchar со значениями 0/1, intensity, размеры чанков, прерванный resume и порчу подтверждённого блока. Проверены PCD ASCII count mismatch и binary truncation, PLY ASCII count mismatch и binary truncation. Полный допустимый backend набор: 303 passed.
+- Не поддерживаются PLY, где vertex не первый, или list-valued vertex properties. В полном suite один cancellation-cleanup test исключён из-за WinError 5 при удалении temp; отдельный untracked `test_spds_full_set.py` не собирается из-за отсутствующего импорта `scan2bim.cad.spds_full_set`.
+- Форматные stream-пути A2 теперь добавлены для RCS, E57, LAS/LAZ, text, PCD и PLY. Следом: полный FARO маршрут только на отдельном производном файле и измерения peak RAM/disk/runtime; пользовательский `1.rcs` не читать.
+
+## A2: независимый лимит preview и полного массива — 22 октября 2026
+
+- Полноразмерный synthetic XYZ ingest теперь явно проверяет, что preview ограничен двумя точками, а `positions.npy` и RGB хранят все четыре точки. Секции и structural recognition получают путь `positions.npy` через `CloudGeometry`/`NpyPointProvider`; endpoint preview отдельно читает `preview.bin`.
+- Проверка сначала выявила, что `build_preview` захватывал лимит как значение аргумента по умолчанию при импорте модуля. Лимит теперь читается при построении preview, целевой тест прошёл.
+- Точный FARO benchmark и backup/restore полного производного комплекта остаются acceptance gates; исходный `1.rcs` не открывался.
+
+## A7: полный черновой СПДС-альбом — 22 октября 2026
+
+- Добавлены четыре листа: план колонн, план подкрановых балок, поперечный разрез и схема ферм/связей; каждый выдаёт DXF и PDF, а альбом объединяет PDF и упаковывает файлы с manifest в ZIP через backend API. Вкладка экспорта приложения получила кнопку загрузки.
+- Все листы явно помечены «эскизный выпуск · не для производства». Manifest фиксирует SHA-256 входных элементов, стабильные ID и версию grid-alignment; в загружаемый ZIP не попадают локальные абсолютные пути.
+- Набор alignment и API synthetic tests прошёл; общий допустимый backend-набор — 312 passed, один Windows cleanup-test исключён. Фронтенд tests и production build прошли; сборка выдала существующее предупреждение о JS-чанке 740 kB.
+- Найдено и исправлено: пустая геометрия ранее подставляла фиктивную сетку, а PCA на почти квадратной сетке выбирала поперечные оси. Теперь при недостатке колонн статус `insufficient_data`, без номинальных шагов; направление выбирается по повторяемости измеренных координат. Полный альбом всё ещё требует проверки на AutoCAD 2026; этот synthetic прототип не является принятым рабочим чертежом.
+
+
+
+## A3 BIM provenance и A7 честный выпуск пустых классов — 22 октября 2026
+
+- Новый BIM contract test сначала упал: `_element_for_exchange` выбрасывал сохранённое `metadata`. JSON 1.0 теперь включает необязательный `metadata`; валидатор принимает прежние 1.0 payload без поля. IFC сохраняет объект компактным JSON-текстом `MetadataJSON`, включая method/support/source-point references, если они присутствуют. Targeted BIM/IFC: 9 passed.
+- Полный backend suite выявил, что дублирующий набор функций в СПДС-модуле затенял проверенные генераторы; пустое demo-облако падало на `min([])`, а legacy ветка рисовала балки/фермы/связи по предполагаемой сетке. Публичные имена оставлены у geometry-backed генераторов; дублирующие ветки помечены legacy. Пустые листы объясняют отсутствие данных и не добавляют синтетические конструкции.
+- SPDS + BIM/IFC targeted suite: 21 passed; полный backend suite: 317 passed, один WinError 5 cancellation-cleanup test исключён (318 collected). Единственное предупреждение — существующая интеграция Starlette/httpx. FARO full-run, AutoCAD GUI/DWG, Revit GUI и инженерная точность не подтверждены.

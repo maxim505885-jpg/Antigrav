@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from pathlib import Path
 import time
 
@@ -196,3 +197,145 @@ def test_same_size_same_mtime_source_replacement_during_import_is_rejected(clien
     assert row["status"] == "processing"
     assert row["sha256"] is None
     assert not cloud_paths(project["id"], cloud_id)["positions"].exists()
+
+def test_full_text_stream_resumes_from_verified_block(client, tmp_path, monkeypatch):
+    source = tmp_path / "points.xyz"
+    source.write_text("0 0 0 10 20 30\n1 0 0 40 50 60\n2 1 1 70 80 90\n3 1 2 100 110 120\n", encoding="utf-8")
+    project = client.post("/api/v1/projects", json={"name": "full text stream"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], "text", str(source), "xyz", source.stat().st_size, "processing", now, now),
+    )
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    monkeypatch.setattr(ingest, "POINT_STREAM_CHUNK_POINTS", 2)
+    monkeypatch.setattr(ingest, "MAX_PREVIEW_POINTS", 2)
+
+    def cancel_after_first_block(value, message):
+        if message == "writing full-resolution text memmaps" and value > 0.58:
+            raise JobCancelled("simulated interruption after durable text block")
+
+    with pytest.raises(JobCancelled, match="durable text block"):
+        ingest.ingest_cloud(project["id"], cloud_id, source, progress=cancel_after_first_block)
+
+    paths = cloud_paths(project["id"], cloud_id)
+    checkpoint = paths["dir"] / ".ingest-stage" / "text-write-checkpoint.json"
+    assert checkpoint.is_file()
+    assert json.loads(checkpoint.read_text(encoding="utf-8"))["committed_points"] == 2
+
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = 999
+    positions.flush()
+    positions._mmap.close()
+    with pytest.raises(RuntimeError, match="checksum does not match"):
+        ingest.ingest_cloud(project["id"], cloud_id, source)
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = -1.5
+    positions.flush()
+    positions._mmap.close()
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, source)
+    assert result["ingested_count"] == 4
+    assert result["preview_count"] == 2
+    assert paths["preview"].stat().st_size == 2 * ingest.PREVIEW_DTYPE.itemsize
+    np.testing.assert_array_equal(np.load(paths["positions"]), [[-1.5, -0.5, -1.0], [-0.5, -0.5, -1.0], [0.5, 0.5, 0.0], [1.5, 0.5, 1.0]])
+    np.testing.assert_array_equal(np.load(paths["colors"]), [[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120]])
+    assert not checkpoint.parent.exists()
+
+
+def test_full_pcd_stream_resumes_without_duplicates(client, tmp_path, monkeypatch):
+    source = tmp_path / "points.pcd"
+    source.write_text(
+        "# .PCD v0.7\nVERSION 0.7\nFIELDS x y z intensity r g b\nSIZE 4 4 4 4 1 1 1\n"
+        "TYPE F F F F U U U\nCOUNT 1 1 1 1 1 1 1\nWIDTH 4\nHEIGHT 1\nPOINTS 4\nDATA ascii\n"
+        "0 0 0 0.1 10 20 30\n1 0 0 0.2 40 50 60\n2 1 1 0.3 70 80 90\n3 1 2 0.4 100 110 120\n",
+        encoding="ascii",
+    )
+    project = client.post("/api/v1/projects", json={"name": "full PCD stream"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], "pcd", str(source), "pcd", source.stat().st_size, "processing", now, now),
+    )
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    monkeypatch.setattr(ingest, "POINT_STREAM_CHUNK_POINTS", 2)
+
+    def cancel_after_first_block(value, message):
+        if message == "writing full-resolution PCD memmaps" and value > 0.58:
+            raise JobCancelled("simulated PCD interruption after durable block")
+
+    with pytest.raises(JobCancelled, match="PCD interruption"):
+        ingest.ingest_cloud(project["id"], cloud_id, source, progress=cancel_after_first_block)
+    paths = cloud_paths(project["id"], cloud_id)
+    checkpoint = paths["dir"] / ".ingest-stage" / "pcd-write-checkpoint.json"
+    assert json.loads(checkpoint.read_text(encoding="utf-8"))["committed_points"] == 2
+
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = 999
+    positions.flush()
+    positions._mmap.close()
+    with pytest.raises(RuntimeError, match="checksum does not match"):
+        ingest.ingest_cloud(project["id"], cloud_id, source)
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = -1.5
+    positions.flush()
+    positions._mmap.close()
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, source)
+    assert result["ingested_count"] == 4
+    np.testing.assert_array_equal(np.load(paths["positions"]), [[-1.5, -0.5, -1], [-0.5, -0.5, -1], [0.5, 0.5, 0], [1.5, 0.5, 1]])
+    np.testing.assert_array_equal(np.load(paths["colors"]), [[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120]])
+    np.testing.assert_allclose(np.load(paths["intensity"]), [0.1, 0.2, 0.3, 0.4])
+
+
+def test_full_ply_stream_resumes_without_duplicates(client, tmp_path, monkeypatch):
+    source = tmp_path / "points.ply"
+    source.write_text(
+        "ply\nformat ascii 1.0\nelement vertex 4\nproperty float x\nproperty float y\nproperty float z\n"
+        "property uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n"
+        "0 0 0 10 20 30\n1 0 0 40 50 60\n2 1 1 70 80 90\n3 1 2 100 110 120\n",
+        encoding="ascii",
+    )
+    project = client.post("/api/v1/projects", json={"name": "full PLY stream"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], "ply", str(source), "ply", source.stat().st_size, "processing", now, now),
+    )
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    monkeypatch.setattr(ingest, "POINT_STREAM_CHUNK_POINTS", 2)
+
+    def cancel_after_first_block(value, message):
+        if message == "writing full-resolution PLY memmaps" and value > 0.58:
+            raise JobCancelled("simulated PLY interruption after durable block")
+
+    with pytest.raises(JobCancelled, match="PLY interruption"):
+        ingest.ingest_cloud(project["id"], cloud_id, source, progress=cancel_after_first_block)
+    paths = cloud_paths(project["id"], cloud_id)
+    checkpoint = paths["dir"] / ".ingest-stage" / "ply-write-checkpoint.json"
+    assert json.loads(checkpoint.read_text(encoding="utf-8"))["committed_points"] == 2
+
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = 999
+    positions.flush()
+    positions._mmap.close()
+    with pytest.raises(RuntimeError, match="checksum does not match"):
+        ingest.ingest_cloud(project["id"], cloud_id, source)
+    positions = np.load(paths["dir"] / ".ingest-stage" / paths["positions"].name, mmap_mode="r+")
+    positions[0, 0] = -1.5
+    positions.flush()
+    positions._mmap.close()
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, source)
+    assert result["ingested_count"] == 4
+    np.testing.assert_array_equal(np.load(paths["positions"]), [[-1.5, -0.5, -1], [-0.5, -0.5, -1], [0.5, 0.5, 0], [1.5, 0.5, 1]])
+    np.testing.assert_array_equal(np.load(paths["colors"]), [[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120]])

@@ -8,6 +8,7 @@ BIM tools.
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 from typing import Any
 
@@ -152,6 +153,7 @@ def _property_set(ifc, product, element: dict[str, Any]) -> None:
         ("Inferred", "IfcBoolean", bool(element.get("inferred", False))),
         ("Source", "IfcText", str(element.get("source", "geometric"))),
         ("ReviewStatus", "IfcText", str(element.get("review_status", "unreviewed"))),
+        ("MetadataJSON", "IfcText", json.dumps(element.get("metadata", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
     ]
     ifc_props = []
     for name, kind, value in props:

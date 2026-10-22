@@ -644,167 +644,329 @@ def iter_las_chunks(
         raise FormatError(f"cannot read LAS/LAZ stream: {exc}") from exc
 
 
-def read_ply(path: Path, max_points: int, progress: Progress = None) -> RawCloud:
+_PLY_SCALAR_TYPES = {
+    "char": "i1", "int8": "i1", "uchar": "u1", "uint8": "u1",
+    "short": "i2", "int16": "i2", "ushort": "u2", "uint16": "u2",
+    "int": "i4", "int32": "i4", "uint": "u4", "uint32": "u4",
+    "float": "f4", "float32": "f4", "double": "f8", "float64": "f8",
+}
+
+
+def iter_ply_chunks(
+    path: str | Path,
+    chunk_points: int = 500_000,
+    progress: Progress = None,
+) -> Iterator[tuple[np.ndarray, np.ndarray | None, np.ndarray | None]]:
+    """Yield bounded PLY vertex blocks; binary vertex records are memory-mapped."""
+    path = Path(path)
+    if chunk_points <= 0:
+        raise ValueError("chunk_points must be a positive integer")
     try:
-        from plyfile import PlyData
-    except ImportError as exc:  # pragma: no cover
-        raise UnsupportedFormat("plyfile is not installed") from exc
-    if progress:
-        progress(0.2, "reading PLY")
-    try:
-        ply = PlyData.read(str(path))
-        vertex = ply["vertex"]
-        names = vertex.data.dtype.names or ()
+        vertex_count = None
+        properties: list[tuple[str, str]] = []
+        elements: list[str] = []
+        current_element = None
+        data_offset = None
+        format_name = None
+        with path.open("rb") as fh:
+            if fh.readline().strip() != b"ply":
+                raise FormatError("invalid PLY magic header")
+            header_lines = 1
+            while True:
+                raw_line = fh.readline()
+                if not raw_line:
+                    raise FormatError("truncated PLY header")
+                header_lines += 1
+                line = raw_line.decode("ascii", "replace").strip()
+                parts = line.split()
+                if not parts or parts[0] in {"comment", "obj_info"}:
+                    continue
+                if parts[0] == "format":
+                    format_name = parts[1].lower()
+                elif parts[0] == "element":
+                    current_element = parts[1]
+                    elements.append(current_element)
+                    if current_element == "vertex":
+                        if len(elements) != 1:
+                            raise UnsupportedFormat("streaming PLY requires vertex to be the first element")
+                        vertex_count = int(parts[2])
+                elif parts[0] == "property" and current_element == "vertex":
+                    if len(parts) >= 3 and parts[1] != "list":
+                        properties.append((parts[2].lower(), parts[1].lower()))
+                    else:
+                        raise UnsupportedFormat("list-valued PLY vertex properties are not supported")
+                elif parts[0] == "end_header":
+                    data_offset = fh.tell()
+                    break
+        if vertex_count is None or vertex_count <= 0 or data_offset is None:
+            raise FormatError("PLY contains no vertex points")
+        names = [name for name, _ in properties]
         if not {"x", "y", "z"} <= set(names):
             raise FormatError("PLY vertex element has no x/y/z properties")
-        xyz = np.column_stack([vertex["x"], vertex["y"], vertex["z"]]).astype(np.float64)
-        rgb = None
-        color_names = None
-        for candidate in (
-            ("red", "green", "blue"),
-            ("r", "g", "b"),
+        if any(names.count(axis) != 1 for axis in ("x", "y", "z")):
+            raise FormatError("PLY x/y/z properties must be unique")
+        color_names = next((candidate for candidate in (
+            ("red", "green", "blue"), ("r", "g", "b"),
             ("diffuse_red", "diffuse_green", "diffuse_blue"),
-        ):
-            if set(candidate) <= set(names):
-                color_names = candidate
-                break
-        if color_names:
-            rgb = np.column_stack([vertex[c] for c in color_names])
-        intensity = None
-        for name in ("intensity", "scalar_intensity", "quality"):
-            if name in names:
-                intensity = np.asarray(vertex[name], dtype=np.float32)
-                break
-        total = len(xyz)
-        xyz, rgb, intensity, _, decimated = _decimate_arrays(xyz, rgb, intensity, None, max_points)
-        if progress:
-            progress(0.9, "PLY loaded")
-        return RawCloud(
-            xyz,
-            rgb,
-            intensity,
-            metadata={
-                "reader": "plyfile",
-                "source_point_count": total,
-                "decimated": decimated,
-                "elements": [el.name for el in ply.elements],
-            },
+        ) if set(candidate) <= set(names)), None)
+        scalar_types = {name: _PLY_SCALAR_TYPES.get(scalar_type) for name, scalar_type in properties}
+        integer_color = bool(color_names) and all(
+            (scalar_types.get(name) or "f")[0] in "iu" for name in color_names
         )
+        intensity_name = next((name for name in ("intensity", "scalar_intensity", "quality") if name in names), None)
+
+        def color_array(values: np.ndarray) -> np.ndarray | None:
+            if color_names is None:
+                return None
+            channels = np.column_stack([values[name] for name in color_names])
+            if integer_color:
+                return np.clip(np.nan_to_num(channels), 0, 255).astype(np.uint8)
+            return normalize_rgb(channels)
+
+        if format_name == "ascii":
+            try:
+                import pandas as pd
+            except ImportError as exc:  # pragma: no cover
+                raise UnsupportedFormat("pandas is required for PLY ASCII") from exc
+            reader = pd.read_csv(
+                path, sep=r"\s+", header=None, skiprows=header_lines, nrows=vertex_count,
+                engine="c", chunksize=chunk_points, on_bad_lines="skip", dtype=np.float64,
+            )
+            rows_read = 0
+            for chunk in reader:
+                if chunk.shape[1] < len(properties):
+                    raise FormatError("PLY ASCII vertex row width does not match properties")
+                values = chunk.to_numpy(dtype=np.float64, copy=False)
+                indices = {name: index for index, (name, _type) in enumerate(properties)}
+                xyz = np.column_stack([values[:, indices[name]] for name in ("x", "y", "z")])
+                rgb = color_array({name: values[:, indices[name]] for name in names})
+                intensity = values[:, indices[intensity_name]].astype(np.float32) if intensity_name else None
+                rows_read += len(xyz)
+                if progress:
+                    progress(rows_read / vertex_count, "reading PLY ASCII")
+                if len(xyz):
+                    yield xyz, rgb, intensity
+            if rows_read != vertex_count:
+                raise FormatError(f"PLY vertex count mismatch: header has {vertex_count}, read {rows_read}")
+            return
+
+        if format_name not in {"binary_little_endian", "binary_big_endian"}:
+            raise UnsupportedFormat(f"PLY format {format_name!r} is not supported")
+        endian = "<" if format_name == "binary_little_endian" else ">"
+        dtype_fields = []
+        for name, scalar_type in properties:
+            base = _PLY_SCALAR_TYPES.get(scalar_type)
+            if base is None:
+                raise UnsupportedFormat(f"PLY scalar type {scalar_type!r} is not supported")
+            dtype_fields.append((name, f"{endian}{base}"))
+        dtype = np.dtype(dtype_fields)
+        if path.stat().st_size - data_offset < vertex_count * dtype.itemsize:
+            raise FormatError("truncated PLY binary vertex data")
+        mapped = np.memmap(path, mode="r", dtype=dtype, offset=data_offset, shape=(vertex_count,))
+        try:
+            indices = {name: index for index, (name, _type) in enumerate(properties)}
+            for start in range(0, vertex_count, chunk_points):
+                end = min(start + chunk_points, vertex_count)
+                block = mapped[start:end]
+                xyz = np.column_stack([block[name] for name in ("x", "y", "z")]).astype(np.float64)
+                rgb = color_array({name: block[name] for name in names})
+                intensity = np.asarray(block[intensity_name], dtype=np.float32).copy() if intensity_name else None
+                if progress:
+                    progress(end / vertex_count, "reading PLY binary")
+                yield xyz, rgb, intensity
+        finally:
+            mapped._mmap.close()
     except (FormatError, UnsupportedFormat):
         raise
     except Exception as exc:
-        raise FormatError(f"cannot read PLY file: {exc}") from exc
+        raise FormatError(f"cannot read PLY stream: {exc}") from exc
+
+
+def read_ply(path: Path, max_points: int, progress: Progress = None) -> RawCloud:
+    """Read PLY vertices in chunks, combining only for the regular array API."""
+    xyz_parts, rgb_parts, intensity_parts = [], [], []
+    for xyz, rgb, intensity in iter_ply_chunks(path, progress=progress):
+        xyz_parts.append(xyz)
+        if rgb is not None:
+            rgb_parts.append(rgb)
+        if intensity is not None:
+            intensity_parts.append(intensity)
+    if not xyz_parts:
+        raise FormatError("PLY contains no numeric vertices")
+    xyz = np.concatenate(xyz_parts)
+    rgb = np.concatenate(rgb_parts) if rgb_parts else None
+    intensity = np.concatenate(intensity_parts) if intensity_parts else None
+    total = len(xyz)
+    xyz, rgb, intensity, _, decimated = _decimate_arrays(xyz, rgb, intensity, None, max_points)
+    return RawCloud(
+        xyz, rgb, intensity,
+        metadata={"reader": "ply-chunk", "source_point_count": total, "decimated": decimated, "elements": ["vertex"]},
+    )
+
+
+def _pcd_header(path: str | Path) -> tuple[dict[str, list[str]], int, int]:
+    header: dict[str, list[str]] = {}
+    header_lines = 0
+    with Path(path).open("rb") as fh:
+        while True:
+            line = fh.readline()
+            if not line:
+                raise FormatError("truncated PCD header")
+            header_lines += 1
+            text = line.decode("ascii", "replace").strip()
+            if not text or text.startswith("#"):
+                continue
+            parts = text.split()
+            key = parts[0].upper()
+            header[key] = parts[1:]
+            if key == "DATA":
+                return header, fh.tell(), header_lines
+
+
+def _pcd_layout(header: dict[str, list[str]]) -> tuple[list[str], list[int], list[str], list[int], int]:
+    fields = [field.lower() for field in header.get("FIELDS", header.get("FIELD", []))]
+    sizes = [int(value) for value in header.get("SIZE", [])]
+    types = [value.upper() for value in header.get("TYPE", [])]
+    counts = [int(value) for value in header.get("COUNT", ["1"] * len(fields))]
+    if not fields or not {"x", "y", "z"} <= set(fields):
+        raise FormatError("PCD has no x/y/z fields")
+    if not sizes or not types or len(sizes) != len(fields) or len(types) != len(fields) or len(counts) != len(fields):
+        raise FormatError("PCD SIZE/TYPE/COUNT metadata does not match FIELDS")
+    if any(size not in {1, 2, 4, 8} for size in sizes) or any(count <= 0 for count in counts):
+        raise FormatError("PCD field sizes/counts are invalid")
+    width = int((header.get("WIDTH") or ["0"])[0])
+    height = int((header.get("HEIGHT") or ["1"])[0])
+    point_count = int((header.get("POINTS") or [str(width * height)])[0])
+    if point_count <= 0:
+        raise FormatError("PCD contains no points")
+    return fields, sizes, types, counts, point_count
+
+
+def _pcd_rgb(packed: np.ndarray, field_type: str) -> np.ndarray:
+    values = np.asarray(packed)
+    if field_type == "F":
+        floats = values.astype("<f4", copy=False)
+        bits = floats.view("<u4")
+        # Some non-PCL writers serialize the packed integer as a decimal float.
+        decimal = np.isfinite(floats) & (np.abs(floats) > 65535)
+        if decimal.any():
+            bits = bits.copy()
+            bits[decimal] = np.clip(floats[decimal], 0, 0xFFFFFFFF).astype(np.uint32)
+    else:
+        bits = values.astype(np.uint32)
+    return np.column_stack([(bits >> 16) & 255, (bits >> 8) & 255, bits & 255]).astype(np.uint8)
+
+
+def iter_pcd_chunks(
+    path: str | Path,
+    chunk_points: int = 500_000,
+    progress: Progress = None,
+) -> Iterator[tuple[np.ndarray, np.ndarray | None, np.ndarray | None]]:
+    """Yield bounded PCD blocks; binary payloads are memory-mapped, not copied."""
+    path = Path(path)
+    if chunk_points <= 0:
+        raise ValueError("chunk_points must be a positive integer")
+    try:
+        header, data_offset, header_lines = _pcd_header(path)
+        fields, sizes, types, counts, point_count = _pcd_layout(header)
+        data_kind = (header.get("DATA", [""])[0] or "").lower()
+        if data_kind not in {"ascii", "binary"}:
+            raise UnsupportedFormat(f"PCD DATA {data_kind} is not supported (ascii/binary only)")
+        offsets: dict[str, int] = {}
+        column_offset = 0
+        for field_name, count in zip(fields, counts):
+            offsets[field_name] = column_offset
+            column_offset += count
+        if any(counts[fields.index(name)] != 1 for name in ("x", "y", "z")):
+            raise FormatError("PCD x/y/z fields must be scalar")
+        rgb_names = {"r", "g", "b"} <= set(fields)
+        packed_name = "rgb" if "rgb" in fields else "rgba" if "rgba" in fields else None
+        has_color = rgb_names or packed_name is not None
+        has_intensity = "intensity" in fields
+
+        if data_kind == "ascii":
+            try:
+                import pandas as pd
+            except ImportError as exc:  # pragma: no cover
+                raise UnsupportedFormat("pandas is required for PCD ASCII") from exc
+            reader = pd.read_csv(
+                path, sep=r"\s+", header=None, skiprows=header_lines, engine="c",
+                chunksize=chunk_points, on_bad_lines="skip", comment="#", dtype=np.float64,
+            )
+            rows_read = 0
+            for chunk in reader:
+                if chunk.shape[1] < column_offset:
+                    raise FormatError("PCD ASCII row width does not match FIELDS/COUNT")
+                values = chunk.to_numpy(dtype=np.float64, copy=False)
+                xyz = np.column_stack([values[:, offsets[name]] for name in ("x", "y", "z")])
+                rgb = None
+                if packed_name:
+                    rgb = _pcd_rgb(values[:, offsets[packed_name]], types[fields.index(packed_name)])
+                elif rgb_names:
+                    rgb = normalize_rgb(np.column_stack([values[:, offsets[name]] for name in ("r", "g", "b")]))
+                intensity = values[:, offsets["intensity"]].astype(np.float32) if has_intensity else None
+                rows_read += len(xyz)
+                if progress:
+                    progress(min(1.0, rows_read / max(1, point_count)), "reading PCD ASCII")
+                if len(xyz):
+                    yield xyz, rgb, intensity
+            if rows_read != point_count:
+                raise FormatError(f"PCD point count mismatch: header has {point_count}, read {rows_read}")
+            return
+
+        dtype_fields = []
+        for field_name, size, field_type, count in zip(fields, sizes, types, counts):
+            base = {"F": "f", "U": "u", "I": "i"}.get(field_type)
+            if base is None:
+                raise FormatError(f"unsupported PCD field type {field_type}")
+            dtype_fields.append((field_name, f"<{base}{size}", (count,)) if count > 1 else (field_name, f"<{base}{size}"))
+        dtype = np.dtype(dtype_fields)
+        expected_bytes = point_count * dtype.itemsize
+        if path.stat().st_size - data_offset < expected_bytes:
+            raise FormatError("truncated PCD binary payload")
+        mapped = np.memmap(path, mode="r", dtype=dtype, offset=data_offset, shape=(point_count,))
+        try:
+            for start in range(0, point_count, chunk_points):
+                end = min(start + chunk_points, point_count)
+                block = mapped[start:end]
+                xyz = np.column_stack([block[name] for name in ("x", "y", "z")]).astype(np.float64)
+                rgb = None
+                if packed_name:
+                    rgb = _pcd_rgb(block[packed_name], types[fields.index(packed_name)])
+                elif rgb_names:
+                    rgb = normalize_rgb(np.column_stack([block[name] for name in ("r", "g", "b")]))
+                intensity = np.asarray(block["intensity"], dtype=np.float32).copy() if has_intensity else None
+                if progress:
+                    progress(end / max(1, point_count), "reading PCD binary")
+                yield xyz, rgb, intensity
+        finally:
+            mapped._mmap.close()
+    except (FormatError, UnsupportedFormat):
+        raise
+    except Exception as exc:
+        raise FormatError(f"cannot read PCD stream: {exc}") from exc
 
 
 def read_pcd(path: Path, max_points: int, progress: Progress = None) -> RawCloud:
-    """Minimal PCD reader (ascii / binary, xyz + packed or separate rgb)."""
-    try:
-        with path.open("rb") as fh:
-            header: dict[str, list[str]] = {}
-            while True:
-                line = fh.readline()
-                if not line:
-                    raise FormatError("truncated PCD header")
-                text = line.decode("ascii", "replace").strip()
-                if not text or text.startswith("#"):
-                    continue
-                parts = text.split()
-                key = parts[0].upper()
-                header[key] = parts[1:]
-                if key == "DATA":
-                    break
-            data_start = fh.tell()
-            payload = path.read_bytes()[data_start:]
-        fields = header.get("FIELDS", [])
-        sizes = [int(x) for x in header.get("SIZE", [])]
-        types = header.get("TYPE", [])
-        counts = [int(x) for x in header.get("COUNT", ["1"] * len(fields))]
-        data_kind = (header.get("DATA", ["ascii"])[0] or "ascii").lower()
-        if not {"x", "y", "z"} <= set(fields):
-            raise FormatError("PCD has no x/y/z fields")
-
-        def index_of(name: str) -> int | None:
-            return fields.index(name) if name in fields else None
-
-        if data_kind == "ascii":
-            import io
-
-            import pandas as pd
-
-            text = payload.decode("ascii", "replace")
-            try:
-                frame = pd.read_csv(
-                    io.StringIO(text),
-                    sep=r"\s+",
-                    header=None,
-                    comment="#",
-                    engine="python",
-                    on_bad_lines="skip",
-                )
-            except Exception as exc:
-                raise FormatError(f"cannot parse PCD ascii payload: {exc}") from exc
-            if frame.shape[1] < sum(counts):
-                raise FormatError("PCD ascii row width does not match FIELDS/COUNT")
-            values = frame.apply(lambda col: pd.to_numeric(col, errors="coerce")).to_numpy(dtype=float)
-            values = values[~np.isnan(values).all(axis=1)]
-            cols = []
-            offset = 0
-            for f, c in zip(fields, counts):
-                cols.append(values[:, offset : offset + c])
-                offset += c
-            xyz = np.column_stack([cols[index_of("x")][:, 0], cols[index_of("y")][:, 0], cols[index_of("z")][:, 0]])
-            rgb = None
-            if "rgb" in fields:
-                packed = cols[index_of("rgb")][:, 0].astype(np.uint32)
-                rgb = np.column_stack([(packed >> 16) & 255, (packed >> 8) & 255, packed & 255])
-            elif {"r", "g", "b"} <= set(fields):
-                rgb = np.column_stack(
-                    [cols[index_of("r")][:, 0], cols[index_of("g")][:, 0], cols[index_of("b")][:, 0]]
-                )
-            intensity = None
-            if "intensity" in fields:
-                intensity = cols[index_of("intensity")][:, 0].astype(np.float32)
-            total = len(xyz)
-            xyz, rgb, intensity, _, decimated = _decimate_arrays(xyz, rgb, intensity, None, max_points)
-            return RawCloud(
-                xyz,
-                rgb,
-                intensity,
-                metadata={"reader": "pcd", "source_point_count": total, "decimated": decimated},
-            )
-
-        if data_kind == "binary":
-            if not sizes or not types:
-                raise FormatError("binary PCD requires SIZE and TYPE")
-            dtype_fields = []
-            for f, size, typ, count in zip(fields, sizes, types, counts):
-                base = {"F": "f", "U": "u", "I": "i"}.get(typ.upper())
-                if base is None:
-                    raise FormatError(f"unsupported PCD field type {typ}")
-                dtype_fields.append((f, f"<{base}{size}", (count,)) if count > 1 else (f, f"<{base}{size}"))
-            dtype = np.dtype(dtype_fields)
-            arr = np.frombuffer(payload, dtype=dtype)
-            xyz = np.column_stack([arr["x"], arr["y"], arr["z"]]).astype(np.float64)
-            rgb = None
-            if "rgb" in fields:
-                packed = arr["rgb"].astype(np.uint32)
-                rgb = np.column_stack([(packed >> 16) & 255, (packed >> 8) & 255, packed & 255])
-            elif {"r", "g", "b"} <= set(fields):
-                rgb = np.column_stack([arr["r"], arr["g"], arr["b"]])
-            intensity = arr["intensity"].astype(np.float32) if "intensity" in fields else None
-            total = len(xyz)
-            xyz, rgb, intensity, _, decimated = _decimate_arrays(xyz, rgb, intensity, None, max_points)
-            return RawCloud(
-                xyz,
-                rgb,
-                intensity,
-                metadata={"reader": "pcd", "source_point_count": total, "decimated": decimated},
-            )
-        raise UnsupportedFormat(f"PCD DATA {data_kind} is not supported (ascii/binary only)")
-    except (FormatError, UnsupportedFormat):
-        raise
-    except Exception as exc:
-        raise FormatError(f"cannot read PCD file: {exc}") from exc
+    """Read ASCII or binary PCD in bounded blocks for the regular array API."""
+    xyz_parts, rgb_parts, intensity_parts = [], [], []
+    for xyz, rgb, intensity in iter_pcd_chunks(path, progress=progress):
+        xyz_parts.append(xyz)
+        if rgb is not None:
+            rgb_parts.append(rgb)
+        if intensity is not None:
+            intensity_parts.append(intensity)
+    if not xyz_parts:
+        raise FormatError("PCD contains no numeric points")
+    xyz = np.concatenate(xyz_parts)
+    rgb = np.concatenate(rgb_parts) if rgb_parts else None
+    intensity = np.concatenate(intensity_parts) if intensity_parts else None
+    total = len(xyz)
+    xyz, rgb, intensity, _, decimated = _decimate_arrays(xyz, rgb, intensity, None, max_points)
+    return RawCloud(
+        xyz, rgb, intensity,
+        metadata={"reader": "pcd", "source_point_count": total, "decimated": decimated},
+    )
 
 
 def _text_columns(ncols: int, fmt: str) -> tuple[bool, bool]:
@@ -820,13 +982,16 @@ def _text_columns(ncols: int, fmt: str) -> tuple[bool, bool]:
     return False, False
 
 
-def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) -> RawCloud:
-    """Chunked whitespace reader for XYZ/PTS/TXT/CSV.
-
-    Uses the pandas C parser for space/tab separated files and falls back to
-    numpy for unusual whitespace. For multi-gigabyte text clouds conversion to
-    LAS/E57 is strongly recommended (and reported in metadata).
-    """
+def iter_text_chunks(
+    path: str | Path,
+    fmt: str,
+    chunk_points: int = 500_000,
+    progress: Progress = None,
+) -> Iterator[tuple[np.ndarray, np.ndarray | None, np.ndarray | None]]:
+    """Yield bounded source XYZ/color/intensity blocks from a text point cloud."""
+    path = Path(path)
+    if chunk_points <= 0:
+        raise ValueError("chunk_points must be a positive integer")
     try:
         import pandas as pd
     except ImportError as exc:  # pragma: no cover
@@ -847,7 +1012,7 @@ def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) 
         sep = ","
     else:
         sep = "\t" if tabbed else " "
-    widths = [len(row.split()) for row in sample] or [3]
+    widths = [len(row.split(",") if sep == "," else row.split()) for row in sample] or [3]
     ncols = max(widths)
     has_intensity, has_rgb = _text_columns(ncols, fmt)
 
@@ -858,7 +1023,6 @@ def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) 
     else:
         rgb_cols = []
 
-    xyz_parts, rgb_parts, int_parts = [], [], []
     total = 0
     try:
         reader = pd.read_csv(
@@ -867,7 +1031,7 @@ def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) 
             header=None,
             skiprows=skiprows,
             engine="c",
-            chunksize=2_000_000,
+            chunksize=chunk_points,
             on_bad_lines="skip",
             skipinitialspace=True,
             comment="#",
@@ -879,15 +1043,34 @@ def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) 
             total += len(chunk)
             values = chunk.to_numpy(dtype=np.float64, copy=False)
             xyz = values[:, :3]
-            xyz_parts.append(xyz)
-            if has_intensity:
-                int_parts.append(values[:, 3].astype(np.float32))
-            if has_rgb:
-                rgb_parts.append(normalize_rgb(values[:, rgb_cols]))
+            rgb = normalize_rgb(values[:, rgb_cols]) if has_rgb else None
+            intensity = values[:, 3].astype(np.float32) if has_intensity else None
             if progress:
                 progress(0.1 + 0.8 * min(1.0, total / max(1, path.stat().st_size // 40)), "parsing text cloud")
+            if len(xyz):
+                yield xyz, rgb, intensity
     except Exception as exc:
+        if isinstance(exc, (FormatError, UnsupportedFormat)):
+            raise
         raise FormatError(f"cannot parse text point cloud: {exc}") from exc
+
+
+def read_text(path: Path, fmt: str, max_points: int, progress: Progress = None) -> RawCloud:
+    """Read XYZ/PTS/TXT/CSV in chunks, combining only for the regular array API."""
+    xyz_parts, rgb_parts, int_parts = [], [], []
+    with path.open("rb") as fh:
+        head = fh.read(65536).decode("utf-8", "replace")
+    lines = [ln for ln in head.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    skiprows = bool(lines and len(lines[0].split()) == 1 and lines[0].split()[0].replace(".", "").isdigit())
+    sample = lines[1 if skiprows else 0 : 6 if skiprows else 5]
+    comma_separated = fmt == "csv" and bool(sample) and all("," in row for row in sample)
+    ncols = max((len(row.split(",") if comma_separated else row.split()) for row in sample), default=3)
+    for xyz, rgb, intensity in iter_text_chunks(path, fmt, progress=progress):
+        xyz_parts.append(xyz)
+        if rgb is not None:
+            rgb_parts.append(rgb)
+        if intensity is not None:
+            int_parts.append(intensity)
 
     if not xyz_parts:
         raise FormatError("text point cloud contains no numeric rows")

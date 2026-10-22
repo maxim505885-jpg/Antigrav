@@ -167,3 +167,35 @@ test("structural plan PDF download includes scale and issue mode", async () => {
   ]);
   assert.deepEqual(downloaded, ["plan-final-columns.pdf", "plan-final-crane_girders.pdf"]);
 });
+
+test("full SPDS album downloads the draft ZIP endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const originalDocument = globalThis.document;
+  let requestedUrl = "";
+  let downloadedName = "";
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return { ok: true, blob: async () => new Blob(["zip"]), headers: { get: () => null } } as Response;
+  }) as typeof fetch;
+  URL.createObjectURL = () => "blob:test";
+  URL.revokeObjectURL = () => undefined;
+  globalThis.document = {
+    createElement: () => ({
+      set href(_value: string) {},
+      set download(value: string) { downloadedName = value; },
+      click: () => undefined,
+    }),
+  } as unknown as Document;
+  try {
+    await api.exportSpdsAlbum("cloud / 1");
+  } finally {
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    globalThis.document = originalDocument;
+  }
+  assert.equal(requestedUrl, "/api/v1/clouds/cloud%20%2F%201/spds-album.zip");
+  assert.equal(downloadedName, "spds-album-draft.zip");
+});

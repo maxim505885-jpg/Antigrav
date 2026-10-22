@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from scan2bim.bim.model import build_model
+from scan2bim.bim.model import build_model, validate_bim_model
 
 
 def _inputs():
@@ -32,6 +32,27 @@ def test_bim_exchange_declares_source_cloud_coordinate_frame_in_metres():
     assert model["coordinate_frame"] == {
         "id": "source_cloud_world", "units": "m", "vertical_axis": "Z",
     }
+
+
+def test_bim_exchange_preserves_recognition_metadata_for_reproducible_review():
+    project, cloud, element = _inputs()
+    element["metadata"] = {
+        "method": "vertical occupancy grid",
+        "support_points": 128,
+        "source_point_ids": [2, 8, 21],
+    }
+
+    model = build_model(project, cloud, [element])
+
+    assert model["elements"][0]["metadata"] == element["metadata"]
+
+
+def test_bim_v1_payload_without_additive_metadata_remains_valid():
+    project, cloud, element = _inputs()
+    model = build_model(project, cloud, [element])
+    del model["elements"][0]["metadata"]
+
+    validate_bim_model(model)
 
 
 def test_bim_exchange_rejects_duplicate_element_ids():

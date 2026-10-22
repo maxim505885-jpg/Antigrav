@@ -1,4 +1,5 @@
 import math
+import json
 from pathlib import Path
 
 import ifcopenshell
@@ -29,6 +30,7 @@ def test_ifc_preserves_structural_id_rotation_levels_units_and_guids(tmp_path: P
             "measured": True,
             "inferred": False,
             "review_status": "confirmed",
+            "metadata": {"method": "measured section", "source_point_ids": [3, 9]},
         }],
     }
 
@@ -47,6 +49,7 @@ def test_ifc_preserves_structural_id_rotation_levels_units_and_guids(tmp_path: P
     assert column.GlobalId
     assert len(ifcopenshell.guid.expand(column.GlobalId)) == 32
     assert get_psets(column)["Pset_ScanToBIM"]["ElementId"] == stable_id
+    assert json.loads(get_psets(column)["Pset_ScanToBIM"]["MetadataJSON"]) == model["elements"][0]["metadata"]
     solid = column.Representation.Representations[0].Items[0]
     assert (solid.SweptArea.XDim, solid.SweptArea.YDim) == (0.5, 0.4)
     assert all(

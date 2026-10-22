@@ -42,7 +42,7 @@ Working branch: `feature/workshop-pilot`, based on current HEAD `538cbe5`. The t
 |---|---|---|
 | A0 baseline and data preservation | Done for the present pilot | Backup, pilot protocol, environment notes, immutable-source rule and derived-data reports are recorded. Re-run baseline before any release build. |
 | A1 ground truth and accuracy | Open | 16 candidate rows have pending annotations; no independent physical dimensions and no agreed tolerance. 6000 mm pitch is known. |
-| A2 full-resolution point access | Partial | Indexed/streaming path has been checked on a 4,004,372-row ROI and a 40-million-point derived set. Native RCS and E57 full-resolution ingest use bounded blocks/memmaps on synthetic fixtures; E57 now verifies output block hashes and resumes writing after a committed prefix, while sequential source replay remains necessary. The approximately 298-million-point source route has not been accepted end-to-end. |
+| A2 full-resolution point access | Partial | Indexed/streaming path has been checked on a 4,004,372-row ROI and a 40-million-point derived set. Native RCS, E57 and LAS/LAZ full-resolution ingest use bounded blocks/memmaps on synthetic fixtures with checksummed output-block recovery; sequential source replay remains necessary. The approximately 298-million-point source route has not been accepted end-to-end. |
 | A3 shared structural model | In progress | Versioned BIM JSON 1.0 now declares metres and source-cloud world coordinates; schema validation rejects duplicate IDs and invalid/non-finite geometry. Full structural-member contract, database migration, and cross-format evidence round-trip remain open. |
 | A4 columns and crane girders | In progress | Type grouping/catalog/reuse and a conservative section fitter exist. The pilot scan has 0 closed automatic section proposals; real type precision/recall is unknown. Girder roles, supports, joints and profiles remain unaccepted. |
 | A5 trusses and bracing | Not started for production acceptance | Current candidate counts are exploratory; member axes, nodes, panel topology, assemblies and control annotations remain. |
@@ -126,8 +126,12 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [x] Add a sequential E57 block reader and full-resolution two-pass ingest to NPY memmaps, with exact world bounds, source SHA-256 and checksummed output-block checkpoints. The pye57 reader cannot seek, so retry replays the source prefix and skips committed output blocks; bounds are recalculated. Verified with synthetic multi-scan and interrupted-write fixtures.
 - [x] Add bounded-memory LAS/LAZ chunk readers and full-resolution memmap ingest; synthetic LAS and LAZ chunk fixtures check scaled coordinates, RGB, and intensity. Retry restarts both source passes from the beginning.
 - [x] Add durable per-block output checkpoints/retry for E57, checking each committed XYZ/color/intensity block before resume; test interruption, committed-block corruption, and uncommitted-tail overwrite.
-- [ ] Add durable per-block checkpoints/retry for LAS/LAZ, bounded-memory readers for PLY/PCD/text, and remaining format fault injection. Native RCS and E57 retries sequentially replay the source prefix because their readers expose no usable seek; LAS/LAZ retry still starts from source. The default 40M limit still decimates unless full mode is configured. Full real-source route remains unverified.
-- [ ] Confirm UI preview is decimated separately and never feeds exact section fitting, member geometry or QA measurements.
+- [x] Add durable per-block output checkpoints/retry for LAS/LAZ, checking committed XYZ/color/intensity blocks; synthetic interruption/resume fixtures cover both `.las` and `.laz`. Readers replay the source prefix because they stream sequentially.
+- [x] Add bounded-memory full-resolution text parsing for PTS/XYZ/TXT/CSV and resumable NPY-memmap writes with source SHA and per-block hashes. Synthetic tests cover CSV color detection, PTS intensity/color, interrupted resume and committed-block corruption.
+- [x] Add bounded-memory PCD ASCII/binary readers (including separate and packed RGB plus intensity) and restartable full-resolution memmap ingest with source and block hashes. Synthetic tests cover bounded chunks and interrupted resume.
+- [x] Add bounded-memory PLY ASCII and binary little/big-endian vertex readers plus restartable full-resolution memmap ingest with source and block hashes. Synthetic tests check XYZ/RGB/intensity and interruption/resume.
+- [x] Finish baseline format fault injection and validate declared counts/truncation boundaries for PCD/PLY variants: PCD ASCII count mismatch and binary truncation; PLY ASCII count mismatch and binary truncation; both formats reject modified committed blocks on resume. Current explicit gaps: PCD `binary_compressed`; PLY vertex must be first and vertex list properties are unsupported. Sequential readers replay the source prefix during retry. Default 40M limit still decimates unless full mode is configured; the full real-source route remains unverified.
+- [x] Confirm UI preview is decimated separately and never feeds exact section fitting, member geometry or QA measurements. Full-resolution ingest test caps the preview at two points while retaining all four stored XYZ/RGB points; section and structural recognition readers consume `positions.npy` via `CloudGeometry`/`NpyPointProvider`, while the API preview endpoint serves only `preview.bin`.
 - [ ] Verify backup/restore and source hash around the entire operation.
 
 **Gate:** full-scan points can be queried and resumed without loading the whole scan in RAM; indexed query matches the canonical source; derived processing never changes the RCS.
@@ -146,11 +150,14 @@ The available user direction is to proceed without pauses. Therefore do all engi
 
 - [ ] Add contract tests for horizontal, rotated, sloped and vertical members; unknown and built-up sections; local/world transform round-trip; duplicate and stable IDs; old v1 payload compatibility.
 - [x] Add versioned BIM JSON schema validation and explicit metre/source-cloud-world coordinate-frame fields; reject duplicate IDs, non-finite values and degenerate geometry. IFC export revalidates versioned models.
+- [x] Preserve recognizer metadata as an optional additive BIM 1.0 field and serialize it into IFC `MetadataJSON`; older v1 payloads without metadata still validate.
 - [ ] Add an additive DB migration and rollback/backup test; do not rewrite old records or IDs.
 - [ ] Keep nominal grid axes as annotations/reference geometry; actual observed axes stay unchanged.
 - [ ] Round-trip the same fixture through API, JSON, DXF and IFC and assert ID, class/role, units, transform, review state and evidence match.
 
 **Gate:** every downstream format can represent the same member and its uncertainty without silently dropping fields.
+
+**Progress note (22 Oct 2026):** a regression test showed that BIM JSON dropped element recognition metadata even though the database retained it. `metadata` is now emitted in BIM JSON, remains optional for older 1.0 payloads, and is preserved in IFC as compact `MetadataJSON`. Contract and IFC tests pass. Full geometric model, migration and cross-format identity/evidence round-trip remain open.
 
 ### Task 4: Isolate and measure real column surfaces; establish repeatable types
 
@@ -255,6 +262,7 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [ ] Finish measured axis/grid lines, chain dimensions, level annotations, dimension styles, title block, layer names, fonts, north/orientation and agreed sheet template.
 - [ ] Add plan/section views for trusses and bracing from the shared member model, with member/assembly schedules and unknown callouts.
 - [x] Validate draft/final schedules against the synthetic full API model and frozen pilot package: no missing/duplicate exported IDs, candidates remain labeled, default final is empty until confirmation and then includes checked IDs only. Physical pilot IDs remain unverified.
+- [x] Add a full four-sheet SPDS draft-album generator and local API/UI download. The ZIP contains four editable DXFs, individual PDFs, one combined PDF, and a manifest with source-element SHA-256, stable element IDs, grid-alignment version and draft-only release flag; public manifest paths are relative. Synthetic fixtures validate files and grid behavior. This prototype does not pass the AutoCAD acceptance gate.
 - [ ] Open representative pilot DXFs in the user's installed AutoCAD 2026; verify units, coordinates, rotations, linetypes, dimensions, text, editability, print preview and PDF agreement.
 - [ ] Save and reopen a DWG through AutoCAD; verify geometry and tables remain editable. If unavailable, release DXF/PDF only and keep DWG gate open.
 - [ ] Record screenshots/checklist, AutoCAD build, template/hash and exact export hashes under `docs/validation/AUTOCAD_PILOT.md` plus local derived artifacts.
@@ -266,6 +274,8 @@ The available user direction is to proceed without pauses. Therefore do all engi
 **Progress note (22 Oct 2026):** another AutoCAD 2026 launch was attempted with the frozen pilot DXF. Native window inspection remains unavailable in this computer session. A Core Console `SAVEAS` attempt stalled before command output, produced no DWG, and was terminated; input DXF hash and bytes still match the package manifest. GUI review and DWG save/reopen remain acceptance gates.
 
 **Gate:** engineer accepts actual AutoCAD 2026 open/edit/print result; all element IDs reconcile to the frozen structural model; no false DWG claim.
+
+**Progress note (22 Oct 2026):** empty-cloud integration testing found that duplicate legacy generators could shadow the evidence-based sheet builders. The public album route now resolves to the tested builders; empty classes are explicitly marked and no crane girders, trusses or braces are synthesized from a column grid. API/album and drawing tests pass. AutoCAD GUI/DWG acceptance remains open.
 
 ### Task 9: Deliver IFC and Revit 2027 model, schedules, views, and sheets
 

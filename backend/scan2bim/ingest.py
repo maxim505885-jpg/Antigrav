@@ -18,7 +18,10 @@ import numpy as np
 from .config import MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 from .db import dumps, execute, one, utcnow
 from .formats import read_cloud
-from .formats.readers import e57_stream_info, iter_e57_chunks, iter_las_chunks, las_stream_info
+from .formats.readers import (
+    e57_stream_info, iter_e57_chunks, iter_las_chunks, iter_pcd_chunks, iter_ply_chunks,
+    iter_text_chunks, las_stream_info,
+)
 from .formats.rcs_native import extract_rcs_native, native_available
 from .storage import cloud_paths, sha256_file, write_json_atomic
 
@@ -26,6 +29,8 @@ PREVIEW_DTYPE = np.dtype(
     [("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("r", "u1"), ("g", "u1"), ("b", "u1")]
 )
 INGEST_CHECKPOINT_VERSION = 1
+POINT_STREAM_CHUNK_POINTS = 500_000
+TEXT_STREAM_CHUNK_POINTS = POINT_STREAM_CHUNK_POINTS
 MIN_INGEST_DISK_RESERVE_BYTES = int(os.environ.get("S2B_INGEST_DISK_RESERVE_BYTES", str(1024**3)))
 
 
@@ -76,9 +81,11 @@ def build_preview(
     positions: np.ndarray,
     colors: np.ndarray | None,
     intensity: np.ndarray | None,
-    target: int = MAX_PREVIEW_POINTS,
+    target: int | None = None,
 ) -> tuple[Path, int]:
     """Write the interleaved binary preview and return (path, count)."""
+    if target is None:
+        target = MAX_PREVIEW_POINTS
     idx = _preview_indices(len(positions), target)
     pos = positions if idx is None else positions[idx]
     col = colors if idx is None else (colors[idx] if colors is not None else None)
@@ -167,10 +174,19 @@ def _load_checkpoint(stage_dir: Path, paths: dict[str, Path], source_path: Path,
 
 def _discard_incomplete_stage(
     stage_dir: Path, paths: dict[str, Path], *, preserve_raw_stream: bool = False,
-    preserve_e57_stream: bool = False,
+    preserve_e57_stream: bool = False, preserve_las_stream: bool = False,
+    preserve_text_stream: bool = False, preserve_pcd_stream: bool = False,
+    preserve_ply_stream: bool = False,
 ) -> None:
-    if preserve_e57_stream and (stage_dir / "e57-write-checkpoint.json").is_file():
-        preserved = {"e57-write-checkpoint.json", paths["positions"].name}
+    checkpoint_name = (
+        "e57-write-checkpoint.json" if preserve_e57_stream else
+        "las-write-checkpoint.json" if preserve_las_stream else
+        "pcd-write-checkpoint.json" if preserve_pcd_stream else
+        "ply-write-checkpoint.json" if preserve_ply_stream else
+        "text-write-checkpoint.json" if preserve_text_stream else None
+    )
+    if checkpoint_name and (stage_dir / checkpoint_name).is_file():
+        preserved = {checkpoint_name, paths["positions"].name}
         if paths["colors"].exists() or (stage_dir / paths["colors"].name).exists():
             preserved.add(paths["colors"].name)
         if paths["intensity"].exists() or (stage_dir / paths["intensity"].name).exists():
@@ -746,28 +762,85 @@ def _ingest_full_las_stream(
     if info["has_intensity"]:
         staged_files["intensity"] = stage_dir / paths["intensity"].name
 
+    checkpoint_path = stage_dir / "las-write-checkpoint.json"
+    checkpoint_identity = {**source_identity, "sha256": checksum}
+    checkpoint = None
+    if checkpoint_path.is_file():
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"LAS/LAZ write checkpoint is unreadable: {exc}") from exc
+        expected = {
+            "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+            "source_point_count": source_count, "valid_point_count": valid_count,
+            "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+            "has_color": bool(info["has_color"]), "has_intensity": bool(info["has_intensity"]),
+        }
+        if any(checkpoint.get(key) != value for key, value in expected.items()):
+            raise CheckpointSourceChanged("LAS/LAZ source or measured bounds changed since write checkpoint")
+
     positions = colors = intensity_values = None
-    out_start = 0
+    out_start = int(checkpoint.get("committed_points", 0)) if checkpoint else 0
     try:
-        positions = np.lib.format.open_memmap(
-            staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+        mode = "r+" if checkpoint else "w+"
+        positions = (
+            np.load(staged_files["positions"], mmap_mode="r+") if checkpoint else
+            np.lib.format.open_memmap(
+                staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3)
+            )
         )
         colors = (
+            np.load(staged_files["colors"], mmap_mode="r+") if checkpoint and info["has_color"] else
             np.lib.format.open_memmap(
-                staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
+                staged_files["colors"], mode=mode, dtype="u1", shape=(valid_count, 3)
             ) if info["has_color"] else None
         )
         intensity_values = (
+            np.load(staged_files["intensity"], mmap_mode="r+") if checkpoint and info["has_intensity"] else
             np.lib.format.open_memmap(
-                staged_files["intensity"], mode="w+", dtype="<f4", shape=(valid_count,)
+                staged_files["intensity"], mode=mode, dtype="<f4", shape=(valid_count,)
             ) if info["has_intensity"] else None
         )
+        if positions.shape != (valid_count, 3) or positions.dtype != np.dtype("<f4"):
+            raise RuntimeError("LAS/LAZ positions checkpoint has an invalid array shape or dtype")
+        if colors is not None and (colors.shape != (valid_count, 3) or colors.dtype != np.dtype("u1")):
+            raise RuntimeError("LAS/LAZ colors checkpoint has an invalid array shape or dtype")
+        if intensity_values is not None and (
+            intensity_values.shape != (valid_count,) or intensity_values.dtype != np.dtype("<f4")
+        ):
+            raise RuntimeError("LAS/LAZ intensity checkpoint has an invalid array shape or dtype")
+        blocks = list(checkpoint.get("blocks", [])) if checkpoint else []
+        if checkpoint:
+            verified_end = 0
+            for block in blocks:
+                start, end = int(block["start"]), int(block["end"])
+                if start != verified_end or end <= start or end > out_start:
+                    raise RuntimeError("LAS/LAZ checkpoint block ranges are inconsistent")
+                arrays = {"positions": positions[start:end]}
+                if colors is not None:
+                    arrays["colors"] = colors[start:end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[start:end]
+                if {key: _sha256_array(value) for key, value in arrays.items()} != block.get("sha256"):
+                    raise RuntimeError("LAS/LAZ checkpoint block checksum does not match stored arrays")
+                verified_end = end
+            if verified_end != out_start or out_start > valid_count:
+                raise RuntimeError("LAS/LAZ committed point count does not match verified blocks")
+
+        skipped = out_start
         for xyz, rgb, intensity in iter_las_chunks(source_path, chunk_points=chunk_points):
             if info["has_color"] != (rgb is not None):
                 raise RuntimeError("LAS/LAZ color dimensions changed between stream passes")
             if info["has_intensity"] != (intensity is not None):
                 raise RuntimeError("LAS/LAZ intensity dimension changed between stream passes")
             count = len(xyz)
+            if skipped:
+                consumed = min(skipped, count)
+                xyz = xyz[consumed:]
+                rgb = rgb[consumed:] if rgb is not None else None
+                intensity = intensity[consumed:] if intensity is not None else None
+                skipped -= consumed
+                count = len(xyz)
             if count:
                 out_end = out_start + count
                 if out_end > valid_count:
@@ -777,9 +850,37 @@ def _ingest_full_las_stream(
                     colors[out_start:out_end] = rgb
                 if intensity_values is not None and intensity is not None:
                     intensity_values[out_start:out_end] = intensity
+                positions.flush()
+                if colors is not None:
+                    colors.flush()
+                if intensity_values is not None:
+                    intensity_values.flush()
+                for key in ("positions", "colors", "intensity"):
+                    staged = staged_files.get(key)
+                    if staged is not None:
+                        _fsync_path(staged)
+                arrays = {"positions": positions[out_start:out_end]}
+                if colors is not None:
+                    arrays["colors"] = colors[out_start:out_end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[out_start:out_end]
+                blocks.append({
+                    "start": out_start, "end": out_end,
+                    "sha256": {key: _sha256_array(value) for key, value in arrays.items()},
+                })
                 out_start = out_end
+                state = {
+                    "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+                    "source_point_count": source_count, "valid_point_count": valid_count,
+                    "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+                    "has_color": bool(info["has_color"]), "has_intensity": bool(info["has_intensity"]),
+                    "committed_points": out_start, "blocks": blocks,
+                }
+                _write_json_durable(checkpoint_path, state)
             if progress:
                 progress(0.58 + 0.30 * (out_start / valid_count), "writing full-resolution LAS/LAZ memmaps")
+        if skipped:
+            raise RuntimeError("LAS/LAZ stream ended before the committed output prefix")
         if out_start != valid_count:
             raise RuntimeError("LAS/LAZ point count changed between bounds and write passes")
         positions.flush()
@@ -829,7 +930,7 @@ def _ingest_full_las_stream(
         "has_intensity": bool(info["has_intensity"]),
         "bounded_memory": True,
         "stream_chunk_points": chunk_points,
-        "restart_policy": "replay_from_source_start",
+        "restart_policy": "replay_committed_prefix_then_continue",
         "crash_safe": True,
         "source_unchanged": True,
         "checksum_sha256": checksum,
@@ -870,6 +971,240 @@ def _ingest_full_las_stream(
     return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
 
 
+def _ingest_full_chunked_stream(
+    project_id: str,
+    cloud_id: str,
+    source_path: Path,
+    paths: dict[str, Path],
+    stage_dir: Path,
+    source_identity: dict[str, Any],
+    source_format: str,
+    reader_label: str,
+    chunk_reader,
+    progress=None,
+) -> dict[str, Any]:
+    """Import a sequential format in bounded, restartable memmap blocks."""
+    checksum = sha256_file(source_path)
+    fmt = source_format.lower().lstrip(".")
+    text_format = fmt in {"xyz", "pts", "txt", "csv"}
+    checkpoint_prefix = "text" if text_format else fmt
+    progress_label = "text" if text_format else fmt.upper()
+
+    bbox_min = np.full(3, np.inf, dtype=np.float64)
+    bbox_max = np.full(3, -np.inf, dtype=np.float64)
+    valid_count = 0
+    source_count = 0
+    if progress:
+        progress(0.03, f"measuring full-resolution {progress_label} cloud")
+    for xyz, _rgb, _intensity in chunk_reader(source_path, chunk_points=POINT_STREAM_CHUNK_POINTS):
+        source_count += len(xyz)
+        xyz = xyz[np.isfinite(xyz).all(axis=1)]
+        if not len(xyz):
+            continue
+        bbox_min = np.minimum(bbox_min, xyz.min(axis=0))
+        bbox_max = np.maximum(bbox_max, xyz.max(axis=0))
+        valid_count += len(xyz)
+    if valid_count <= 0:
+        raise ValueError(f"{fmt.upper()} stream contains no finite points")
+    if _source_identity(source_path) != source_identity or sha256_file(source_path) != checksum:
+        raise RuntimeError(f"source content changed during full-resolution {fmt.upper()} bounds pass")
+
+    # The second pass infers the same dimensions; determine flags from the first
+    # non-empty block so allocation is driven by actual parsed columns.
+    first = next(chunk_reader(source_path, chunk_points=POINT_STREAM_CHUNK_POINTS), None)
+    if first is None:
+        raise ValueError(f"{fmt.upper()} stream contains no finite points")
+    has_color, has_intensity = first[1] is not None, first[2] is not None
+    origin = (bbox_min + bbox_max) / 2.0
+    derived_bytes = valid_count * 3 * np.dtype("<f4").itemsize
+    if has_color:
+        derived_bytes += valid_count * 3 * np.dtype("u1").itemsize
+    if has_intensity:
+        derived_bytes += valid_count * np.dtype("<f4").itemsize
+    preview_bytes = min(valid_count, MAX_PREVIEW_POINTS) * PREVIEW_DTYPE.itemsize
+    required_free = derived_bytes + preview_bytes + MIN_INGEST_DISK_RESERVE_BYTES
+    free_bytes = shutil.disk_usage(paths["dir"]).free
+    if free_bytes < required_free:
+        raise OSError(
+            f"not enough free disk space to finalize full-resolution {fmt.upper()} import: "
+            f"need about {required_free:,} free bytes including reserve, have {free_bytes:,}"
+        )
+
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    staged_files: dict[str, Path] = {
+        "positions": stage_dir / paths["positions"].name,
+        "preview": stage_dir / paths["preview"].name,
+        "meta": stage_dir / paths["meta"].name,
+    }
+    if has_color:
+        staged_files["colors"] = stage_dir / paths["colors"].name
+    if has_intensity:
+        staged_files["intensity"] = stage_dir / paths["intensity"].name
+
+    checkpoint_path = stage_dir / f"{checkpoint_prefix}-write-checkpoint.json"
+    checkpoint_identity = {**source_identity, "sha256": checksum}
+    checkpoint = None
+    if checkpoint_path.is_file():
+        try:
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"{fmt.upper()} write checkpoint is unreadable: {exc}") from exc
+        expected = {
+            "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+            "format": fmt, "source_point_count": source_count, "valid_point_count": valid_count,
+            "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+            "has_color": has_color, "has_intensity": has_intensity,
+        }
+        if any(checkpoint.get(key) != value for key, value in expected.items()):
+            raise CheckpointSourceChanged(f"{fmt.upper()} source or measured bounds changed since write checkpoint")
+
+    positions = colors = intensity_values = None
+    out_start = int(checkpoint.get("committed_points", 0)) if checkpoint else 0
+    try:
+        mode = "r+" if checkpoint else "w+"
+        positions = (
+            np.load(staged_files["positions"], mmap_mode="r+") if checkpoint else
+            np.lib.format.open_memmap(staged_files["positions"], mode="w+", dtype="<f4", shape=(valid_count, 3))
+        )
+        colors = (
+            np.load(staged_files["colors"], mmap_mode="r+") if checkpoint and has_color else
+            np.lib.format.open_memmap(staged_files["colors"], mode=mode, dtype="u1", shape=(valid_count, 3))
+            if has_color else None
+        )
+        intensity_values = (
+            np.load(staged_files["intensity"], mmap_mode="r+") if checkpoint and has_intensity else
+            np.lib.format.open_memmap(staged_files["intensity"], mode=mode, dtype="<f4", shape=(valid_count,))
+            if has_intensity else None
+        )
+        if positions.shape != (valid_count, 3) or positions.dtype != np.dtype("<f4"):
+            raise RuntimeError(f"{fmt.upper()} positions checkpoint has an invalid array shape or dtype")
+        blocks = list(checkpoint.get("blocks", [])) if checkpoint else []
+        if checkpoint:
+            verified_end = 0
+            for block in blocks:
+                start, end = int(block["start"]), int(block["end"])
+                if start != verified_end or end <= start or end > out_start:
+                    raise RuntimeError(f"{fmt.upper()} checkpoint block ranges are inconsistent")
+                arrays = {"positions": positions[start:end]}
+                if colors is not None:
+                    arrays["colors"] = colors[start:end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[start:end]
+                if {key: _sha256_array(value) for key, value in arrays.items()} != block.get("sha256"):
+                    raise RuntimeError(f"{fmt.upper()} checkpoint block checksum does not match stored arrays")
+                verified_end = end
+            if verified_end != out_start or out_start > valid_count:
+                raise RuntimeError(f"{fmt.upper()} committed point count does not match verified blocks")
+
+        skipped = out_start
+        for xyz, rgb, intensity in chunk_reader(source_path, chunk_points=POINT_STREAM_CHUNK_POINTS):
+            finite = np.isfinite(xyz).all(axis=1)
+            xyz = xyz[finite]
+            rgb = rgb[finite] if rgb is not None else None
+            intensity = intensity[finite] if intensity is not None else None
+            if not len(xyz):
+                continue
+            if (rgb is not None) != has_color or (intensity is not None) != has_intensity:
+                raise RuntimeError(f"{fmt.upper()} attributes changed between stream passes")
+            count = len(xyz)
+            if skipped:
+                consumed = min(skipped, count)
+                xyz = xyz[consumed:]
+                rgb = rgb[consumed:] if rgb is not None else None
+                intensity = intensity[consumed:] if intensity is not None else None
+                skipped -= consumed
+                count = len(xyz)
+            if count:
+                out_end = out_start + count
+                if out_end > valid_count:
+                    raise RuntimeError(f"{fmt.upper()} point count increased between stream passes")
+                positions[out_start:out_end] = (xyz - origin).astype(np.float32)
+                if colors is not None:
+                    colors[out_start:out_end] = rgb
+                if intensity_values is not None:
+                    intensity_values[out_start:out_end] = intensity
+                for array in (positions, colors, intensity_values):
+                    if array is not None:
+                        array.flush()
+                for key in ("positions", "colors", "intensity"):
+                    staged = staged_files.get(key)
+                    if staged is not None:
+                        _fsync_path(staged)
+                arrays = {"positions": positions[out_start:out_end]}
+                if colors is not None:
+                    arrays["colors"] = colors[out_start:out_end]
+                if intensity_values is not None:
+                    arrays["intensity"] = intensity_values[out_start:out_end]
+                blocks.append({
+                    "start": out_start, "end": out_end,
+                    "sha256": {key: _sha256_array(value) for key, value in arrays.items()},
+                })
+                out_start = out_end
+                _write_json_durable(checkpoint_path, {
+                    "version": 1, "cloud_id": cloud_id, "source_identity": checkpoint_identity,
+                    "format": fmt, "source_point_count": source_count, "valid_point_count": valid_count,
+                    "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(), "origin": origin.tolist(),
+                    "has_color": has_color, "has_intensity": has_intensity,
+                    "committed_points": out_start, "blocks": blocks,
+                })
+            if progress:
+                progress(0.58 + 0.30 * (out_start / valid_count), f"writing full-resolution {progress_label} memmaps")
+        if skipped or out_start != valid_count:
+            raise RuntimeError(f"{fmt.upper()} point count changed between bounds and write passes")
+    finally:
+        for array in (positions, colors, intensity_values):
+            if array is not None:
+                array._mmap.close()
+
+    if _source_identity(source_path) != source_identity or sha256_file(source_path) != checksum:
+        _discard_incomplete_stage(stage_dir, paths)
+        raise RuntimeError(f"source content changed while full-resolution {fmt.upper()} import was running")
+
+    positions = np.load(staged_files["positions"], mmap_mode="r")
+    colors = np.load(staged_files["colors"], mmap_mode="r") if has_color else None
+    intensity_values = np.load(staged_files["intensity"], mmap_mode="r") if has_intensity else None
+    try:
+        preview_arr, preview_count = build_preview(positions, colors, intensity_values)
+        preview_tmp = staged_files["preview"].with_suffix(".bin.tmp")
+        preview_arr.tofile(preview_tmp)
+        preview_tmp.replace(staged_files["preview"])
+    finally:
+        for array in (positions, colors, intensity_values):
+            if array is not None:
+                array._mmap.close()
+
+    metadata = {
+        "reader": reader_label, "format": fmt, "source_point_count": source_count,
+        "stored_point_count": valid_count, "preview_count": preview_count,
+        "preview_stride_bytes": PREVIEW_DTYPE.itemsize, "origin": origin.tolist(),
+        "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(),
+        "has_color": has_color, "has_intensity": has_intensity,
+        "decimated": False, "dropped_non_finite": source_count - valid_count, "bounded_memory": True,
+        "stream_chunk_points": POINT_STREAM_CHUNK_POINTS,
+        "restart_policy": "replay_committed_prefix_then_continue", "crash_safe": True,
+        "source_unchanged": True, "checksum_sha256": checksum,
+        "source_identity": checkpoint_identity,
+    }
+    write_json_atomic(staged_files["meta"], metadata)
+    cloud = {
+        "point_count": source_count, "ingested_count": valid_count, "decimated": False,
+        "size_bytes": int(source_identity["size_bytes"]), "sha256": checksum,
+        "origin": origin.tolist(), "bbox_min": bbox_min.tolist(), "bbox_max": bbox_max.tolist(),
+        "has_color": has_color, "has_intensity": has_intensity, "metadata": metadata,
+    }
+    result = {
+        "cloud_id": cloud_id, "point_count": source_count, "ingested_count": valid_count,
+        "preview_count": preview_count, "decimated": False, "warning": None,
+    }
+    files = {key: {"name": staged.name, **_file_record(staged)} for key, staged in staged_files.items()}
+    manifest = {
+        "version": INGEST_CHECKPOINT_VERSION, "cloud_id": cloud_id,
+        "source_identity": checkpoint_identity, "files": files, "cloud": cloud, "result": result,
+    }
+    write_json_atomic(stage_dir / "manifest.json", manifest)
+    return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
+
+
 def ingest_cloud(
     project_id: str,
     cloud_id: str,
@@ -890,12 +1225,22 @@ def ingest_cloud(
     )
     full_e57_stream = source_path.suffix.lower() == ".e57" and MAX_INGEST_POINTS == 0
     full_las_stream = source_path.suffix.lower() in {".las", ".laz"} and MAX_INGEST_POINTS == 0
+    full_text_stream = source_path.suffix.lower() in {".pts", ".xyz", ".txt", ".csv"} and MAX_INGEST_POINTS == 0
+    full_pcd_stream = source_path.suffix.lower() == ".pcd" and MAX_INGEST_POINTS == 0
+    full_ply_stream = source_path.suffix.lower() == ".ply" and MAX_INGEST_POINTS == 0
     preserve_raw_stream = full_rcs_stream and (stage_dir / "raw" / "stream.json").is_file()
     preserve_e57_stream = full_e57_stream and (stage_dir / "e57-write-checkpoint.json").is_file()
+    preserve_las_stream = full_las_stream and (stage_dir / "las-write-checkpoint.json").is_file()
+    preserve_text_stream = full_text_stream and (stage_dir / "text-write-checkpoint.json").is_file()
+    preserve_pcd_stream = full_pcd_stream and (stage_dir / "pcd-write-checkpoint.json").is_file()
+    preserve_ply_stream = full_ply_stream and (stage_dir / "ply-write-checkpoint.json").is_file()
     if stage_dir.exists() or any(paths[key].exists() for key in ("positions", "colors", "intensity", "preview", "meta")):
         _discard_incomplete_stage(
             stage_dir, paths, preserve_raw_stream=preserve_raw_stream,
-            preserve_e57_stream=preserve_e57_stream,
+            preserve_e57_stream=preserve_e57_stream, preserve_las_stream=preserve_las_stream,
+            preserve_text_stream=preserve_text_stream,
+            preserve_pcd_stream=preserve_pcd_stream,
+            preserve_ply_stream=preserve_ply_stream,
         )
     source_identity = _source_identity(source_path)
     if full_e57_stream:
@@ -905,6 +1250,26 @@ def ingest_cloud(
     if full_las_stream:
         return _ingest_full_las_stream(
             project_id, cloud_id, source_path, paths, stage_dir, source_identity, progress
+        )
+    if full_text_stream:
+        source_format = source_path.suffix.lower().lstrip(".")
+        return _ingest_full_chunked_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity,
+            source_format, "pandas",
+            lambda path, chunk_points: iter_text_chunks(
+                path, source_format, chunk_points=chunk_points,
+            ),
+            progress,
+        )
+    if full_pcd_stream:
+        return _ingest_full_chunked_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity,
+            "pcd", "pcd", iter_pcd_chunks, progress,
+        )
+    if full_ply_stream:
+        return _ingest_full_chunked_stream(
+            project_id, cloud_id, source_path, paths, stage_dir, source_identity,
+            "ply", "ply-chunk", iter_ply_chunks, progress,
         )
     if full_rcs_stream:
         return _ingest_full_rcs_stream(

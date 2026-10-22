@@ -92,6 +92,140 @@ def test_xyz_and_pts_readers(tmp_path: Path):
     assert parsed.metadata.get("has_color")
 
 
+def test_text_chunk_reader_preserves_csv_colors_and_pts_attributes(tmp_path: Path):
+    from scan2bim.formats.readers import iter_text_chunks
+
+    csv_path = tmp_path / "colored.csv"
+    csv_path.write_text("0,0,0,10,20,30\n1,2,3,40,50,60\n", encoding="utf-8")
+    csv_chunks = list(iter_text_chunks(csv_path, "csv", chunk_points=1))
+    np.testing.assert_array_equal(np.concatenate([part[0] for part in csv_chunks]), [[0, 0, 0], [1, 2, 3]])
+    np.testing.assert_array_equal(np.concatenate([part[1] for part in csv_chunks]), [[10, 20, 30], [40, 50, 60]])
+    assert all(part[2] is None for part in csv_chunks)
+
+    pts_path = tmp_path / "colored.pts"
+    pts_path.write_text("2\n0 0 0 0.25 100 110 120\n1 2 3 0.75 130 140 150\n", encoding="utf-8")
+    pts = list(iter_text_chunks(pts_path, "pts", chunk_points=1))
+    np.testing.assert_array_equal(np.concatenate([part[2] for part in pts]), [0.25, 0.75])
+    np.testing.assert_array_equal(np.concatenate([part[1] for part in pts]), [[100, 110, 120], [130, 140, 150]])
+
+
+@pytest.mark.parametrize("data_kind", ["ascii", "binary"])
+def test_pcd_chunk_reader_reads_bounded_xyz_rgb_intensity(tmp_path: Path, data_kind: str):
+    from scan2bim.formats.readers import iter_pcd_chunks
+
+    path = tmp_path / f"cloud-{data_kind}.pcd"
+    header = (
+        "# .PCD v0.7 - Point Cloud Data file format\n"
+        "VERSION 0.7\nFIELDS x y z intensity r g b\nSIZE 4 4 4 4 1 1 1\n"
+        "TYPE F F F F U U U\nCOUNT 1 1 1 1 1 1 1\nWIDTH 2\nHEIGHT 1\nPOINTS 2\n"
+        f"DATA {data_kind}\n"
+    ).encode("ascii")
+    if data_kind == "ascii":
+        payload = b"0 0 0 0.25 10 20 30\n1 2 3 0.75 40 50 60\n"
+    else:
+        payload = np.array(
+            [(0, 0, 0, 0.25, 10, 20, 30), (1, 2, 3, 0.75, 40, 50, 60)],
+            dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("intensity", "<f4"),
+                   ("r", "u1"), ("g", "u1"), ("b", "u1")],
+        ).tobytes()
+    path.write_bytes(header + payload)
+
+    chunks = list(iter_pcd_chunks(path, chunk_points=1))
+    assert [len(chunk[0]) for chunk in chunks] == [1, 1]
+    np.testing.assert_array_equal(np.concatenate([chunk[0] for chunk in chunks]), [[0, 0, 0], [1, 2, 3]])
+    np.testing.assert_array_equal(np.concatenate([chunk[1] for chunk in chunks]), [[10, 20, 30], [40, 50, 60]])
+    np.testing.assert_allclose(np.concatenate([chunk[2] for chunk in chunks]), [0.25, 0.75])
+
+
+@pytest.mark.parametrize("data_kind", ["ascii", "binary"])
+def test_pcd_chunk_reader_decodes_packed_rgb_float(tmp_path: Path, data_kind: str):
+    from scan2bim.formats.readers import iter_pcd_chunks
+
+    packed = np.array([0x000A141E, 0x0028323C], dtype="<u4").view("<f4")
+    path = tmp_path / f"packed-{data_kind}.pcd"
+    header = (
+        "# .PCD v0.7\nVERSION 0.7\nFIELDS x y z rgb\nSIZE 4 4 4 4\n"
+        "TYPE F F F F\nCOUNT 1 1 1 1\nWIDTH 2\nHEIGHT 1\nPOINTS 2\n"
+        f"DATA {data_kind}\n"
+    ).encode("ascii")
+    if data_kind == "ascii":
+        payload = f"0 0 0 {float(packed[0])!r}\n1 2 3 {float(packed[1])!r}\n".encode("ascii")
+    else:
+        payload = np.array(
+            [(0, 0, 0, packed[0]), (1, 2, 3, packed[1])],
+            dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("rgb", "<f4")],
+        ).tobytes()
+    path.write_bytes(header + payload)
+    chunks = list(iter_pcd_chunks(path, chunk_points=1))
+    np.testing.assert_array_equal(np.concatenate([chunk[1] for chunk in chunks]), [[10, 20, 30], [40, 50, 60]])
+
+
+@pytest.mark.parametrize("ply_format", ["ascii 1.0", "binary_little_endian 1.0", "binary_big_endian 1.0"])
+def test_ply_chunk_reader_preserves_xyz_rgb_intensity(tmp_path: Path, ply_format: str):
+    from scan2bim.formats.readers import iter_ply_chunks
+
+    path = tmp_path / "chunked.ply"
+    header = (
+        f"ply\nformat {ply_format}\nelement vertex 2\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "property uchar red\nproperty uchar green\nproperty uchar blue\nproperty float intensity\n"
+        "end_header\n"
+    ).encode("ascii")
+    if ply_format.startswith("ascii"):
+        payload = b"0 0 0 1 0 1 0.25\n1 2 3 40 50 60 0.75\n"
+    else:
+        endian = ">" if ply_format.startswith("binary_big_endian") else "<"
+        payload = np.array(
+            [(0, 0, 0, 1, 0, 1, 0.25), (1, 2, 3, 40, 50, 60, 0.75)],
+            dtype=[("x", f"{endian}f4"), ("y", f"{endian}f4"), ("z", f"{endian}f4"), ("red", "u1"),
+                   ("green", "u1"), ("blue", "u1"), ("intensity", f"{endian}f4")],
+        ).tobytes()
+    path.write_bytes(header + payload)
+    chunks = list(iter_ply_chunks(path, chunk_points=1))
+    assert [len(chunk[0]) for chunk in chunks] == [1, 1]
+    np.testing.assert_array_equal(np.concatenate([chunk[0] for chunk in chunks]), [[0, 0, 0], [1, 2, 3]])
+    np.testing.assert_array_equal(np.concatenate([chunk[1] for chunk in chunks]), [[1, 0, 1], [40, 50, 60]])
+    np.testing.assert_allclose(np.concatenate([chunk[2] for chunk in chunks]), [0.25, 0.75])
+
+
+def test_stream_readers_reject_truncated_or_mismatched_point_counts(tmp_path: Path):
+    from scan2bim.formats.readers import FormatError, iter_pcd_chunks, iter_ply_chunks
+
+    pcd = tmp_path / "mismatched.pcd"
+    pcd.write_text(
+        "# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\n"
+        "WIDTH 2\nHEIGHT 1\nPOINTS 2\nDATA ascii\n0 0 0\n",
+        encoding="ascii",
+    )
+    with pytest.raises(FormatError, match="point count mismatch"):
+        list(iter_pcd_chunks(pcd, chunk_points=1))
+
+    ply = tmp_path / "truncated.ply"
+    ply.write_bytes(
+        b"ply\nformat binary_little_endian 1.0\nelement vertex 2\n"
+        b"property float x\nproperty float y\nproperty float z\nend_header\n" + b"\0" * 20
+    )
+    with pytest.raises(FormatError, match="truncated PLY binary"):
+        list(iter_ply_chunks(ply, chunk_points=1))
+
+    pcd_binary = tmp_path / "truncated.pcd"
+    pcd_binary.write_bytes(
+        b"# .PCD v0.7\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\n"
+        b"WIDTH 2\nHEIGHT 1\nPOINTS 2\nDATA binary\n" + b"\0" * 20
+    )
+    with pytest.raises(FormatError, match="truncated PCD binary"):
+        list(iter_pcd_chunks(pcd_binary, chunk_points=1))
+
+    ply_ascii = tmp_path / "mismatched.ply"
+    ply_ascii.write_text(
+        "ply\nformat ascii 1.0\nelement vertex 2\nproperty float x\nproperty float y\n"
+        "property float z\nend_header\n0 0 0\n",
+        encoding="ascii",
+    )
+    with pytest.raises(FormatError, match="PLY vertex count mismatch"):
+        list(iter_ply_chunks(ply_ascii, chunk_points=1))
+
+
 def test_decimation_is_reported(tmp_path: Path):
     path = tmp_path / "cloud.xyz"
     xyz, _ = _xyz(path, spacing=0.5, cols=3)

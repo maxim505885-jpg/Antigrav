@@ -325,6 +325,10 @@ export const api = {
     download(`/clouds/${cloudId}/structural-plan.dxf?type=${type}&issue=${issue}`, "GET", `plan-${issue}-${type}.dxf`),
   exportStructuralPlanPdf: (cloudId: string, type: "columns" | "crane_girders", scale = 100, issue: "draft" | "final" = "final") =>
     download(`/clouds/${cloudId}/structural-plan.pdf?type=${type}&scale=${scale}&issue=${issue}`, "GET", `plan-${issue}-${type}.pdf`),
+  exportSpdsAlbum: (cloudId: string) =>
+    download(`/clouds/${encodeURIComponent(cloudId)}/spds-album.zip`, "GET", "spds-album-draft.zip"),
+  exportSpdsAlbumPdf: (cloudId: string) =>
+    download(`/clouds/${encodeURIComponent(cloudId)}/spds-album.pdf`, "GET", "ALBUM_RD_KR_KM_SPDS.pdf"),
 
   samples: (projectId: string) => request<any[]>(`/projects/${projectId}/samples`),
   train: (projectId: string, payload: Record<string, unknown>) =>

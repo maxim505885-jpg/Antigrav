@@ -1412,6 +1412,20 @@ export default function App() {
                     <p className="hint">
                       Непроверенные конструкции будут отмечены как кандидаты. Шаг сетки 6000 мм не подменяет измеренные координаты.
                     </p>
+                    <div className="panel-title">
+                      <span>Полный комплект СПДС</span>
+                    </div>
+                    <p className="hint">
+                      Альбом включает планы колонн и подкрановых балок, разрез и схему покрытия в DXF и PDF. Все листы помечены как эскизные и требуют проверки инженером.
+                    </p>
+                    <div className="button-row">
+                      <button onClick={() => download(() => api.exportSpdsAlbumPdf(cloud.id), "Экспорт альбома СПДС (PDF)")} disabled={busy} className="primary-button">
+                        📄 Скачать альбом РД КР/КМ (ГОСТ PDF)
+                      </button>
+                      <button onClick={() => download(() => api.exportSpdsAlbum(cloud.id), "Экспорт чертежей СПДС (ZIP/DXF)")} disabled={busy}>
+                        📦 Скачать чертежи DWG/DXF (AutoCAD)
+                      </button>
+                    </div>
                     <p className="hint">
                       В IFC передаются нативные сущности IfcWall/IfcColumn/IfcSlab и набор свойств
                       Pset_ScanToBIM: уверенность, признаки «измерено/восстановлено», статус проверки.
