@@ -12,6 +12,8 @@ router = APIRouter(prefix="/desktop", tags=["desktop"])
 
 AUTOCAD_PATH = Path(r"C:\Program Files\Autodesk\AutoCAD 2026\acad.exe")
 RECAP_PATH = Path(r"C:\Program Files\Autodesk\Autodesk ReCap\ReCap.exe")
+REVIT_PATH = Path(r"C:\Program Files\Autodesk\Revit 2027\Revit.exe")
+
 
 
 class OpenPathRequest(BaseModel):
@@ -32,6 +34,8 @@ def desktop_status() -> dict[str, Any]:
         "autocad_path": str(AUTOCAD_PATH) if AUTOCAD_PATH.is_file() else None,
         "recap_available": RECAP_PATH.is_file(),
         "recap_path": str(RECAP_PATH) if RECAP_PATH.is_file() else None,
+        "revit_available": REVIT_PATH.is_file(),
+        "revit_path": str(REVIT_PATH) if REVIT_PATH.is_file() else None,
     }
 
 
@@ -112,3 +116,20 @@ def pick_file(payload: FileDialogRequest | None = None) -> dict[str, Any]:
         return {"cancelled": True, "path": None}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+@router.post("/open-revit")
+def open_revit(payload: OpenPathRequest | None = None) -> dict[str, Any]:
+    """Open Autodesk Revit 2027, optionally loading a specified RVT or IFC file."""
+    if not REVIT_PATH.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Autodesk Revit 2027 не найден по стандартному пути: {REVIT_PATH}",
+        )
+    cmd = [str(REVIT_PATH)]
+    if payload and payload.path:
+        target_path = Path(payload.path).resolve()
+        if target_path.exists():
+            cmd.append(str(target_path))
+
+    subprocess.Popen(cmd)
+    return {"status": "ok", "app": "Autodesk Revit 2027", "command": cmd}

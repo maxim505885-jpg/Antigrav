@@ -352,9 +352,10 @@ export const api = {
     request<any>(`/formats/rcs${path ? `?path=${encodeURIComponent(path)}` : ""}`),
 
   // Desktop OS integrations
-  desktopStatus: () => request<{ platform: string; autocad_available: boolean; recap_available: boolean }>("/desktop/status"),
+  desktopStatus: () => request<{ platform: string; autocad_available: boolean; recap_available: boolean; revit_available?: boolean }>("/desktop/status"),
   openInAutoCAD: (path: string) => request<{ status: string; app: string }>("/desktop/open-autocad", { method: "POST", body: JSON.stringify({ path }) }),
   openInReCap: (path?: string) => request<{ status: string; app: string }>("/desktop/open-recap", { method: "POST", body: JSON.stringify({ path: path || "" }) }),
+  openInRevit: (path?: string) => request<{ status: string; app: string }>("/desktop/open-revit", { method: "POST", body: JSON.stringify({ path: path || "" }) }),
   openInExplorer: (path: string) => request<{ status: string; path: string }>("/desktop/open-explorer", { method: "POST", body: JSON.stringify({ path }) }),
   pickFileWindows: (title?: string) => request<{ cancelled: boolean; path?: string; filename?: string; size_bytes?: number; extension?: string }>("/desktop/pick-file", { method: "POST", body: JSON.stringify({ title: title || "Выберите файл облака точек" }) }),
 
@@ -364,7 +365,7 @@ export const api = {
       rotation: number[][];
       translation: number[];
       matrix_4x4: number[][];
-      rmse_mm: number;
+      rmse_mm: number | null;
       iterations: number;
       converged: boolean;
     }>("/registration/match", {

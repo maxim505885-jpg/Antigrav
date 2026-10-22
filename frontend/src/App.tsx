@@ -1475,7 +1475,10 @@ export default function App() {
                       try {
                         setBusy(true);
                         const res = await api.matchCloudsIcp(cloud.id, cloud.id, 10000, 25);
-                        alert(`Сшивка выполнена! Сходимость: ${res.converged ? "ДА" : "НЕТ"}\nНевязка RMSE: ${res.rmse_mm.toFixed(2)} мм\nИтераций: ${res.iterations}`);
+                        const residual = res.rmse_mm === null
+                          ? "не оценена: недостаточно соответствий"
+                          : `${res.rmse_mm.toFixed(2)} мм`;
+                        alert(`Сшивка выполнена! Сходимость: ${res.converged ? "ДА" : "НЕТ"}\nНевязка RMSE: ${residual}\nИтераций: ${res.iterations}`);
                       } catch (e: any) {
                         alert("Ошибка сшивки: " + e.message);
                       } finally {
@@ -1517,6 +1520,22 @@ export default function App() {
                     <div className="button-row">
                       <button onClick={() => download(() => api.exportBim(cloud.id, "ifc"), "Экспорт IFC")} disabled={busy}>
                         Экспорт IFC4
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            setBusy(true);
+                            const res = await api.openInRevit();
+                            alert(res.status === "ok" ? "Autodesk Revit 2027 запущен!" : "Не удалось открыть Revit.");
+                          } catch (e: any) {
+                            alert("Ошибка запуска Revit: " + e.message);
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                        disabled={busy}
+                      >
+                        🏛️ Открыть в Autodesk Revit 2027
                       </button>
                       <button onClick={() => download(() => api.exportBim(cloud.id, "json"), "Экспорт BIM JSON")} disabled={busy}>
                         Экспорт BIM JSON
