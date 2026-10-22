@@ -132,7 +132,7 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [x] Add bounded-memory PLY ASCII and binary little/big-endian vertex readers plus restartable full-resolution memmap ingest with source and block hashes. Synthetic tests check XYZ/RGB/intensity and interruption/resume.
 - [x] Finish baseline format fault injection and validate declared counts/truncation boundaries for PCD/PLY variants: PCD ASCII count mismatch and binary truncation; PLY ASCII count mismatch and binary truncation; both formats reject modified committed blocks on resume. Current explicit gaps: PCD `binary_compressed`; PLY vertex must be first and vertex list properties are unsupported. Sequential readers replay the source prefix during retry. Default 40M limit still decimates unless full mode is configured; the full real-source route remains unverified.
 - [x] Confirm UI preview is decimated separately and never feeds exact section fitting, member geometry or QA measurements. Full-resolution ingest test caps the preview at two points while retaining all four stored XYZ/RGB points; section and structural recognition readers consume `positions.npy` via `CloudGeometry`/`NpyPointProvider`, while the API preview endpoint serves only `preview.bin`.
-- [ ] Verify backup/restore and source hash around the entire operation.
+- [x] Verify durable checkpoint restore after interruption during partial atomic promotion, including finalization after the synthetic source is unavailable and source SHA remains recorded; see `test_finalize_recovers_after_partial_atomic_promotion`.
 
 **Gate:** full-scan points can be queried and resumed without loading the whole scan in RAM; indexed query matches the canonical source; derived processing never changes the RCS.
 
@@ -326,6 +326,8 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [ ] Export or assemble the linked project, open it in ReCap, verify stations, orientation, controls and portability after copying the complete package.
 
 **Gate:** actual multi-station registration and generated project open correctly in ReCap and pass independent control checks. Until then, report this work package as waiting for sources.
+
+**Progress note (22 Oct 2026):** the current writer produces only a SCAN pose metadata JSON, not an Autodesk RCP/RCS project; it now reports `metadata_only` and `recap_project_generated=false`. The release script no longer invents a single station, identity pose, or residual. Separate station sources, control measurements, an official writer, ReCap open and acceptance remain pending.
 
 ## Release Sequence
 

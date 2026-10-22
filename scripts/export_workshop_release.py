@@ -6,7 +6,7 @@
 3. workshop_columns_plan_SPDS.dxf - Рабочий чертёж КМ по ГОСТ 21.501-2018 и 21.101-2020 (оси, цепочки, штамп 185x55)
 4. workshop_columns_plan.dxf - 2D монтажный план колонн с марками и ведомостью (AutoCAD)
 5. workshop_columns_plan.pdf - Векторный лист А3 чертежа
-6. recap_registration.json - Регистрационный манифест стоянок сканов для ReCap
+6. station_registration_status.json - Статус ожидания отдельных сканов стоянок для ReCap
 7. manifest.json - Контрольные суммы (SHA-256) и метаданные комплекта сдачи
 """
 from __future__ import annotations
@@ -19,7 +19,6 @@ import sqlite3
 import sys
 
 import ezdxf
-import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
@@ -29,7 +28,6 @@ from scan2bim.bim.model import build_model, validate_bim_model
 from scan2bim.cad.dxf import export_structural_plan_dxf
 from scan2bim.cad.pdf import export_structural_plan_pdf
 from scan2bim.cad.spds_plan import export_spds_structural_plan_dxf
-from scan2bim.registration.stitching import create_recap_registration_project
 
 
 def sha256(path: Path) -> str:
@@ -121,13 +119,19 @@ def main() -> None:
     export_structural_plan_pdf(elements, pdf_path, drawing_type="columns", project_name=project["name"], issue_mode="draft")
     print(f"[5/6] Векторный PDF A3: {pdf_path.name} ({pdf_path.stat().st_size / 1024:.1f} KB)")
 
-    # 7. Регистрационный манифест для ReCap
-    stations = [
-        {"id": "station_main_01", "path": cloud.get("source_path", "1.rcs"), "point_count": cloud.get("point_count", 0), "matrix_4x4": np.eye(4).tolist(), "rmse_mm": 1.25}
-    ]
-    recap_manifest_path = out_dir / "recap_registration.json"
-    create_recap_registration_project(stations, project["name"], recap_manifest_path)
-    print(f"[6/6] ReCap Registration: {recap_manifest_path.name}")
+    # 7. ReCap stays pending until separate station scans and independent
+    # control measurements exist. A single cloud is not a registration result.
+    recap_manifest_path = out_dir / "station_registration_status.json"
+    recap_manifest_path.write_text(json.dumps({
+        "status": "waiting_for_separate_station_sources",
+        "project_id": project["id"],
+        "cloud_id": cloud["id"],
+        "station_count": 0,
+        "recap_project_generated": False,
+        "registration_verified": False,
+        "required": ["separate station scans", "station IDs and units", "overlap/control points", "verified poses and residuals", "official ReCap workflow or licensed SDK"],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[6/6] ReCap status (awaiting station sources): {recap_manifest_path.name}")
 
     # 8. Итоговый манифест комплекта
     manifest = {
@@ -143,7 +147,7 @@ def main() -> None:
             "spds_dxf_gost": {"path": spds_dxf_path.name, "sha256": sha256(spds_dxf_path), "bytes": spds_dxf_path.stat().st_size},
             "autocad_dxf": {"path": dxf_path.name, "sha256": sha256(dxf_path), "bytes": dxf_path.stat().st_size},
             "drawing_pdf": {"path": pdf_path.name, "sha256": sha256(pdf_path), "bytes": pdf_path.stat().st_size},
-            "recap_manifest": {"path": recap_manifest_path.name, "sha256": sha256(recap_manifest_path), "bytes": recap_manifest_path.stat().st_size},
+            "station_registration_status": {"path": recap_manifest_path.name, "sha256": sha256(recap_manifest_path), "bytes": recap_manifest_path.stat().st_size},
         },
     }
     manifest_path = out_dir / "manifest.json"

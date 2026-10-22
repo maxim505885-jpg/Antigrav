@@ -51,3 +51,7 @@ def test_rigid_icp_convergence(tmp_path):
     manifest_path = tmp_path / "recap_project.json"
     create_recap_registration_project(stations, "Цех 1.rcs", manifest_path)
     assert manifest_path.exists()
+    manifest = __import__("json").loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["format"] == "SCAN station-registration manifest"
+    assert manifest["recap_project_generated"] is False
+    assert manifest["registration_verified"] is False

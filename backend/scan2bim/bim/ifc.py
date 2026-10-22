@@ -153,6 +153,7 @@ def _property_set(ifc, product, element: dict[str, Any]) -> None:
         ("Inferred", "IfcBoolean", bool(element.get("inferred", False))),
         ("Source", "IfcText", str(element.get("source", "geometric"))),
         ("ReviewStatus", "IfcText", str(element.get("review_status", "unreviewed"))),
+        ("GeometryStatus", "IfcText", str(element.get("ifc_geometry_status", "supported"))),
         ("MetadataJSON", "IfcText", json.dumps(element.get("metadata", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
     ]
     ifc_props = []
@@ -274,6 +275,8 @@ def export_ifc(
     for element in model.get("elements", []):
         geom = element.get("geometry", {})
         cls = element.get("class_name", "other")
+        solid = None
+        geometry_status = "supported"
         try:
             if geom.get("kind") == "oriented_box":
                 center = geom["center"]
@@ -298,15 +301,28 @@ def export_ifc(
                 p0 = geom.get("p0")
                 p1 = geom.get("p1")
                 if not p0 or not p1 or len(p0) != 3 or len(p1) != 3:
-                    continue
-                solid = _member_solid(ifc, p0, p1, float(geom.get("section_m", 0.15)))
-                z_for_storey = min(float(p0[2]), float(p1[2]))
+                    geometry_status = "unsupported_invalid_axis"
+                    try:
+                        z_for_storey = float(element["bbox"]["min"][2])
+                    except (KeyError, TypeError, ValueError):
+                        z_for_storey = 0.0
+                else:
+                    try:
+                        section = float(geom.get("section_m"))
+                    except (TypeError, ValueError):
+                        section = 0.0
+                    if not math.isfinite(section) or section <= 0.0:
+                        geometry_status = "unsupported_missing_section"
+                    else:
+                        solid = _member_solid(ifc, p0, p1, section)
+                        geometry_status = "square_envelope_approximation"
+                    z_for_storey = min(float(p0[2]), float(p1[2]))
             else:
                 continue
         except Exception:
             continue
 
-        representation = _representation(ifc, context, solid)
+        representation = _representation(ifc, context, solid) if solid is not None else None
         placement = _identity_placement(ifc)
 
         if cls == "wall":
@@ -375,7 +391,8 @@ def export_ifc(
             f"inferred={bool(element.get('inferred', False))}; "
             f"review={element.get('review_status', 'unreviewed')}"
         )
-        _property_set(ifc, product, element)
+        element_with_geometry_status = {**element, "ifc_geometry_status": geometry_status}
+        _property_set(ifc, product, element_with_geometry_status)
         contained[storey_index(z_for_storey)].append(product)
 
     for i, storey in enumerate(storeys):

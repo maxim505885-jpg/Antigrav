@@ -59,6 +59,71 @@ def test_ingest_resumes_finalization_from_a_complete_checkpoint(client, tmp_path
     assert not checkpoint.parent.exists(), "committed stage should be cleaned after database finalization"
 
 
+def test_finalize_recovers_after_partial_atomic_promotion(client, tmp_path, monkeypatch):
+    source = tmp_path / "partial-promotion.xyz"
+    source.write_bytes(b"fixed synthetic input")
+    source_sha256 = ingest.sha256_file(source)
+    project = client.post("/api/v1/projects", json={"name": "partial promotion"}).json()
+    project_id = project["id"]
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project_id, "partial promotion", str(source), "xyz", source.stat().st_size, "processing", now, now),
+    )
+    xyz = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float64)
+    rgb = np.asarray([[10, 20, 30], [40, 50, 60]], dtype=np.uint8)
+    monkeypatch.setattr(ingest, "read_cloud", lambda *_args, **_kwargs: RawCloud(xyz, rgb))
+
+    def stop_after_checkpoint(_value, message):
+        if message == "checkpoint ready; finalizing":
+            raise JobCancelled("simulated process stop before promotion")
+
+    with pytest.raises(JobCancelled):
+        ingest.ingest_cloud(project_id, cloud_id, source, progress=stop_after_checkpoint)
+
+    paths = cloud_paths(project_id, cloud_id)
+    stage_dir = paths["dir"] / ".ingest-stage"
+    checkpoint = stage_dir / "manifest.json"
+    real_replace = ingest.os.replace
+    promotions = 0
+
+    def fail_second_promotion(src, dst):
+        nonlocal promotions
+        src_path, dst_path = Path(src), Path(dst)
+        if src_path.parent == stage_dir and dst_path.parent == paths["dir"]:
+            promotions += 1
+            if promotions == 2:
+                raise OSError("simulated interruption during output promotion")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(ingest.os, "replace", fail_second_promotion)
+    with pytest.raises(OSError, match="simulated interruption"):
+        ingest.ingest_cloud(project_id, cloud_id, source)
+
+    assert checkpoint.exists()
+    assert paths["positions"].exists(), "first file was promoted atomically before interruption"
+    assert (stage_dir / paths["colors"].name).exists(), "remaining staged file is recoverable"
+    assert one("SELECT status FROM clouds WHERE id = ?", (cloud_id,))["status"] == "processing"
+
+    # The completed derived checkpoint is self-contained: recovery can finish
+    # after the synthetic source disappears, using only manifest-verified data.
+    source.unlink()
+    monkeypatch.setattr(ingest, "read_cloud", lambda *_args, **_kwargs: pytest.fail("source was reopened"))
+    monkeypatch.setattr(ingest.os, "replace", real_replace)
+    result = ingest.ingest_cloud(project_id, cloud_id, source)
+
+    assert result["ingested_count"] == 2
+    np.testing.assert_array_equal(np.load(paths["colors"]), rgb)
+    stored = one("SELECT sha256, metadata_json, status FROM clouds WHERE id = ?", (cloud_id,))
+    assert stored["status"] == "ready"
+    assert stored["sha256"] == source_sha256
+    assert json.loads(stored["metadata_json"])["checksum_sha256"] == stored["sha256"]
+    assert not stage_dir.exists()
+
+
 def test_cancelled_import_can_resume_from_checkpoint_without_rereading_source(client, tmp_path, monkeypatch):
     api_module = importlib.import_module("scan2bim.api.app")
     source = tmp_path / "resume-room.ply"

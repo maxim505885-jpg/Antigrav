@@ -106,13 +106,17 @@ def create_recap_registration_project(
     project_name: str,
     output_path: Path,
 ) -> Path:
-    """Generate a ReCap-compatible registration descriptor linking stations and SE(3) poses."""
+    """Write SCAN registration metadata; this does not create or verify an RCP project."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     manifest = {
         "version": "1.0",
-        "format": "Autodesk ReCap Registration Manifest",
+        "format": "SCAN station-registration manifest",
+        "status": "metadata_only",
+        "recap_project_generated": False,
+        "registration_verified": False,
+        "notice": "This JSON records station poses only; it is not an Autodesk ReCap RCP/RCS project.",
         "project_name": project_name,
         "station_count": len(stations),
         "stations": [

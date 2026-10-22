@@ -1622,6 +1622,8 @@ def create_app() -> FastAPI:
         return {"project": get_project(project_id), "cloud": _cloud_out(_cloud(cloud_id)), "truth": truth}
 
     app.include_router(api, prefix=f"/api/{API_VERSION}")
+    from .desktop import router as desktop_router
+    app.include_router(desktop_router, prefix=f"/api/{API_VERSION}")
 
     # Serve a production frontend build when present (python backend/run.py).
     dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
