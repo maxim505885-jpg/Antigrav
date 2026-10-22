@@ -108,6 +108,7 @@ class ElementOut(BaseModel):
     source: str
     review_status: str
     dimensions: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: str
     updated_at: str
 

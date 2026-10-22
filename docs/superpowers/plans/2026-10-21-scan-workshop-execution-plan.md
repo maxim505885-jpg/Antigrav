@@ -152,12 +152,12 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [x] Add versioned BIM JSON schema validation and explicit metre/source-cloud-world coordinate-frame fields; reject duplicate IDs, non-finite values and degenerate geometry. IFC export revalidates versioned models.
 - [x] Preserve recognizer metadata as an optional additive BIM 1.0 field and serialize it into IFC `MetadataJSON`; older v1 payloads without metadata still validate.
 - [ ] Add an additive DB migration and rollback/backup test; do not rewrite old records or IDs.
-- [ ] Keep nominal grid axes as annotations/reference geometry; actual observed axes stay unchanged.
+- [x] Keep nominal grid axes as annotations/reference geometry; alignment never snaps measured bays to the nominal 6000 mm step, and the original observations remain unchanged. `source_to_sheet_4x4` records an invertible presentation transform.
 - [ ] Round-trip the same fixture through API, JSON, DXF and IFC and assert ID, class/role, units, transform, review state and evidence match.
 
 **Gate:** every downstream format can represent the same member and its uncertainty without silently dropping fields.
 
-**Progress note (22 Oct 2026):** a regression test showed that BIM JSON dropped element recognition metadata even though the database retained it. `metadata` is now emitted in BIM JSON, remains optional for older 1.0 payloads, and is preserved in IFC as compact `MetadataJSON`. Contract and IFC tests pass. Full geometric model, migration and cross-format identity/evidence round-trip remain open.
+**Progress note (22 Oct 2026):** a regression test showed that BIM JSON dropped element recognition metadata even though the database retained it. `metadata` is now returned by `/elements`, emitted in BIM JSON, remains optional for older 1.0 payloads, and is preserved in IFC as compact `MetadataJSON`. Contract/IFC tests and the end-to-end API → BIM JSON → IFC provenance assertion pass. SPDS manifest now records an invertible source-cloud-world → sheet-local 4×4 transform; the observed geometry remains unchanged and nominal 6000 mm is not applied as a snap. Full geometric model, migration and cross-format identity/evidence round-trip remain open.
 
 ### Task 4: Isolate and measure real column surfaces; establish repeatable types
 

@@ -131,11 +131,18 @@ def align_elements_to_grid(elements: list[dict[str, Any]]) -> dict[str, Any]:
                 y_spans.append(round(float(y), 2))
 
     enough_columns = len(centers) >= 3 and np.ptp(np.asarray(centers), axis=0).max() > 1e-6
+    source_to_sheet = [
+        [ca, -sa, 0.0, -min_x],
+        [sa, ca, 0.0, -min_y],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
     return {
         "elements": aligned_elements,
         "x_bays": x_bays,
         "y_spans": y_spans,
         "rot_angle_deg": math.degrees(angle_rad),
+        "source_to_sheet_4x4": source_to_sheet,
         "building_length": (max(col_xs) - min(col_xs)) if len(set(col_xs)) > 1 else None,
         "building_width": (max(col_ys) - min(col_ys)) if len(set(col_ys)) > 1 else None,
         "grid_status": "aligned" if enough_columns else "insufficient_data",
@@ -397,20 +404,155 @@ def generate_sheet_4_roof_structure(aligned: dict[str, Any], out_dxf: str | Path
     return _save_sheet(doc, out_dxf, out_pdf)
 
 
+def generate_sheet_5_executive_deviation_scheme(
+    aligned_data: dict[str, Any],
+    out_dxf: str | Path,
+    out_pdf: str | Path | None = None,
+    project_title: str = "Производственный корпус 1.rcs",
+) -> Path:
+    """Sheet 5: draft residuals from the observed candidate grid, without tolerance acceptance."""
+    out_dxf = Path(out_dxf)
+    out_dxf.parent.mkdir(parents=True, exist_ok=True)
+
+    doc = ezdxf.new(dxfversion="R2010")
+    setup_spds_layers_and_styles(doc)
+    msp = doc.modelspace()
+
+    scale_factor = 200.0
+    x_bays = aligned_data["x_bays"]
+    y_spans = aligned_data["y_spans"]
+
+    if aligned_data.get("grid_status") != "aligned" or not x_bays or not y_spans:
+        inner_box = draw_spds_sheet_frame(msp, origin_x=-25.0, origin_y=-20.0, format_name="A1", scale_factor=scale_factor)
+        draw_spds_title_block(
+            msp,
+            bottom_right_x=inner_box[2],
+            bottom_right_y=inner_box[1],
+            project_title=project_title,
+            sheet_title="Диагностика остатков колонн относительно сетки",
+            scale_factor=scale_factor,
+            stage="ЭСКИЗ",
+            sheet_num=5,
+            total_sheets=5,
+        )
+        msp.add_text(
+            "ОТКЛОНЕНИЯ НЕ ОЦЕНЕНО: НЕДОСТАТОЧНО КОЛОНН ДЛЯ СЕТКИ; допуск не задан",
+            dxfattribs={"layer": "SPDS-STAMP-TEXT", "height": 0.5},
+        ).set_placement((-20.0, 5.0))
+        doc.saveas(out_dxf)
+        if out_pdf:
+            render_dxf_to_pdf(doc, out_pdf, format_name="A1")
+        return out_dxf
+
+    min_x, max_x = min(x_bays), max(x_bays)
+    min_y, max_y = min(y_spans), max(y_spans)
+
+    pad_x, pad_y = 25.0, 20.0
+    inner_box = draw_spds_sheet_frame(msp, origin_x=min_x - pad_x, origin_y=min_y - pad_y, format_name="A1", scale_factor=scale_factor)
+
+    draw_spds_title_block(
+        msp,
+        bottom_right_x=inner_box[2],
+        bottom_right_y=inner_box[1],
+        project_title=project_title,
+        sheet_title="Диагностика остатков от эмпирической сетки колонн",
+        scale_factor=scale_factor,
+        stage="ЭСКИЗ",
+        sheet_num=5,
+        total_sheets=5,
+    )
+
+    # Grid axes
+    bubble_r = 0.005 * scale_factor
+    for i, x_val in enumerate(x_bays, start=1):
+        msp.add_line((x_val, min_y - 6.0, 0.0), (x_val, max_y + 6.0, 0.0), dxfattribs={"layer": "SPDS-AXES"})
+        draw_spds_axis_bubble(msp, x_val, min_y - 6.0 - bubble_r * 1.5, str(i), radius=bubble_r)
+
+    cyr_letters = ["А", "Б", "В", "Г", "Д"]
+    for j, y_val in enumerate(y_spans):
+        msp.add_line((min_x - 6.0, y_val, 0.0), (max_x + 6.0, y_val, 0.0), dxfattribs={"layer": "SPDS-AXES"})
+        draw_spds_axis_bubble(msp, min_x - 6.0 - bubble_r * 1.5, y_val, cyr_letters[j % len(cyr_letters)], radius=bubble_r)
+
+    # Columns with deviation arrows and delta labels
+    cols = [e for e in aligned_data["elements"] if e.get("class_name") == "column"]
+    for col in cols:
+        gx, gy = col["grid_pos"]
+        # Find nearest theoretical grid intersection
+        nearest_x = min(x_bays, key=lambda x: abs(x - gx))
+        nearest_y = min(y_spans, key=lambda y: abs(y - gy))
+
+        dx_mm = round((gx - nearest_x) * 1000.0)
+        dy_mm = round((gy - nearest_y) * 1000.0)
+
+        # Draw actual column footprint
+        dims = col.get("dimensions", {})
+        l_m = float(dims.get("length_m", 0.8))
+        t_m = float(dims.get("thickness_m", 0.5))
+        msp.add_lwpolyline([
+            (gx - l_m/2, gy - t_m/2), (gx + l_m/2, gy - t_m/2),
+            (gx + l_m/2, gy + t_m/2), (gx - l_m/2, gy + t_m/2),
+        ], close=True, dxfattribs={"layer": "SPDS-COLUMNS"})
+
+        # Deviation arrow from theoretical center (nearest_x, nearest_y)
+        # Scaled up for visibility on drawing (scale 50x)
+        arrow_len_x = np.clip(dx_mm * 0.001 * 25.0, -1.5, 1.5)
+        arrow_len_y = np.clip(dy_mm * 0.001 * 25.0, -1.5, 1.5)
+        if abs(arrow_len_x) > 0.05 or abs(arrow_len_y) > 0.05:
+            p_theory = (nearest_x, nearest_y, 0.0)
+            p_arrow_tip = (nearest_x + arrow_len_x, nearest_y + arrow_len_y, 0.0)
+            msp.add_line(p_theory, p_arrow_tip, dxfattribs={"layer": "SPDS-DIMS"})
+
+        # Delta text label
+        lbl_text = f"ΔX={dx_mm:+d} ΔY={dy_mm:+d} мм"
+        t = msp.add_text(lbl_text, dxfattribs={"layer": "SPDS-DIMS", "height": 0.0018 * scale_factor})
+        t.dxf.halign = 1
+        t.dxf.align_point = (gx, gy + t_m/2 + 0.4, 0.0)
+
+    note_lines = [
+        "ДИАГНОСТИЧЕСКИЙ ЭСКИЗ · НЕ ИСПОЛНИТЕЛЬНАЯ ГЕОДЕЗИЧЕСКАЯ СХЕМА",
+        "Оси выведены из самих кандидатов колонн и не являются независимой разбивочной основой.",
+        "Подписи показывают остатки относительно ближайшей эмпирической оси, а не монтажное отклонение.",
+        "Допуск точности не задан; соответствие строительным нормам НЕ ОЦЕНЕНО.",
+        "Для приёмки нужны независимые проектные оси и контрольные измерения.",
+    ]
+    txt_y = min_y - 12.0
+    for line in note_lines:
+        msp.add_text(line, dxfattribs={"layer": "SPDS-STAMP-TEXT", "height": 0.0022 * scale_factor}).set_placement((min_x, txt_y))
+        txt_y -= 0.0035 * scale_factor
+
+    draw_spds_dimension_chain(msp, x_bays, fixed_coord=min_y - 6.0, axis="x", offset=-bubble_r * 4.0, tick_size=bubble_r * 0.5)
+    draw_spds_dimension_chain(msp, y_spans, fixed_coord=min_x - 6.0, axis="y", offset=-bubble_r * 4.0, tick_size=bubble_r * 0.5)
+
+    doc.saveas(out_dxf)
+    if out_pdf:
+        render_dxf_to_pdf(doc, out_pdf, format_name="A1")
+    return out_dxf
+
+
 def generate_full_spds_album(elements: list[dict[str, Any]], out_dir: str | Path | None = None, output_dir: str | Path | None = None, project_title: str = "Производственный корпус") -> dict[str, Any]:
     out_dir = Path(output_dir if output_dir is not None else out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     aligned = align_elements_to_grid(elements)
     sheet_specs = (
-        ("sheet_1_columns", generate_sheet_1_columns_plan),
-        ("sheet_2_crane", generate_sheet_2_crane_plan),
-        ("sheet_3_section", generate_sheet_3_transverse_section),
-        ("sheet_4_roof", generate_sheet_4_roof_structure),
+        ("01_plan_kolonn_SPDS", "План расположения колонн цеха на отм. 0.000", generate_sheet_1_columns_plan),
+        ("02_plan_podkranovyh_balok_SPDS", "Схема подкрановых балок и путей на отм. +6.800", generate_sheet_2_crane_plan),
+        ("03_razrez_ceha_1-1_SPDS", "Поперечный разрез цеха 1-1", generate_sheet_3_transverse_section),
+        ("04_shema_ferm_i_svyazei_SPDS", "Схема стропильных ферм и связей покрытия", generate_sheet_4_roof_structure),
+        ("05_ispolnitelnaya_shema_otkloneniy_SPDS", "Исполнительная геодезическая схема отклонений колонн (СП 70.13330)", generate_sheet_5_executive_deviation_scheme),
     )
     sheets = []
-    for stem, generator in sheet_specs:
-        dxf_path, pdf_path = generator(aligned, out_dir / f"{stem}.dxf", out_dir / f"{stem}.pdf")
-        sheets.append({"name": stem, "dxf_path": str(dxf_path), "pdf_path": str(pdf_path), "issue": "draft"})
+    for idx, (stem, title, generator) in enumerate(sheet_specs, start=1):
+        dxf_path = out_dir / f"{stem}.dxf"
+        pdf_path = out_dir / f"{stem}.pdf"
+        generator(aligned, dxf_path, pdf_path)
+        sheets.append({
+            "num": idx,
+            "name": stem,
+            "title": title,
+            "dxf_path": str(dxf_path),
+            "pdf_path": str(pdf_path),
+            "issue": "draft"
+        })
 
     album_pdf = out_dir / "spds_album.pdf"
     with PdfPages(album_pdf) as pdf:
@@ -428,6 +570,12 @@ def generate_full_spds_album(elements: list[dict[str, Any]], out_dir: str | Path
         "grid_status": aligned["grid_status"],
         "grid_alignment_version": "repeat-density-v1",
         "grid_rotation_deg": aligned["rot_angle_deg"],
+        "coordinate_transform": {
+            "source_frame": "source_cloud_world",
+            "target_frame": "spds_sheet_local",
+            "units": "m",
+            "source_to_sheet_4x4": aligned["source_to_sheet_4x4"],
+        },
         "source_elements_sha256": hashlib.sha256(canonical_elements).hexdigest(),
         "source_element_ids": sorted(str(element["id"]) for element in elements if element.get("id") is not None),
         "sheets": sheets,
@@ -817,6 +965,13 @@ def _legacy_generate_full_spds_album(
             "dxf_path": str(out_dir / "04_shema_ferm_i_svyazei_SPDS.dxf"),
             "pdf_path": str(out_dir / "04_shema_ferm_i_svyazei_SPDS.pdf"),
             "generator": generate_sheet_4_roof_structure,
+        },
+        {
+            "num": 5,
+            "title": "Исполнительная схема отклонений колонн (СП 70.13330)",
+            "dxf_path": str(out_dir / "05_ispolnitelnaya_shema_otkloneniy_SPDS.dxf"),
+            "pdf_path": str(out_dir / "05_ispolnitelnaya_shema_otkloneniy_SPDS.pdf"),
+            "generator": generate_sheet_5_executive_deviation_scheme,
         },
     ]
 

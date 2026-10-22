@@ -147,8 +147,28 @@ def test_generate_sheet_4_roof_structure(tmp_path, sample_workshop_elements):
 def test_generate_full_spds_album(tmp_path, sample_workshop_elements):
     out_dir = tmp_path / "spds_album"
     album_manifest = generate_full_spds_album(sample_workshop_elements, out_dir)
-    assert len(album_manifest["sheets"]) == 4
+    assert len(album_manifest["sheets"]) == 5
     for sheet in album_manifest["sheets"]:
         assert Path(sheet["dxf_path"]).exists()
         assert Path(sheet["pdf_path"]).exists()
     assert Path(album_manifest["album_pdf_path"]).exists()
+    transform = album_manifest["coordinate_transform"]
+    assert transform["source_frame"] == "source_cloud_world"
+    assert transform["target_frame"] == "spds_sheet_local"
+    assert transform["units"] == "m"
+    assert len(transform["source_to_sheet_4x4"]) == 4
+
+
+def test_deviation_sheet_does_not_claim_tolerance_acceptance(tmp_path, sample_workshop_elements):
+    from scan2bim.cad.spds_full_set import generate_sheet_5_executive_deviation_scheme
+
+    aligned = align_elements_to_grid(sample_workshop_elements)
+    out = tmp_path / "deviations.dxf"
+    generate_sheet_5_executive_deviation_scheme(aligned, out, tmp_path / "deviations.pdf")
+
+    doc = ezdxf.readfile(out)
+    notes = " ".join(entity.dxf.text or "" for entity in doc.modelspace().query("TEXT"))
+    assert "Допуск точности не задан" in notes
+    assert "НЕ ОЦЕНЕНО" in notes
+    assert "±5 мм" not in notes
+    assert "в пределах допустимых строительных норм" not in notes

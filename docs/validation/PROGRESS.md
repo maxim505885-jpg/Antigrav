@@ -560,6 +560,9 @@
 
 ## A3 BIM provenance и A7 честный выпуск пустых классов — 22 октября 2026
 
-- Новый BIM contract test сначала упал: `_element_for_exchange` выбрасывал сохранённое `metadata`. JSON 1.0 теперь включает необязательный `metadata`; валидатор принимает прежние 1.0 payload без поля. IFC сохраняет объект компактным JSON-текстом `MetadataJSON`, включая method/support/source-point references, если они присутствуют. Targeted BIM/IFC: 9 passed.
+- Новый BIM contract test сначала упал: `_element_for_exchange` выбрасывал сохранённое `metadata`. JSON 1.0 теперь включает необязательный `metadata`; валидатор принимает прежние 1.0 payload без поля. IFC сохраняет объект компактным JSON-текстом `MetadataJSON`, включая method/support/source-point references, если они присутствуют. Targeted BIM/IFC: 9 passed. Сквозной API pipeline дополнительно подтвердил одинаковые metadata в `/elements`, BIM JSON и IFC.
 - Полный backend suite выявил, что дублирующий набор функций в СПДС-модуле затенял проверенные генераторы; пустое demo-облако падало на `min([])`, а legacy ветка рисовала балки/фермы/связи по предполагаемой сетке. Публичные имена оставлены у geometry-backed генераторов; дублирующие ветки помечены legacy. Пустые листы объясняют отсутствие данных и не добавляют синтетические конструкции.
-- SPDS + BIM/IFC targeted suite: 21 passed; полный backend suite: 317 passed, один WinError 5 cancellation-cleanup test исключён (318 collected). Единственное предупреждение — существующая интеграция Starlette/httpx. FARO full-run, AutoCAD GUI/DWG, Revit GUI и инженерная точность не подтверждены.
+- SPDS + BIM/IFC targeted suite: 21 passed; полный backend suite: 318 passed, один WinError 5 cancellation-cleanup test исключён (319 collected после transform-регрессии). Единственное предупреждение — существующая интеграция Starlette/httpx. FARO full-run, AutoCAD GUI/DWG, Revit GUI и инженерная точность не подтверждены.
+
+
+- Дополнение A3/A7: manifest сохраняет `source_to_sheet_4x4` из `source_cloud_world` в `spds_sheet_local` в метрах. Regression проверяет матричный обратный ход на повернутых измеренных координатах, неизменность исходных элементов и отсутствие подгонки фактических шагов к 6000 мм. SPDS suite: 12 passed.

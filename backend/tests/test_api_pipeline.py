@@ -67,6 +67,13 @@ def test_full_pipeline(client):
     assert {"wall", "column", "slab"} <= classes
     assert len([e for e in elements if e["class_name"] == "wall"]) >= 4
 
+    bim_json = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=json")
+    assert bim_json.status_code == 200, bim_json.text
+    exchange = bim_json.json()
+    source_element = next(item for item in elements if item["metadata"])
+    exchanged_element = next(item for item in exchange["elements"] if item["id"] == source_element["id"])
+    assert exchanged_element["metadata"] == source_element["metadata"]
+
     column = next(item for item in elements if item["class_name"] == "column")
     fit_response = client.post(
         f"/api/v1/elements/{column['id']}/section-fit",
@@ -188,6 +195,7 @@ def test_full_pipeline(client):
     assert ifc_response.content[:7] == b"ISO-103"
 
     import ifcopenshell
+    from ifcopenshell.util.element import get_psets
 
     ifc_path = Path("data_test_export.ifc")
     ifc_path.write_bytes(ifc_response.content)
@@ -197,6 +205,8 @@ def test_full_pipeline(client):
         ifc_path.unlink(missing_ok=True)
     assert len(ifc.by_type("IfcWall")) >= 1
     assert len(ifc.by_type("IfcPropertySet")) >= 1
+    wall = ifc.by_type("IfcWall")[0]
+    assert "MetadataJSON" in get_psets(wall)["Pset_ScanToBIM"]
 
     clouds = client.get(f"/api/v1/projects/{project_id}/clouds").json()
     assert clouds and clouds[0]["id"] == cloud["id"]
