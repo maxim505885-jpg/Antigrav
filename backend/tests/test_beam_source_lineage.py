@@ -115,6 +115,18 @@ def test_internal_beam_gap_candidate_keeps_source_rows_on_both_sides():
     assert set(gap["source_point_ids"]) <= set(source_rows.tolist())
 
 
+def test_continuous_beam_core_does_not_create_internal_gap_candidate():
+    rng = np.random.default_rng(912)
+    along = rng.uniform(-3.0, 3.0, 2400)
+    across = rng.normal(0.0, 0.025, len(along))
+    points_xy = np.column_stack((along, across))
+    source_rows = np.arange(30_000, 30_000 + len(along), dtype=np.int64)
+
+    assert steel._beam_internal_gap_evidence(
+        points_xy, source_rows, np.zeros(2), np.array([1.0, 0.0]), 6.0,
+    ) == []
+
+
 def test_uniform_beam_section_has_no_terminal_ambiguity():
     rng = np.random.default_rng(909)
     points = np.column_stack((rng.uniform(-3.0, 3.0, 2400), rng.normal(0.0, 0.035, 2400)))

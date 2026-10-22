@@ -182,3 +182,16 @@ def test_member_gap_position_must_lie_on_the_proposed_axis():
 
     with pytest.raises(ValueError, match="within the member axis"):
         validate_member_proposal(proposal)
+
+
+@pytest.mark.parametrize("position_m", [True, "3.0"])
+def test_member_gap_position_requires_a_json_number(position_m):
+    proposal = _proposal()
+    proposal["joint_gaps"] = [{
+        "kind": "gap", "position_m": position_m,
+        "reason": "No core-line points; physical cause unknown.",
+        "source_point_ids": [10, 12],
+    }]
+
+    with pytest.raises(ValueError, match="position_m must be finite"):
+        validate_member_proposal(proposal)

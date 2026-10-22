@@ -455,6 +455,83 @@ def _beam_terminal_evidence(
     }
 
 
+def _beam_internal_gap_evidence(
+    points_xy: np.ndarray,
+    source_rows: np.ndarray,
+    center: np.ndarray,
+    direction: np.ndarray,
+    length: float,
+) -> list[dict[str, Any]]:
+    """Propose internal no-return intervals without assigning a physical cause.
+
+    Positions are measured from the candidate axis start. A gap may be caused
+    by scan occlusion, a physical joint, or missing source coverage; it never
+    changes the candidate axis or splits one candidate into multiple members.
+    """
+    points = np.asarray(points_xy, dtype=float)
+    rows = np.asarray(source_rows)
+    center = np.asarray(center, dtype=float)
+    direction = np.asarray(direction, dtype=float)
+    if (points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1
+            or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)
+            or np.any(rows < 0) or center.shape != (2,) or direction.shape != (2,)
+            or not np.isfinite(points).all() or not np.isfinite(center).all()
+            or not np.isfinite(direction).all() or not math.isfinite(length) or length <= 0):
+        raise ValueError("beam gap evidence needs aligned finite points, source rows, and a valid axis")
+    norm = float(np.linalg.norm(direction))
+    if norm <= 1e-12:
+        raise ValueError("beam gap evidence axis must be non-zero")
+    direction = direction / norm
+    normal = np.array([-direction[1], direction[0]])
+    rel = points - center
+    along = rel @ direction + length / 2
+    across = rel @ normal
+    core = (np.abs(across) <= 0.15) & (along >= 0) & (along <= length)
+    if int(core.sum()) < 12:
+        return []
+
+    bin_width = 0.10
+    bin_count = max(1, int(math.ceil(length / bin_width)))
+    indices = np.clip((along[core] / bin_width).astype(np.int64), 0, bin_count - 1)
+    occupied = np.bincount(indices, minlength=bin_count) > 0
+    empty = ~occupied
+    candidates: list[dict[str, Any]] = []
+    index = 0
+    while index < bin_count:
+        if not empty[index]:
+            index += 1
+            continue
+        stop = index + 1
+        while stop < bin_count and empty[stop]:
+            stop += 1
+        gap_start = index * bin_width
+        gap_end = min(length, stop * bin_width)
+        gap_width = gap_end - gap_start
+        position = (gap_start + gap_end) / 2
+        if gap_width >= 0.25 and position >= 0.30 and length - position >= 0.30:
+            flank_window = 0.25
+            left = core & (along >= gap_start - flank_window) & (along < gap_start)
+            right = core & (along > gap_end) & (along <= gap_end + flank_window)
+            if int(left.sum()) >= 3 and int(right.sum()) >= 3:
+                left_indices = np.flatnonzero(left)
+                right_indices = np.flatnonzero(right)
+                left_indices = left_indices[np.argsort(-along[left_indices], kind="stable")[:4]]
+                right_indices = right_indices[np.argsort(along[right_indices], kind="stable")[:4]]
+                linked_rows = np.unique(np.concatenate((rows[left_indices], rows[right_indices])).astype(np.int64))
+                candidates.append({
+                    "kind": "gap",
+                    "position_m": round(float(min(length, max(0.0, position))), 4),
+                    "reason": (
+                        "No sampled points were observed in the member-axis core; this may be "
+                        "scan occlusion, a physical joint, or missing/decimated coverage and "
+                        "is not confirmed."
+                    ),
+                    "source_point_ids": linked_rows.tolist(),
+                })
+        index = stop
+    return candidates[:16]
+
+
 def _line_concentration(
     points_xy: np.ndarray,
     center: np.ndarray,
@@ -591,6 +668,7 @@ def _beam_element(
     source_band_points_used: int | None = None,
     vertical_profile_evidence: dict[str, Any] | None = None,
     terminal_evidence: dict[str, Any] | None = None,
+    joint_gap_evidence: list[dict[str, Any]] | None = None,
 ) -> DetectedElement:
     angle = math.atan2(float(direction[1]), float(direction[0]))
     height = max(0.05, z1_local - z0_local)
@@ -629,14 +707,24 @@ def _beam_element(
             raise ValueError("beam source_point_ids must be a one-dimensional integer array")
         source_rows = np.unique(source_rows.astype(np.int64, copy=False))
         sampled_for_size = len(source_rows) > 512
+        gap_evidence = joint_gap_evidence or []
+        pinned_rows = np.unique(np.asarray(
+            [row for gap in gap_evidence for row in gap["source_point_ids"]], dtype=np.int64,
+        )) if gap_evidence else np.zeros(0, dtype=np.int64)
+        if not set(pinned_rows.tolist()).issubset(set(source_rows.tolist())):
+            raise ValueError("beam gap source rows must belong to the measured member rows")
         band_was_downsampled = (
             source_band_point_count is not None
             and source_band_points_used is not None
             and source_band_point_count > source_band_points_used
         )
         if sampled_for_size:
-            sample_indices = np.linspace(0, len(source_rows) - 1, 512, dtype=np.int64)
-            source_rows = source_rows[sample_indices]
+            available_rows = source_rows[~np.isin(source_rows, pinned_rows)]
+            budget = max(0, 512 - len(pinned_rows))
+            if len(available_rows) > budget:
+                sample_indices = np.linspace(0, len(available_rows) - 1, budget, dtype=np.int64)
+                available_rows = available_rows[sample_indices]
+            source_rows = np.unique(np.concatenate((pinned_rows, available_rows)))
         metadata.update({
             "source_point_ids": source_rows.tolist(),
             "support_count_in_processing_sample": int(support),
@@ -664,6 +752,7 @@ def _beam_element(
             source_point_ids=source_rows.tolist(),
             source_point_ids_sampled=bool(sampled_for_size or band_was_downsampled),
             support_count_in_processing_sample=int(support),
+            joint_gaps=gap_evidence,
         )
         metadata["member_proposal_id"] = proposal["id"]
         metadata["member_proposal"] = proposal
@@ -1164,6 +1253,10 @@ def _horizontal_members(
                     ),
                     terminal_evidence=_beam_terminal_evidence(
                         points[support_indices, :2], center, direction, length,
+                    ),
+                    joint_gap_evidence=_beam_internal_gap_evidence(
+                        points[support_indices, :2], source_rows[support_indices],
+                        center, direction, length,
                     ),
                 )
             )

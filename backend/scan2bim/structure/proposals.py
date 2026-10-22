@@ -157,12 +157,17 @@ def validate_member_proposal(proposal: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"joint_gaps[{index}] has an invalid shape")
         if not isinstance(item["kind"], str) or item["kind"] not in {"joint", "gap"}:
             raise ValueError(f"joint_gaps[{index}].kind must be joint or gap")
+        raw_position = item["position_m"]
+        if isinstance(raw_position, bool) or not isinstance(raw_position, (int, float)):
+            raise ValueError(f"joint_gaps[{index}].position_m must be finite")
         try:
-            position = float(item["position_m"])
+            position = float(raw_position)
         except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"joint_gaps[{index}].position_m must be finite") from exc
         if not math.isfinite(position):
             raise ValueError(f"joint_gaps[{index}].position_m must be finite")
+        if position < 0 or position > math.dist(start, end):
+            raise ValueError(f"joint_gaps[{index}].position_m must lie within the member axis")
         if not isinstance(item["reason"], str) or not item["reason"].strip():
             raise ValueError(f"joint_gaps[{index}].reason must be explicit")
         _source_ids(item["source_point_ids"], f"joint_gaps[{index}]", source_set)
@@ -186,6 +191,7 @@ def build_member_proposal(
     source_point_ids_sampled: bool,
     support_count_in_processing_sample: int,
     source_point_id_space: str = "positions.npy row index",
+    joint_gaps: Sequence[dict[str, Any]] = (),
 ) -> MemberProposal:
     """Build a review-only member candidate with unsupported fields explicit."""
     start = [round(component, 4) for component in _point3(axis_start_m, "axis_start_m")]
@@ -218,7 +224,7 @@ def build_member_proposal(
             "kind": "unknown",
             "reason": "full cross-section is not fitted from the horizontal band",
         },
-        "joint_gaps": [],
+        "joint_gaps": [dict(item) for item in joint_gaps],
         "unresolved_fields": [
             "physical_role_review", "physical_span_boundary", "start_support",
             "end_support", "cross_section", "joint_locations",
