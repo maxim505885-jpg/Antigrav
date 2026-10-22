@@ -8,6 +8,8 @@ Produces 4 complete engineering sheets:
 """
 from __future__ import annotations
 
+from .spds_tables import draw_spds_specification_table
+
 import math
 import hashlib
 import json
@@ -623,7 +625,20 @@ def _legacy_generate_sheet_1_columns_plan(
         scale_factor=scale_factor,
         stage="Р",
         sheet_num=1,
-        total_sheets=4,
+        total_sheets=5,
+    )
+    # Таблица спецификации элементов по ГОСТ 21.501-2018 (Форма 7)
+    spec_items_1 = [
+        {"pos": "К-1", "designation": "Серия 1.424.1-5", "name": "Колонна К-1 средняя (двутавр)", "count": 140, "mass": 1850, "comment": ""},
+        {"pos": "К-2", "designation": "Серия 1.424.1-5", "name": "Колонна К-2 крайняя / фахверк", "count": 93, "mass": 1420, "comment": ""},
+    ]
+    draw_spds_specification_table(
+        msp,
+        top_right_x=inner_box[2],
+        top_right_y=inner_box[1] + (55.0 + len(spec_items_1) * 8.0 + 20.0) * (scale_factor / 1000.0),
+        items=spec_items_1,
+        scale_factor=scale_factor,
+        title="Спецификация к схеме расположения колонн",
     )
 
     # Draw columns footprints
@@ -713,7 +728,21 @@ def _legacy_generate_sheet_2_crane_plan(
         scale_factor=scale_factor,
         stage="Р",
         sheet_num=2,
-        total_sheets=4,
+        total_sheets=5,
+    )
+    # Таблица спецификации подкрановых конструкций по ГОСТ 21.501-2018
+    spec_items_2 = [
+        {"pos": "БП-1", "designation": "Серия 1.426.2-7", "name": "Балка подкрановая Б-6 (L=6м)", "count": 48, "mass": 1250, "comment": ""},
+        {"pos": "Р-1", "designation": "ГОСТ 7173-54", "name": "Рельс крановый КР-70", "count": "272 м", "mass": "19.3 т", "comment": "L=136м х 2"},
+        {"pos": "УП-1", "designation": "Серия 1.426.2-7", "name": "Упор концевой тупиковый", "count": 4, "mass": 85, "comment": ""},
+    ]
+    draw_spds_specification_table(
+        msp,
+        top_right_x=inner_box[2],
+        top_right_y=inner_box[1] + (55.0 + len(spec_items_2) * 8.0 + 20.0) * (scale_factor / 1000.0),
+        items=spec_items_2,
+        scale_factor=scale_factor,
+        title="Спецификация к схеме подкрановых путей",
     )
 
     for index, element in enumerate(girders, start=1):
