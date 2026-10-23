@@ -306,3 +306,15 @@ class CleanupRequest(BaseModel):
     std_ratio: float = Field(default=2.0, gt=0.1, le=10.0)
     radius_m: float = Field(default=0.05, gt=0.0005, le=5.0)
     min_neighbors: int = Field(default=4, ge=1, le=500)
+
+
+class CloudExportRequest(BaseModel):
+    """Export a stored cloud to an interchange format.
+
+    The written file is read back and coordinate deviation is measured; the
+    job result reports it instead of trusting the write.
+    """
+
+    format: Literal["e57", "las", "laz", "ply", "xyz"] = "e57"
+    derived_id: str | None = Field(default=None, max_length=64)
+    verify: bool = True

@@ -18,11 +18,11 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 76 | Synthetic candidates for structural classes; real-pilot accuracy and independent labels remain open |
-| **Stage 7** | Learning & Annotation Pipeline | **DONE** | 37 | 106-element verified workshop Ground Truth dataset; held-out Macro-F1 = 1.0 (>= 0.75), accuracy = 1.0 (>= 0.80); active KNN suggestions |
+| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуск цехового пилота не определён |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
 | **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
-| **Stage 11** | Enterprise, GPU & Big Data | **DONE** | 34 | Multi-core chunking, CUDA/PyTorch voxel downsampling, PCA normal acceleration |
+| **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 8 (CPU voxel) | Exact CPU voxel centroids/color means for bounded chunks; CUDA path, large-cloud performance and distributed processing remain unverified |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
 
 Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
@@ -111,13 +111,10 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - UI/API for engineer confirmation, rejection, or relabeling of candidate elements, with undo history.
   - Sample isolation by stable physical element ID to avoid revision leakage between train and holdout.
   - Reuse of reviewed column types guarded by source-cloud fingerprints.
-  - **Verified Ground Truth Dataset**: 106 real physical structural workshop elements measured and cataloged across 6 structural classes (column, eam, 	russ, race, opening, pipe).
-  - **Independent Holdout Evaluation**: Leakage-free physical-element split (test support: 28 items, train support: 78 items) achieving Macro-F1 = 1.0 (threshold >= 0.75) and Accuracy = 1.0 (threshold >= 0.80).
-  - **Active Model Serving**: Trained model version activated in registry; pply_learned_prior() attaches non-destructive predictions to candidate metadata.
-- **Acceptance verified**: ackend/tests/test_ground_truth_learning.py passes 2/2 tests. Full pipeline certification verified in 	est_end_to_end_acceptance.py.
+  - Synthetic profile fixtures support regression tests; they are not physical measurements and are not training labels.
+- **Missing**: Independently labeled real workshop elements, reviewer provenance, and a leakage-safe holdout evaluation on those labels.
 - **Criteria**: Feedback is reversible and persisted, and any reported model score is measured on independently labeled physical elements excluded from training.
-- **Status**: **DONE**
-
+- **Status**: **IN PROGRESS**
 ### Stage 8 — Parametric 3D Geometry Reconstruction
 - **Goal**: Fit accurate CAD/BIM parametric primitives to detected points.
 - **Completed**:
@@ -168,7 +165,9 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Tasks**:
   - [x] Chunked spatial indexing with cancel/resume tokens.
   - [x] Memory profiling and leak prevention on massive point sets.
-  - [ ] Implement CUDA-accelerated normal estimation and voxel grid downsampling.
+  - [x] Exact CPU voxel grouping and centroid/color averaging for bounded derived chunks (8 focused tests pass).
+  - [ ] Verify CUDA voxel reduction and CUDA normal estimation on compatible hardware.
+  - [ ] Benchmark bounded/chunked processing on representative large clouds; no 100M/billion-point acceptance has been run.
   - [ ] Distributed worker pipeline for corporate headless processing.
 - **Status**: **IN PROGRESS**
 
