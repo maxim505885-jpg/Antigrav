@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from itertools import permutations
 from typing import Any
 
 import numpy as np
@@ -230,6 +231,28 @@ def _edge_observation_coverage(
     return evidence
 
 
+def _same_section_hypothesis(
+    first: Mapping[str, Any], second: Mapping[str, Any], *, tolerance_m: float,
+) -> bool:
+    """Match one rectangle despite corner start order and fit noise."""
+    first_sides = sorted(float(value) for value in first.get("side_lengths_m", []))
+    second_sides = sorted(float(value) for value in second.get("side_lengths_m", []))
+    if len(first_sides) != 2 or len(second_sides) != 2:
+        return False
+    if any(abs(a - b) > tolerance_m for a, b in zip(first_sides, second_sides)):
+        return False
+    first_corners = np.asarray(first.get("corners_world_m"), dtype=np.float64)
+    second_corners = np.asarray(second.get("corners_world_m"), dtype=np.float64)
+    if first_corners.shape != (4, 2) or second_corners.shape != (4, 2):
+        return False
+    distances = np.linalg.norm(first_corners[:, None, :] - second_corners[None, :, :], axis=2)
+    indices = np.arange(4)
+    return any(
+        np.all(distances[indices, order] <= tolerance_m)
+        for order in permutations(range(4))
+    )
+
+
 def fit_circular_section(
     points_xy: np.ndarray,
     *,
@@ -345,6 +368,10 @@ def fit_rectangular_section(
 
     angle_tol = math.radians(3)
     corner_tol = max(0.025, 4 * distance_tolerance_m)
+    if known is not None:
+        # Explicit dimensions can close small scan gaps at a corner. Keep the
+        # extrapolation bounded relative to the smaller entered side.
+        corner_tol = max(corner_tol, 0.15 * min(known))
     candidates: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
     open_corners: list[dict[str, Any]] = []
@@ -444,26 +471,39 @@ def fit_rectangular_section(
             break
 
     if known is not None:
-        # A closed observed rectangle inconsistent with the entered dimensions is a conflict.
+        # Face spans are lower bounds: an occluded face shorter than an
+        # explicitly measured side is consistent with that side. Only a
+        # clearly longer observed span contradicts the entered dimensions.
         observed = [face["span_m"] for face in faces]
         if len(observed) >= 4:
             observed_sorted = sorted(observed, reverse=True)
             expected_sorted = sorted(known * 2, reverse=True)
-            if all(abs(a - b) <= max(3 * distance_tolerance_m, .015) for a, b in zip(observed_sorted[:4], expected_sorted)) is False:
+            side_tolerance = max(3 * distance_tolerance_m, .015)
+            if any(
+                observed_span > expected_side + side_tolerance
+                for observed_span, expected_side in zip(observed_sorted[:4], expected_sorted)
+            ):
                 conflicts.append({"kind": "observed_dimensions_disagree", "observed_face_spans_m": observed_sorted[:4], "explicit_sides_m": list(known)})
 
     # Deduplicate hypotheses that arise from extracting the same two faces twice.
     unique_candidates: list[dict[str, Any]] = []
-    seen: set[tuple[float, ...]] = set()
+    hypothesis_tolerance = max(.003, distance_tolerance_m)
     for candidate in candidates:
         candidate["edge_observation_coverage"] = _edge_observation_coverage(
             candidate["corners_world_m"], faces,
             line_distance_tolerance_m=max(.025, 4 * distance_tolerance_m),
         )
-        key = tuple(round(v, 4) for v in sorted(candidate["side_lengths_m"])) + tuple(round(v, 3) for p in candidate["corners_world_m"] for v in p)
-        if key not in seen:
-            seen.add(key)
+        match = next(
+            (existing for existing in unique_candidates
+             if _same_section_hypothesis(existing, candidate, tolerance_m=hypothesis_tolerance)),
+            None,
+        )
+        if match is None:
             unique_candidates.append(candidate)
+        else:
+            match["source_face_ids"] = sorted(
+                set(match.get("source_face_ids", [])) | set(candidate.get("source_face_ids", []))
+            )
     if conflicts and not unique_candidates:
         status = "unknown"
     elif unique_candidates:

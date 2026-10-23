@@ -8,6 +8,7 @@ from scan2bim.structure.column_type_matching import match_project_column_types
 
 def column(element_id, *, project="p", cloud="scan-new", length=0.502, short=0.4, morphology="solid", coverage=0.9):
     return {"id": element_id, "project_id": project, "cloud_id": cloud, "class_name": "column",
+        "source_cloud_sha256": "a" * 64 if cloud == "scan-old" else "b" * 64,
         "measured": True, "inferred": False, "review_status": "unreviewed",
         "geometry": {"kind": "oriented_box", "center": [1, 2, 3], "rotation_z": 1.5707963267948966,
             "sizes": {"length": length, "thickness": short, "height": 6}},
@@ -17,7 +18,8 @@ def column(element_id, *, project="p", cloud="scan-new", length=0.502, short=0.4
 def catalog(type_id="t1", mark="К1"):
     return {"id": type_id, "mark": mark, "project_id": "p", "status": "confirmed",
         "member_element_ids": ["source"], "prototype": {"morphology": "solid",
-            "representative_sides_m": {"long": 0.5, "short": 0.4}}}
+            "representative_sides_m": {"long": 0.5, "short": 0.4},
+            "source_cloud_fingerprints": {"scan-old": "a" * 64}}}
 
 
 def run(target, types=None, sources=None):
@@ -72,6 +74,22 @@ def test_stale_source_members_block_catalog_reuse(change):
     result = run(column("target"), sources=[] if change == "deleted" else [source])
     assert result["suggestions"][0]["matches"] == []
     assert result["catalog_issues"][0]["type_id"] == "t1"
+
+
+def test_changed_source_cloud_fingerprint_blocks_catalog_reuse():
+    source = column("source", cloud="scan-old", length=0.5)
+    source["source_cloud_sha256"] = "c" * 64
+    result = run(column("target"), sources=[source])
+    assert result["suggestions"][0]["matches"] == []
+    assert "source_cloud_changed" in result["catalog_issues"][0]["reasons"]
+
+
+def test_legacy_catalog_without_source_fingerprint_fails_closed():
+    old_type = catalog()
+    old_type["prototype"].pop("source_cloud_fingerprints")
+    result = run(column("target"), [old_type])
+    assert result["suggestions"][0]["matches"] == []
+    assert "missing_source_fingerprint" in result["catalog_issues"][0]["reasons"]
 
 
 def test_assigned_rejected_inferred_and_incompatible_targets_are_not_recommended():

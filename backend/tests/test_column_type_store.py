@@ -26,9 +26,10 @@ def isolated_db(monkeypatch):
             )
             cloud_id = f"cloud-{project_id}"
             con.execute(
-                "INSERT INTO clouds (id,project_id,name,source_path,source_format,created_at,updated_at) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (cloud_id, project_id, cloud_id, "derived-test.e57", "e57", now, now),
+                "INSERT INTO clouds (id,project_id,name,source_path,source_format,sha256,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (cloud_id, project_id, cloud_id, "derived-test.e57", "e57",
+                 ("a" if project_id == "project-a" else "b") * 64, now, now),
             )
         for element_id, project_id in (
             ("column-a1", "project-a"),
@@ -143,7 +144,8 @@ def test_type_prototype_is_stored_as_json_without_losing_evidence(isolated_db):
     confirmed = store.confirm_column_type("project-a", proposal)
     row = database.one("SELECT prototype_json FROM column_types WHERE id=?", (confirmed["id"],))
 
-    assert json.loads(row["prototype_json"]) == proposal
+    expected = {**proposal, "source_cloud_fingerprints": {"cloud-project-a": "a" * 64}}
+    assert json.loads(row["prototype_json"]) == expected
 
 
 def test_reusing_proposal_key_with_different_members_is_rejected(isolated_db):

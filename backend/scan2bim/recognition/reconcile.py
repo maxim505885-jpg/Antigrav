@@ -15,6 +15,7 @@ REVIEW_CONFLICT_OVERLAP = 0.5
 class ReconciliationResult:
     candidates: list[dict[str, Any]]
     preserved_ids: list[str]
+    reused_candidate_ids: list[str]
     conflicts: list[dict[str, Any]]
 
 
@@ -67,37 +68,56 @@ def _overlap_of_smaller(a_value: Any, b_value: Any) -> float:
 def protect_reviewed_candidates(
     candidates: list[dict[str, Any]],
     reviewed_elements: list[dict[str, Any]],
+    reusable_candidates: list[dict[str, Any]] | None = None,
 ) -> ReconciliationResult:
-    """Suppress exact re-detections and flag substantial overlap for review.
+    """Preserve decisions and identities for exact repeat detections.
 
     Reviewed elements themselves are never changed. Similar-but-not-identical
     candidates remain visible and carry the IDs of protected elements they may
     conflict with, so a correction is not silently overwritten or hidden.
+    Exact unreviewed matches reuse their database ID so existing feedback/undo
+    history remains attached to the source-linked candidate after rerunning.
     """
     protected = [
         item for item in reviewed_elements
         if item.get("review_status") in REVIEWED_STATUSES
     ]
-    exact: dict[str, list[str]] = {}
+    exact: dict[tuple[str, str], list[str]] = {}
     for item in protected:
-        exact.setdefault(_geometry_key(item.get("geometry_json")), []).append(str(item["id"]))
+        exact.setdefault(
+            (str(item.get("class_name") or ""), _geometry_key(item.get("geometry_json"))), []
+        ).append(str(item["id"]))
+
+    reusable: dict[tuple[str, str], list[str]] = {}
+    for item in reusable_candidates or []:
+        if item.get("review_status") not in {None, "unreviewed"}:
+            continue
+        reusable.setdefault(
+            (str(item.get("class_name") or ""), _geometry_key(item.get("geometry_json"))), []
+        ).append(str(item["id"]))
 
     kept: list[dict[str, Any]] = []
     preserved_ids: list[str] = []
+    reused_candidate_ids: list[str] = []
     conflicts: list[dict[str, Any]] = []
     for index, candidate in enumerate(candidates):
-        key = _geometry_key(candidate.get("geometry"))
+        key = (str(candidate.get("class_name") or ""), _geometry_key(candidate.get("geometry")))
         matches = exact.get(key, [])
         if matches:
             preserved_ids.extend(matches)
             continue
+
+        prior_ids = reusable.get(key, [])
+        copied = deepcopy(candidate)
+        if prior_ids:
+            copied["id"] = prior_ids.pop(0)
+            reused_candidate_ids.append(str(copied["id"]))
 
         overlapping = [
             str(item["id"])
             for item in protected
             if _overlap_of_smaller(candidate.get("bbox"), item.get("bbox_json")) >= REVIEW_CONFLICT_OVERLAP
         ]
-        copied = deepcopy(candidate)
         if overlapping:
             copied.setdefault("dimensions", {})["review_conflict_with"] = overlapping
             copied["metadata"] = {
@@ -113,5 +133,6 @@ def protect_reviewed_candidates(
     return ReconciliationResult(
         candidates=kept,
         preserved_ids=sorted(set(preserved_ids)),
+        reused_candidate_ids=sorted(set(reused_candidate_ids)),
         conflicts=conflicts,
     )

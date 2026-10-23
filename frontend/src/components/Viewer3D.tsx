@@ -70,6 +70,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const [showBraces, setShowBraces] = useState(true);
   const [showTrusses, setShowTrusses] = useState(true);
   const [showWalls, setShowWalls] = useState(true);
+  const [showStairs, setShowStairs] = useState(true);
+  const [showOpenings, setShowOpenings] = useState(true);
   const [activePreset, setActivePreset] = useState<string>("all");
 
   const setPresetAll = () => {
@@ -81,6 +83,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowBraces(true);
     setShowTrusses(true);
     setShowWalls(true);
+    setShowStairs(true);
+    setShowOpenings(true);
   };
 
   const setPresetColumnsAndBeams = () => {
@@ -92,6 +96,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowBraces(false);
     setShowTrusses(false);
     setShowWalls(false);
+    setShowStairs(false);
+    setShowOpenings(false);
   };
 
   const setPresetWallsOnly = () => {
@@ -102,6 +108,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowBraces(false);
     setShowTrusses(false);
     setShowWalls(true);
+    setShowStairs(false);
+    setShowOpenings(true);
   };
 
   const setPresetTrussesAndBraces = () => {
@@ -112,6 +120,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowBraces(true);
     setShowTrusses(true);
     setShowWalls(false);
+    setShowStairs(false);
+    setShowOpenings(false);
   };
 
   const setPresetCleanBim = () => {
@@ -123,6 +133,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowBraces(true);
     setShowTrusses(true);
     setShowWalls(true);
+    setShowStairs(true);
+    setShowOpenings(true);
   };
 
   const setPresetCloudOnly = () => {
@@ -601,6 +613,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       { key: "brace", color: 0xa855f7, visible: showBraces, renderOrder: 8 },
       { key: "truss", color: 0x10b981, visible: showTrusses, renderOrder: 7 },
       { key: "wall", color: 0x94a3b8, visible: showWalls, renderOrder: 6 },
+      { key: "stair", color: 0xea580c, visible: showStairs, renderOrder: 5 },
+      { key: "opening", color: 0xef4444, visible: showOpenings, renderOrder: 4 },
     ];
 
     for (const layer of layers) {
@@ -622,8 +636,13 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       lines.frustumCulled = false;
       bimGroup.add(lines);
     }
-  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls]);
+  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls, showStairs, showOpenings]);
 
+  const selectedDims = selectedElement?.dimensions || {};
+  const nominalGrid = selectedDims.nominal_grid_hypothesis?.grid_hypothesis;
+  const oldGridOnly = selectedElement?.source === "structural_grid"
+    || (selectedDims.structural_status === "confirmed_grid_column"
+      && !["confirmed", "corrected"].includes(selectedElement?.review_status || ""));
 
   return (
     <div className="viewer">
@@ -861,6 +880,42 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
               🧱 Стены ({counts.wall})
             </button>
           )}
+          {(counts.stair || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showStairs ? "#ea580c" : "#f5f2ed",
+                color: showStairs ? "#fff" : "#888",
+                border: "1px solid #ea580c",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowStairs(!showStairs); }}
+              title="Показать / скрыть лестничные марши"
+            >
+              🪜 Лестницы ({counts.stair})
+            </button>
+          )}
+          {(counts.opening || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showOpenings ? "#dc2626" : "#f5f2ed",
+                color: showOpenings ? "#fff" : "#888",
+                border: "1px solid #dc2626",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowOpenings(!showOpenings); }}
+              title="Показать / скрыть проёмы (двери, окна)"
+            >
+              🚪 Проёмы ({counts.opening})
+            </button>
+          )}
           {cloud?.decimated && <span className="warn">прорежено</span>}
           {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
         </div>
@@ -887,45 +942,39 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <span style={{ fontWeight: 700, fontSize: "15px", color: "#38bdf8" }}>
-              {selectedElement.dimensions?.mark || classLabel(selectedElement.class_name)}
+              {oldGridOnly ? classLabel(selectedElement.class_name) : selectedElement.dimensions?.mark || classLabel(selectedElement.class_name)}
             </span>
             <span style={{ fontSize: "11px", background: "#0284c7", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
-              {selectedElement.dimensions?.type || classLabel(selectedElement.class_name)}
+              {oldGridOnly ? "требует проверки" : selectedElement.dimensions?.type || classLabel(selectedElement.class_name)}
             </span>
           </div>
           <div style={{ color: "#cbd5e1", lineHeight: "1.45" }}>
-            {selectedElement.dimensions?.row && selectedElement.dimensions?.axis && (
-              <div>Координаты: Ряд <b>{selectedElement.dimensions.row}</b> · Поперечная ось <b>{selectedElement.dimensions.axis}</b> (шаг 6000 мм)</div>
-            )}
-            {selectedElement.dimensions?.height_m && (
-              <div>Высота: <b>{selectedElement.dimensions.height_m} м</b> · Сечение: <b>{Math.round((selectedElement.dimensions.length_m || 0.6) * 1000)}×{Math.round((selectedElement.dimensions.thickness_m || 0.5) * 1000)} мм</b></div>
-            )}
-            {selectedElement.dimensions?.dx_mm != null && (
-              <div style={{ color: "#7dd3fc" }}>
-                Геодезическое отклонение СПДС: <b>ΔU = {selectedElement.dimensions.dx_mm} мм</b>, <b>ΔV = {selectedElement.dimensions.dy_mm} мм</b>
-                {selectedElement.dimensions?.dr_mm != null && <span> (радиальное <b>ΔR = {selectedElement.dimensions.dr_mm} мм</b>)</span>}
+            {nominalGrid && (
+              <div style={{ color: "#fbbf24" }}>
+                Гипотеза сетки: ряд <b>{nominalGrid.row ?? "—"}</b> · ось <b>{nominalGrid.axis ?? "—"}</b> ·
+                ΔU={nominalGrid.delta_u_mm ?? "—"} мм · ΔV={nominalGrid.delta_v_mm ?? "—"} мм. Требуется проверка.
               </div>
             )}
-            {selectedElement.dimensions?.tolerance_badge && (
+            {!oldGridOnly && selectedElement.dimensions?.height_m && selectedElement.dimensions?.length_m && selectedElement.dimensions?.thickness_m && (
+              <div>Высота: <b>{selectedElement.dimensions.height_m} м</b> · Сечение: <b>{Math.round(selectedElement.dimensions.length_m * 1000)}×{Math.round(selectedElement.dimensions.thickness_m * 1000)} мм</b></div>
+            )}
+            {nominalGrid && (
+              <div style={{ color: "#7dd3fc" }}>
+                Смещение от номинальной позиции — диагностический остаток, не инженерный допуск.
+              </div>
+            )}
+            {(oldGridOnly || selectedElement.dimensions?.tolerance_badge) && (
               <div style={{
                 marginTop: "6px",
                 padding: "3px 8px",
                 borderRadius: "4px",
-                background: selectedElement.dimensions.tolerance_status === "compliant"
-                  ? "rgba(34, 197, 94, 0.25)"
-                  : selectedElement.dimensions.tolerance_status === "marginal"
-                    ? "rgba(245, 158, 11, 0.25)"
-                    : "rgba(239, 68, 68, 0.25)",
-                border: selectedElement.dimensions.tolerance_status === "compliant"
-                  ? "1px solid #22c55e"
-                  : selectedElement.dimensions.tolerance_status === "marginal"
-                    ? "1px solid #f59e0b"
-                    : "1px solid #ef4444",
+                background: "rgba(245, 158, 11, 0.18)",
+                border: "1px solid #f59e0b",
                 color: "#fff",
                 fontSize: "11px",
                 fontWeight: 600,
               }}>
-                {selectedElement.dimensions.tolerance_badge}
+                Старый статус допуска не подтверждён контрольными измерениями.
               </div>
             )}
             {selectedElement.dimensions?.description && (

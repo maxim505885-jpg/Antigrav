@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-23",
+  "source_is_derived_not_original_rcs": true,
+  "source_path": "data\\projects\\workshop_project\\clouds\\workshop_cloud\\positions.npy",
+  "source_bytes": 522000128,
+  "source_mtime_ns": 1792680789046916800,
+  "stored_rows": 43500000,
+  "index_cell_size_m": 5.0,
+  "chunk_size": 500000,
+  "baseline_argsort": {
+    "method": "Windows Process.PeakWorkingSet64 high-water mark; process polled every 100 ms",
+    "peak_working_set_bytes": 1472552960,
+    "peak_working_set_mib": 1404.3,
+    "build_seconds": 13.411,
+    "index_bytes": 348160792,
+    "stored_rows": 43500000,
+    "finite_rows": 43500000,
+    "cell_size_m": 5.0,
+    "run_kind": "repeat measurement after warming the source file cache; build time is not a cold-read comparison",
+    "build_manifest_valid": true,
+    "completion_evidence": "All 43,500,000 finite rows are recorded in the completed index manifest; rows.npy, offsets.npy and manifest.json were present and validated before cleanup."
+  },
+  "chunked_optimization": {
+    "method": "three sequential scans; count cells, then stable-sort cell IDs within each 500,000-row chunk and append source IDs into file-backed per-cell buckets",
+    "private_sort_memory": "bounded by one source chunk plus the compact cell-count/cursor arrays; no full-cloud keys or argsort arrays",
+    "working_set_note": "Windows PeakWorkingSet64 includes file-backed NPY pages; it is an OS working-set high-water mark, not private committed memory.",
+    "full_43500000_row_build": {
+      "build_seconds": 16.942,
+      "index_bytes": 348160792,
+      "stored_rows": 43500000,
+      "finite_rows": 43500000,
+      "manifest_valid": true,
+      "source_size": 522000128,
+      "source_mtime_ns": 1792680789046916800,
+      "cell_size_m": 5.0,
+      "chunk_size": 500000
+    },
+    "peak_working_set_bytes": 984432640,
+    "peak_working_set_mib": 938.8,
+    "previous_argsort_peak_working_set_bytes": 1472552960,
+    "working_set_reduction_fraction": 0.3315,
+    "query_validation": {
+      "all_queries_exact": true,
+      "query_count": 5,
+      "results": [
+        {
+          "name": "pilot_roi_a_bounds",
+          "selected_rows": 716,
+          "same_source_row_ids": true,
+          "exact_xyz_matches_source_rows": true,
+          "indexed_seconds": 0.0102,
+          "linear_seconds": 3.1134,
+          "planner_uses_index": true,
+          "estimated_candidate_rows": 72340
+        },
+        {
+          "name": "local_column_neighborhood",
+          "selected_rows": 0,
+          "same_source_row_ids": true,
+          "exact_xyz_matches_source_rows": true,
+          "indexed_seconds": 0.0028,
+          "linear_seconds": 3.1503,
+          "planner_uses_index": true,
+          "estimated_candidate_rows": 94
+        },
+        {
+          "name": "thin_beam_slab",
+          "selected_rows": 0,
+          "same_source_row_ids": true,
+          "exact_xyz_matches_source_rows": true,
+          "indexed_seconds": 0.0023,
+          "linear_seconds": 3.0794,
+          "planner_uses_index": true,
+          "estimated_candidate_rows": 0
+        },
+        {
+          "name": "broad_workshop_level",
+          "selected_rows": 12749244,
+          "same_source_row_ids": true,
+          "exact_xyz_matches_source_rows": true,
+          "indexed_seconds": 4.4033,
+          "linear_seconds": 3.845,
+          "planner_uses_index": false,
+          "estimated_candidate_rows": 22688507
+        },
+        {
+          "name": "whole_derived_cloud",
+          "selected_rows": 43500000,
+          "same_source_row_ids": true,
+          "exact_xyz_matches_source_rows": true,
+          "indexed_seconds": 10.0169,
+          "linear_seconds": 4.2696,
+          "planner_uses_index": false,
+          "estimated_candidate_rows": 43500000
+        }
+      ],
+      "source_after": {
+        "size": 522000128,
+        "mtime_ns": 1792680789046916800
+      }
+    },
+    "pytest_status": "pytest 9.1.1 installed; targeted suite could not complete because Windows sandbox denied pytest temporary-directory traversal/cleanup with WinError 5. Synthetic smoke and full derived-cloud differential checks completed directly."
+  }
+}

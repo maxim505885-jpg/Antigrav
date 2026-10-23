@@ -67,6 +67,20 @@ def _validate_project_members(con, project_id: str, member_ids: list[str]) -> No
         raise ValueError("proposal members must be measured, non-inferred columns")
 
 
+def _source_cloud_fingerprints(con, project_id: str, member_ids: list[str]) -> dict[str, str | None]:
+    """Snapshot the source clouds behind the confirmed members for later freshness checks."""
+    placeholders = ",".join("?" for _ in member_ids)
+    rows = con.execute(
+        f"SELECT DISTINCT c.id AS cloud_id,c.sha256 FROM elements e "
+        f"JOIN clouds c ON c.id=e.cloud_id WHERE e.project_id=? AND e.id IN ({placeholders})",
+        (project_id, *member_ids),
+    ).fetchall()
+    fingerprints = {row["cloud_id"]: row["sha256"] for row in rows}
+    if len(fingerprints) == 0:
+        raise ValueError("proposal source clouds could not be verified")
+    return dict(sorted(fingerprints.items()))
+
+
 def _read_assignments(con, project_id: str, element_ids: list[str]) -> dict[str, str | None]:
     if not element_ids:
         return {}
@@ -180,6 +194,8 @@ def confirm_column_type(
     prototype["representative_sides_m"] = sides
     prototype["morphology"] = morphology
     with db.db() as con:
+        _validate_project_members(con, project_id, member_ids)
+        prototype["source_cloud_fingerprints"] = _source_cloud_fingerprints(con, project_id, member_ids)
         if con.execute(
             "SELECT 1 FROM column_type_rejections WHERE project_id=? AND proposal_key=?",
             (project_id, proposal_key),

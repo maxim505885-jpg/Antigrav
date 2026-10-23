@@ -86,7 +86,14 @@ def extract_vertical_surfaces(
     counts = np.bincount(group)
     np.add.at(unique, group, sorted_points)
     unique /= counts[:, None]
-    source_indices = [order[group == i] for i in range(len(unique))]
+    # Build voxel-to-source offsets in O(N log N) rather than scanning the
+    # entire input once per voxel, which became quadratic on dense candidates.
+    grouped_order = np.argsort(group, kind="stable")
+    group_offsets = np.r_[0, np.cumsum(counts)]
+    source_indices = [
+        order[grouped_order[group_offsets[index]:group_offsets[index + 1]]]
+        for index in range(len(unique))
+    ]
 
     remaining = np.ones(len(unique), dtype=bool)
     planes: list[dict[str, Any]] = []

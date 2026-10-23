@@ -86,6 +86,10 @@ TRUSS_MIN_SPAN_M = 6.0
 TRUSS_MIN_POSTS = 3
 TRUSS_MIN_CHORD_M = 4.0
 BRACE_MIN_DIAGONAL_M = 1.5
+# A roof-truss role is only proposed when its source points remain concentrated
+# in the detected section plane. This is a conservative recognition heuristic,
+# not an engineering tolerance.
+TRUSS_MAX_MEMBER_PLANE_SUPPORT_P95_M = 0.20
 # A (v, z) section of a truss is mostly empty space; a wall-like plane fills
 # more than this share of its raster and is rejected as a truss.
 TRUSS_MAX_SECTION_FILL = 0.35
@@ -815,6 +819,7 @@ def _member_element(
     source_point_ids: np.ndarray | None = None,
     source_point_ids_sampled: bool = False,
     class_name: str = "brace",
+    role_evidence: dict[str, Any] | None = None,
 ) -> DetectedElement:
     length = float(np.linalg.norm(p1_world - p0_world))
     mid = (p0_world + p1_world) / 2
@@ -824,6 +829,7 @@ def _member_element(
         "truss_bottom_chord": "нижний пояс фермы",
         "truss_post": "стойка фермы",
         "truss_web": "раскос фермы",
+        "unknown": "роль не определена",
     }.get(role, role)
     section_note = (
         "" if section_m is not None
@@ -863,6 +869,8 @@ def _member_element(
             metadata["member_proposal"] = proposal
         else:
             metadata["source_evidence_status"] = "insufficient"
+    if role_evidence is not None:
+        metadata["role_evidence"] = role_evidence
     geometry: dict[str, Any] = {
         "kind": "member",
         "p0": [round(float(v), 4) for v in p0_world],
@@ -884,10 +892,126 @@ def _member_element(
             "length_m": round(length, 3),
             "role": role,
             "role_label": label,
+            "role_status": "proposed" if role != "unknown" else "unknown",
             "orientation": orientation,
         },
         metadata=metadata,
     )
+
+
+def _distance_point_to_segment_2d(
+    point: np.ndarray, segment: tuple[np.ndarray, np.ndarray, float],
+) -> float:
+    center, direction, length = segment
+    start = center - direction * (length / 2.0)
+    end = center + direction * (length / 2.0)
+    vector = end - start
+    denominator = float(vector @ vector)
+    if denominator <= 1e-12:
+        return float(np.linalg.norm(point - start))
+    fraction = float(np.clip(((point - start) @ vector) / denominator, 0.0, 1.0))
+    return float(np.linalg.norm(point - (start + fraction * vector)))
+
+
+def _classify_truss_internal_member_role(
+    line: tuple[np.ndarray, np.ndarray, float],
+    top_chords: list[tuple[np.ndarray, np.ndarray, float]],
+    bottom_chords: list[tuple[np.ndarray, np.ndarray, float]],
+    *,
+    endpoint_tolerance_m: float = 0.25,
+    plane_support_p95_m: float = 0.0,
+    max_plane_support_p95_m: float = TRUSS_MAX_MEMBER_PLANE_SUPPORT_P95_M,
+) -> tuple[str, dict[str, Any]]:
+    """Propose a post/web role only when both endpoints meet measured chords.
+
+    This is a topology hypothesis in local (v, z) section coordinates. It does
+    not establish that the members are physically connected or structurally
+    serve those roles.
+    """
+    if (not math.isfinite(endpoint_tolerance_m) or endpoint_tolerance_m <= 0
+            or not math.isfinite(plane_support_p95_m) or plane_support_p95_m < 0
+            or not math.isfinite(max_plane_support_p95_m) or max_plane_support_p95_m <= 0
+            or not math.isfinite(float(line[2])) or float(line[2]) <= 0
+            or not top_chords or not bottom_chords):
+        return "unknown", {
+            "status": "unknown",
+            "reason": "measured_top_and_bottom_chords_required",
+            "supported_chords": [],
+        }
+    center = np.asarray(line[0], dtype=np.float64)
+    direction = np.asarray(line[1], dtype=np.float64)
+    norm = float(np.linalg.norm(direction))
+    if center.shape != (2,) or direction.shape != (2,) or not np.isfinite(center).all() or not np.isfinite(direction).all() or norm <= 1e-12:
+        return "unknown", {
+            "status": "unknown",
+            "reason": "invalid_member_axis",
+            "supported_chords": [],
+        }
+    direction = direction / norm
+    endpoints = (
+        center - direction * (float(line[2]) / 2.0),
+        center + direction * (float(line[2]) / 2.0),
+    )
+    distances = {
+        "top": [min(_distance_point_to_segment_2d(point, chord) for chord in top_chords)
+                for point in endpoints],
+        "bottom": [min(_distance_point_to_segment_2d(point, chord) for chord in bottom_chords)
+                   for point in endpoints],
+    }
+    assignments = []
+    for top_index, bottom_index in ((0, 1), (1, 0)):
+        if (distances["top"][top_index] <= endpoint_tolerance_m
+                and distances["bottom"][bottom_index] <= endpoint_tolerance_m):
+            assignments.append({"top": top_index, "bottom": bottom_index})
+    if len(assignments) != 1:
+        supported_chords = sorted({
+            name for name, values in distances.items()
+            if min(values) <= endpoint_tolerance_m
+        })
+        return "unknown", {
+            "status": "unknown",
+            "reason": (
+                "ambiguous_endpoint_to_chord_assignment" if len(assignments) > 1
+                else "member_axis_does_not_reach_both_measured_chords"
+            ),
+            "endpoint_distances_m": {
+                name: [round(value, 4) for value in values]
+                for name, values in distances.items()
+            },
+            "endpoint_tolerance_m": endpoint_tolerance_m,
+            "supported_chords": supported_chords,
+        }
+    assignment = assignments[0]
+    supported_chords = ["bottom", "top"]
+    if plane_support_p95_m > max_plane_support_p95_m:
+        return "unknown", {
+            "status": "unknown",
+            "reason": "member_point_support_is_non_planar",
+            "endpoint_distances_m": {
+                name: [round(value, 4) for value in values]
+                for name, values in distances.items()
+            },
+            "endpoint_tolerance_m": endpoint_tolerance_m,
+            "supported_chords": supported_chords,
+            "endpoint_chord_assignment": assignment,
+            "plane_support_p95_m": round(plane_support_p95_m, 4),
+            "max_plane_support_p95_m": max_plane_support_p95_m,
+        }
+    role = "truss_post" if abs(float(direction[0])) < 0.25 else "truss_web"
+    return role, {
+        "status": "proposed",
+        "reason": "both_member_endpoints_reach_measured_top_and_bottom_chords",
+        "endpoint_distances_m": {
+            name: [round(value, 4) for value in values]
+            for name, values in distances.items()
+        },
+        "endpoint_tolerance_m": endpoint_tolerance_m,
+        "supported_chords": supported_chords,
+        "endpoint_chord_assignment": assignment,
+        "plane_support_p95_m": round(plane_support_p95_m, 4),
+        "max_plane_support_p95_m": max_plane_support_p95_m,
+        "orientation_basis": "vertical_in_section" if role == "truss_post" else "diagonal_in_section",
+    }
 
 
 def _section_member_source_rows(
@@ -934,13 +1058,24 @@ def _section_node_evidence(
     source_rows: np.ndarray,
     *,
     node_support_radius_m: float = 0.20,
+    node_line_half_width_m: float = 0.08,
+    min_member_axis_points: int = 3,
+    min_member_axis_span_m: float = 0.04,
+    plane_coordinates: np.ndarray | None = None,
+    node_plane_tolerance_m: float = 0.15,
     node_merge_distance_m: float = 0.10,
 ) -> list[dict[str, Any]]:
     """Propose point-supported intersections without claiming a joint."""
     points = np.asarray(points_vz, dtype=float)
     rows = np.asarray(source_rows)
+    plane = (
+        np.zeros(len(points), dtype=float)
+        if plane_coordinates is None else np.asarray(plane_coordinates, dtype=float)
+    )
     if (points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1
-            or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)):
+            or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)
+            or plane.shape != (len(points),) or not np.isfinite(plane).all()
+            or not math.isfinite(node_plane_tolerance_m) or node_plane_tolerance_m <= 0):
         raise ValueError("section node points and source rows must be aligned")
     proposals: list[dict[str, Any]] = []
     for i, (line_a, member_a) in enumerate(members):
@@ -959,8 +1094,31 @@ def _section_node_evidence(
                     or not (-0.03 <= distance_b <= length_b + 0.03)):
                 continue
             point_vz = start_a + distance_a * direction_a
-            nearby = np.linalg.norm(points - point_vz, axis=1) <= node_support_radius_m
-            node_rows = np.unique(rows[nearby].astype(np.int64, copy=False))
+            offset = points - point_vz
+            local_support: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+            for direction in (direction_a, direction_b):
+                unit_direction = direction / np.linalg.norm(direction)
+                normal = np.array([-unit_direction[1], unit_direction[0]])
+                along = offset @ unit_direction
+                across = offset @ normal
+                supported = (
+                    (np.abs(along) <= node_support_radius_m)
+                    & (np.abs(across) <= node_line_half_width_m)
+                )
+                local_support.append((
+                    np.unique(rows[supported].astype(np.int64, copy=False)),
+                    along[supported],
+                    plane[supported],
+                ))
+            if any(len(axis_rows) < min_member_axis_points
+                   or float(np.ptp(axis_along)) < min_member_axis_span_m
+                   for axis_rows, axis_along, _axis_plane in local_support):
+                continue
+            plane_centers = [float(np.median(axis_plane)) for _, _, axis_plane in local_support]
+            plane_delta = abs(plane_centers[0] - plane_centers[1])
+            if plane_delta > node_plane_tolerance_m:
+                continue
+            node_rows = np.unique(np.concatenate([axis_rows for axis_rows, _, _ in local_support]))
             if len(node_rows) < 5:
                 continue
             existing = next((node for node in proposals
@@ -970,10 +1128,14 @@ def _section_node_evidence(
                     "point_vz": point_vz,
                     "candidate_member_proposal_ids": {member_a, member_b},
                     "source_point_ids": set(node_rows.tolist()),
+                    "plane_support_delta_m": plane_delta,
                 })
             else:
                 existing["candidate_member_proposal_ids"].update((member_a, member_b))
                 existing["source_point_ids"].update(node_rows.tolist())
+                existing["plane_support_delta_m"] = max(
+                    existing["plane_support_delta_m"], plane_delta,
+                )
     return proposals
 
 
@@ -1400,7 +1562,13 @@ def _detect_trusses(
         progress(0.9, "поиск плоскостей ферм и связей")
     points, source_rows, zone_sampled = _collect_zone_with_source_ids(geom, zone[0], zone[1])
     elements: list[DetectedElement] = []
-    stats = {"truss_count": 0, "brace_vertical": 0, "truss_member_untraceable": 0}
+    stats = {
+        "truss_count": 0,
+        "truss_complete_count": 0,
+        "truss_partial_count": 0,
+        "brace_vertical": 0,
+        "truss_member_untraceable": 0,
+    }
     planes_meta: list[dict[str, Any]] = []
     if len(points) < 2000:
         return elements, planes_meta, stats
@@ -1445,6 +1613,7 @@ def _detect_trusses(
 
         def emit_truss_member(
             line: tuple[np.ndarray, np.ndarray, float], role: str, member_class: str,
+            role_evidence: dict[str, Any] | None = None,
         ) -> str | None:
             center_vz, direction_vz, member_length = line
             member_source_rows = _section_member_source_rows(
@@ -1462,10 +1631,50 @@ def _detect_trusses(
                 source_point_ids=member_source_rows,
                 source_point_ids_sampled=zone_sampled,
                 class_name=member_class,
+                role_evidence=role_evidence,
             )
             elements.append(member_element)
             member_proposal_id = member_element.metadata.get("member_proposal_id")
             return str(member_proposal_id) if member_proposal_id else None
+
+        def classify_truss_internal_member_role(
+            line: tuple[np.ndarray, np.ndarray, float],
+        ) -> tuple[str, dict[str, Any]]:
+            section_u = u[slice_mask]
+            chord_plane_offsets: list[np.ndarray] = []
+            for chord in (*top_chords, *bot_chords):
+                chord_center, chord_direction, chord_length = chord
+                chord_direction = chord_direction / np.linalg.norm(chord_direction)
+                chord_normal = np.array([-chord_direction[1], chord_direction[0]])
+                chord_delta = vz - chord_center
+                chord_support = (
+                    (np.abs(chord_delta @ chord_direction) <= chord_length / 2 + 0.30)
+                    & (np.abs(chord_delta @ chord_normal) <= 0.20)
+                )
+                if chord_support.any():
+                    chord_plane_offsets.append(section_u[chord_support])
+            reference_plane_u = (
+                float(np.median(np.concatenate(chord_plane_offsets)))
+                if chord_plane_offsets else float(plane_u)
+            )
+            center_vz, direction_vz, member_length = line
+            offset_vz = vz - center_vz
+            direction_vz = direction_vz / np.linalg.norm(direction_vz)
+            normal_vz = np.array([-direction_vz[1], direction_vz[0]])
+            along = offset_vz @ direction_vz
+            across = offset_vz @ normal_vz
+            member_support = (
+                (np.abs(along) <= member_length / 2 + 0.30)
+                & (np.abs(across) <= 0.20)
+            )
+            plane_offsets = np.abs(section_u[member_support] - reference_plane_u)
+            plane_support_p95 = (
+                float(np.percentile(plane_offsets, 95)) if len(plane_offsets) else 0.0
+            )
+            return _classify_truss_internal_member_role(
+                line, top_chords, bot_chords,
+                plane_support_p95_m=plane_support_p95,
+            )
         section, fill = _vertical_hough(vz, res=0.10, min_len_m=0.8)
         if not section:
             continue
@@ -1497,19 +1706,43 @@ def _detect_trusses(
         ]
         posts = [m for m in merged_v if m[2] >= 0.6]
         has_chords = top_chord_len >= TRUSS_MIN_CHORD_M and bot_chord_len >= TRUSS_MIN_CHORD_M
+        has_one_chord = bool(top_chords) != bool(bot_chords)
+        internal_lines = [*posts, *merged_d]
+        traceable_internal_count = sum(
+            len(_section_member_source_rows(vz, plane_source_rows, center, direction_vz, length)) >= 5
+            for center, direction_vz, length in internal_lines
+        )
+        partial_missing_chord = has_one_chord and traceable_internal_count >= 2
         sparse = fill <= TRUSS_MAX_SECTION_FILL
         plane_world_u = float(plane_u + center2 @ direction)
 
-        if has_chords and len(posts) >= TRUSS_MIN_POSTS and sparse:
+        partial_truss = not has_chords or len(posts) < TRUSS_MIN_POSTS
+        has_internal_members = traceable_internal_count >= 1
+        if (has_chords and has_internal_members or partial_missing_chord) and sparse:
             span_pts = vz[(vz[:, 1] >= zone[0]) & (vz[:, 1] <= zone[1])]
             v_min = float(np.percentile(span_pts[:, 0], 1))
             v_max = float(np.percentile(span_pts[:, 0], 99))
             span = v_max - v_min
             if span < TRUSS_MIN_SPAN_M:
                 continue
-            top_z = float(np.median([m[0][1] for m in top_chords])) if top_chords else zone[1] - 0.3
-            bot_z = float(np.median([m[0][1] for m in bot_chords])) if bot_chords else zone[0] + 0.3
+            observed_z_min = float(np.percentile(span_pts[:, 1], 1))
+            observed_z_max = float(np.percentile(span_pts[:, 1], 99))
+            top_chord_z = float(np.median([m[0][1] for m in top_chords])) if top_chords else None
+            bottom_chord_z = float(np.median([m[0][1] for m in bot_chords])) if bot_chords else None
+            top_z = top_chord_z if top_chord_z is not None else observed_z_max
+            bot_z = bottom_chord_z if bottom_chord_z is not None else observed_z_min
             height = max(0.3, top_z - bot_z)
+            missing_evidence = []
+            if not top_chords:
+                missing_evidence.append("top_chord")
+            if not bot_chords:
+                missing_evidence.append("bottom_chord")
+            if len(posts) < TRUSS_MIN_POSTS:
+                missing_evidence.append("additional_vertical_posts")
+            height_status = (
+                "observed_extent_only" if not top_chords or not bot_chords
+                else "measured_chord_separation"
+            )
             mid_v = (v_min + v_max) / 2
             world_center = np.array(
                 [
@@ -1553,10 +1786,22 @@ def _detect_trusses(
                 inferred=False,
                 dimensions={
                     "span_m": round(span, 3),
+                    "span_status": "observed_extent_only",
                     "height_m": round(height, 3),
-                    "top_chord_z": round(top_z + float(geom.origin[2]), 3),
-                    "bottom_chord_z": round(bot_z + float(geom.origin[2]), 3),
+                    "top_chord_z": (
+                        round(top_chord_z + float(geom.origin[2]), 3)
+                        if top_chord_z is not None else None
+                    ),
+                    "bottom_chord_z": (
+                        round(bottom_chord_z + float(geom.origin[2]), 3)
+                        if bottom_chord_z is not None else None
+                    ),
                     "panels": len(posts),
+                    "observed_panels": len(posts),
+                    "required_minimum_posts": TRUSS_MIN_POSTS,
+                    "completeness": "partial" if partial_truss else "candidate_complete",
+                    "missing_evidence": missing_evidence,
+                    "height_status": height_status,
                     "diagonals": len(merged_d),
                     "section_fill": round(fill, 3),
                 },
@@ -1564,9 +1809,14 @@ def _detect_trusses(
                     "method": "u-histogram peaks + (v,z) section Hough: chords/posts/diagonals",
                     "confidence_kind": "heuristic",
                     "notes": (
-                        "Нижний пояс часто сливается с уровнем низкой кровли; "
+                        "Частичный кандидат: отображены только наблюдаемые стержни; "
+                        "недостающие элементы не достраиваются."
+                        if partial_truss else
+                        "Нижний пояс может сливаться с уровнем низкой кровли; "
                         "число раскосов может быть занижено из-за частичной видимости."
                     ),
+                    "completeness_status": "partial" if partial_truss else "candidate_complete",
+                    "missing_evidence": missing_evidence,
                 },
             )
             elements.append(truss_envelope)
@@ -1580,26 +1830,49 @@ def _detect_trusses(
                 proposal_id = emit_truss_member(line, "truss_bottom_chord", "beam")
                 if proposal_id:
                     truss_member_lines.append((line, proposal_id))
+            accepted_horizontal_ids = {id(line) for line in (*top_chords, *bot_chords)}
+            for line in merged_h:
+                if id(line) in accepted_horizontal_ids:
+                    continue
+                # A chord split by occlusion can leave several source-supported
+                # horizontal fragments, none long enough to claim as a chord.
+                # Keep each visible fragment separately with an unknown role;
+                # never bridge the unobserved gap or infer a missing elevation.
+                fragment_evidence = {
+                    "status": "unknown",
+                    "reason": "horizontal_fragment_below_minimum_chord_span",
+                    "observed_length_m": round(float(line[2]), 4),
+                    "minimum_chord_span_m": TRUSS_MIN_CHORD_M,
+                }
+                proposal_id = emit_truss_member(
+                    line, "unknown", "beam", fragment_evidence,
+                )
+                if proposal_id:
+                    truss_member_lines.append((line, proposal_id))
             for line in posts:
-                proposal_id = emit_truss_member(line, "truss_post", "brace")
+                role, evidence = classify_truss_internal_member_role(line)
+                proposal_id = emit_truss_member(line, role, "brace", evidence)
                 if proposal_id:
                     truss_member_lines.append((line, proposal_id))
             for line in merged_d:
-                proposal_id = emit_truss_member(line, "truss_web", "brace")
+                role, evidence = classify_truss_internal_member_role(line)
+                proposal_id = emit_truss_member(line, role, "brace", evidence)
                 if proposal_id:
                     truss_member_lines.append((line, proposal_id))
             truss_envelope.metadata["member_proposal_ids"] = [
                 item.metadata["member_proposal_id"]
                 for item in elements[truss_member_start:]
-                if item.dimensions.get("role", "").startswith("truss_")
-                and item.metadata.get("member_proposal_id")
+                if item.metadata.get("member_proposal_id")
             ]
             truss_envelope.metadata["member_count_traced"] = len(
                 truss_envelope.metadata["member_proposal_ids"]
             )
             if truss_envelope.metadata["member_proposal_ids"]:
                 node_candidates = []
-                for node in _section_node_evidence(truss_member_lines, vz, plane_source_rows):
+                for node in _section_node_evidence(
+                    truss_member_lines, vz, plane_source_rows,
+                    plane_coordinates=u[slice_mask],
+                ):
                     world_position = [
                         round(float(value), 4)
                         for value in world_section_point(node["point_vz"])
@@ -1625,12 +1898,27 @@ def _detect_trusses(
                         "status": "proposed",
                     })
                 truss_envelope.metadata["assembly_proposal"] = build_assembly_proposal(
-                    assembly_type="roof_truss",
+                    assembly_type=(
+                        "roof_truss_partial_missing_top_chord" if partial_missing_chord and not top_chords
+                        else "roof_truss_partial_missing_bottom_chord" if partial_missing_chord and not bot_chords
+                        else "roof_truss_partial" if partial_truss
+                        else "roof_truss"
+                    ),
                     member_proposal_ids=truss_envelope.metadata["member_proposal_ids"],
                     node_candidates=node_candidates,
                 )
+            if partial_truss:
+                stats["truss_partial_count"] += 1
+            else:
+                stats["truss_complete_count"] += 1
             stats["truss_count"] += 1
-            planes_meta.append({"u": plane_world_u, "kind": "truss", "span": span, "posts": len(posts)})
+            planes_meta.append({
+                "u": plane_world_u,
+                "kind": "truss_partial" if partial_truss else "truss",
+                "span": span,
+                "posts": len(posts),
+                "missing_evidence": missing_evidence,
+            })
         elif len(merged_d) >= 2 and fill <= 0.5 and not has_chords:
             # Vertical bracing plane between trusses: emit diagonal members.
             for center_vz, dir_vz, diag_length in merged_d:

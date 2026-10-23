@@ -271,6 +271,8 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
         "slab": "S2B-SLABS",
         "brace": "S2B-BRACES",
         "truss": "S2B-TRUSSES",
+        "stair": "S2B-STAIRS",
+        "opening": "S2B-OPENINGS",
     }
     for name, color in (
         ("S2B-WALLS", 7),
@@ -279,6 +281,8 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
         ("S2B-SLABS", 4),
         ("S2B-BRACES", 6),
         ("S2B-TRUSSES", 3),
+        ("S2B-STAIRS", 30),
+        ("S2B-OPENINGS", 8),
     ):
         if name not in doc.layers:
             doc.layers.add(name, color=color)
@@ -324,6 +328,21 @@ def export_elements_dxf(elements: list[dict[str, Any]], out_path: str | Path, pr
             if math.dist(start, end) <= 1e-9:
                 continue
             exported_entities.append(msp.add_line(start, end, dxfattribs={"layer": layer}))
+            if el.get("class_name") == "stair":
+                # A flight is drawn by its inclined axis plus a plan footprint
+                # of the measured width, so the drafter sees the run in plan.
+                width = float(geom.get("section_m", 1.0))
+                ax, ay = end[0] - start[0], end[1] - start[1]
+                run = math.hypot(ax, ay)
+                if run > 1e-6:
+                    nx, ny = -ay / run * width / 2.0, ax / run * width / 2.0
+                    plan = [
+                        (start[0] + nx, start[1] + ny),
+                        (end[0] + nx, end[1] + ny),
+                        (end[0] - nx, end[1] - ny),
+                        (start[0] - nx, start[1] - ny),
+                    ]
+                    exported_entities.append(msp.add_lwpolyline(plan, close=True, dxfattribs={"layer": layer}))
         for entity in exported_entities:
             _set_element_provenance(entity, el)
     msp.add_text(project_name or "Intelligent Scan-to-BIM elements", height=0.4).set_placement((0, 0))

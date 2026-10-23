@@ -25,7 +25,14 @@ export function restoreAnnotationAsDraft(
       z_m: item.z_m,
       sides_m: item.sides_m ? { ...item.sides_m } : null,
       note: item.note,
+      ...(item.source_provenance ? {
+        source_provenance: {
+          ...item.source_provenance,
+          source_point_row_id_sample: [...item.source_provenance.source_point_row_id_sample],
+        },
+      } : {}),
     })),
+    algorithm_suggestions_verified: false,
     visible_faces: [...annotation.visible_faces],
     hidden_faces: [...annotation.hidden_faces],
     confidence: annotation.confidence,

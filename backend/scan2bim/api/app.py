@@ -38,6 +38,12 @@ from ..learning.training import active_artifact, apply_learned_prior, train_cand
 from ..recognition import detect_structures, ml_status
 from ..recognition.geometric import DetectedElement
 from ..recognition.reconcile import protect_reviewed_candidates
+from ..structure.column_surface_assignment import (
+    associate_surfaces_to_column,
+    cluster_column_surface_tracks,
+)
+from ..structure.column_section_series import fit_column_track_sections
+from ..structure.vertical_surfaces import extract_vertical_surfaces
 from ..schemas import (
     CloudImportPath,
     CloudOut,
@@ -47,6 +53,7 @@ from ..schemas import (
     ColumnTypeReject,
     ColumnTypeUndo,
     ColumnSectionFitRequest,
+    ColumnSectionBatchFitRequest,
     ElementOut,
     ElementPatch,
     FeedbackCreate,
@@ -155,6 +162,46 @@ def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[st
         "metadata": meta,
         "warning": meta.get("warning"),
     }
+
+
+def _dxf_to_dwg_or_409(dxf_path: Path, dwg_path: Path) -> Path:
+    """Convert a DXF we generated into DWG, or explain honestly why not.
+
+    Only licensed headless converters are used (ODA File Converter, AutoCAD
+    Core Console). COM automation is deliberately skipped: opening the AutoCAD
+    GUI on a server is not an export path.
+    """
+    from ..cad.dwg_compiler import (
+        convert_dxf_to_dwg_accore,
+        convert_dxf_to_dwg_oda,
+        find_accoreconsole,
+        find_oda_converter,
+    )
+
+    errors: list[str] = []
+    if find_oda_converter():
+        try:
+            return convert_dxf_to_dwg_oda(dxf_path, dwg_path)
+        except Exception as exc:
+            errors.append(f"ODA File Converter: {type(exc).__name__}: {exc}")
+    if find_accoreconsole():
+        try:
+            return convert_dxf_to_dwg_accore(dxf_path, dwg_path)
+        except Exception as exc:
+            errors.append(f"AutoCAD Core Console: {type(exc).__name__}: {exc}")
+    raise HTTPException(
+        409,
+        {
+            "summary": "DWG не создан: на сервере не найден лицензированный конвертер.",
+            "steps": [
+                "Установите ODA File Converter (бесплатен для членов ODA) и перезапустите сервер.",
+                "Либо укажите путь к ODAFileConverter в переменной окружения S2B_ODA_CONVERTER.",
+                "Либо запросите format=dxf и сохраните DWG в AutoCAD.",
+            ],
+            "errors": errors,
+            "note": "DWG не подделывается файлом с другим расширением.",
+        },
+    )
 
 
 def _cloud_geometry(row: dict[str, Any]) -> CloudGeometry:
@@ -641,18 +688,20 @@ def create_app() -> FastAPI:
             )
             media = "application/pdf"
         else:
-            raise HTTPException(
-                409,
-                {
-                    "summary": "Для экспорта DWG нужен лицензированный конвертер Autodesk.",
-                    "steps": [
-                        "Экспортируйте DXF из этого приложения.",
-                        "Откройте DXF в AutoCAD и сохраните как DWG (штатное средство).",
-                        "Либо используйте ODA File Converter, если он лицензирован в организации.",
-                    ],
-                    "note": "DWG не генерируется нелицензированным сторонним писателем.",
-                },
+            # DWG is a translation of the DXF we just produced, done by a
+            # licensed converter (ODA File Converter / accoreconsole).
+            dxf_path = folder / f"{base}.dxf"
+            export_section_dxf(
+                result,
+                dxf_path,
+                cloud_name=cloud["name"],
+                project_name=project["name"],
+                scale=scale,
+                draw_scan_points=draw_scan_points,
             )
+            path = folder / f"{base}.dwg"
+            _dxf_to_dwg_or_409(dxf_path, path)
+            media = "application/acad"
         return FileResponse(path, media_type=media, filename=path.name)
 
     # ------------------------------------------------------------ recognition
@@ -686,17 +735,30 @@ def create_app() -> FastAPI:
                 element["features"] = features_from_element(element)
                 candidates.append(element)
             apply_learned_prior(candidates)
-            reviewed = rows(
-                """SELECT id, geometry_json, bbox_json, review_status FROM elements
-                   WHERE cloud_id = ? AND source = 'geometric'
-                   AND review_status IN ('confirmed', 'corrected', 'rejected')""",
+            existing_geometric = rows(
+                """SELECT id, class_name, geometry_json, bbox_json, review_status FROM elements
+                   WHERE cloud_id = ? AND source = 'geometric'""",
                 (cloud_id,),
             )
-            reconciliation = protect_reviewed_candidates(candidates, reviewed)
-            execute(
-                "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
-                (cloud_id,),
-            )
+            reviewed = [
+                item for item in existing_geometric
+                if item["review_status"] in {"confirmed", "corrected", "rejected"}
+            ]
+            reusable = [item for item in existing_geometric if item["review_status"] == "unreviewed"]
+            reconciliation = protect_reviewed_candidates(candidates, reviewed, reusable)
+            reused_ids = reconciliation.reused_candidate_ids
+            if reused_ids:
+                placeholders = ",".join("?" for _ in reused_ids)
+                execute(
+                    f"DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' "
+                    f"AND review_status = 'unreviewed' AND id NOT IN ({placeholders})",
+                    (cloud_id, *reused_ids),
+                )
+            else:
+                execute(
+                    "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
+                    (cloud_id,),
+                )
             created = []
             conflicts = []
             for element in reconciliation.candidates:
@@ -715,6 +777,17 @@ def create_app() -> FastAPI:
                      confidence, confidence_kind, measured, inferred, source, review_status,
                      dimensions_json, metadata_json, created_at, updated_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        class_name=excluded.class_name,
+                        geometry_json=excluded.geometry_json,
+                        bbox_json=excluded.bbox_json,
+                        confidence=excluded.confidence,
+                        confidence_kind=excluded.confidence_kind,
+                        measured=excluded.measured,
+                        inferred=excluded.inferred,
+                        dimensions_json=excluded.dimensions_json,
+                        metadata_json=excluded.metadata_json,
+                        updated_at=excluded.updated_at
                     """,
                     (
                         element["id"],
@@ -755,6 +828,7 @@ def create_app() -> FastAPI:
                 "warnings": result.warnings,
                 "review_reconciliation": {
                     "preserved_manual_element_ids": reconciliation.preserved_ids,
+                    "reused_candidate_ids": reconciliation.reused_candidate_ids,
                     "conflicts": conflicts,
                 },
             }
@@ -935,7 +1009,9 @@ def create_app() -> FastAPI:
         rejected = list_rejected_column_types(cloud["project_id"])
         rejected_keys = {item["proposal_key"] for item in rejected}
         sources = [element_from_row(item) for item in rows(
-            "SELECT e.* FROM elements e JOIN column_type_assignments a ON a.element_id=e.id "
+            "SELECT e.*,c.sha256 AS source_cloud_sha256 FROM elements e "
+            "JOIN clouds c ON c.id=e.cloud_id "
+            "JOIN column_type_assignments a ON a.element_id=e.id "
             "WHERE e.project_id=? AND a.project_id=?", (cloud["project_id"], cloud["project_id"]))]
         reuse = match_project_column_types(cloud["project_id"], elements, confirmed_types, sources,
             linear_tolerance_m=linear_tolerance_m, relative_tolerance=relative_tolerance)
@@ -1159,6 +1235,178 @@ def create_app() -> FastAPI:
             "source_geometry_modified": False,
         }
 
+    @api.post("/elements/{element_id}/section-fit-batch")
+    def propose_element_section_batch(element_id: str, payload: ColumnSectionBatchFitRequest):
+        """Fit several independent horizontal slices in one review request."""
+        results = [
+            propose_element_section(
+                element_id,
+                ColumnSectionFitRequest(
+                    slice_z_m=z_m,
+                    thickness_m=payload.thickness_m,
+                    known_sides_m=payload.known_sides_m,
+                    distance_tolerance_m=payload.distance_tolerance_m,
+                    candidate_margin_m=payload.candidate_margin_m,
+                ),
+            )
+            for z_m in payload.slice_z_values_m
+        ]
+        return {
+            "element_id": element_id,
+            "algorithm": {"name": "fit_rectangular_section", "version": "1"},
+            "slice_count": len(results),
+            "review_required": True,
+            "persisted": False,
+            "source_geometry_modified": False,
+            "slices": results,
+        }
+
+    @api.post("/elements/{element_id}/surface-track-analysis")
+    def analyze_column_surface_tracks(element_id: str):
+        """Build a source-linked, review-only vertical-face/section report."""
+        try:
+            element = get_element(element_id)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        geometry = element.get("geometry") or {}
+        if element.get("class_name") != "column" or geometry.get("kind") != "oriented_box":
+            raise HTTPException(409, "surface tracking requires a column with oriented_box geometry")
+        cloud = _cloud(element["cloud_id"])
+        if cloud["status"] != "ready":
+            raise HTTPException(409, f"cloud is not ready (status: {cloud['status']})")
+        paths = cloud_paths(cloud["project_id"], cloud["id"])
+        if not paths["positions"].exists():
+            raise HTTPException(409, "derived cloud positions are missing")
+
+        center = np.asarray(geometry["center"], dtype=np.float64)
+        sizes = geometry["sizes"]
+        rotation_z = float(geometry.get("rotation_z", 0.0))
+        rotation = np.array([
+            [np.cos(rotation_z), -np.sin(rotation_z)],
+            [np.sin(rotation_z), np.cos(rotation_z)],
+        ])
+        margin_m = 0.15
+        half = np.array([sizes["length"], sizes["thickness"]], dtype=np.float64) / 2
+        padded = half + margin_m
+        extent = np.abs(rotation) @ padded
+        z_margin_m = 0.1
+        lower = np.array([
+            center[0] - extent[0], center[1] - extent[1], center[2] - sizes["height"] / 2 - z_margin_m,
+        ])
+        upper = np.array([
+            center[0] + extent[0], center[1] + extent[1], center[2] + sizes["height"] / 2 + z_margin_m,
+        ])
+        point_source = NpyPointProvider(
+            paths["positions"],
+            origin=np.array([cloud["origin_x"], cloud["origin_y"], cloud["origin_z"]], dtype=np.float64),
+        )
+        xyz_parts: list[np.ndarray] = []
+        row_parts: list[np.ndarray] = []
+        selected_count = 0
+        hard_limit = 250_000
+        for batch in point_source.iter_points(PointQuery(tuple(np.r_[lower, upper]))):
+            local_xy = (batch.xyz[:, :2] - center[:2]) @ rotation
+            in_crop = (
+                (np.abs(local_xy) <= padded).all(axis=1)
+                & (batch.xyz[:, 2] >= lower[2])
+                & (batch.xyz[:, 2] <= upper[2])
+            )
+            if not in_crop.any():
+                continue
+            selected_count += int(in_crop.sum())
+            if selected_count > hard_limit:
+                raise HTTPException(
+                    413,
+                    "column candidate crop exceeds 250000 points; refine the candidate box before surface analysis",
+                )
+            xyz_parts.append(batch.xyz[in_crop])
+            row_parts.append(batch.source_indices[in_crop])
+        points = np.concatenate(xyz_parts) if xyz_parts else np.empty((0, 3), dtype=np.float64)
+        source_rows = np.concatenate(row_parts) if row_parts else np.empty(0, dtype=np.int64)
+
+        if len(points) >= 3:
+            surface_result = extract_vertical_surfaces(
+                points,
+                distance_tolerance_m=0.015,
+                voxel_m=0.02,
+                min_support=30,
+                min_vertical_span_m=0.5,
+                max_planes=8,
+                max_trials=192,
+            )
+        else:
+            surface_result = {"surfaces": [], "adjacent_face_pairs": []}
+        for surface in surface_result.get("surfaces", []):
+            local_indices = np.asarray(surface.get("input_point_indices", []), dtype=np.int64)
+            linked_rows = np.sort(source_rows[local_indices]) if len(local_indices) else np.empty(0, dtype=np.int64)
+            surface["source_crop_row_ids"] = linked_rows.tolist()
+            surface["source_point_row_id_count"] = int(len(linked_rows))
+            surface["source_point_row_id_sample"] = linked_rows[:100].tolist()
+
+        candidate_geometry = {**geometry, "id": element_id}
+        association = associate_surfaces_to_column(candidate_geometry, surface_result)
+        tracks = cluster_column_surface_tracks(candidate_geometry, surface_result, association)
+        series = fit_column_track_sections(
+            candidate_geometry,
+            tracks,
+            points,
+            source_rows,
+        )
+
+        public_surfaces = []
+        for surface in surface_result.get("surfaces", []):
+            item = dict(surface)
+            item.pop("input_point_indices", None)
+            item.pop("source_crop_row_ids", None)
+            public_surfaces.append(item)
+        for track in tracks:
+            source_ids = track.pop("source_point_indices", [])
+            track["source_point_row_id_count"] = len(source_ids)
+            track["source_point_row_id_sample"] = source_ids[:100]
+            track["source_id_scope"] = "derived_cloud_zero_based_row_index"
+        for section in series["section_series"]["section_slices"]:
+            source_ids = section.pop("source_point_ids", [])
+            section["source_point_row_id_count"] = len(source_ids)
+            section["source_point_row_id_sample"] = source_ids[:100]
+            for face in section.get("observed_faces", []):
+                face_ids = face.pop("source_point_ids", [])
+                face["source_point_row_id_count"] = len(face_ids)
+                face["source_point_row_id_sample"] = face_ids[:100]
+            for hypothesis in section.get("hypotheses", []):
+                hypothesis_ids = hypothesis.pop("source_point_ids", [])
+                hypothesis["source_point_row_id_count"] = len(hypothesis_ids)
+                hypothesis["source_point_row_id_sample"] = hypothesis_ids[:100]
+
+        return {
+            "schema": "scan.column-surface-track-analysis/1",
+            "candidate_id": element_id,
+            "cloud_id": cloud["id"],
+            "algorithm": {"surface_extraction": "extract_vertical_surfaces/1", "section_series": "fit_column_track_sections/1"},
+            "parameters": {
+                "candidate_margin_m": margin_m,
+                "vertical_context_margin_m": z_margin_m,
+                "distance_tolerance_m": 0.015,
+                "voxel_m": 0.02,
+                "vertical_bin_m": 0.25,
+                "maximum_crop_points": hard_limit,
+            },
+            "input_points": {
+                "count": int(len(points)),
+                "source_row_kind": "derived_cloud_zero_based_row_index",
+                "description": "Строки производного массива координат, не ID точек FARO.",
+            },
+            "surface_result": {**surface_result, "surfaces": public_surfaces},
+            "surface_association": association,
+            "tracks": tracks,
+            "section_series": series["section_series"],
+            "excluded_tracks": series["excluded_tracks"],
+            "confirmed": False,
+            "review_required": True,
+            "engineering_status": "not_assessed",
+            "persisted": False,
+            "source_geometry_modified": False,
+        }
+
     @api.patch("/elements/{element_id}", response_model=ElementOut)
     def patch_element(element_id: str, payload: ElementPatch):
         try:
@@ -1316,6 +1564,17 @@ def create_app() -> FastAPI:
         export_elements_dxf(elements, path, project_name=project["name"])
         return FileResponse(path, media_type="application/dxf", filename=path.name)
 
+    @api.get("/clouds/{cloud_id}/elements.dwg")
+    def elements_dwg(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        project = _project(cloud["project_id"])
+        elements = list_elements(cloud_id)
+        export_id, folder = new_export_dir(cloud["project_id"], f"elements_dwg_{cloud_id[:8]}")
+        dxf_path = folder / "elements.dxf"
+        export_elements_dxf(elements, dxf_path, project_name=project["name"])
+        path = _dxf_to_dwg_or_409(dxf_path, folder / "elements.dwg")
+        return FileResponse(path, media_type="application/acad", filename=path.name)
+
 
     @api.get("/clouds/{cloud_id}/structural-plan.dxf")
     def structural_plan_dxf(
@@ -1376,7 +1635,7 @@ def create_app() -> FastAPI:
             output_dir=folder,
             project_title=project["name"],
         )
-        album_path = Path(manifest["album_pdf_path"])
+        album_path = Path(manifest["album_pdf_path"]) if Path(manifest["album_pdf_path"]).is_absolute() else folder / manifest["album_pdf_path"]
         return FileResponse(album_path, media_type="application/pdf", filename=album_path.name)
 
     @api.get("/clouds/{cloud_id}/spds-album.zip")
@@ -1406,9 +1665,17 @@ def create_app() -> FastAPI:
             alb_pdf = folder / manifest["album_pdf_path"] if not Path(manifest["album_pdf_path"]).is_absolute() else Path(manifest["album_pdf_path"])
             if alb_pdf.exists():
                 zf.write(alb_pdf, arcname=alb_pdf.name)
-            manifest_file = folder / "manifest.json"
-            if manifest_file.exists():
-                zf.write(manifest_file, arcname=manifest_file.name)
+            archive_manifest = dict(manifest)
+            archive_manifest["album_pdf_path"] = Path(manifest["album_pdf_path"]).name
+            archive_manifest["sheets"] = [
+                {
+                    **s,
+                    "dxf_path": Path(s["dxf_path"]).name,
+                    "pdf_path": Path(s["pdf_path"]).name,
+                }
+                for s in manifest["sheets"]
+            ]
+            zf.writestr("manifest.json", json.dumps(archive_manifest, ensure_ascii=False, indent=2))
         return FileResponse(zip_path, media_type="application/zip", filename=zip_path.name)
 
     # ------------------------------------------------------------ learning
@@ -1423,11 +1690,23 @@ def create_app() -> FastAPI:
         element = get_element(payload.element_id)
         if element["project_id"] != project_id:
             raise HTTPException(400, "element belongs to another project")
+        if element["review_status"] not in {"confirmed", "corrected"}:
+            raise HTTPException(409, "training samples require an explicitly reviewed element")
+        if element["inferred"]:
+            raise HTTPException(409, "training samples cannot use inferred geometry")
+        label = payload.class_name or element["class_name"]
+        if label != element["class_name"]:
+            raise HTTPException(409, "training sample label must match the reviewed element class")
+        existing = next((sample for sample in list_samples(project_id)
+            if sample.get("element_id") == element["id"]
+            and sample.get("class_name") == label and sample.get("source") != "undone"), None)
+        if existing:
+            return existing
         sample = create_sample(
             project_id,
             element["cloud_id"],
             element,
-            class_name=payload.class_name or element["class_name"],
+            class_name=label,
             source="engineer",
         )
         return sample

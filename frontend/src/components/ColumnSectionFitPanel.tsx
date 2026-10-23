@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type ColumnSectionFitResponse } from "../api";
-import { buildColumnSurfaceCoverage, createSectionSampleHeights, type SurfaceCoverageRow, type ColumnSurfaceSide } from "../columnSurfaceCoverage";
+import { api, type ColumnSectionFitResponse, type ColumnSurfaceTrackAnalysisResponse } from "../api";
+import { buildColumnSurfaceCoverage, type SurfaceCoverageRow, type ColumnSurfaceSide } from "../columnSurfaceCoverage";
 import type { Element } from "../types";
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   priorDecisions: { id: string; action: string; engineer?: string; note?: string; created_at?: string; after?: { review_status?: string } | null }[];
   busy: boolean;
   onApplyHypothesis: (hypothesis: ColumnSectionFitResponse["hypotheses"][number]) => void;
+  onSurfaceAnalysis: (analysis: ColumnSurfaceTrackAnalysisResponse | null) => void;
 }
 
 const mm = (metres: number) => (metres * 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
@@ -21,13 +22,27 @@ const STATUS: Record<ColumnSectionFitResponse["status"], string> = {
   insufficient_points: "Недостаточно точек",
 };
 
-export default function ColumnSectionFitPanel({ element, candidateConflicts, priorDecisions, busy, onApplyHypothesis }: Props) {
+const TRACK_STATUS: Record<string, string> = {
+  candidate_track: "кандидат грани",
+  weak_candidate_track: "слабое наблюдение грани",
+  unassigned_surface_track: "грань не назначена",
+};
+
+const SECTION_STATUS: Record<string, string> = {
+  proposed: "есть гипотеза контура",
+  ambiguous: "несколько вариантов",
+  open_section: "открытый контур",
+  unknown: "контур не определён",
+};
+
+export default function ColumnSectionFitPanel({ element, candidateConflicts, priorDecisions, busy, onApplyHypothesis, onSurfaceAnalysis }: Props) {
   const center = element.geometry?.center || [0, 0, 0];
   const [z, setZ] = useState(String(center[2]));
   const [thicknessMm, setThicknessMm] = useState("200");
   const [sideA, setSideA] = useState("");
   const [sideB, setSideB] = useState("");
   const [result, setResult] = useState<ColumnSectionFitResponse | null>(null);
+  const [surfaceAnalysis, setSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
   const [hypothesisIndex, setHypothesisIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [coverageRows, setCoverageRows] = useState<SurfaceCoverageRow[]>([]);
@@ -36,11 +51,13 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
 
   useEffect(() => {
     setResult(null);
+    setSurfaceAnalysis(null);
+    onSurfaceAnalysis(null);
     setCoverageRows([]);
     setZ(String(center[2]));
     setHypothesisIndex(0);
     setError("");
-  }, [element.id, center[2]]);
+  }, [element.id, center[2], onSurfaceAnalysis]);
 
   const hypothesis = result?.hypotheses[hypothesisIndex] || null;
   const display = useMemo(() => {
@@ -100,15 +117,20 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
     setCoverageLoading(true);
     setError("");
     setCoverageRows([]);
+    setSurfaceAnalysis(null);
     try {
-      const thickness = Number(thicknessMm) / 1000;
-      const heights = createSectionSampleHeights(geometry, 5, thickness);
-      const fits: ColumnSectionFitResponse[] = [];
-      for (const sliceZ of heights) {
-        fits.push(await api.fitColumnSection(element.id, { slice_z_m: sliceZ, thickness_m: thickness }));
+      const analysis = await api.analyzeColumnSurfaceTracks(element.id);
+      if (analysis.candidate_id !== element.id || analysis.schema !== "scan.column-surface-track-analysis/1") {
+        throw new Error("Сервер вернул результат для другого кандидата или неизвестного формата.");
       }
-      setCoverageRows(buildColumnSurfaceCoverage(fits, geometry));
-      setResult(fits[2]);
+      const coverageFits = analysis.section_series.section_slices.map((section) => ({
+        slice_z_m: section.z_m,
+        hypotheses: section.hypotheses,
+      }));
+      setCoverageRows(buildColumnSurfaceCoverage(coverageFits, geometry));
+      setResult(null);
+      setSurfaceAnalysis(analysis);
+      onSurfaceAnalysis(analysis);
       setHypothesisIndex(0);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -136,9 +158,33 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
     </div>
     <button type="button" onClick={measure} disabled={busy || loading}>{loading ? "Измеряю…" : "Построить предложение"}</button>
     <button type="button" className="column-coverage-button" onClick={measureCoverage} disabled={busy || loading || coverageLoading}>
-      {coverageLoading ? "Проверяю 5 высот…" : "Показать наблюдаемость по высоте"}
+      {coverageLoading ? "Ищу грани и проверяю высоту…" : "Найти грани и измерить по высоте"}
     </button>
     {error && <p role="alert" className="column-type-error">{error}</p>}
+    {surfaceAnalysis && <div className="column-fit-evidence" role="status">
+      <p><strong>Результат анализа граней:</strong> плоскостей {surfaceAnalysis.surface_result.surfaces.length}, кандидатов граней {surfaceAnalysis.surface_association.candidate_edge_count} из 4, дорожек {surfaceAnalysis.tracks.length}. В анализ вошло {surfaceAnalysis.input_points.count.toLocaleString("ru-RU")} точек.</p>
+      <p className="hint">Состояние профиля: {surfaceAnalysis.section_series.profile_variation_status}. Это геометрические гипотезы, не подтверждение колонны или её постоянного типа. В оценку вошли только дорожки с поддержанной гранью; неподдержанные дорожки и высоты остаются видимыми как неизвестные.</p>
+      <details>
+        <summary>Дорожки граней и исходные строки</summary>
+        {surfaceAnalysis.tracks.map((track) => <p className="hint" key={track.track_id}>
+          {track.track_id} · {track.candidate_edge_id || "грань не назначена"} · {TRACK_STATUS[track.track_status] || track.track_status} · {track.source_point_row_id_count.toLocaleString("ru-RU")} строк
+          {track.source_point_row_id_sample.length > 0 && <> · примеры: <code>{track.source_point_row_id_sample.slice(0, 8).join(", ")}</code></>}
+        </p>)}
+        {surfaceAnalysis.tracks.length === 0 && <p className="hint">Кандидатные дорожки не найдены; отсутствие точек не доказывает отсутствие грани.</p>}
+      </details>
+      <details>
+        <summary>Сечения по высоте и происхождение</summary>
+        {surfaceAnalysis.section_series.section_slices.map((slice) => {
+          const dimensions = surfaceAnalysis.section_series.dimensions_by_height_m.find((item) => item.z_m === slice.z_m)?.side_lengths_m;
+          return <p className="hint" key={slice.z_m}>
+            Z {slice.z_m.toLocaleString("ru-RU", { maximumFractionDigits: 3 })} м · {SECTION_STATUS[slice.status] || slice.status} · {slice.source_point_row_id_count.toLocaleString("ru-RU")} строк
+            {dimensions && <> · контур {dimensions.map((value) => `${mm(value)} мм`).join(" × ")}</>}
+            {slice.track_ids.length > 0 && <> · дорожки {slice.track_ids.join(", ")}</>}
+            {slice.source_point_row_id_sample.length > 0 && <> · строки <code>{slice.source_point_row_id_sample.slice(0, 6).join(", ")}</code></>}
+          </p>;
+        })}
+      </details>
+    </div>}
     {coverageRows.length > 0 && <div className="column-surface-coverage" aria-label="Наблюдаемость четырёх граней на пяти высотах">
       <p className="hint">Срезы через равные интервалы по высоте. Зелёный — весь пролёт стороны поддержан найденными точками; охра — частичная опора. «Точки не найдены» не означает, что грань отсутствует: причина может быть в затенении или неполном сканировании.</p>
       <div className="coverage-table-wrap"><table>
@@ -206,10 +252,10 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
         </details>
         <button type="button" disabled={busy} onClick={() => onApplyHypothesis(hypothesis)}>Перенести контур в поля границ</button>
       </>}
-      {result.observed_faces.map((face) => <p key={face.face_id} className="hint">
+      {result.observed_faces.map((face) => <div key={face.face_id} className="hint">
         {face.face_id}: {face.span_kind === "observed_span_lower_bound" ? "нижняя граница наблюдаемого пролёта" : "наблюдаемый пролёт"} {mm(face.observed_span_m)} мм, точек {face.support_count}, остаток RMS {mm(face.rmse_m)} мм, P95 {mm(face.p95_residual_m)} мм; строк источника {face.ingested_point_row_id_count.toLocaleString("ru-RU")}.
         <details><summary>Показать до {result.source_rows.sample_limit_per_face} номеров строк</summary><code>{face.ingested_point_row_id_sample.join(", ") || "Нет строк"}</code></details>
-      </p>)}
+      </div>)}
       {result.open_corners.length > 0 && <details><summary>Открытые углы: {result.open_corners.length}</summary>
         {result.open_corners.map((corner, index) => <p key={index} className="hint">Угол: грани {corner.face_ids.join(", ") || "не определены"}; наблюдаемые пролёты: {corner.observed_spans_m.map(mm).join(" × ")} мм.</p>)}
       </details>}

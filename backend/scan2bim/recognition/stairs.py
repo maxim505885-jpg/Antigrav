@@ -142,10 +142,13 @@ def detect_stairs(geom: CloudGeometry, levels: list[dict[str, Any]]) -> list[Det
             if norm <= 1e-12:
                 continue
             axis = axis / norm
-            # Width from the second eigenvalue (perpendicular spread).
-            lam2 = max(0.0, det / lam1)
-            width_est = 2.0 * math.sqrt(lam2)
             t = dx * axis[0] + dy * axis[1]
+            perp = np.array([-axis[1], axis[0]])
+            s = dx * perp[0] + dy * perp[1]
+            # Robust plan width: a percentile span of the perpendicular
+            # offsets. 2*sqrt(lambda2) only gives the uniform-strip standard
+            # deviation and understated a 1.2 m flight as 0.7 m.
+            width_est = float(np.percentile(s, 97) - np.percentile(s, 2)) + res
             length = float(t.max() - t.min()) + res
             if not (STAIR_MIN_RUN_M <= length <= STAIR_MAX_RUN_M):
                 continue

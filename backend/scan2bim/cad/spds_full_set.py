@@ -546,6 +546,7 @@ def generate_full_spds_album(
     output_dir: str | Path | None = None,
     project_title: str = "Производственный корпус",
     source_frame: str = "source_cloud_world",
+    source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     out_dir = Path(output_dir if output_dir is not None else out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -595,6 +596,7 @@ def generate_full_spds_album(
             "units": "m",
             "source_to_sheet_4x4": aligned["source_to_sheet_4x4"],
         },
+        "source_provenance": source_provenance,
         "source_elements_sha256": hashlib.sha256(canonical_elements).hexdigest(),
         "source_element_ids": sorted(str(element["id"]) for element in elements if element.get("id") is not None),
         "sheets": sheets,

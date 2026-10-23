@@ -36,7 +36,72 @@ def test_undo_confirm_restores_review_state_and_is_recorded(client):
     samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
     sample = next(item for item in samples if item["id"] == confirmed.json()["sample"]["id"])
     assert sample["source"] == "undone"
+    reconfirmed = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+    assert reconfirmed.status_code == 200, reconfirmed.text
+    assert reconfirmed.json()["sample"]["id"] != sample["id"]
+    samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+    assert sum(item["element_id"] == element["id"] and item["source"] != "undone" for item in samples) == 1
     assert client.post(f"/api/v1/elements/{element['id']}/history/{feedback_id}/undo").status_code == 409
+
+
+def test_inferred_boundary_edit_is_not_added_as_a_training_sample(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if item["class_name"] == "column")
+    response = client.post(
+        f"/api/v1/elements/{element['id']}/feedback",
+        json={"action": "adjust_boundary", "geometry": element["geometry"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["element"]["inferred"] is True
+    assert response.json()["sample"] is None
+    samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+    assert all(sample["element_id"] != element["id"] for sample in samples)
+
+
+def test_explicit_training_sample_requires_review_and_is_idempotent(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if item["class_name"] == "column")
+    endpoint = f"/api/v1/projects/{cloud['project_id']}/samples"
+
+    unreviewed = client.post(endpoint, json={"element_id": element["id"]})
+    assert unreviewed.status_code == 409
+
+    confirmed = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+    assert confirmed.status_code == 200, confirmed.text
+    first = client.post(endpoint, json={"element_id": element["id"]})
+    second = client.post(endpoint, json={"element_id": element["id"]})
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["id"] == second.json()["id"] == confirmed.json()["sample"]["id"]
+
+    wrong_label = client.post(endpoint, json={"element_id": element["id"], "class_name": "wall"})
+    assert wrong_label.status_code == 409
+
+
+def test_reclassify_replaces_training_label_and_undo_restores_previous_sample(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if item["class_name"] == "column" and not item["inferred"])
+    confirmed = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+    assert confirmed.status_code == 200 and confirmed.json()["sample"]
+    old_sample_id = confirmed.json()["sample"]["id"]
+
+    corrected = client.post(
+        f"/api/v1/elements/{element['id']}/feedback",
+        json={"action": "reclassify", "class_name": "wall", "engineer": "reviewer"},
+    )
+    assert corrected.status_code == 200, corrected.text
+    assert corrected.json()["sample"] and corrected.json()["sample"]["class_name"] == "wall"
+    samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+    assert next(item for item in samples if item["id"] == old_sample_id)["source"] == "undone"
+
+    undo = client.post(
+        f"/api/v1/elements/{element['id']}/history/{corrected.json()['feedback_id']}/undo"
+    )
+    assert undo.status_code == 200, undo.text
+    samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+    assert next(item for item in samples if item["id"] == old_sample_id)["source"] == "engineer"
+    assert next(item for item in samples if item["id"] == corrected.json()["sample"]["id"])["source"] == "undone"
 
 
 def test_undo_split_restores_parent_and_keeps_children_as_rejected_history(client):

@@ -52,6 +52,46 @@ def _load_geometry(positions_path: Path) -> tuple[CloudGeometry, dict[str, Any]]
     ):
         raise ValueError("cloud metadata bounds do not match the stored positions")
 
+    raw_ranges = metadata.get("station_row_ranges")
+    station_row_ranges = None
+    if raw_ranges is not None:
+        if not isinstance(raw_ranges, list) or not raw_ranges:
+            raise ValueError("station row ranges must be a non-empty list")
+        station_row_ranges = []
+        expected_start = 0
+        station_ids: set[str] = set()
+        for row in raw_ranges:
+            if not isinstance(row, dict):
+                raise ValueError("station row range entries must be objects")
+            station_id = row.get("station_id")
+            start = row.get("source_row_start")
+            end = row.get("source_row_end_exclusive")
+            count = row.get("source_row_count")
+            index_base = row.get("source_row_index_base")
+            if not isinstance(station_id, str) or not station_id.strip() or station_id in station_ids:
+                raise ValueError("station row range station IDs must be non-empty and unique")
+            if any(isinstance(value, bool) or not isinstance(value, int) for value in (start, end, count)):
+                raise ValueError("station row range bounds and count must be integers")
+            if (
+                isinstance(index_base, bool) or not isinstance(index_base, int) or index_base != 0
+                or start != expected_start or end <= start or end - start != count
+            ):
+                raise ValueError("station row ranges must be contiguous, zero-based, and match their counts")
+            station_ids.add(station_id)
+            expected_start = end
+            station_row_ranges.append({
+                "station_id": station_id,
+                "source_row_start": start,
+                "source_row_end_exclusive": end,
+                "source_row_count": count,
+                "source_row_index_base": index_base,
+            })
+        if expected_start != len(points):
+            raise ValueError("station row ranges must cover every stored position exactly once")
+        station_count = metadata.get("station_count")
+        if station_count is not None and station_count != len(station_row_ranges):
+            raise ValueError("station row range count does not match cloud station_count")
+
     geometry = CloudGeometry(
         positions_path=positions_path,
         origin=origin,
@@ -65,6 +105,7 @@ def _load_geometry(positions_path: Path) -> tuple[CloudGeometry, dict[str, Any]]
         "origin_m": origin.tolist(),
         "source_sha256": metadata.get("checksum_sha256"),
         "point_count": int(len(points)),
+        "station_row_ranges": station_row_ranges,
     }
     return geometry, provenance
 
@@ -138,6 +179,10 @@ class WorkshopPipeline:
             output_dir=self.output_root / "spds_draft",
             project_title=project_title,
             source_frame=provenance["coordinate_frame"],
+            source_provenance={
+                key: value for key, value in provenance.items()
+                if key != "positions_path"
+            },
         )
         report = {
             "status": "completed_with_review_candidates",

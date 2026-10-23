@@ -31,4 +31,8 @@ data_smoke/
 .pytest-*
 .site-preview-data/
 .test-data-*
+*.tsbuildinfo
+s2b_test_*
+.tmp-*
+
 

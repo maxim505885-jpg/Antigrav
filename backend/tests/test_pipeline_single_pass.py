@@ -22,6 +22,13 @@ def test_pipeline_keeps_recognition_results_as_unreviewed_and_never_claims_relea
         "bbox_min": [100.0, 200.0, 10.0],
         "bbox_max": [101.0, 201.0, 12.0],
         "checksum_sha256": "source-checksum",
+        "station_count": 2,
+        "station_row_ranges": [
+            {"station_id": "station-1", "source_row_start": 0, "source_row_end_exclusive": 2,
+             "source_row_count": 2, "source_row_index_base": 0},
+            {"station_id": "station-2", "source_row_start": 2, "source_row_end_exclusive": 4,
+             "source_row_count": 2, "source_row_index_base": 0},
+        ],
     }), encoding="utf-8")
     detected = SimpleNamespace(
         class_name="column",
@@ -43,10 +50,11 @@ def test_pipeline_keeps_recognition_results_as_unreviewed_and_never_claims_relea
         ),
     )
 
-    def write_draft(elements, output_dir, project_title, source_frame):
+    def write_draft(elements, output_dir, project_title, source_frame, source_provenance):
         captured["elements"] = elements
         captured["project_title"] = project_title
         captured["source_frame"] = source_frame
+        captured["source_provenance"] = source_provenance
         return {"manifest_path": str(Path(output_dir) / "manifest.json"), "sheets": [{"issue": "draft"}]}
 
     monkeypatch.setattr(pipeline, "generate_full_spds_album", write_draft)
@@ -55,6 +63,12 @@ def test_pipeline_keeps_recognition_results_as_unreviewed_and_never_claims_relea
 
     assert captured["origin"] == [100.0, 200.0, 10.0]
     assert captured["source_frame"] == "source_cloud_world"
+    assert captured["source_provenance"]["station_row_ranges"][1] == {
+        "station_id": "station-2", "source_row_start": 2,
+        "source_row_end_exclusive": 4, "source_row_count": 2,
+        "source_row_index_base": 0,
+    }
+    assert "positions_path" not in captured["source_provenance"]
     assert captured["elements"][0]["class_name"] == "column"
     assert captured["elements"][0]["review_status"] == "unreviewed"
     assert report["status"] == "completed_with_review_candidates"
@@ -92,4 +106,24 @@ def test_pipeline_rejects_metadata_bounds_that_do_not_match_positions(tmp_path: 
     }), encoding="utf-8")
 
     with pytest.raises(ValueError, match="bounds do not match"):
+        pipeline._load_geometry(source)
+
+
+def test_pipeline_rejects_gapped_or_partial_station_row_ranges(tmp_path: Path):
+    source = tmp_path / "positions.npy"
+    np.save(source, np.zeros((4, 3), dtype=np.float32))
+    (tmp_path / "meta.json").write_text(json.dumps({
+        "origin": [0.0, 0.0, 0.0],
+        "bbox_min": [0.0, 0.0, 0.0],
+        "bbox_max": [0.0, 0.0, 0.0],
+        "station_count": 2,
+        "station_row_ranges": [
+            {"station_id": "station-1", "source_row_start": 0, "source_row_end_exclusive": 2,
+             "source_row_count": 2, "source_row_index_base": 0},
+            {"station_id": "station-2", "source_row_start": 3, "source_row_end_exclusive": 4,
+             "source_row_count": 1, "source_row_index_base": 0},
+        ],
+    }), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="contiguous, zero-based"):
         pipeline._load_geometry(source)

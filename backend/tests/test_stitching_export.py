@@ -9,6 +9,7 @@ from scan2bim.registration.stitching import (
     create_recap_registration_project,
     export_stitched_cloud,
 )
+from scan2bim.formats.readers import iter_ply_chunks
 
 
 def test_kabsch_fit_exact():
@@ -71,3 +72,14 @@ def test_recap_manifest_preserves_missing_registration_residual(tmp_path):
 
     manifest = json.loads(out.read_text(encoding="utf-8"))
     assert manifest["stations"][0]["rmse_mm"] is None
+
+
+def test_export_stitched_cloud_preserves_small_offsets_at_large_coordinates(tmp_path):
+    offset = np.array([1.0e8, -2.0e8, 3.0e8], dtype=np.float64)
+    local = np.array([[0.0, 0.0, 0.0], [0.006, 0.012, 0.018]], dtype=np.float64)
+    ply_path = tmp_path / "large-coordinate-stitch.ply"
+
+    export_stitched_cloud([{"points": local, "origin": offset}], ply_path)
+    (points, _colors, _normals) = next(iter_ply_chunks(ply_path, chunk_points=10))
+
+    np.testing.assert_allclose(points, local + offset, atol=1e-8)

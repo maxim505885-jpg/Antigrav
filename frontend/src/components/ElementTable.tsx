@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
-import { columnCandidateStatusBadges, elementEvidenceBadges } from "../elementEvidence";
+import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothesisBadges } from "../elementEvidence";
 import { columnSectionObservationSummary } from "../columnSectionPresentation";
+import { trussCompletenessBadge, trussDimensionSummary } from "../trussPresentation";
 
 interface Props {
   elements: Element[];
@@ -23,8 +24,17 @@ function dimensionSummary(element: Element): string {
   const dims = element.dimensions || {};
   const storeys =
     dims.storey_count > 1 ? ` · ${dims.storey_count} этажа` : dims.storey_count === 1 ? " · 1 этаж" : "";
+  const oldGridOnly = element.source === "structural_grid"
+    || (dims.structural_status === "confirmed_grid_column" && !["confirmed", "corrected"].includes(element.review_status));
+  const gridHypothesis = dims.nominal_grid_hypothesis?.grid_hypothesis;
+  if (oldGridOnly) return "гипотеза по номинальной сетке · требуется проверка";
+  if (gridHypothesis) {
+    const rowAxis = `ряд ${gridHypothesis.row ?? "—"} · ось ${gridHypothesis.axis ?? "—"}`;
+    const residual = `ΔU=${gridHypothesis.delta_u_mm ?? "—"} мм · ΔV=${gridHypothesis.delta_v_mm ?? "—"} мм`;
+    return `${rowAxis} — гипотеза · ${residual}`;
+  }
   if (element.class_name === "truss" && dims.span_m) {
-    return `пролёт ${dims.span_m} × выс ${dims.height_m} м · панелей: ${dims.panels ?? "—"}${storeys}`;
+    return `${trussDimensionSummary(dims)}${storeys}`;
   }
   if (element.class_name === "column") {
     if (dims.mark) {
@@ -48,6 +58,16 @@ function dimensionSummary(element: Element): string {
       return `сечение ${measured} мм — тип не подтверждён${storeys}`;
     }
   }
+  if (element.class_name === "stair" && dims.rise_m) {
+    const slope = dims.slope_deg != null ? ` · ${dims.slope_deg}°` : "";
+    const steps = dims.steps_est ? ` · ~${dims.steps_est} ступ.` : "";
+    return `марш ${dims.run_m ?? "—"} × ${dims.width_m ?? "—"} м · подъём ${dims.rise_m} м${slope}${steps}`;
+  }
+  if (element.class_name === "opening") {
+    const kind = dims.opening_kind === "window" ? "окно" : "дверь";
+    const sill = dims.opening_kind === "window" && dims.sill_m != null ? ` · подоконник ${dims.sill_m} м` : "";
+    return `${kind} ${dims.width_m ?? "—"} × ${dims.height_m ?? "—"} м${sill}`;
+  }
   if (dims.length_m && dims.role_label) {
     return `${dims.length_m} м · ${dims.role_label}${dims.orientation ? ` (${dims.orientation === "vertical" ? "верт." : "гориз."})` : ""}`;
   }
@@ -66,20 +86,7 @@ function extraBadges(element: Element) {
   const badges: { text: string; title: string; cls: string }[] = [];
   badges.push(...elementEvidenceBadges(element.metadata));
   badges.push(...columnCandidateStatusBadges(dims));
-  if (dims.structural_status === "confirmed_grid_column") {
-    badges.push({
-      text: `Сетка ГОСТ: Ряд ${dims.row ?? "—"}, Ось ${dims.axis ?? "—"}`,
-      title: `Несущая колонна каркаса цеха на координационной сетке осей (шаг 6000 мм). Отклонение: ΔX=${dims.dx_mm ?? 0} мм, ΔY=${dims.dy_mm ?? 0} мм`,
-      cls: "measured",
-    });
-  }
-  if (dims.tolerance_badge) {
-    badges.push({
-      text: dims.tolerance_badge,
-      title: `Геодезическое отклонение СП 70: ΔU=${dims.dx_mm ?? 0} мм, ΔV=${dims.dy_mm ?? 0} мм, ΔR=${dims.dr_mm ?? 0} мм`,
-      cls: dims.tolerance_status === "compliant" ? "measured" : "inferred",
-    });
-  }
+  badges.push(...nominalGridHypothesisBadges(dims));
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
     badges.push({
       text: "проверить повторный кандидат",
@@ -150,7 +157,32 @@ function extraBadges(element: Element) {
       cls: "measured",
     });
   }
+  if (element.class_name === "stair") {
+    badges.push({
+      text: "марш — гипотеза",
+      title: "Наклонная плоскость между двумя уровнями. Пандус или наклонный участок кровли выглядит так же; ступени и ограждения не распознаны.",
+      cls: "inferred",
+    });
+  }
+  if (element.class_name === "opening") {
+    badges.push({
+      text: dims.opening_kind === "window" ? "окно — гипотеза" : "проём — гипотеза",
+      title: "Разрыв в просканированной стене с перемычкой сверху. Дыра в скане выглядит так же — проверьте в натуре.",
+      cls: "inferred",
+    });
+  }
+  if (dims.below_resolution) {
+    badges.push({
+      text: "тоньше шага сетки",
+      title: "Наименьшая сторона меньше двух ячеек сетки: размер не разрешается, элемент оставлен как кандидат.",
+      cls: "inferred",
+    });
+  }
   if (element.class_name === "truss") {
+    const completeness = trussCompletenessBadge(dims);
+    if (completeness) {
+      badges.push({ ...completeness, cls: "inferred" });
+    }
     badges.push({
       text: `диагр. ${dims.diagonals ?? 0}`,
       title: `Ферма: пояса измерены, стоек (панелей): ${dims.panels ?? "—"}, раскосов: ${dims.diagonals ?? 0}. Нижний пояс может сливаться с уровнем кровли.`,
@@ -180,27 +212,33 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
       "Отклонение_dU_мм",
       "Отклонение_dV_мм",
       "Суммарное_dR_мм",
-      "Статус_СП_70",
+      "Гипотеза_номинальной_сетки",
       "Описание_конструкции",
       "Статус_проверки",
     ];
     const rows = visibleElements.map((el) => {
       const d = el.dimensions || {};
+      const oldGridOnly = el.source === "structural_grid"
+        || (d.structural_status === "confirmed_grid_column" && !["confirmed", "corrected"].includes(el.review_status));
+      const hypothesis = d.nominal_grid_hypothesis?.grid_hypothesis;
+      const gridSummary = hypothesis
+        ? `не подтверждено: ряд ${hypothesis.row ?? "—"}, ось ${hypothesis.axis ?? "—"}, ΔU=${hypothesis.delta_u_mm ?? "—"} мм, ΔV=${hypothesis.delta_v_mm ?? "—"} мм`
+        : oldGridOnly ? "старое предположение · проверить" : "—";
       return [
         el.id,
-        d.mark || "—",
+        oldGridOnly ? "—" : d.mark || "—",
         classLabel(el.class_name),
-        d.row || "—",
-        d.axis ?? "—",
-        d.type || d.section_type || "—",
-        d.length_m ?? "—",
-        d.thickness_m ?? "—",
-        d.height_m ?? "—",
-        d.dx_mm ?? "—",
-        d.dy_mm ?? "—",
-        d.dr_mm ?? "—",
-        d.tolerance_badge || "—",
-        d.description || "—",
+        oldGridOnly ? "—" : d.row || "—",
+        oldGridOnly ? "—" : d.axis ?? "—",
+        oldGridOnly ? "—" : d.type || d.section_type || "—",
+        oldGridOnly ? "—" : d.length_m ?? "—",
+        oldGridOnly ? "—" : d.thickness_m ?? "—",
+        oldGridOnly ? "—" : d.height_m ?? "—",
+        oldGridOnly ? "—" : d.dx_mm ?? "—",
+        oldGridOnly ? "—" : d.dy_mm ?? "—",
+        oldGridOnly ? "—" : d.dr_mm ?? "—",
+        gridSummary,
+        oldGridOnly ? "Геометрическая гипотеза; размеры и роль не подтверждены" : d.description || "—",
         el.review_status || "unreviewed",
       ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";");
     });
@@ -264,9 +302,10 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
   if (!elements.length) {
     return (
       <div className="empty-note">
-        Распознанных элементов пока нет. Запустите распознавание — оно выделит
-        геометрический базис: стены, колонны, контуры плит. Балки, фермы, лестницы и
-        инженерные сети требуют ML-этапа.
+        Распознанных элементов пока нет. Запустите геометрическое распознавание: оно
+        ищет стены, колонны, балки, подкрановые балки, фермы, связи, лестничные марши
+        и проёмы в стенах там, где хватает точечного evidence. Все результаты поступают
+        как кандидаты для ручной проверки; невидимые детали не достраиваются.
       </div>
     );
   }
@@ -304,6 +343,8 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
           { id: "brace", label: "⚡ Связи", count: classCounts["brace"] || 0 },
           { id: "truss", label: "📐 Фермы", count: classCounts["truss"] || 0 },
           { id: "slab", label: "Плиты", count: classCounts["slab"] || 0 },
+          { id: "stair", label: "🪜 Лестницы", count: classCounts["stair"] || 0 },
+          { id: "opening", label: "🚪 Проёмы", count: classCounts["opening"] || 0 },
         ].filter((f) => f.count > 0).map(({ id, label, count }) => (
           <button
             key={id}

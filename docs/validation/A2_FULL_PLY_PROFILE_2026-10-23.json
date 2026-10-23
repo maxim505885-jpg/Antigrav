@@ -1,0 +1,50 @@
+{
+  "profile_date": "2026-10-23",
+  "purpose": "Measure the application full-resolution PLY ingest path on an available derived dataset; this is not an alignment or structural-accuracy validation.",
+  "source": {
+    "path": "data/output/unified_stitched_release/unified_stitched_cloud.ply",
+    "bytes": 652500182,
+    "sha256": "cd912a991ef923295ec406b809e573feb9c3785755a631fe3999547431f8a5fa",
+    "format": "binary PLY",
+    "source_unchanged": true
+  },
+  "ingest": {
+    "api": "POST /api/v1/projects/{project_id}/clouds/import-path",
+    "setting_S2B_MAX_INGEST_POINTS": 0,
+    "job_status": "succeeded",
+    "cloud_status": "ready",
+    "point_count": 43500000,
+    "ingested_count": 43500000,
+    "decimated": false,
+    "dropped_non_finite": 0,
+    "positions_shape": [43500000, 3],
+    "positions_dtype": "float32",
+    "positions_bytes": 522000128,
+    "has_color": true,
+    "has_intensity": false,
+    "bounded_memory": true,
+    "stream_chunk_points": 500000,
+    "crash_safe": true
+  },
+  "resources": {
+    "elapsed_seconds": 20.2,
+    "throughput_million_points_per_second": 2.154,
+    "sample_interval_seconds": 0.2,
+    "sampled_peak_process_rss_bytes": 966533120,
+    "sampled_peak_process_rss_mib": 921.8,
+    "output_data_bytes": 690218523,
+    "free_disk_before_bytes": 11113070592,
+    "minimum_free_disk_sampled_bytes": 9326764032
+  },
+  "acceptance_limits": {
+    "registration_manifest_status": "metadata_only",
+    "registration_verified": false,
+    "structural_accuracy_assessed": false,
+    "protected_original_1_rcs_opened_or_modified": false
+  },
+  "notes": [
+    "The input is the existing derived stitched PLY, not an RCS file. The two-station registration manifest remains explicitly unverified, so this run establishes only parser/ingest throughput, completeness for this PLY, source integrity, and sampled resource use.",
+    "Peak RSS and minimum free disk were sampled every 0.2 seconds and may miss a shorter peak. Output disk size is measured after successful ingest.",
+    "The available 43.5-million-point PLY does not satisfy the plan's full original-source acceptance gate. A full FARO-source route and cancellation/restart at this scale remain open."
+  ]
+}

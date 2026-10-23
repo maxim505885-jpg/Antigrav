@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { columnCandidateStatusBadges, elementEvidenceBadges } from "./elementEvidence.ts";
+import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothesisBadges } from "./elementEvidence.ts";
 
 test("labels geometry-passing column as a candidate pending review", () => {
   assert.deepEqual(columnCandidateStatusBadges({ structural_status: "structural_candidate" }), [{
@@ -64,4 +64,33 @@ test("ignores absent, unrelated and malformed metadata", () => {
   assert.deepEqual(elementEvidenceBadges({}), []);
   assert.deepEqual(elementEvidenceBadges({ terminal_evidence: { interpretation: "other" } }), []);
   assert.deepEqual(elementEvidenceBadges({ vertical_profile_evidence: null }), []);
+});
+
+test("shows nominal grid alignment as an unverified hypothesis", () => {
+  const badges = nominalGridHypothesisBadges({
+    nominal_grid_hypothesis: {
+      review_state: "unreviewed",
+      grid_hypothesis: {
+        row: "Б",
+        axis: 5,
+        delta_u_mm: 12,
+        delta_v_mm: -8,
+        status: "unverified_candidate",
+      },
+    },
+  });
+  assert.equal(badges.length, 1);
+  assert.equal(badges[0].text, "ряд Б · ось 5 — гипотеза");
+  assert.match(badges[0].title, /не подтверждение марки или допуска/);
+  assert.equal(badges[0].cls, "inferred");
+});
+
+test("downgrades legacy grid and tolerance claims to a review warning", () => {
+  const badges = nominalGridHypothesisBadges({
+    structural_status: "confirmed_grid_column",
+    tolerance_badge: "В допуске СП 70",
+  });
+  assert.equal(badges.length, 1);
+  assert.equal(badges[0].text, "старое подтверждение по сетке · проверить");
+  assert.equal(badges[0].cls, "inferred");
 });

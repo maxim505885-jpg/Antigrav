@@ -17,7 +17,11 @@ test("restores an archived annotation only as an editable draft bound to the cur
     structural_role: "column" as const,
     sides_m: { long: 0.5, short: 0.4 },
     measurement_source: "manual_cloud" as const,
-    z_measurements: [{ z_m: 2, sides_m: { long: 0.5, short: 0.4 }, note: "checked" }],
+    z_measurements: [{ z_m: 2, sides_m: { long: 0.5, short: 0.4 }, note: "checked", source_provenance: {
+      source_point_row_id_count: 3, source_point_row_id_sample: [7, 8, 9],
+      source_index_space: "derived_positions_row_index/1" as const, analysis_algorithm: "surface_tracks-v1",
+    } }],
+    algorithm_suggestions_verified: true,
     visible_faces: ["u+", "v+"] as ("u+" | "u-" | "v+" | "v-")[],
     hidden_faces: ["u-", "v-"] as ("u+" | "u-" | "v+" | "v-")[],
     confidence: 0.9,
@@ -31,6 +35,9 @@ test("restores an archived annotation only as an editable draft bound to the cur
   assert.equal(draft.physical_instance_id, "C-01");
   assert.equal(draft.sides_m?.long, 0.5);
   assert.deepEqual(draft.z_measurements, archived.z_measurements);
+  assert.equal(draft.algorithm_suggestions_verified, false);
+  assert.notEqual(draft.z_measurements[0].source_provenance?.source_point_row_id_sample,
+    archived.z_measurements[0].source_provenance?.source_point_row_id_sample);
   assert.notEqual(draft.visible_faces, archived.visible_faces);
   draft.visible_faces.pop();
   assert.equal(archived.visible_faces.length, 2);

@@ -1,9 +1,7 @@
-"""Geometric recognition baseline.
+"""Geometric recognition baseline with review-only structural candidates.
 
-Detected classes: walls, columns and slabs, plus horizontal level candidates.
-Everything else (beams, trusses, stairs, openings, pipes, ducts, equipment) is
-reported as *not detected* rather than guessed. Confidence values are heuristic
-scores in [0,1], not calibrated probabilities.
+The baseline combines architectural geometry with steel-frame candidates.
+Confidence values are heuristic scores in [0,1], not calibrated probabilities.
 """
 from __future__ import annotations
 
@@ -167,15 +165,52 @@ def _occurrence_grid(geom: CloudGeometry, progress=None):
     }
 
 
+def density_scale(counts: np.ndarray) -> float:
+    """How much to tighten physical thresholds on a sparse sample.
+
+    On 0.10 m cells a sparse scan cannot resolve a 0.2 m column or a thin
+    wall: the same blob of cells is either a construction or scan noise. The
+    acceptance bar is therefore raised, never lowered, so dense clouds keep
+    the calibrated limits and sparse clouds stop emitting noise-sized
+    "columns". Values above 1.0 mean "thin elements are not trustworthy".
+    """
+    occupied = counts[counts > 0]
+    if occupied.size == 0:
+        return 1.6
+    mean_points = float(occupied.mean())
+    if mean_points < 1.0:
+        return 1.6
+    if mean_points < 2.0:
+        return 1.3
+    if mean_points < 4.0:
+        return 1.15
+    return 1.0
+
+
+def density_grade(mean_points: float) -> str:
+    if mean_points <= 0:
+        return "нет данных"
+    if mean_points < 1.0:
+        return "низкая"
+    if mean_points < 4.0:
+        return "средняя"
+    return "высокая"
+
+
 def _vertical_elements(geom: CloudGeometry, grid: dict[str, Any]) -> list[DetectedElement]:
     counts = grid["counts"]
     band_occ = grid["band_occ"]
     res = grid["res"]
     minx, miny = float(grid["min"][0]), float(grid["min"][1])
+    scale = density_scale(counts)
+    min_side_threshold = COLUMN_MIN_SIDE_M * scale
+    min_area_threshold = COLUMN_MIN_AREA_M2 * scale * scale
+    min_height_threshold = COLUMN_MIN_HEIGHT_M * min(1.15, scale)
+    resolution_limit = 2.0 * res
     occupied = band_occ.any(axis=0)
     band_count = band_occ.sum(axis=0)
-    min_extent = 1.2
-    vertical = occupied & (band_count * BAND_HEIGHT >= min_extent) & (counts >= 5)
+    min_extent = 1.2 * min(1.15, scale)
+    vertical = occupied & (band_count * BAND_HEIGHT >= min_extent) & (counts >= 5 * (1 if scale < 1.2 else 2))
     labelled, ncomp = ndimage.label(vertical, structure=np.ones((3, 3), dtype=bool))
     elements: list[DetectedElement] = []
     for comp in range(1, ncomp + 1):
@@ -231,9 +266,9 @@ def _vertical_elements(geom: CloudGeometry, grid: dict[str, Any]) -> list[Detect
         # first build produced 950 columns with a 0.03 m^2 median footprint,
         # which no engineer would accept.
         if length <= 1.0 and thickness <= 1.0:
-            if min_side < COLUMN_MIN_SIDE_M or area < COLUMN_MIN_AREA_M2:
+            if min_side < min_side_threshold or area < min_area_threshold:
                 continue
-            if height < COLUMN_MIN_HEIGHT_M or cells < 6:
+            if height < min_height_threshold or cells < 6:
                 continue
             class_name = "column"
             confidence = 0.40 + 0.25 * density + 0.15 * height_factor + 0.1 * min(1.0, fill)
@@ -286,6 +321,8 @@ def _vertical_elements(geom: CloudGeometry, grid: dict[str, Any]) -> list[Detect
                     "thickness_m": round(thickness, 3),
                     "height_m": round(height, 3),
                     "footprint_area_m2": round(length * thickness, 3),
+                    "below_resolution": bool(min_side <= resolution_limit),
+                    "density_scale": round(scale, 2),
                 },
                 metadata={
                     "method": "vertical occupancy grid + connected components + 2D PCA",
@@ -397,6 +434,31 @@ def structural_only(elements: list[DetectedElement]) -> tuple[list[DetectedEleme
     return kept, len(elements) - len(kept)
 
 
+def format_recognition_summary(elements: list[DetectedElement]) -> str:
+    """Report this run's actual classes without treating missing classes as absent."""
+    labels = {
+        "column": "колонны",
+        "wall": "стены",
+        "slab": "плиты",
+        "beam": "балки",
+        "truss": "фермы",
+        "bracing": "связи",
+        "brace": "связи",
+        "stair": "лестницы",
+        "opening": "проёмы",
+    }
+    counts: dict[str, int] = {}
+    for element in elements:
+        counts[element.class_name] = counts.get(element.class_name, 0) + 1
+    detected = [f"{labels.get(name, name)} — {count}" for name, count in sorted(counts.items())]
+    found_text = ", ".join(detected) if detected else "кандидаты не найдены"
+    return (
+        f"В этом запуске найдено: {found_text}. Это геометрические кандидаты; "
+        "отсутствие класса в результате не доказывает его отсутствия в облаке. "
+        "Покрытие и исходные точки проверьте вручную; тип, сечение, опоры и соединения не подтверждены."
+    )
+
+
 def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     warnings: list[str] = []
     levels, zhist, _ = _detect_levels(geom, progress)
@@ -440,9 +502,37 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     elements = elements + steel_elements
     warnings.extend(steel_warnings)
 
-    # Structural Workshop Topology Enforcement:
-    # On industrial halls (>= 15 columns), enforce the 4-row / 6000 mm bay grid.
-    # Non-grid vertical clutter in the clear span is marked unknown to be excluded.
+    # Openings and stairs: both are review hypotheses, not measured products.
+    # Openings are gaps in the consolidated wall faces; stairs are inclined
+    # planar flights between adjacent levels. See recognition/openings.py and
+    # recognition/stairs.py.
+    from .openings import detect_openings
+    from .stairs import detect_stairs
+
+    if progress:
+        progress(0.90, "поиск проёмов в стенах")
+    wall_elements = [e for e in elements if e.class_name == "wall"]
+    opening_elements = detect_openings(geom, wall_elements, levels)
+    if progress:
+        progress(0.94, "поиск лестничных маршей")
+    stair_elements = detect_stairs(geom, levels)
+    elements = elements + opening_elements + stair_elements
+    if opening_elements:
+        warnings.append(
+            f"Проёмы (двери/окна): {len(opening_elements)} гипотез по разрывам в "
+            "просканированных стенах. Отверстия в скане неотличимы от проёма — проверьте ширину, "
+            "отметку подоконника и тип вручную."
+        )
+    if stair_elements:
+        warnings.append(
+            f"Лестницы: {len(stair_elements)} наклонных марша между соседними уровнями. "
+            "Пандус или наклонный участок кровли выглядит так же; ступени и ограждения не "
+            "распознаны."
+        )
+
+    # Review-only workshop layout hypothesis:
+    # The nominal grid is not surveyed control, so it must never reject detections,
+    # assign engineering marks/sections, or promote a candidate to confirmed.
     cols = [e for e in elements if e.class_name == "column"]
     if len(cols) >= 15:
         from ..structure.workshop_topology import StructuralTopologyValidator
@@ -453,18 +543,7 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
             if center and sizes:
                 lens = (float(sizes.get("length", 0.6)), float(sizes.get("thickness", 0.5)), float(sizes.get("height", 3.0)))
                 res = val.classify_element_role("column", (center[0], center[1], center[2]), lens)
-                if not res.get("is_structural", True):
-                    el.class_name = "unknown"
-                    el.dimensions["rejection_reason"] = res.get("rejection_reason")
-                else:
-                    if "mark" in res:
-                        el.dimensions["mark"] = res["mark"]
-                        el.dimensions["row"] = res["row"]
-                        el.dimensions["axis"] = res["axis"]
-                        el.dimensions["type"] = res["type"]
-                        el.dimensions["dx_mm"] = res["delta_u_mm"]
-                        el.dimensions["dy_mm"] = res["delta_v_mm"]
-                        el.dimensions["structural_status"] = "confirmed_grid_column"
+                el.dimensions["nominal_grid_hypothesis"] = res
 
     # "Только конструктив, лишнего не надо": the baseline also emits
     # non-structural fragments as ``unknown`` (blobs too long to be a column
@@ -479,14 +558,7 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
             "оборудование, стойки, шум скана. В модель не входят — только конструктив."
         )
 
-    warnings.append(
-        "Геометрическое распознавание находит стены, колонны, плиты, горизонтальные балки "
-        "(подкрановые балки, прогоны, балки перекрытия), фермы и вертикальные/горизонтальные связи."
-    )
-    warnings.append(
-        "Лестницы, проёмы, трубы, воздуховоды и оборудование в этой сборке НЕ распознаются — "
-        "для них нужен ML-этап."
-    )
+    warnings.append(format_recognition_summary(elements))
     if not levels:
         warnings.append("Горизонтальные уровни не найдены; обнаружение плит и покрытий недоступно.")
     if len(elements) == 0:
@@ -505,11 +577,20 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
         (geom.bbox_max[0] - geom.bbox_min[0]) * (geom.bbox_max[1] - geom.bbox_min[1])
     )
     rejection = grid.get("wall_rejections", {})
+    grade = density_grade(mean_pts_cell)
+    scale = density_scale(grid["counts"])
     if mean_pts_cell and mean_pts_cell < 3.0:
         warnings.append(
             f"Плотность выборки всего {mean_pts_cell:.1f} точки на ячейку {grid['res']:.2f} м. "
             "При такой плотности гипотезы о стенах и колоннах ненадёжны и требуют проверки "
             "в редакторе; для полноразрешённого распознавания увеличьте S2B_MAX_INGEST_POINTS."
+        )
+    if scale > 1.0:
+        warnings.append(
+            "Пороги распознавания ужесточены под низкую плотность ("
+            f"×{scale:.2f}): элементы тоньше {0.15 * scale:.2f} м (колонны) в такой "
+            "выборке не различаются и в модель не попадают. Это пропуск, а не отсутствие "
+            "конструкции."
         )
     stats = {
         "method": "geometric-baseline-v1",
@@ -519,6 +600,8 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
         "points_processed": grid["total"],
         "occupied_cells": occupied_cells,
         "mean_points_per_cell": round(mean_pts_cell, 3),
+        "density_grade": grade,
+        "density_scale": round(scale, 2),
         "plan_area_m2": round(plan_area, 1),
         "points_per_m2_plan": round(grid["total"] / plan_area, 2) if plan_area > 0 else None,
         "wall_rejections": rejection,
@@ -531,11 +614,11 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
         "beam_count": sum(1 for e in elements if e.class_name == "beam"),
         "truss_count": sum(1 for e in elements if e.class_name == "truss"),
         "brace_count": sum(1 for e in elements if e.class_name == "brace"),
+        "stair_count": sum(1 for e in elements if e.class_name == "stair"),
+        "opening_count": sum(1 for e in elements if e.class_name == "opening"),
         "non_structural_excluded": dropped_unknown,
         "unimplemented_classes": [
             "girder",
-            "stair",
-            "opening",
             "pipe",
             "duct",
             "equipment",

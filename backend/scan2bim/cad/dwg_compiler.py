@@ -19,6 +19,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+ODA_CANDIDATE_PATHS = [
+    Path(r"C:\Program Files\ODA\ODAFileConverter 27.1.0\ODAFileConverter.exe"),
+    Path(r"C:\Program Files\ODA\ODAFileConverter\ODAFileConverter.exe"),
+    Path(r"C:\Program Files (x86)\ODA\ODAFileConverter\ODAFileConverter.exe"),
+]
+
 ACCORE_CANDIDATE_PATHS = [
     Path(r"C:\Program Files\Autodesk\AutoCAD 2026\accoreconsole.exe"),
     Path(r"C:\Program Files\Autodesk\AutoCAD 2025\accoreconsole.exe"),
@@ -30,6 +36,35 @@ SEED_DWG_CANDIDATES = [
     Path(r"C:\Program Files\Autodesk\AutoCAD 2026\UserDataCache\Template\acadiso.dwt"),
     Path(r"C:\Program Files\Autodesk\AutoCAD 2026\UserDataCache\Template\acad.dwt"),
 ]
+
+
+def find_oda_converter() -> Path | None:
+    """Find an installed ODAFileConverter binary.
+
+    S2B_ODA_CONVERTER wins when the deployment keeps the converter somewhere
+    unusual; otherwise known install roots are scanned so a minor version bump
+    (27.1.0 -> 27.2.0) does not silently disable DWG export.
+    """
+    override = os.environ.get("S2B_ODA_CONVERTER")
+    if override:
+        candidate = Path(override)
+        if candidate.is_file():
+            return candidate
+    for p in ODA_CANDIDATE_PATHS:
+        if p.is_file():
+            return p
+    for root in (
+        Path(r"C:\Program Files\ODA"),
+        Path(r"C:\Program Files (x86)\ODA"),
+        Path("/opt/ODA"),
+        Path("/usr/local/ODA"),
+    ):
+        if not root.is_dir():
+            continue
+        for match in sorted(root.glob("ODAFileConverter*/ODAFileConverter*"), reverse=True):
+            if match.is_file():
+                return match
+    return None
 
 
 def find_accoreconsole() -> Path | None:
@@ -58,6 +93,52 @@ def is_valid_dwg(file_path: Path) -> bool:
         return header.startswith(b"AC10")
     except Exception:
         return False
+
+
+def convert_dxf_to_dwg_oda(
+    dxf_path: Path,
+    dwg_path: Path,
+    timeout_sec: int = 120,
+) -> Path:
+    """Headless compilation via ODAFileConverter (Open Design Alliance)."""
+    oda = find_oda_converter()
+    if not oda:
+        raise FileNotFoundError("ODAFileConverter не найден в системных каталогах")
+
+    tmp_dir = Path(tempfile.gettempdir()).resolve() / f"s2b_oda_{uuid.uuid4().hex[:8]}"
+    in_dir = tmp_dir / "in"
+    out_dir = tmp_dir / "out"
+    in_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        temp_dxf = in_dir / dxf_path.name
+        shutil.copy2(dxf_path, temp_dxf)
+        cmd = [
+            str(oda),
+            str(in_dir),
+            str(out_dir),
+            "ACAD2018",
+            "DWG",
+            "0",
+            "1",
+            "*.dxf",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        out_dwg = out_dir / (temp_dxf.stem + ".dwg")
+        if not out_dwg.is_file() or not is_valid_dwg(out_dwg):
+            raise RuntimeError(f"ODAFileConverter не создал валидный DWG файл. Вывод: {proc.stderr}")
+
+        dwg_path.parent.mkdir(parents=True, exist_ok=True)
+        if dwg_path.exists():
+            try:
+                dwg_path.unlink()
+            except Exception:
+                pass
+        shutil.move(str(out_dwg), str(dwg_path))
+        return dwg_path
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def convert_dxf_to_dwg_accore(
@@ -89,9 +170,9 @@ def convert_dxf_to_dwg_accore(
 
     scr_file = tmp_dir / f"s2b_run_{session_id}.scr"
     scr_content = f"""(setvar "CMDECHO" 0)
-(command "_.DXFIN" "{temp_dxf.as_posix()}")
+(command "_.DXFIN" "{temp_dxf.name}")
 (command "_.ZOOM" "_E")
-(command "_.SAVEAS" "2018" "{temp_out_dwg.as_posix()}")
+(command "_.SAVEAS" "2018" "{temp_out_dwg.name}")
 (command "_.QUIT" "_Y")
 """
     scr_file.write_text(scr_content, encoding="ascii")
@@ -112,6 +193,7 @@ def convert_dxf_to_dwg_accore(
             text=True,
             encoding="utf-8",
             errors="replace",
+            cwd=str(tmp_dir),
         )
         stdout, stderr = proc.communicate(input='(command "_.QUIT" "_Y")\n', timeout=timeout_sec)
     except subprocess.TimeoutExpired:
@@ -189,14 +271,21 @@ def convert_dxf_to_dwg_native(
     if not force_recompile and is_valid_dwg(dest_dwg) and dest_dwg.stat().st_mtime >= src_dxf.stat().st_mtime:
         return dest_dwg
 
-    # 1. Попытка компиляции через быстрый headless accoreconsole.exe
+    # 1. Попытка компиляции через быстрый headless ODAFileConverter
+    if find_oda_converter():
+        try:
+            return convert_dxf_to_dwg_oda(src_dxf, dest_dwg)
+        except Exception as exc:
+            logger.warning(f"ODAFileConverter error: {exc}. Пробуем accoreconsole...")
+
+    # 2. Попытка компиляции через accoreconsole.exe
     if find_accoreconsole() and find_seed_dwg():
         try:
             return convert_dxf_to_dwg_accore(src_dxf, dest_dwg)
         except Exception as exc:
             logger.warning(f"accoreconsole error: {exc}. Пробуем COM Automation...")
 
-    # 2. Запасная попытка через COM Automation
+    # 3. Запасная попытка через COM Automation
     try:
         return convert_dxf_to_dwg_com(src_dxf, dest_dwg, zoom_extents=zoom_extents)
     except Exception as exc:
@@ -214,6 +303,30 @@ def batch_convert_album_to_dwg(album_dir: str | Path) -> list[Path]:
     target_dir = Path(album_dir)
     dxf_files = sorted(target_dir.glob("*.dxf"))
     created_dwgs = []
+
+    # Быстрый пакетный прогон через ODAFileConverter
+    oda = find_oda_converter()
+    if oda and dxf_files:
+        try:
+            cmd = [
+                str(oda),
+                str(target_dir),
+                str(target_dir),
+                "ACAD2018",
+                "DWG",
+                "0",
+                "1",
+                "*.dxf",
+            ]
+            subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            for dxf in dxf_files:
+                dwg = dxf.with_suffix(".dwg")
+                if is_valid_dwg(dwg):
+                    created_dwgs.append(dwg)
+            if len(created_dwgs) == len(dxf_files):
+                return created_dwgs
+        except Exception as exc:
+            logger.warning(f"Пакетная ODA конвертация не завершилась: {exc}")
 
     for dxf in dxf_files:
         try:

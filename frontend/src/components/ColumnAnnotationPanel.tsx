@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type ColumnAnnotation, type ColumnAnnotationArchiveResponse, type ColumnAnnotationDataset, type ColumnAnnotationDraft } from "../api";
+import { api, type ColumnAnnotation, type ColumnAnnotationArchiveResponse, type ColumnAnnotationDataset, type ColumnAnnotationDraft, type ColumnSurfaceTrackAnalysisResponse } from "../api";
 import { restoreAnnotationAsDraft } from "../annotationRecovery";
+import { buildColumnAnnotationHeightSuggestions } from "../columnAnnotationSuggestions";
 import type { Element } from "../types";
 
-interface Props { cloudId: string; element: Element; busy: boolean; onAnnotationSaved: (annotation: ColumnAnnotation) => void }
+interface Props {
+  cloudId: string;
+  element: Element;
+  busy: boolean;
+  surfaceAnalysis: ColumnSurfaceTrackAnalysisResponse | null;
+  onAnnotationSaved: (annotation: ColumnAnnotation) => void;
+}
 
 type State = ColumnAnnotationDraft["state"];
 type Face = "u+" | "u-" | "v+" | "v-";
-type HeightDraft = { z: string; long: string; short: string; note: string };
+type HeightDraft = {
+  z: string; long: string; short: string; note: string;
+  source_provenance?: ColumnAnnotationDraft["z_measurements"][number]["source_provenance"];
+};
 const FACES: { id: Face; label: string }[] = [
   { id: "u+", label: "U+" }, { id: "u-", label: "U−" },
   { id: "v+", label: "V+" }, { id: "v-", label: "V−" },
@@ -25,13 +35,14 @@ function initial(annotation?: ColumnAnnotation): Omit<ColumnAnnotationDraft, "so
     sides_m: annotation?.sides_m || null, measurement_source: annotation?.measurement_source || null,
     z_measurements: annotation?.z_measurements || [], visible_faces: annotation?.visible_faces || [],
     hidden_faces: annotation?.hidden_faces || [], confidence: annotation?.confidence ?? null,
+    algorithm_suggestions_verified: annotation?.algorithm_suggestions_verified ?? false,
     reason_unknown: annotation?.reason_unknown || "", note: annotation?.note || "",
   };
 }
 
 const mm = (value: number) => (value * 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 
-export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnotationSaved }: Props) {
+export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceAnalysis, onAnnotationSaved }: Props) {
   const [dataset, setDataset] = useState<ColumnAnnotationDataset | null>(null);
   const [archivedHistory, setArchivedHistory] = useState<ColumnAnnotationArchiveResponse["history"]>([]);
   const [draft, setDraft] = useState(initial());
@@ -42,7 +53,13 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [algorithmDraftPending, setAlgorithmDraftPending] = useState(false);
+  const [algorithmDraftVerified, setAlgorithmDraftVerified] = useState(false);
   const current = dataset?.annotations.find((item) => item.element_id === element.id);
+  const analysisSuggestions = useMemo(() => {
+    if (!surfaceAnalysis || surfaceAnalysis.cloud_id !== cloudId || surfaceAnalysis.candidate_id !== element.id) return [];
+    return buildColumnAnnotationHeightSuggestions(surfaceAnalysis);
+  }, [surfaceAnalysis, cloudId, element.id]);
 
   useEffect(() => {
     let active = true;
@@ -63,13 +80,26 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
     setHeights((current?.z_measurements || []).map((item) => ({
       z: String(item.z_m), long: item.sides_m ? String(item.sides_m.long * 1000) : "",
       short: item.sides_m ? String(item.sides_m.short * 1000) : "", note: item.note || "",
+      source_provenance: item.source_provenance,
     })));
+    setAlgorithmDraftPending(false); setAlgorithmDraftVerified(current?.algorithm_suggestions_verified ?? false);
     setNotice(""); setError("");
   // current is selected from the loaded dataset and must reset only when the selected element changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset?.source_snapshot_sha256, element.id]);
 
   const history = useMemo(() => dataset?.history.filter((item) => item.element_id === element.id) || [], [dataset, element.id]);
+
+  function updateHeights(update: (previous: HeightDraft[]) => HeightDraft[]) {
+    const next = update(heights);
+    setHeights(update);
+    const hasSourceProvenance = next.some((item) => item.source_provenance !== undefined);
+    if (hasSourceProvenance || algorithmDraftPending) {
+      setAlgorithmDraftPending(hasSourceProvenance);
+      setAlgorithmDraftVerified(false);
+      setDraft((previous) => ({ ...previous, algorithm_suggestions_verified: false }));
+    }
+  }
 
   const parseSides = (long: string, short: string, label: string) => {
     if (!long.trim() && !short.trim()) return null;
@@ -88,8 +118,16 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
       const zMeasurements = heights.map((row, index) => {
         const z = Number(row.z);
         if (!row.z.trim() || !Number.isFinite(z)) throw new Error(`Строка отметки ${index + 1}: проверь Z.`);
-        return { z_m: z, sides_m: parseSides(row.long, row.short, `Отметка ${row.z} м`), note: row.note };
+        return {
+          z_m: z, sides_m: parseSides(row.long, row.short, `Отметка ${row.z} м`), note: row.note,
+          ...(row.source_provenance ? { source_provenance: row.source_provenance } : {}),
+        };
       });
+      const hasPointLinkedSuggestions = zMeasurements.some((item) => item.source_provenance !== undefined);
+      const suggestionsVerified = algorithmDraftPending ? algorithmDraftVerified : draft.algorithm_suggestions_verified;
+      if (hasPointLinkedSuggestions && !suggestionsVerified) {
+        throw new Error("Сверь все сечения с привязкой к исходным точкам и отметь проверку перед сохранением.");
+      }
       const hasMeasuredSides = sides !== null || zMeasurements.some((item) => item.sides_m !== null);
       const payload: ColumnAnnotationDraft = {
         source_snapshot_sha256: dataset.source_snapshot_sha256,
@@ -99,6 +137,7 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
         sides_m: sides,
         measurement_source: hasMeasuredSides ? (draft.measurement_source || "manual_cloud") : null,
         z_measurements: zMeasurements,
+        algorithm_suggestions_verified: hasPointLinkedSuggestions && suggestionsVerified,
       };
       const saved = await api.saveColumnAnnotation(cloudId, element.id, payload);
       onAnnotationSaved(saved);
@@ -107,10 +146,34 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
         annotations: previous.annotations.map((item) => item.element_id === element.id ? saved : item),
         history: [...previous.history, saved],
       } : previous);
+      setDraft((previous) => ({ ...previous, algorithm_suggestions_verified: saved.algorithm_suggestions_verified }));
+      setAlgorithmDraftPending(false); setAlgorithmDraftVerified(false);
       setNotice(`Сохранена ревизия ${saved.revision}; распознанная геометрия не менялась.`);
     } catch (reason) {
       setError(String(reason instanceof Error ? reason.message : reason));
     } finally { setSaving(false); }
+  }
+
+  function addAnalysisSuggestions() {
+    if (!analysisSuggestions.length) {
+      setNotice("Нет полных прямоугольных сечений с четырьмя наблюдаемыми гранями и исходными строками.");
+      return;
+    }
+    const existingZ = new Set(heights.filter((item) => item.z.trim() && Number.isFinite(Number(item.z)))
+      .map((item) => Number(item.z).toPrecision(12)));
+    const additions = analysisSuggestions.filter((item) => !existingZ.has(item.z_m.toPrecision(12)));
+    if (!additions.length) {
+      setNotice("Все предложенные отметки уже есть в черновике; существующие строки не заменены.");
+      return;
+    }
+    setHeights((previous) => [...previous, ...additions.map((item) => ({
+      z: String(item.z_m), long: String(item.long_m * 1000), short: String(item.short_m * 1000), note: item.note,
+      source_provenance: item.source_provenance,
+    }))].sort((a, b) => Number(a.z) - Number(b.z)));
+    setDraft((previous) => ({ ...previous, measurement_source: "manual_cloud", algorithm_suggestions_verified: false }));
+    setAlgorithmDraftPending(true);
+    setAlgorithmDraftVerified(false);
+    setNotice(`Добавлено ${additions.length} редактируемых предложений. Они ещё не являются эталонными измерениями.`);
   }
 
   async function downloadReference() {
@@ -140,6 +203,9 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
       const restored = restoreAnnotationAsDraft(item, dataset.source_snapshot_sha256);
       const { source_snapshot_sha256: _snapshot, ...draftValues } = restored;
       setDraft(draftValues);
+      const hasSourceProvenance = draftValues.z_measurements.some((item) => item.source_provenance !== undefined);
+      setAlgorithmDraftPending(hasSourceProvenance); setAlgorithmDraftVerified(false);
+      setDraft((previous) => ({ ...previous, algorithm_suggestions_verified: false }));
       setLongMm(restored.sides_m ? String(restored.sides_m.long * 1000) : "");
       setShortMm(restored.sides_m ? String(restored.sides_m.short * 1000) : "");
       setHeights(restored.z_measurements.map((measurement) => ({
@@ -147,6 +213,7 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
         long: measurement.sides_m ? String(measurement.sides_m.long * 1000) : "",
         short: measurement.sides_m ? String(measurement.sides_m.short * 1000) : "",
         note: measurement.note || "",
+        source_provenance: measurement.source_provenance,
       })));
       setError("");
       setNotice(`Ревизия ${item.revision} из снимка ${item.source_snapshot_sha256.slice(0, 12)} загружена как черновик. Проверь соответствие текущей геометрии; изменения ещё не сохранены.`);
@@ -166,6 +233,12 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
     {loading && <p role="status">Загружаю набор эталонов…</p>}
     {error && <p role="alert" className="column-type-error">{error}</p>}
     {notice && <p role="status" className="column-fit-status">{notice}</p>}
+    {surfaceAnalysis && surfaceAnalysis.cloud_id === cloudId && surfaceAnalysis.candidate_id === element.id && <div className="annotation-suggestion">
+      <p className="hint">Из анализа сечений можно перенести только полностью наблюдаемые контуры (4 видимые грани) в черновик. Неизвестные, частичные и достроенные контуры пропускаются.</p>
+      <button type="button" disabled={busy || saving || loading || analysisSuggestions.length === 0} onClick={addAnalysisSuggestions}>
+        Добавить полные сечения в черновик · {analysisSuggestions.length}
+      </button>
+    </div>}
     {dataset && <>
       <div className="column-fit-fields">
         <label><span className="field-label">Разметчик</span><input value={draft.annotator} onChange={(e) => setDraft({ ...draft, annotator: e.target.value })} /></label>
@@ -183,22 +256,26 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, onAnnota
         <label><span className="field-label">Длинная сторона, мм</span><input type="number" min="0" step="any" value={longMm} onChange={(e) => setLongMm(e.target.value)} /></label>
         <label><span className="field-label">Короткая сторона, мм</span><input type="number" min="0" step="any" value={shortMm} onChange={(e) => setShortMm(e.target.value)} /></label>
         {(longMm || shortMm || heights.some((item) => item.long || item.short)) && <label><span className="field-label">Источник размеров</span><select value={draft.measurement_source || "manual_cloud"} onChange={(e) => setDraft({ ...draft, measurement_source: e.target.value as ColumnAnnotationDraft["measurement_source"] })}>
-          <option value="manual_cloud">Ручной замер по облаку</option><option value="field_measurement">Полевой контрольный замер</option>
+          <option value="manual_cloud">Ручной замер по облаку</option><option value="field_measurement" disabled={algorithmDraftPending}>Полевой контрольный замер</option>
         </select></label>}
         <label><span className="field-label">Уверенность разметки, 0–1</span><input type="number" min="0" max="1" step="0.05" value={draft.confidence ?? ""} onChange={(e) => setDraft({ ...draft, confidence: e.target.value === "" ? null : Number(e.target.value) })} /></label>
       </div>
+      {algorithmDraftPending && <label className="annotation-wide-field annotation-confirmation">
+        <input type="checkbox" checked={algorithmDraftVerified} onChange={(event) => setAlgorithmDraftVerified(event.target.checked)} />
+        <span>Я сверил каждое сечение с привязкой к исходным точкам и подтверждаю проверенные значения как независимую разметку.</span>
+      </label>}
       <div className="annotation-face-grid">{(["visible_faces", "hidden_faces"] as const).map((field) => <fieldset key={field}>
         <legend>{field === "visible_faces" ? "Видимые грани" : "Закрытые / невидимые грани"}</legend>
         {FACES.map((face) => <label key={face.id}><input type="checkbox" checked={draft[field].includes(face.id)} onChange={() => toggleFace(field, face.id)} />{face.label}</label>)}
       </fieldset>)}</div>
       <div className="annotation-heights">
-        <div className="panel-title"><span>Измерения по высоте, м / мм</span><button type="button" onClick={() => setHeights((items) => [...items, { z: "", long: "", short: "", note: "" }])}>Добавить отметку</button></div>
+        <div className="panel-title"><span>Измерения по высоте, м / мм</span><button type="button" onClick={() => updateHeights((items) => [...items, { z: "", long: "", short: "", note: "" }])}>Добавить отметку</button></div>
         {heights.map((row, index) => <div className="annotation-height-row" key={index}>
-          <input aria-label="Отметка Z, м" type="number" step="any" placeholder="Z, м" value={row.z} onChange={(e) => setHeights((items) => items.map((item, i) => i === index ? { ...item, z: e.target.value } : item))} />
-          <input aria-label="Длинная сторона на отметке, мм" type="number" step="any" placeholder="длинная, мм" value={row.long} onChange={(e) => setHeights((items) => items.map((item, i) => i === index ? { ...item, long: e.target.value } : item))} />
-          <input aria-label="Короткая сторона на отметке, мм" type="number" step="any" placeholder="короткая, мм" value={row.short} onChange={(e) => setHeights((items) => items.map((item, i) => i === index ? { ...item, short: e.target.value } : item))} />
-          <input aria-label="Примечание к отметке" placeholder="примечание" value={row.note} onChange={(e) => setHeights((items) => items.map((item, i) => i === index ? { ...item, note: e.target.value } : item))} />
-          <button type="button" aria-label="Удалить отметку" onClick={() => setHeights((items) => items.filter((_, i) => i !== index))}>×</button>
+          <input aria-label="Отметка Z, м" type="number" step="any" placeholder="Z, м" value={row.z} onChange={(e) => updateHeights((items) => items.map((item, i) => i === index ? { ...item, z: e.target.value } : item))} />
+          <input aria-label="Длинная сторона на отметке, мм" type="number" step="any" placeholder="длинная, мм" value={row.long} onChange={(e) => updateHeights((items) => items.map((item, i) => i === index ? { ...item, long: e.target.value } : item))} />
+          <input aria-label="Короткая сторона на отметке, мм" type="number" step="any" placeholder="короткая, мм" value={row.short} onChange={(e) => updateHeights((items) => items.map((item, i) => i === index ? { ...item, short: e.target.value } : item))} />
+          <input aria-label="Примечание к отметке" placeholder="примечание" value={row.note} onChange={(e) => updateHeights((items) => items.map((item, i) => i === index ? { ...item, note: e.target.value } : item))} />
+          <button type="button" aria-label="Удалить отметку" onClick={() => updateHeights((items) => items.filter((_, i) => i !== index))}>×</button>
         </div>)}
       </div>
       {(draft.state === "unknown" || draft.state === "excluded") && <label className="annotation-wide-field"><span className="field-label">Почему неизвестно / исключено</span><textarea value={draft.reason_unknown} onChange={(e) => setDraft({ ...draft, reason_unknown: e.target.value })} rows={2} /></label>}

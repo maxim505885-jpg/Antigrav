@@ -24,6 +24,34 @@ def _bucket(sample_id: str) -> int:
     return int(hashlib.sha256(sample_id.encode("utf-8")).hexdigest()[:8], 16) % 10000
 
 
+def _split_samples_by_element(
+    samples: list[dict[str, Any]], test_fraction: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split by physical element so repeated revisions cannot leak across holdout."""
+    threshold = int(round(test_fraction * 10000))
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for sample in samples:
+        element_id = str(sample.get("element_id") or sample["id"])
+        groups.setdefault(element_id, []).append(sample)
+
+    test_elements = {element_id for element_id in groups if _bucket(element_id) < threshold}
+    if len(groups) <= 1:
+        test_elements.clear()
+    elif not test_elements:
+        test_elements.add(min(groups, key=lambda element_id: (_bucket(element_id), element_id)))
+    train_elements = set(groups) - test_elements
+    if len(groups) > 1 and not train_elements:
+        element_id = max(test_elements, key=lambda value: (_bucket(value), value))
+        test_elements.remove(element_id)
+        train_elements.add(element_id)
+
+    train = [sample for sample in samples
+        if str(sample.get("element_id") or sample["id"]) in train_elements]
+    test = [sample for sample in samples
+        if str(sample.get("element_id") or sample["id"]) in test_elements]
+    return train, test
+
+
 def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
     labels = sorted(set(y_true) | set(y_pred))
     per_class: dict[str, Any] = {}
@@ -66,12 +94,7 @@ def train_candidate(
         raise ValueError(
             "at least 4 engineer-reviewed samples are required for a train/test split"
         )
-    train, test = [], []
-    threshold = int(round(test_fraction * 10000))
-    for sample in samples:
-        (test if _bucket(str(sample["id"])) < threshold else train).append(sample)
-    if not train:
-        train, test = samples[:-1], samples[-1:]
+    train, test = _split_samples_by_element(samples, test_fraction)
 
     model = KNNModel.fit(train, version=1, name=name, notes=notes)
     y_true = [str(s["class_name"]) for s in test]

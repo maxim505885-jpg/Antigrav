@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, waitForCloud, waitForJob } from "./api";
+import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse } from "./api";
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
@@ -26,6 +26,9 @@ const STAT_LABELS: Record<string, string> = {
   wall_count: "стен",
   column_count: "колонн",
   slab_count: "плит",
+  stair_count: "лестниц",
+  opening_count: "проёмов",
+  density_grade: "плотность",
   grid_res_m: "шаг сетки, м",
   level_candidates: "уровней",
 };
@@ -99,6 +102,7 @@ export default function App() {
 
   const [elements, setElements] = useState<Element[]>([]);
   const [columnReferenceStates, setColumnReferenceStates] = useState<Record<string, string>>({});
+  const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
   const [selectedColumnGroup, setSelectedColumnGroup] = useState<{ cloudId: string; ids: string[] } | null>(null);
   const groupGeometry = useMemo(() => columnGroupLinePositions(
@@ -130,6 +134,10 @@ export default function App() {
     setBoundaryDraft(orientedBoxDraft(selectedElement?.geometry));
     setBoundaryError(null);
   }, [selectedElement?.id, selectedElement?.geometry]);
+
+  useEffect(() => {
+    setColumnSurfaceAnalysis(null);
+  }, [cloud?.id, selectedElement?.id]);
 
   const [learning, setLearning] = useState<any>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -234,7 +242,8 @@ export default function App() {
   }, [cloud?.id, cloud?.status, cloud?.updated_at]);
 
   useEffect(() => {
-    if (!cloud || cloud.status !== "ready") {
+    if (!cloud || cloud.status !== "ready"
+        || !elements.some((element) => element.cloud_id === cloud.id && element.class_name === "column")) {
       setColumnReferenceStates({});
       return;
     }
@@ -247,7 +256,7 @@ export default function App() {
       if (active) setColumnReferenceStates({});
     });
     return () => { active = false; };
-  }, [cloud?.id, cloud?.status, cloud?.updated_at]);
+  }, [cloud?.id, cloud?.status, cloud?.updated_at, elements]);
 
   const trackCloud = async (incoming: Cloud) => {
     setBusy(true);
@@ -1026,8 +1035,11 @@ export default function App() {
                   </button>
                 </div>
                 <p className="hint">
-                  Базовый модуль находит стены, колонны и контуры плит. Остальные классы не
-                  угадываются, а честно помечаются как нереализованные.
+                  Геометрический модуль формирует непроверенные кандидаты стен, колонн,
+                  балок, подкрановых балок, ферм, связей, лестничных маршей и проёмов по
+                  данным облака. Для каждого сохраняется evidence исходных точек; роль,
+                  сечение, опоры, ступени и тип проёма требуют ручной проверки.
+                  Неподдержанные классы не дорисовываются.
                 </p>
                 {recognition?.warnings && (
                   <ul className="warnings">
@@ -1056,7 +1068,7 @@ export default function App() {
                 {recognition?.stats && (
                   <div className="stats-line">
                     {Object.entries(recognition.stats)
-                      .filter(([key]) => ["wall_count", "column_count", "slab_count", "grid_res_m", "level_candidates"].includes(key))
+                      .filter(([key]) => ["wall_count", "column_count", "slab_count", "stair_count", "opening_count", "density_grade", "grid_res_m", "level_candidates"].includes(key))
                       .map(([key, value]) => (
                         <span key={key}>
                           {STAT_LABELS[key] || key}: <b>{String(value)}</b>
@@ -1144,12 +1156,15 @@ export default function App() {
                             priorDecisions={reviewHistory.slice(-5).reverse()}
                             busy={busy}
                             onApplyHypothesis={applySectionHypothesis}
+                            onSurfaceAnalysis={setColumnSurfaceAnalysis}
                           />
                         )}
                       </div>
                     )}
                     {cloud && selectedElement.class_name === "column" && (
                       <ColumnAnnotationPanel cloudId={cloud.id} element={selectedElement} busy={busy}
+                        surfaceAnalysis={columnSurfaceAnalysis?.cloud_id === cloud.id && columnSurfaceAnalysis.candidate_id === selectedElement.id
+                          ? columnSurfaceAnalysis : null}
                         onAnnotationSaved={(annotation) => setColumnReferenceStates((states) => ({ ...states, [annotation.element_id]: annotation.state }))} />
                     )}
                     <div className="editor-grid">

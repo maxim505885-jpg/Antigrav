@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 
 
 class ProjectCreate(BaseModel):
@@ -159,6 +159,24 @@ class ColumnTypeUndo(BaseModel):
     note: str = ""
 
 
+class ColumnAnnotationSourceProvenance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_point_row_id_count: StrictInt = Field(gt=0)
+    source_point_row_id_sample: list[StrictInt] = Field(min_length=1, max_length=100)
+    source_index_space: Literal["derived_positions_row_index/1"]
+    analysis_algorithm: str = Field(min_length=1, max_length=200)
+
+
+class ColumnAnnotationHeightMeasurement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    z_m: float = Field(allow_inf_nan=False)
+    sides_m: dict[str, float] | None = None
+    note: str = ""
+    source_provenance: ColumnAnnotationSourceProvenance | None = None
+
+
 class ColumnAnnotationSave(BaseModel):
     source_snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     annotator: str = Field(min_length=1, max_length=200)
@@ -169,7 +187,8 @@ class ColumnAnnotationSave(BaseModel):
     structural_role: Literal["column", "crane_column", "other", "unknown"] | None = None
     sides_m: dict[str, float] | None = None
     measurement_source: Literal["manual_cloud", "field_measurement"] | None = None
-    z_measurements: list[dict[str, Any]] = Field(default_factory=list)
+    z_measurements: list[ColumnAnnotationHeightMeasurement] = Field(default_factory=list)
+    algorithm_suggestions_verified: StrictBool = False
     visible_faces: list[Literal["u+", "u-", "v+", "v-"]] = Field(default_factory=list)
     hidden_faces: list[Literal["u+", "u-", "v+", "v-"]] = Field(default_factory=list)
     confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
@@ -183,6 +202,30 @@ class ColumnSectionFitRequest(BaseModel):
     known_sides_m: list[float] | None = Field(default=None, min_length=2, max_length=2)
     distance_tolerance_m: float = Field(default=0.004, gt=0, le=0.05, allow_inf_nan=False)
     candidate_margin_m: float = Field(default=0.2, ge=0, le=1.0, allow_inf_nan=False)
+
+    @field_validator("known_sides_m")
+    @classmethod
+    def _known_sides_positive(cls, value: list[float] | None) -> list[float] | None:
+        if value is not None and any(not value_i > 0 or not math.isfinite(value_i) for value_i in value):
+            raise ValueError("known_sides_m must contain two finite positive lengths")
+        return value
+
+
+class ColumnSectionBatchFitRequest(BaseModel):
+    slice_z_values_m: list[float] = Field(min_length=3, max_length=9)
+    thickness_m: float = Field(default=0.2, gt=0, le=1.0, allow_inf_nan=False)
+    known_sides_m: list[float] | None = Field(default=None, min_length=2, max_length=2)
+    distance_tolerance_m: float = Field(default=0.004, gt=0, le=0.05, allow_inf_nan=False)
+    candidate_margin_m: float = Field(default=0.2, ge=0, le=1.0, allow_inf_nan=False)
+
+    @field_validator("slice_z_values_m")
+    @classmethod
+    def _unique_finite_slice_heights(cls, value: list[float]) -> list[float]:
+        if any(not math.isfinite(height) or height < -1e9 or height > 1e9 for height in value):
+            raise ValueError("slice_z_values_m must contain finite heights between -1e9 and 1e9")
+        if len(set(value)) != len(value):
+            raise ValueError("slice_z_values_m must contain unique heights")
+        return value
 
     @field_validator("known_sides_m")
     @classmethod

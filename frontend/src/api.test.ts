@@ -55,6 +55,25 @@ test("cloud polling returns when an import was cancelled", async () => {
   }
 });
 
+test("column surface tracking requests a source-linked review analysis", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let method = "";
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    method = init?.method || "GET";
+    return { ok: true, json: async () => ({ candidate_id: "column-1", review_required: true }) } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.analyzeColumnSurfaceTracks("column / 1");
+    assert.equal(requestedUrl, "/api/v1/elements/column%20%2F%201/surface-track-analysis");
+    assert.equal(method, "POST");
+    assert.equal(result.candidate_id, "column-1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("rejecting a column group sends the review reason and matching tolerances", async () => {
   const originalFetch = globalThis.fetch;
   let url = "";

@@ -40,6 +40,24 @@ finally {
     $env:TEMP = $oldTemp
     $env:TMP = $oldTmp
     $env:S2B_DATA_DIR = $oldDataDirectory
+
+    # Remove only this run's generated directory, after pytest has exited.
+    $resolvedRunRoot = [System.IO.Path]::GetFullPath($runRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    $resolvedRunDirectory = [System.IO.Path]::GetFullPath($runDirectory)
+    $runDirectoryInfo = Get-Item -LiteralPath $resolvedRunDirectory -Force -ErrorAction SilentlyContinue
+    if (
+        $runDirectoryInfo -and
+        $runDirectoryInfo.Name -match '^[0-9a-f]{12}$' -and
+        -not ($runDirectoryInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and
+        $resolvedRunDirectory.StartsWith($resolvedRunRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    ) {
+        try {
+            Remove-Item -LiteralPath $resolvedRunDirectory -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Could not remove this run's isolated test directory: $($_.Exception.Message)"
+        }
+    }
 }
 
 exit $exitCode

@@ -13,7 +13,7 @@ from .learning.store import create_sample
 
 
 def element_from_row(row: dict[str, Any]) -> dict[str, Any]:
-    return {
+    element = {
         "id": row["id"],
         "project_id": row["project_id"],
         "cloud_id": row["cloud_id"],
@@ -40,6 +40,9 @@ def element_from_row(row: dict[str, Any]) -> dict[str, Any]:
             }
         ),
     }
+    if "source_cloud_sha256" in row:
+        element["source_cloud_sha256"] = row.get("source_cloud_sha256")
+    return element
 
 
 def get_element(element_id: str) -> dict[str, Any]:
@@ -125,8 +128,12 @@ def _feedback(
 
 
 def _ensure_sample(element: dict[str, Any], class_name: str, source: str = "engineer") -> dict[str, Any] | None:
+    if (element.get("review_status") not in {"confirmed", "corrected"}
+        or element.get("inferred")):
+        return None
     existing = one(
-        "SELECT id FROM training_samples WHERE element_id = ? AND class_name = ? LIMIT 1",
+        "SELECT id FROM training_samples WHERE element_id = ? AND class_name = ? "
+        "AND source != 'undone' LIMIT 1",
         (element["id"], class_name),
     )
     if existing:
@@ -142,6 +149,16 @@ def _ensure_sample(element: dict[str, Any], class_name: str, source: str = "engi
         )
     except Exception:
         return None
+
+
+def _supersede_training_samples(element_id: str) -> list[dict[str, str]]:
+    previous = rows(
+        "SELECT id,source FROM training_samples WHERE element_id=? AND source!='undone' ORDER BY created_at,id",
+        (element_id,),
+    )
+    for sample in previous:
+        execute("UPDATE training_samples SET source='undone' WHERE id=?", (sample["id"],))
+    return [{"id": sample["id"], "source": sample["source"]} for sample in previous]
 
 
 def review_element(
@@ -180,12 +197,17 @@ def review_element(
         element, action, before, {**updates, "id": element_id}, engineer, note
     )
     sample = None
-    if action in {"confirm", "reclassify", "adjust_boundary"}:
+    superseded_samples = []
+    if action == "reclassify" and updated["class_name"] != element["class_name"]:
+        superseded_samples = _supersede_training_samples(element_id)
+    if action in {"confirm", "reclassify"}:
         sample = _ensure_sample(updated, updated["class_name"])
-        if sample:
+        if sample or superseded_samples:
             execute(
                 "UPDATE feedback SET after_json = ? WHERE id = ?",
-                (dumps({**updates, "id": element_id, "sample_id": sample["id"]}), feedback_id),
+                (dumps({**updates, "id": element_id,
+                    **({"sample_id": sample["id"]} if sample else {}),
+                    **({"superseded_samples": superseded_samples} if superseded_samples else {})}), feedback_id),
             )
     return {"element": updated, "feedback_id": feedback_id, "sample": sample}
 
@@ -470,6 +492,14 @@ def undo_feedback(element_id: str, feedback_id: str, engineer: str = "") -> dict
         sample_id = after.get("sample_id")
         if sample_id:
             execute("UPDATE training_samples SET source = 'undone' WHERE id = ?", (sample_id,))
+        for sample in after.get("superseded_samples", []):
+            current_sample = one("SELECT source FROM training_samples WHERE id=?", (sample.get("id"),))
+            if current_sample is None or current_sample["source"] != "undone":
+                raise ValueError("a superseded training sample changed after this action")
+            execute(
+                "UPDATE training_samples SET source=? WHERE id=?",
+                (sample["source"], sample["id"]),
+            )
 
     latest_element = get_element(element_id)
     undo_id = _feedback(

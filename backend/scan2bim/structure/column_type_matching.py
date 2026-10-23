@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from .column_types import _finite_positive, _within_tolerance, column_descriptor
@@ -40,6 +41,7 @@ def match_project_column_types(
 
     for item in types:
         prototype = item.get("prototype") or {}
+        confirmed_fingerprints = prototype.get("source_cloud_fingerprints")
         sides = prototype.get("representative_sides_m") or {}
         morphology = prototype.get("morphology", "unknown")
         reasons = []
@@ -51,6 +53,12 @@ def match_project_column_types(
         else:
             sides = {side: float(sides[side]) for side in ("long", "short")}
         source_cloud_ids = set()
+        current_fingerprints: dict[str, str] = {}
+        if not isinstance(confirmed_fingerprints, dict) or not confirmed_fingerprints:
+            reasons.append("missing_source_fingerprint")
+        elif any(not isinstance(value, str) or re.fullmatch(r"[0-9a-fA-F]{64}", value) is None
+                 for value in confirmed_fingerprints.values()):
+            reasons.append("invalid_source_fingerprint")
         if not reasons:
             for member in members:
                 source = sources.get(member)
@@ -62,6 +70,15 @@ def match_project_column_types(
                     reasons.append("source_prototype_conflict")
                 else:
                     source_cloud_ids.add(source["cloud_id"])
+                    digest = source.get("source_cloud_sha256")
+                    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+                        reasons.append("missing_current_source_fingerprint")
+                    else:
+                        current_fingerprints[source["cloud_id"]] = digest.lower()
+            if not reasons:
+                confirmed = {cloud_id: digest.lower() for cloud_id, digest in confirmed_fingerprints.items()}
+                if current_fingerprints != confirmed:
+                    reasons.append("source_cloud_changed")
         if reasons:
             issues.append({"type_id": item["id"], "mark": item["mark"], "reasons": sorted(set(reasons))})
         else:

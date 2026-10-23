@@ -74,3 +74,50 @@ def test_rerun_preserves_manual_review_and_surfaces_changed_overlap(client, monk
     assert changed["result"]["review_reconciliation"]["conflicts"] == [
         {"candidate_id": candidate["id"], "protected_ids": [original["id"]]}
     ]
+
+
+def test_identical_rerun_reuses_unreviewed_candidate_id_and_keeps_undo_history(client, monkeypatch):
+    project = client.post("/api/v1/projects", json={"name": "Recognition identity lifecycle"}).json()
+    points = "0 0 0\n1 0 0\n0 1 0\n0 0 1\n"
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/clouds/upload",
+        files={"file": ("tiny.xyz", points.encode(), "text/plain")},
+    )
+    assert response.status_code == 200
+    cloud = wait_cloud(client, response.json()["id"])
+
+    state = {"element": _candidate()}
+    app_module = importlib.import_module("scan2bim.api.app")
+    monkeypatch.setattr(
+        app_module,
+        "detect_structures",
+        lambda geom, progress=None: RecognitionResult([state["element"]], [], [], {}),
+    )
+    first = _recognize(client, cloud["id"])
+    assert first["status"] == "succeeded", first.get("error")
+    original = client.get(f"/api/v1/clouds/{cloud['id']}/elements").json()[0]
+
+    adjusted_geometry = {
+        **original["geometry"],
+        "center": [2.01, 2.0, 2.0],
+    }
+    adjusted = client.post(
+        f"/api/v1/elements/{original['id']}/feedback",
+        json={"action": "adjust_boundary", "geometry": adjusted_geometry, "engineer": "test"},
+    )
+    assert adjusted.status_code == 200
+    undone = client.post(
+        f"/api/v1/elements/{original['id']}/history/{adjusted.json()['feedback_id']}/undo",
+    )
+    assert undone.status_code == 200
+
+    rerun = _recognize(client, cloud["id"])
+    assert rerun["status"] == "succeeded", rerun.get("error")
+    elements = client.get(f"/api/v1/clouds/{cloud['id']}/elements").json()
+    column = next(item for item in elements if item["class_name"] == "column")
+    assert column["id"] == original["id"]
+    assert column["geometry"] == original["geometry"]
+    history = client.get(f"/api/v1/elements/{original['id']}/history")
+    assert history.status_code == 200
+    assert [item["action"] for item in history.json()] == ["adjust_boundary", "undo"]
+    assert rerun["result"]["review_reconciliation"]["reused_candidate_ids"] == [original["id"]]

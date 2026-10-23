@@ -59,8 +59,8 @@ Run backend commands from the repository root through `scripts/run_pytest.ps1`. 
 
 - Downstream consumers: aligned derived point clouds, registration manifest, ReCap package/API/UI.
 - Dependency evidence: registration package imports and API tests; station-level physical acceptance requires individual station sources and independent controls.
-- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_registration_api.py backend/tests/test_stitching.py backend/tests/test_stitching_export.py`.
-- Propagation: after changing transform, point identity, control-point, or package manifest semantics, also run `scripts/run_pytest.ps1 backend/tests/test_pointdata.py backend/tests/test_api_pipeline.py`. Do not read, modify, or upload the protected original `1.rcs` as part of regression checks.
+- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_registration_api.py backend/tests/test_stitching.py backend/tests/test_stitching_export.py`. The stitching suite checks station input-row ranges in metadata/manifests, rejects duplicate station IDs and cached row-range drift; `test_pipeline_single_pass.py` verifies contiguous full coverage and propagation into the SPDS release manifest without leaking the local point-file path.
+- Propagation: after changing transform, point identity, control-point, or package manifest semantics, run the registration acceptance set above plus `scripts/run_pytest.ps1 backend/tests/test_pointdata.py backend/tests/test_api_pipeline.py`. Do not read, modify, or upload the protected original `1.rcs` as part of regression checks.
 
 ## Audit report template
 

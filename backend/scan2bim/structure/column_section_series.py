@@ -125,8 +125,12 @@ def fit_column_track_sections(
 
     sorted_order = np.argsort(row_ids, kind="stable")
     sorted_rows = row_ids[sorted_order]
-    row_membership: dict[int, set[str]] = {}
-    for track in accepted:
+    z_min, z_max = center[2] - height / 2, center[2] + height / 2
+    first_bin = math.floor(z_min / vertical_bin_m)
+    last_bin = math.ceil(z_max / vertical_bin_m)
+    track_local_parts: list[np.ndarray] = []
+    track_id_parts: list[np.ndarray] = []
+    for track_index, track in enumerate(accepted):
         requested = np.asarray(track["rows"], dtype=np.int64)
         if not len(requested):
             continue
@@ -136,52 +140,76 @@ def fit_column_track_sections(
         if not found.all():
             raise ValueError(f"track {track['track_id']} references missing source rows")
         local_indices = sorted_order[positions]
-        z_min, z_max = center[2] - height / 2, center[2] + height / 2
         in_height = (xyz[local_indices, 2] >= z_min) & (xyz[local_indices, 2] <= z_max)
-        for local_index, source_id in zip(local_indices[in_height], requested[in_height]):
-            row_membership.setdefault(int(source_id), set()).add(track["track_id"])
+        selected = local_indices[in_height]
+        if len(selected):
+            track_local_parts.append(selected)
+            track_id_parts.append(np.full(len(selected), track_index, dtype=np.int32))
 
-    z_min, z_max = center[2] - height / 2, center[2] + height / 2
-    first_bin = math.floor(z_min / vertical_bin_m)
-    last_bin = math.ceil(z_max / vertical_bin_m)
+    if track_local_parts:
+        association_local = np.concatenate(track_local_parts)
+        association_track = np.concatenate(track_id_parts)
+        association_order = np.lexsort((association_track, association_local))
+        association_local = association_local[association_order]
+        association_track = association_track[association_order]
+        unique_local, association_counts = np.unique(association_local, return_counts=True)
+    else:
+        association_local = np.empty(0, dtype=np.int64)
+        association_track = np.empty(0, dtype=np.int32)
+        unique_local = np.empty(0, dtype=np.int64)
+        association_counts = np.empty(0, dtype=np.int64)
+
+    # Use the same clipped bin boundaries as the section loop. Searching the
+    # boundary array preserves exact boundary behavior (including z_max in the
+    # final slice) without rescanning every point once for every height bin.
+    bin_ids = np.arange(first_bin, last_bin, dtype=np.int64)
+    bin_lowers = np.maximum(z_min, bin_ids * vertical_bin_m)
+    unique_z = xyz[unique_local, 2]
+    bin_offsets = np.searchsorted(bin_lowers, unique_z, side="right") - 1
+    unique_bins = bin_ids[bin_offsets]
+    unique_bins[unique_z == z_max] = bin_ids[-1]
+    association_unique = np.repeat(np.arange(len(unique_local), dtype=np.int64), association_counts)
+    association_bins = unique_bins[association_unique]
+    row_order = np.argsort(unique_bins, kind="stable")
+    sorted_row_bins = unique_bins[row_order]
+    association_bin_order = np.argsort(association_bins, kind="stable")
+    sorted_association_bins = association_bins[association_bin_order]
+
     bins: list[dict[str, Any]] = []
     section_slices: list[dict[str, Any]] = []
-    track_by_id = {track["track_id"]: track for track in accepted}
     for bin_id in range(first_bin, last_bin):
         lower = max(z_min, bin_id * vertical_bin_m)
         upper = min(z_max, (bin_id + 1) * vertical_bin_m)
         if upper <= lower:
             continue
-        # Resolve rows by stable source ID; duplicate track membership is
-        # collapsed for fitting but remains visible in track_evidence below.
-        source_ids: list[int] = []
-        evidence_rows: dict[str, set[int]] = {}
-        for source_id, track_ids in row_membership.items():
-            position = int(np.searchsorted(sorted_rows, source_id))
-            local_index = int(sorted_order[position])
-            z = float(xyz[local_index, 2])
-            in_bin = lower <= z < upper or (upper == z_max and z == upper)
-            if not in_bin:
-                continue
-            source_ids.append(source_id)
-            for track_id in track_ids:
-                evidence_rows.setdefault(track_id, set()).add(source_id)
-        source_ids.sort()
-        positions = np.searchsorted(sorted_rows, np.asarray(source_ids, dtype=np.int64))
-        local_indices = sorted_order[positions]
+        row_begin = int(np.searchsorted(sorted_row_bins, bin_id, side="left"))
+        row_end = int(np.searchsorted(sorted_row_bins, bin_id, side="right"))
+        local_indices = unique_local[row_order[row_begin:row_end]]
+        source_ids_array = row_ids[local_indices]
+        source_order = np.argsort(source_ids_array, kind="stable")
+        source_ids = source_ids_array[source_order].tolist()
+        local_indices = local_indices[source_order]
+
+        association_begin = int(np.searchsorted(sorted_association_bins, bin_id, side="left"))
+        association_end = int(np.searchsorted(sorted_association_bins, bin_id, side="right"))
+        track_counts = np.bincount(
+            association_track[association_bin_order[association_begin:association_end]],
+            minlength=len(accepted),
+        )
         track_evidence = [
             {
-                "track_id": track_id,
-                "edge_id": track_by_id[track_id]["edge_id"],
-                "track_status": track_by_id[track_id]["track_status"],
-                "source_point_count": len(point_ids),
+                "track_id": accepted[index]["track_id"],
+                "edge_id": accepted[index]["edge_id"],
+                "track_status": accepted[index]["track_status"],
+                "source_point_count": int(track_counts[index]),
             }
-            for track_id, point_ids in sorted(evidence_rows.items())
+            for index in sorted(range(len(accepted)), key=lambda value: accepted[value]["track_id"])
+            if track_counts[index] > 0
         ]
         bins.append({
             "bin_id": bin_id,
             "z_m": (lower + upper) / 2,
-            "source_point_count": len(source_ids),
+            "source_point_count": len(local_indices),
             "track_evidence": track_evidence,
         })
         section_slices.append({

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type ColumnTypeProposal, type ColumnTypesResponse } from "../api";
+import { measuredColumnTypeSides } from "../columnTypePresentation";
 import type { Element } from "../types";
 
 interface Props {
@@ -59,18 +60,15 @@ export default function ColumnTypesPanel({ cloudId, elements, selected, busy, on
     return <><button type="button" disabled={disabled} onClick={() => onSelectGroup(ids)}>Выделить группу в 3D</button>
       <ul className="column-type-members">{ids.map((id) => {
       const element = elements.find((item) => item.id === id);
-      const a = Number(element?.geometry?.sizes?.length ?? element?.dimensions?.length_m);
-      const b = Number(element?.geometry?.sizes?.thickness ?? element?.dimensions?.thickness_m);
-      const hasSides = Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0;
-      const long = Math.max(a, b), short = Math.min(a, b);
-      const residual = hasSides ? {
-        long_side_m: long - proposal.representative_sides_m.long,
-        short_side_m: short - proposal.representative_sides_m.short,
+      const sides = measuredColumnTypeSides(element);
+      const residual = sides ? {
+        long_side_m: sides.long - proposal.representative_sides_m.long,
+        short_side_m: sides.short - proposal.representative_sides_m.short,
       } : proposal.residuals_m[id];
       return <li key={id}>
         <button type="button" disabled={!element || disabled} onClick={() => element && onSelect(element)}
           aria-pressed={selected?.id === id} title={id}>{id}</button>
-        {hasSides && <span>Измерено: {mm(long)} × {mm(short)} мм</span>}
+        {sides && <span>{sides.source === "point-section" ? "Сечение по точкам" : "Размеры модели"}: {mm(sides.long)} × {mm(sides.short)} мм</span>}
         {residual && <span>Δ сторон: {mm(residual.long_side_m)} / {mm(residual.short_side_m)} мм</span>}
         {!element && <span>другое облако проекта</span>}
       </li>;

@@ -379,6 +379,30 @@ def export_ifc(
                 ObjectPlacement=placement,
                 Representation=representation,
             )
+        elif cls == "stair":
+            # Detected flight; steps and railings are not modelled, so the
+            # product is the inclined swept envelope of the measured run.
+            if solid is not None:
+                geometry_status = "inclined_member_approximation"
+            product = ifc.create_entity(
+                "IfcStair",
+                GlobalId=_guid(),
+                Name=f"Stair {element['id'][:8]}",
+                ObjectPlacement=placement,
+                Representation=representation,
+                PredefinedType="STRAIGHT_RUN_STAIR",
+            )
+        elif cls == "opening":
+            # IfcOpeningElement without a RelVoidsElement: the void is
+            # exported on its own because no host relationship was verified.
+            product = ifc.create_entity(
+                "IfcOpeningElement",
+                GlobalId=_guid(),
+                Name=f"Opening {element['id'][:8]}",
+                ObjectPlacement=placement,
+                Representation=representation,
+                PredefinedType="OPENING",
+            )
         else:
             product = ifc.create_entity(
                 "IfcBuildingElementProxy",

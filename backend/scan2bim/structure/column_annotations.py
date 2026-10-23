@@ -75,6 +75,7 @@ def empty_annotation(element_id: str) -> dict[str, Any]:
         "sides_m": None,
         "measurement_source": None,
         "z_measurements": [],
+        "algorithm_suggestions_verified": False,
         "visible_faces": [],
         "hidden_faces": [],
         "confidence": None,
@@ -141,6 +142,7 @@ def validate_column_annotation(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("z_measurements must be a list")
     normalized_z = []
     seen_heights: set[float] = set()
+    has_point_linked_suggestions = False
     for row in z_rows:
         if not isinstance(row, Mapping):
             raise ValueError("each z measurement must be an object")
@@ -154,7 +156,44 @@ def validate_column_annotation(payload: Mapping[str, Any]) -> dict[str, Any]:
         row_sides = sides(row.get("sides_m"), "z measurement sides_m")
         if row_sides is not None and measurement_source is None:
             raise ValueError("z measurements require measurement_source")
-        normalized_z.append({"z_m": z_value, "sides_m": row_sides, "note": str(row.get("note") or "").strip()})
+        normalized_row = {"z_m": z_value, "sides_m": row_sides, "note": str(row.get("note") or "").strip()}
+        provenance = row.get("source_provenance")
+        if provenance is not None:
+            expected_provenance_fields = {
+                "source_point_row_id_count", "source_point_row_id_sample",
+                "source_index_space", "analysis_algorithm",
+            }
+            if not isinstance(provenance, Mapping) or set(provenance) != expected_provenance_fields:
+                raise ValueError("source_provenance must contain point-row count, sample, index space and algorithm")
+            count = provenance["source_point_row_id_count"]
+            sample = provenance["source_point_row_id_sample"]
+            if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+                raise ValueError("source point row count must be a positive integer")
+            if (not isinstance(sample, list) or not sample or len(sample) > min(count, 100)
+                    or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in sample)
+                    or len(set(sample)) != len(sample)):
+                raise ValueError("source point row sample must contain up to 100 unique non-negative integers")
+            if provenance["source_index_space"] != "derived_positions_row_index/1":
+                raise ValueError("unsupported source point row index space")
+            algorithm = provenance["analysis_algorithm"]
+            if not isinstance(algorithm, str) or not algorithm.strip() or len(algorithm) > 200:
+                raise ValueError("source provenance requires an analysis algorithm identifier")
+            normalized_row["source_provenance"] = {
+                "source_point_row_id_count": count,
+                "source_point_row_id_sample": list(sample),
+                "source_index_space": "derived_positions_row_index/1",
+                "analysis_algorithm": algorithm.strip(),
+            }
+            has_point_linked_suggestions = True
+        normalized_z.append(normalized_row)
+
+    suggestions_verified = payload.get("algorithm_suggestions_verified", False)
+    if not isinstance(suggestions_verified, bool):
+        raise ValueError("algorithm_suggestions_verified must be a boolean")
+    if has_point_linked_suggestions and not suggestions_verified:
+        raise ValueError("point-linked algorithm suggestions require explicit human verification")
+    if suggestions_verified and not has_point_linked_suggestions:
+        raise ValueError("algorithm verification requires point-linked section provenance")
 
     def faces(field: str) -> list[str]:
         value = payload.get(field, [])
@@ -177,6 +216,7 @@ def validate_column_annotation(payload: Mapping[str, Any]) -> dict[str, Any]:
         "sides_m": measured_sides,
         "measurement_source": measurement_source,
         "z_measurements": sorted(normalized_z, key=lambda item: item["z_m"]),
+        "algorithm_suggestions_verified": suggestions_verified,
         "visible_faces": faces("visible_faces"),
         "hidden_faces": faces("hidden_faces"),
         "confidence": float(confidence) if confidence is not None else None,

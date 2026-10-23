@@ -125,6 +125,49 @@ export interface ColumnSectionFitResponse {
   source_geometry_modified: false;
 }
 
+export interface ColumnSectionBatchFitResponse {
+  element_id: string;
+  algorithm: { name: string; version: string };
+  slice_count: number;
+  review_required: true;
+  persisted: false;
+  source_geometry_modified: false;
+  slices: ColumnSectionFitResponse[];
+}
+
+export interface ColumnSurfaceTrackAnalysisResponse {
+  schema: "scan.column-surface-track-analysis/1";
+  candidate_id: string;
+  cloud_id: string;
+  algorithm: { surface_extraction: string; section_series: string };
+  parameters: { candidate_margin_m: number; vertical_context_margin_m: number; distance_tolerance_m: number; voxel_m: number; vertical_bin_m: number; maximum_crop_points: number };
+  input_points: { count: number; source_row_kind: string; description: string };
+  surface_result: { surfaces: { plane_id: string; source_point_row_id_count: number; source_point_row_id_sample: number[] }[] };
+  surface_association: { association_status: string; candidate_edge_count: number; candidate_edges: string[]; surface_associations: { plane_id: string; candidate_edge_id: string | null; association_status: string }[] };
+  tracks: {
+    track_id: string; candidate_edge_id: string | null; surface_ids: string[];
+    vertical_support_m: number; vertical_support_fraction: number;
+    track_status: string; source_point_row_id_count: number; source_point_row_id_sample: number[];
+  }[];
+  section_series: {
+    status: string;
+    section_slices: {
+      z_m: number; status: string;
+      hypotheses: ColumnSectionFitResponse["hypotheses"];
+      source_point_row_id_count: number; source_point_row_id_sample: number[];
+      track_ids: string[]; track_evidence: { track_id: string; edge_id: string; source_point_count: number }[];
+    }[];
+    dimensions_by_height_m: { z_m: number; side_lengths_m: number[] }[];
+    profile_variation_status: string;
+  };
+  excluded_tracks: { track_id: string; reason: string }[];
+  confirmed: false;
+  review_required: true;
+  engineering_status: "not_assessed";
+  persisted: false;
+  source_geometry_modified: false;
+}
+
 export interface ColumnAnnotationDraft {
   source_snapshot_sha256: string;
   annotator: string;
@@ -135,7 +178,18 @@ export interface ColumnAnnotationDraft {
   structural_role: "column" | "crane_column" | "other" | "unknown" | null;
   sides_m: { long: number; short: number } | null;
   measurement_source: "manual_cloud" | "field_measurement" | null;
-  z_measurements: { z_m: number; sides_m: { long: number; short: number } | null; note: string }[];
+  z_measurements: {
+    z_m: number;
+    sides_m: { long: number; short: number } | null;
+    note: string;
+    source_provenance?: {
+      source_point_row_id_count: number;
+      source_point_row_id_sample: number[];
+      source_index_space: "derived_positions_row_index/1";
+      analysis_algorithm: string;
+    };
+  }[];
+  algorithm_suggestions_verified: boolean;
   visible_faces: ("u+" | "u-" | "v+" | "v-")[];
   hidden_faces: ("u+" | "u-" | "v+" | "v-")[];
   confidence: number | null;
@@ -290,6 +344,16 @@ export const api = {
   }) => request<ColumnSectionFitResponse>(`/elements/${encodeURIComponent(elementId)}/section-fit`, {
     method: "POST", body: JSON.stringify(payload),
   }),
+  fitColumnSectionBatch: (elementId: string, payload: {
+    slice_z_values_m: number[]; thickness_m: number; known_sides_m?: [number, number];
+    distance_tolerance_m?: number; candidate_margin_m?: number;
+  }) => request<ColumnSectionBatchFitResponse>(`/elements/${encodeURIComponent(elementId)}/section-fit-batch`, {
+    method: "POST", body: JSON.stringify(payload),
+  }),
+  analyzeColumnSurfaceTracks: (elementId: string) =>
+    request<ColumnSurfaceTrackAnalysisResponse>(`/elements/${encodeURIComponent(elementId)}/surface-track-analysis`, {
+      method: "POST",
+    }),
   confirmColumnType: (proposalKey: string, cloudId: string, mark: string, linearTolerance = 0.005, relativeTolerance = 0.01) =>
     request<ColumnTypeAction>(`/column-types/${encodeURIComponent(proposalKey)}/confirm`, {
       method: "POST",
@@ -404,6 +468,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ query, cloud_context: cloudContext }),
     }),
+
+  getWorkshopKnowledgeSummary: () =>
+    request<{
+      status: string;
+      knowledge_base: Record<string, {
+        title: string;
+        gost_norms: string[];
+        description: string;
+        tolerances_sp70?: Record<string, string>;
+        drafting_rules: string;
+      }>;
+      workshop_topology: {
+        hall_length_m: number;
+        hall_width_m: number;
+        spans: { name: string; row_from: string; row_to: string; width_m: number }[];
+        rows: Record<string, number>;
+        bay_step_m: number;
+        axes_count: number;
+        elevations: Record<string, { z_scan: number; label: string }>;
+        crane_capacity_tons: number | null;
+        standards: string[];
+      };
+    }>("/expert/knowledge-summary"),
 };
 
 export async function waitForJob(

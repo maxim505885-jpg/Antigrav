@@ -146,7 +146,18 @@ def test_generate_sheet_4_roof_structure(tmp_path, sample_workshop_elements):
 
 def test_generate_full_spds_album(tmp_path, sample_workshop_elements):
     out_dir = tmp_path / "spds_album"
-    album_manifest = generate_full_spds_album(sample_workshop_elements, out_dir)
+    source_provenance = {
+        "source_sha256": "synthetic-source-digest",
+        "point_count": 100,
+        "station_row_ranges": [{
+            "station_id": "station-1", "source_row_start": 0,
+            "source_row_end_exclusive": 100, "source_row_count": 100,
+            "source_row_index_base": 0,
+        }],
+    }
+    album_manifest = generate_full_spds_album(
+        sample_workshop_elements, out_dir, source_provenance=source_provenance,
+    )
     assert len(album_manifest["sheets"]) == 5
     for sheet in album_manifest["sheets"]:
         assert Path(sheet["dxf_path"]).exists()
@@ -157,6 +168,9 @@ def test_generate_full_spds_album(tmp_path, sample_workshop_elements):
     assert transform["target_frame"] == "spds_sheet_local"
     assert transform["units"] == "m"
     assert len(transform["source_to_sheet_4x4"]) == 4
+    assert album_manifest["source_provenance"] == source_provenance
+    saved_manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert saved_manifest["source_provenance"] == source_provenance
 
 
 def test_deviation_sheet_does_not_claim_tolerance_acceptance(tmp_path, sample_workshop_elements):

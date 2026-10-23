@@ -1,9 +1,9 @@
 """Full route: upload/demo -> preview -> section -> DXF -> recognition -> IFC."""
 from __future__ import annotations
 
-import io
 import json
 from pathlib import Path
+import tempfile
 
 import ezdxf
 import numpy as np
@@ -19,6 +19,16 @@ def _demo_cloud(client) -> tuple[dict, str]:
     cloud = wait_cloud(client, data["cloud"]["id"])
     assert cloud["status"] == "ready", cloud
     return cloud, data["project"]["id"]
+
+
+def _read_dxf(content: bytes):
+    with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as handle:
+        path = Path(handle.name)
+        handle.write(content)
+    try:
+        return ezdxf.readfile(path)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def test_full_pipeline(client):
@@ -42,12 +52,7 @@ def test_full_pipeline(client):
     dxf_response = client.post(f"/api/v1/sections/{section['id']}/export?format=dxf&scale=50")
     assert dxf_response.status_code == 200
     assert b"SECTION" in dxf_response.content[:200]
-    dxf_path = Path("data_test_export.dxf")
-    dxf_path.write_bytes(dxf_response.content)
-    try:
-        doc = ezdxf.readfile(dxf_path)
-    finally:
-        dxf_path.unlink(missing_ok=True)
+    doc = _read_dxf(dxf_response.content)
     assert len(list(doc.modelspace().query("LWPOLYLINE"))) >= 2
     assert len(list(doc.modelspace().query("DIMENSION"))) >= 2
 
@@ -55,9 +60,16 @@ def test_full_pipeline(client):
     assert json_response.status_code == 200
     assert json_response.json()["frame"]["position_world"] == section["result"]["frame"]["position_world"]
 
+    from scan2bim.cad.dwg_compiler import find_accoreconsole, find_oda_converter
+
     dwg_response = client.post(f"/api/v1/sections/{section['id']}/export?format=dwg")
-    assert dwg_response.status_code == 409
-    assert "Autodesk" in dwg_response.json()["detail"]["summary"]
+    if find_oda_converter() or find_accoreconsole():
+        # A licensed converter is installed: DWG must be a real binary DWG.
+        assert dwg_response.status_code == 200, dwg_response.text
+        assert dwg_response.content[:4] == b"AC10"
+    else:
+        assert dwg_response.status_code == 409
+        assert "конвертер" in dwg_response.json()["detail"]["summary"]
 
     recognition = client.post(f"/api/v1/clouds/{cloud['id']}/recognize")
     assert recognition.status_code == 200
@@ -79,12 +91,7 @@ def test_full_pipeline(client):
 
     elements_dxf = client.get(f"/api/v1/clouds/{cloud['id']}/elements.dxf")
     assert elements_dxf.status_code == 200, elements_dxf.text
-    elements_dxf_path = Path("data_test_elements_provenance.dxf")
-    elements_dxf_path.write_bytes(elements_dxf.content)
-    try:
-        elements_doc = ezdxf.readfile(elements_dxf_path)
-    finally:
-        elements_dxf_path.unlink(missing_ok=True)
+    elements_doc = _read_dxf(elements_dxf.content)
     dxf_provenance = []
     for entity in elements_doc.modelspace():
         if not entity.has_extension_dict:
@@ -113,12 +120,7 @@ def test_full_pipeline(client):
     import ifcopenshell
     from ifcopenshell.util.element import get_psets
 
-    ifc_path = Path("data_test_export.ifc")
-    ifc_path.write_bytes(ifc_response.content)
-    try:
-        ifc = ifcopenshell.open(ifc_path)
-    finally:
-        ifc_path.unlink(missing_ok=True)
+    ifc = ifcopenshell.file.from_string(ifc_response.content.decode("utf-8"))
     assert len(ifc.by_type("IfcWall")) >= 1
     assert len(ifc.by_type("IfcPropertySet")) >= 1
     ifc_provenance = next(
@@ -177,12 +179,7 @@ def test_full_pipeline(client):
 
     structural_plan = client.get(f"/api/v1/clouds/{cloud['id']}/structural-plan.dxf?type=columns&issue=draft")
     assert structural_plan.status_code == 200, structural_plan.text
-    plan_path = Path("data_test_structural_plan.dxf")
-    plan_path.write_bytes(structural_plan.content)
-    try:
-        plan_doc = ezdxf.readfile(plan_path)
-    finally:
-        plan_path.unlink(missing_ok=True)
+    plan_doc = _read_dxf(structural_plan.content)
     assert len(list(plan_doc.modelspace().query('LWPOLYLINE[layer=="S2B-COLUMNS"]'))) >= 1
     assert any("ПЛАН КОЛОНН" in entity.dxf.text for entity in plan_doc.modelspace().query("TEXT"))
     assert any("ЧЕРНОВИК" in entity.dxf.text for entity in plan_doc.modelspace().query("TEXT"))
@@ -194,12 +191,7 @@ def test_full_pipeline(client):
 
     default_final = client.get(f"/api/v1/clouds/{cloud['id']}/structural-plan.dxf?type=columns")
     assert default_final.status_code == 200, default_final.text
-    final_path = Path("data_test_structural_plan_final.dxf")
-    final_path.write_bytes(default_final.content)
-    try:
-        final_doc = ezdxf.readfile(final_path)
-    finally:
-        final_path.unlink(missing_ok=True)
+    final_doc = _read_dxf(default_final.content)
     assert not list(final_doc.modelspace().query('LWPOLYLINE[layer=="S2B-COLUMNS"]'))
     assert not structural_schedule_from_dxf(final_doc)["rows"]
     assert any("ФИНАЛЬНЫЙ ВЫПУСК" in entity.dxf.text for entity in final_doc.modelspace().query("TEXT"))
@@ -212,8 +204,10 @@ def test_full_pipeline(client):
     levels = client.get(f"/api/v1/clouds/{cloud['id']}/levels").json()
     assert len(levels) >= 2
 
-    # Engineer confirms five elements -> labelled samples.
-    for element in elements[:5]:
+    # Only explicitly reviewed, non-inferred geometry can seed the learning set.
+    reviewable_for_learning = [element for element in elements if not element["inferred"]][:5]
+    assert len(reviewable_for_learning) >= 4
+    for element in reviewable_for_learning:
         response = client.post(
             f"/api/v1/elements/{element['id']}/feedback",
             json={"action": "confirm", "engineer": "test", "note": "checked"},
@@ -221,21 +215,16 @@ def test_full_pipeline(client):
         assert response.status_code == 200, response.text
         assert response.json()["element"]["review_status"] == "confirmed"
 
-    reviewed_ids = {element["id"] for element in elements[:5]}
+    reviewed_ids = {element["id"] for element in reviewable_for_learning}
     reviewed_plan = client.get(f"/api/v1/clouds/{cloud['id']}/structural-plan.dxf?type=columns")
     assert reviewed_plan.status_code == 200, reviewed_plan.text
-    reviewed_path = Path("data_test_structural_plan_reviewed.dxf")
-    reviewed_path.write_bytes(reviewed_plan.content)
-    try:
-        reviewed_doc = ezdxf.readfile(reviewed_path)
-    finally:
-        reviewed_path.unlink(missing_ok=True)
+    reviewed_doc = _read_dxf(reviewed_plan.content)
     reviewed_schedule = structural_schedule_from_dxf(reviewed_doc)["rows"]
     assert reviewed_schedule
     assert len({row[1] for row in reviewed_schedule}) == len(reviewed_schedule)
     assert all(row[1] in reviewed_ids and row[4] == "ПРОВЕРЕНО" for row in reviewed_schedule)
 
-    history = client.get(f"/api/v1/elements/{elements[0]['id']}/history")
+    history = client.get(f"/api/v1/elements/{reviewable_for_learning[0]['id']}/history")
     assert history.status_code == 200, history.text
     assert len(history.json()) == 1
     assert history.json()[0]["action"] == "confirm"
@@ -260,7 +249,7 @@ def test_full_pipeline(client):
     assert clouds and clouds[0]["id"] == cloud["id"]
 
 
-def test_upload_and_rcs_guidance(client, tmp_path: Path):
+def test_upload_and_rcs_guidance(client, request):
     project = client.post("/api/v1/projects", json={"name": "Upload test"}).json()
     xyz = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
     payload = "\n".join(" ".join(f"{v:.3f}" for v in row) for row in xyz) + "\n"
@@ -280,8 +269,9 @@ def test_upload_and_rcs_guidance(client, tmp_path: Path):
 
     from scan2bim.formats.rcs_native import native_available
 
-    rcs = tmp_path / "scan.rcs"
+    rcs = Path(tempfile.gettempdir()) / f"scan2bim-test-{id(client)}.rcs"
     rcs.write_bytes(b"ADOCT" + b"\x00" * 128)
+    request.addfinalizer(lambda: rcs.unlink(missing_ok=True))
     response = client.post(
         f"/api/v1/projects/{project['id']}/clouds/import-path",
         json={"path": str(rcs)},

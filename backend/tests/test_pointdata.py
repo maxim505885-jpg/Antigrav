@@ -140,6 +140,28 @@ def test_spatial_index_matches_scan_for_long_extent_and_empty_roi(tmp_path):
         np.testing.assert_array_equal(ids(indexed, bounds), ids(p, bounds))
 
 
+def test_index_candidate_estimate_selects_sparse_queries_and_linear_for_broad_queries(tmp_path):
+    from scan2bim.pointdata import PointQuery
+    from scan2bim.pointdata.index import build_index, IndexedPointProvider
+
+    points = [[x, y, z] for x in range(12) for y in range(12) for z in range(4)]
+    p = provider(tmp_path, points, origin=(0, 0, 0))
+    build_index(p, tmp_path / "index", cell_size=1.0)
+    indexed = IndexedPointProvider(p, tmp_path / "index")
+
+    local = PointQuery((0, 0, 0, 1, 1, 1))
+    broad = PointQuery((0, 0, 0, 11, 11, 3))
+    outside = PointQuery((100, 100, 100, 101, 101, 101))
+    assert indexed.estimate_candidate_rows(local) == 8
+    assert indexed.should_use_index(local)
+    assert indexed.estimate_candidate_rows(broad) == len(points)
+    assert not indexed.should_use_index(broad)
+    assert indexed.estimate_candidate_rows(outside) == 0
+    assert indexed.should_use_index(outside)
+    with pytest.raises(ValueError, match="fraction"):
+        indexed.should_use_index(local, max_candidate_fraction=1.1)
+
+
 def test_index_refuses_changed_origin_and_incomplete_directory(tmp_path):
     from scan2bim.pointdata import NpyPointProvider
     from scan2bim.pointdata.index import build_index, IndexedPointProvider
@@ -156,12 +178,18 @@ def test_index_refuses_changed_origin_and_incomplete_directory(tmp_path):
 def test_index_skips_nonfinite_points_without_changing_source_ids(tmp_path):
     from scan2bim.pointdata import PointQuery
     from scan2bim.pointdata.index import build_index, IndexedPointProvider
-    p = provider(tmp_path, [[0, 0, 0], [float("nan"), 0, 0], [3, 2, 1]])
+    p = provider(tmp_path, [[0, 0, 0], [float("nan"), 0, 0], [3, 2, 1],
+                            [0.1, 0, 0], [3.1, 2, 1], [0.2, 0, 0]])
     meta = build_index(p, tmp_path / "index")
-    assert meta["finite_count"] == 2
+    assert meta["finite_count"] == 5
+    offsets = np.load(tmp_path / "index" / "offsets.npy")
+    rows = np.load(tmp_path / "index" / "rows.npy")
+    for begin, end in zip(offsets[:-1], offsets[1:]):
+        assert np.all(rows[begin:end][1:] > rows[begin:end][:-1])
     batches = list(IndexedPointProvider(p, tmp_path / "index").iter_points(
         PointQuery((999,-2001,29,1004,-1997,32))))
-    np.testing.assert_array_equal(np.sort(np.concatenate([b.source_indices for b in batches])), [0, 2])
+    np.testing.assert_array_equal(np.sort(np.concatenate([b.source_indices for b in batches])),
+                                  [0, 2, 3, 4, 5])
 
 
 def test_index_invalid_cell_size_and_existing_directory_fail(tmp_path):
@@ -226,3 +254,24 @@ def test_indexed_sections_preserve_local_coordinates_and_slab_counts(tmp_path,ki
     assert ordinary[2] == selected[2]
     np.testing.assert_array_equal(np.sort(ordinary[0]),np.sort(selected[0]))
     np.testing.assert_array_equal(np.sort(ordinary[1]),np.sort(selected[1]))
+
+
+def test_indexed_section_covers_source_rows_outside_stale_cloud_bbox(tmp_path):
+    from dataclasses import replace
+    from scan2bim.pointdata import PointQuery
+    from scan2bim.pointdata.index import build_index, IndexedPointProvider
+    from scan2bim.geometry.section import CloudGeometry, build_frame, collect_slice
+
+    points = np.array([[x,y,z] for z in range(0,100,5) for x in range(10) for y in range(10)], dtype=np.float32)
+    p = provider(tmp_path, points, origin=(0,0,0))
+    build_index(p,tmp_path / "index",cell_size=5)
+    indexed = IndexedPointProvider(p,tmp_path / "index")
+    # The stored cloud reaches Z=95, while this metadata bbox stops at Z=1.5.
+    geom = CloudGeometry(p.positions_path,p.origin,np.array([0.,0.,0.]),np.array([9.,9.,1.5]),len(points))
+    frame = build_frame(geom,"horizontal",None,50.0,.2)
+    ordinary = collect_slice(geom,frame)
+    accelerated = collect_slice(replace(geom,spatial_index_path=tmp_path / "index"),frame)
+    assert indexed.should_use_index(PointQuery((0,0,49.9,9,9,50.1)))
+    assert ordinary[2] == accelerated[2] == 100
+    np.testing.assert_array_equal(np.sort(ordinary[0]),np.sort(accelerated[0]))
+    np.testing.assert_array_equal(np.sort(ordinary[1]),np.sort(accelerated[1]))

@@ -26,9 +26,9 @@ def api_data(client, monkeypatch):
                 (projects[key], key, now, now),
             )
             con.execute(
-                "INSERT INTO clouds (id,project_id,name,source_path,source_format,created_at,updated_at) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (clouds[key], projects[key], key, "derived-test.e57", "e57", now, now),
+                "INSERT INTO clouds (id,project_id,name,source_path,source_format,sha256,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (clouds[key], projects[key], key, "derived-test.e57", "e57", key * 64, now, now),
             )
         elements = {
             "a1": (projects["a"], clouds["a"], 0.5, 0.4),
@@ -288,6 +288,52 @@ def test_column_annotation_rejects_invalid_dimension_order_without_creating_revi
     assert client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()["history"] == []
 
 
+def test_algorithm_suggested_annotation_rows_keep_structured_point_provenance_and_require_review(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    body = {
+        "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+        "annotator": "reviewer-a", "state": "labeled", "physical_instance_id": "C-01",
+        "type_label": "K1", "shape_label": "rectangular_solid", "structural_role": "column",
+        "sides_m": None, "measurement_source": "manual_cloud",
+        "algorithm_suggestions_verified": False,
+        "z_measurements": [{
+            "z_m": 2.0, "sides_m": {"long": 0.5, "short": 0.4}, "note": "checked in cloud",
+            "source_provenance": {
+                "source_point_row_id_count": 25, "source_point_row_id_sample": [1, 2, 3],
+                "source_index_space": "derived_positions_row_index/1", "analysis_algorithm": "surface_tracks-v1",
+            },
+        }],
+        "visible_faces": ["u+", "u-", "v+", "v-"], "hidden_faces": [],
+        "confidence": 0.9, "reason_unknown": "", "note": "",
+    }
+    endpoint = f"/api/v1/clouds/{cloud_id}/column-annotations/column-a1"
+
+    unverified = client.post(endpoint, json=body)
+    assert unverified.status_code == 422
+    assert client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()["history"] == []
+
+    body["algorithm_suggestions_verified"] = True
+    saved = client.post(endpoint, json=body)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["algorithm_suggestions_verified"] is True
+    assert saved.json()["z_measurements"][0]["source_provenance"]["source_point_row_id_count"] == 25
+    assert saved.json()["z_measurements"][0]["source_provenance"]["source_point_row_id_sample"] == [1, 2, 3]
+    assert saved.json()["z_measurements"][0]["source_provenance"]["source_index_space"] == "derived_positions_row_index/1"
+
+    exported = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/export").json()
+    exported_row = next(item for item in exported["annotations"] if item["element_id"] == "column-a1")
+    assert exported_row["algorithm_suggestions_verified"] is True
+    assert exported_row["z_measurements"][0]["source_provenance"]["source_point_row_id_sample"] == [1, 2, 3]
+
+    import copy
+    malformed = copy.deepcopy(body)
+    malformed["z_measurements"][0]["source_provenance"]["source_point_row_id_sample"] = [-1]
+    invalid = client.post(endpoint, json=malformed)
+    assert invalid.status_code == 422
+    assert len(client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()["history"]) == 1
+
+
 def test_confirm_requires_current_cloud_proposal_and_is_idempotent(client, api_data):
     cloud_id = api_data["clouds"]["a"]
     proposals = client.get(f"/api/v1/clouds/{cloud_id}/column-types").json()["proposals"]
@@ -452,8 +498,17 @@ def test_project_catalog_reuse_crosses_clouds_but_never_assigns_automatically(cl
     assert reuse["status"] == "match" and reuse["review_required"] is True
     assert reuse["matches"][0]["type_id"] == confirmed["id"]
     assert reuse["matches"][0]["source_cloud_ids"] == [source_cloud]
+    confirmed_type = next(item for item in payload["confirmed_types"] if item["id"] == confirmed["id"])
+    assert confirmed_type["prototype"]["source_cloud_fingerprints"] == {source_cloud: "a" * 64}
     assert database.one("SELECT * FROM elements WHERE id='new-column'") == before
     assert database.one("SELECT * FROM column_type_assignments WHERE element_id='new-column'") is None
+    with database.db() as con:
+        con.execute("UPDATE clouds SET sha256=? WHERE id=?", ("f" * 64, source_cloud))
+    changed_source = client.get(url).json()["catalog_reuse"]
+    assert changed_source["suggestions"][0]["matches"] == []
+    assert "source_cloud_changed" in changed_source["catalog_issues"][0]["reasons"]
+    with database.db() as con:
+        con.execute("UPDATE clouds SET sha256=? WHERE id=?", ("a" * 64, source_cloud))
     foreign = client.get(f"/api/v1/clouds/{api_data['clouds']['b']}/column-types").json()
     assert foreign["catalog_reuse"]["suggestions"][0]["matches"] == []
     with database.db() as con:

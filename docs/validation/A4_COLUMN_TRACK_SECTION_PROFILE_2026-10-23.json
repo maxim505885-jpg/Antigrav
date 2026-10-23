@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-23",
+  "scope": "column surface-track vertical-section aggregation; synthetic data only, not a FARO measurement",
+  "change": "Replace per-point Python dictionaries and repeated full scans of the track membership with sorted NumPy row/track associations and one grouping pass by section bin.",
+  "benchmark": {
+    "points": 32000,
+    "faces": 4,
+    "height_bins": 16,
+    "rows_per_bin": 2000,
+    "sections_with_hypotheses": 16,
+    "elapsed_seconds": 0.817,
+    "row_lineage_and_track_counts": "exact"
+  },
+  "edge_case_test": "Negative Z values, exact internal bin boundaries, z_max inclusion in final bin, one source row shared by two tracks, unique section points and independent per-track evidence counts.",
+  "verification": {
+    "direct_test_functions_passed": 6,
+    "pytest": "Not completed; sandbox denies temporary-directory enumeration/cleanup (WinError 5).",
+    "syntax_ast": "passed"
+  },
+  "engineering_status": "not_assessed; synthetic geometry does not validate physical columns or tolerance.",
+  "ui_measurement_source_fix": {
+    "problem": "Column type panel displayed oriented-box sides while the backend grouped by measured_section_m when point-based section status was present.",
+    "behavior": "The panel now uses measured point-section sides first, canonicalizes long/short order, mirrors backend field priority for model dimensions, and suppresses invalid, partial, coarse-grid, and unconfirmed dimensions.",
+    "frontend_tests": {
+      "suite": "npm test",
+      "passed": 45,
+      "failed": 0,
+      "new_tests": 5
+    },
+    "typescript_build": {
+      "command": "npx tsc -b --pretty false",
+      "exit_code": 0
+    },
+    "production_build": {
+      "command": "npm run build",
+      "exit_code": 0,
+      "vite": "6.4.4",
+      "output": "48 modules transformed; frontend/dist emitted"
+    }
+  }
+}

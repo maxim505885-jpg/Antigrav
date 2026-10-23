@@ -146,7 +146,9 @@ def _iter_slice_positions(geom: CloudGeometry, frame: SectionFrame) -> Iterator[
                               colors_path=colors if colors.exists() else None)
     indexed = IndexedPointProvider(source, geom.spatial_index_path)
     w_index = {"x": 0, "y": 1, "z": 2}[frame.w_axis]
-    lower, upper = geom.bbox_min.copy(), geom.bbox_max.copy()
+    # Use the index's conservative data bounds so indexed and linear scans
+    # include the same rows even if the cloud metadata bbox is slightly stale.
+    lower, upper = (bound.copy() for bound in indexed.grid_bounds_world)
     # Broad phase must cover float32 slab arithmetic in the legacy exact filter.
     extent = max(1., float(np.max(np.abs(lower-geom.origin))),
                  float(np.max(np.abs(upper-geom.origin))), abs(frame.position_local))
@@ -155,9 +157,13 @@ def _iter_slice_positions(geom: CloudGeometry, frame: SectionFrame) -> Iterator[
     upper += pad
     lower[w_index] = frame.position_world-frame.thickness/2-pad
     upper[w_index] = frame.position_world+frame.thickness/2+pad
+    query = PointQuery(tuple(lower)+tuple(upper))
+    if not indexed.should_use_index(query):
+        yield from _iter_positions(geom.positions_path)
+        return
     positions = np.load(geom.positions_path, mmap_mode="r", allow_pickle=False)
     try:
-        for batch in indexed.iter_points(PointQuery(tuple(lower)+tuple(upper))):
+        for batch in indexed.iter_points(query):
             # Keep the original local float32 values, not a world-space roundtrip.
             yield np.asarray(positions[batch.source_indices])
     finally:
