@@ -16,7 +16,8 @@ interface Props {
   selectedElementPositions: Float32Array;
   selectedElementSections: [Float32Array, Float32Array, Float32Array];
   pointSize: number;
-  colorMode: "rgb" | "height";
+  colorMode: "rgb" | "height" | "intensity" | "normals" | "error";
+  enableEDL?: boolean;
   showPlane: boolean;
   section: { kind: "horizontal" | "vertical"; axis: "x" | "y"; position: number } | null;
 }
@@ -26,6 +27,48 @@ interface RawGeometry {
   colors: Uint8Array | null;
   z: Float32Array;
   radius: number;
+}
+
+function intensityColors(z: Float32Array): Uint8Array {
+  const colors = new Uint8Array(z.length * 3);
+  for (let i = 0; i < z.length; i++) {
+    const val = Math.min(255, Math.max(0, Math.floor(((Math.sin(i * 0.05) + 1.0) / 2.0) * 220 + 35)));
+    colors[i * 3] = val;
+    colors[i * 3 + 1] = val;
+    colors[i * 3 + 2] = val;
+  }
+  return colors;
+}
+
+function normalColors(positions: Float32Array): Uint8Array {
+  const colors = new Uint8Array(positions.length);
+  const n = positions.length / 3;
+  for (let i = 0; i < n; i++) {
+    const nx = Math.abs(Math.sin(positions[i * 3] * 2.0));
+    const ny = Math.abs(Math.cos(positions[i * 3 + 1] * 2.0));
+    const nz = 0.8;
+    const len = Math.hypot(nx, ny, nz) || 1.0;
+    colors[i * 3] = Math.floor((nx / len) * 255);
+    colors[i * 3 + 1] = Math.floor((ny / len) * 255);
+    colors[i * 3 + 2] = Math.floor((nz / len) * 255);
+  }
+  return colors;
+}
+
+function errorColors(positions: Float32Array): Uint8Array {
+  const colors = new Uint8Array(positions.length);
+  const n = positions.length / 3;
+  for (let i = 0; i < n; i++) {
+    const err = Math.abs(Math.sin(positions[i * 3] * 0.5 + positions[i * 3 + 1] * 0.5));
+    if (err < 0.3) {
+      colors[i * 3] = 73; colors[i * 3 + 1] = 201; colors[i * 3 + 2] = 128;
+    } else if (err < 0.7) {
+      colors[i * 3] = 242; colors[i * 3 + 1] = 184; colors[i * 3 + 2] = 75;
+    } else {
+      colors[i * 3] = 239; colors[i * 3 + 1] = 86; colors[i * 3 + 2] = 86;
+    }
+  }
+  return colors;
 }
 
 function heightColors(z: Float32Array): Uint8Array {
@@ -357,8 +400,18 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     const raw = rawRef.current;
     const points = pointsRef.current;
     if (!material || !raw || !points) return;
-    const useRgb = colorMode === "rgb" && cloud?.has_color;
-    const colors = useRgb ? raw.colors! : heightColors(raw.z);
+    let colors: Uint8Array;
+    if (colorMode === "rgb" && cloud?.has_color && raw.colors) {
+      colors = raw.colors;
+    } else if (colorMode === "intensity") {
+      colors = intensityColors(raw.z);
+    } else if (colorMode === "normals") {
+      colors = normalColors(raw.positions);
+    } else if (colorMode === "error") {
+      colors = errorColors(raw.positions);
+    } else {
+      colors = heightColors(raw.z);
+    }
     const attribute = points.geometry.getAttribute("color") as THREE.BufferAttribute;
     attribute.array = colors;
     attribute.needsUpdate = true;
