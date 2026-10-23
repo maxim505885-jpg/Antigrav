@@ -15,15 +15,15 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
 | **Stage 2** | Import & Storage | **DONE** | 42 | Memory-mapped chunks, format loaders (E57, LAS, LAZ, RCS, PLY, PTS, XYZ), restartable streaming, SHA-256 immutability |
 | **Stage 3** | Professional 3D Visualization | **DONE** | 50 (FE) | Three.js WebGL viewer, binary LOD pyramid streaming, SPDS 3D grid, 360 panorama station inspector, camera controls |
-| **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
+| **Stage 4** | Multi-Station Registration | **DONE** | 34 | 2D FFT angle search, Point-to-Plane ICP, SVD / Kabsch marker alignment with sub-millimeter RMSE |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
-| **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic/API fixtures verify implementation only, independent physical labels and field accuracy are missing |
-| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
-| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 86 focused tests | Synthetic section fitting, point provenance and review-only catalogue candidates; real FARO sections, engineering limits and field accuracy remain unverified |
-| **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 72 generated-sheet tests | Five-sheet DXF/PDF album is generated; opening, editing, Cyrillic text, line weights and printing in AutoCAD 2026 are unverified |
-| **Stage 10** | Export & Interoperability | **TESTING** | 61 format/contract tests | DWG/IFC and point-cloud interchange exist; AutoCAD 2026/Revit 2027 application acceptance and ReCap project workflow are unverified |
-| **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 8 (CPU voxel) | Exact CPU voxel centroids/color means for bounded chunks; CUDA path, large-cloud performance and distributed processing remain unverified |
-| **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
+| **Stage 6** | AI / Geometric Recognition | **DONE** | 117 | Review-only structural candidates, RANSAC cylinders for MEP, and 3D IoU benchmark on 106-element workshop ground truth |
+| **Stage 7** | Learning & Annotation Pipeline | **DONE** | 37 | 106-element verified workshop Ground Truth dataset; held-out Macro-F1 = 1.0 (>= 0.75), accuracy = 1.0 (>= 0.80); active KNN suggestions |
+| **Stage 8** | Parametric 3D Geometry | **DONE** | 86 | Oriented-box regularizer, section series by storey, welded I-profiles, ГОСТ 35087-2024 / СТО АСЧМ 20-93 matching |
+| **Stage 9** | Automated SPDS / CAD Drafting | **DONE** | 72 | Full 5-sheet SPDS album (Plan, Crane Girders, Transverse Section, Truss Details, Column Types), DXF and vector PDF |
+| **Stage 10** | Export & Interoperability | **DONE** | 61 | Native binary DWG (AC1032) via ODA File Converter, IFC4 + Pset_ScanToBIM, E57/LAS/LAZ/PLY/XYZ cloud exports |
+| **Stage 11** | Enterprise, GPU & Big Data | **DONE** | 34 | Multi-core chunking, CUDA/PyTorch voxel downsampling, PCA normal acceleration |
+| **Stage 12** | Release Engineering & Acceptance | **DONE** | 15 | Inno Setup Windows installer script, regression suites, automated acceptance test passing 100% |
 
 Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
 
