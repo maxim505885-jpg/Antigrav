@@ -159,6 +159,13 @@ export interface ColumnSurfaceTrackAnalysisResponse {
         flange_thicknesses_m: number[]; source_point_row_id_count: number;
         source_point_row_id_sample: number[]; review_required: true;
         engineering_status: "not_assessed";
+        catalog_matches?: Array<{
+          profile: { standard: string; designation: string; profile_type: string; height_mm: number; width_mm: number; mass_kg_m: number };
+          delta_height_mm: number;
+          delta_width_mm: number;
+          residual_mm: number;
+          match_confidence: number;
+        }>;
       }[];
       source_point_row_id_count: number; source_point_row_id_sample: number[];
       track_ids: string[]; track_evidence: { track_id: string; edge_id: string; source_point_count: number }[];

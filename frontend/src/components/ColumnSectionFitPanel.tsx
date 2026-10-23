@@ -180,7 +180,13 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
           return <p className="hint" key={slice.z_m}>
             Z {slice.z_m.toLocaleString("ru-RU", { maximumFractionDigits: 3 })} м · {SECTION_STATUS[slice.status] || slice.status} · {slice.source_point_row_id_count.toLocaleString("ru-RU")} строк
             {dimensions && <> · контур {dimensions.map((value) => `${mm(value)} мм`).join(" × ")}</>}
-            {builtUp && <> · составной двутавр (гипотеза): габарит {builtUp.envelope_side_lengths_m.map((value) => `${mm(value)} мм`).join(" × ")}, стенка {mm(builtUp.web_thickness_m)} мм, полки {builtUp.flange_thicknesses_m.map((value) => `${mm(value)} мм`).join(" / ")}, точек {builtUp.source_point_row_id_count.toLocaleString("ru-RU")}</>}
+            {builtUp && <> · составной двутавр (гипотеза): габарит {builtUp.envelope_side_lengths_m.map((value) => `${mm(value)} мм`).join(" × ")}, стенка {mm(builtUp.web_thickness_m)} мм, полки {builtUp.flange_thicknesses_m.map((value) => `${mm(value)} мм`).join(" / ")}, точек {builtUp.source_point_row_id_count.toLocaleString("ru-RU")}
+              {builtUp.catalog_matches && builtUp.catalog_matches.length > 0 && (
+                <span style={{ color: "#38bdf8", marginLeft: "4px" }}>
+                  · сортамент: {builtUp.catalog_matches[0].profile.standard} {builtUp.catalog_matches[0].profile.designation} (Δh: {builtUp.catalog_matches[0].delta_height_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_height_mm} мм, Δb: {builtUp.catalog_matches[0].delta_width_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_width_mm} мм)
+                </span>
+              )}
+            </>}
             {slice.track_ids.length > 0 && <> · дорожки {slice.track_ids.join(", ")}</>}
             {slice.source_point_row_id_sample.length > 0 && <> · строки <code>{slice.source_point_row_id_sample.slice(0, 6).join(", ")}</code></>}
           </p>;
