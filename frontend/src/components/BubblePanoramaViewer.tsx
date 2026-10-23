@@ -6,6 +6,7 @@ interface Props {
   stationPosition: [number, number, number];
   onClose?: () => void;
   imageUrl?: string;
+  onPointMeasure?: (point: [number, number, number]) => void;
 }
 
 export const BubblePanoramaViewer: React.FC<Props> = ({
@@ -13,8 +14,12 @@ export const BubblePanoramaViewer: React.FC<Props> = ({
   stationPosition,
   onClose,
   imageUrl,
+  onPointMeasure,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const [measureMode, setMeasureMode] = useState<"view" | "measure">("view");
+  const [pickedPoints, setPickedPoints] = useState<Array<[number, number, number]>>([]);
+  const [measuredDistanceMm, setMeasuredDistanceMm] = useState<number | null>(null);
   const [coords, setCoords] = useState<{ x: number; y: number; z: number }>({
     x: stationPosition[0],
     y: stationPosition[1],
@@ -154,20 +159,70 @@ export const BubblePanoramaViewer: React.FC<Props> = ({
         background: "#000",
       }}
     >
+      {/* Control Overlay */}
       <div
         style={{
           position: "absolute",
           top: 10,
           left: 10,
           zIndex: 10,
-          background: "rgba(15, 23, 42, 0.8)",
-          padding: "6px 12px",
-          borderRadius: "4px",
-          fontSize: "12px",
-          color: "#fff",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
         }}
       >
-        <strong>360° Bubble-View:</strong> {stationName} (X: {coords.x.toFixed(2)}, Y: {coords.y.toFixed(2)}, Z: {coords.z.toFixed(2)} м)
+        <div
+          style={{
+            background: "rgba(15, 23, 42, 0.85)",
+            padding: "6px 12px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            color: "#fff",
+            border: "1px solid #303943",
+          }}
+        >
+          <strong>360° RealView+:</strong> {stationName} (X: {coords.x.toFixed(2)}, Y: {coords.y.toFixed(2)}, Z: {coords.z.toFixed(2)} м)
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            const nextMode = measureMode === "view" ? "measure" : "view";
+            setMeasureMode(nextMode);
+            if (nextMode === "view") {
+              setPickedPoints([]);
+              setMeasuredDistanceMm(null);
+            }
+          }}
+          style={{
+            background: measureMode === "measure" ? "#FF812E" : "rgba(30, 37, 45, 0.9)",
+            color: measureMode === "measure" ? "#10151B" : "#F2F4F6",
+            fontWeight: 600,
+            border: "1px solid #303943",
+            borderRadius: "4px",
+            padding: "6px 12px",
+            cursor: "pointer",
+            fontSize: "12px",
+          }}
+        >
+          {measureMode === "measure" ? "📏 Измерение (Кликните 2 точки)" : "📏 Включить замер"}
+        </button>
+
+        {measuredDistanceMm !== null && (
+          <div
+            style={{
+              background: "#1E252D",
+              color: "#49C980",
+              fontWeight: 700,
+              padding: "6px 12px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              border: "1px solid #49C980",
+            }}
+          >
+            Дистанция: {measuredDistanceMm.toFixed(1)} мм ({(measuredDistanceMm / 1000).toFixed(3)} м)
+          </div>
+        )}
       </div>
       {onClose && (
         <button
