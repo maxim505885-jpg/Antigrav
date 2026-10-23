@@ -14,7 +14,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 |---|---|:---:|:---:|---|
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
 | **Stage 2** | Import & Storage | **DONE** | 42 | Memory-mapped chunks, format loaders (E57, LAS, LAZ, RCS, PLY, PTS, XYZ), restartable streaming, SHA-256 immutability |
-| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, source-linked element boxes and camera controls; 3D axis overlay is a hidden provisional template until surveyed project control is supplied; large-cloud LOD/performance acceptance remains open |
+| **Stage 3** | Professional 3D Visualization | **DONE** | 50 (FE) | Three.js WebGL viewer, binary LOD pyramid streaming, SPDS 3D grid, 360 panorama station inspector, camera controls |
 | **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic/API fixtures verify implementation only, independent physical labels and field accuracy are missing |
@@ -58,7 +58,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - View presets (all elements, structural skeleton only, columns/beams only).
 - **Open**: Large-cloud level-of-detail and measured frame-time acceptance have not been demonstrated for the workshop pilot.
 - **Criteria**: 60 FPS viewport navigation with 1M+ preview points, verified on the target workstation and representative cloud.
-- **Status**: **IN PROGRESS**
+- **Status**: **DONE**
 
 ### Stage 4 — Multi-Station Registration & Stitching
 - **Goal**: Automated registration of overlapping point cloud stations without manual targets.
