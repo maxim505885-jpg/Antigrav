@@ -7,6 +7,7 @@ import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
 import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
+import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
 import { type Cloud, type Element, type Project } from "./types";
 
 interface StudioLayoutProps {
@@ -40,6 +41,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [assistantMode, setAssistantMode] = useState<"manual" | "ai" | "hybrid">("ai");
   const [activeBottomTab, setActiveBottomTab] = useState<"plans" | "sections" | "facades" | "3d">("plans");
   const [activeStationIndex, setActiveStationIndex] = useState(1);
+  const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
 
   // Layers visibility state
   const [layers, setLayers] = useState({
@@ -202,8 +204,17 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               <button className="ribbon-btn"><span>✂</span> Сечение</button>
               <button className="ribbon-btn"><span>◩</span> Обрезка</button>
               <button className="ribbon-btn"><span>•</span> Точка</button>
-              <button className="ribbon-btn"><span>📷</span> Панорама</button>
-              <button className="ribbon-btn"><span>🎨</span> Цвет</button>
+              <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><span>📷</span> Панорама</button>
+              <button
+                className="ribbon-btn"
+                onClick={() => {
+                  if (elements.length > 0) {
+                    setInspectingElement(selectedElement || elements[0]);
+                  }
+                }}
+              >
+                <span>🏛</span> ГОСТ Профиль
+              </button>
               <button className="ribbon-btn"><span>⋯</span></button>
             </div>
 
@@ -507,6 +518,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
         </div>
       </footer>
+      {/* GOST Profile Inspector Modal */}
+      {inspectingElement && (
+        <GostProfileInspectorModal
+          element={inspectingElement}
+          onClose={() => setInspectingElement(null)}
+        />
+      )}
     </div>
   );
 };
