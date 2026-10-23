@@ -991,14 +991,15 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
           <div style={{ color: "#cbd5e1", lineHeight: "1.45" }}>
             {nominalGrid && (
               <div style={{ color: "#fbbf24" }}>
-                Гипотеза сетки: ряд <b>{nominalGrid.row ?? "—"}</b> · ось <b>{nominalGrid.axis ?? "—"}</b> ·
-                ΔU={nominalGrid.delta_u_mm ?? "—"} мм · ΔV={nominalGrid.delta_v_mm ?? "—"} мм. Требуется проверка.
+                {nominalGrid.status === "grid_control_not_provided"
+                  ? `Контрольная сетка не задана. Известен только продольный шаг ${nominalGrid.nominal_step_m ?? "—"} м; номера осей не рассчитаны.`
+                  : <>Гипотеза сетки: ряд <b>{nominalGrid.row ?? "—"}</b> · ось <b>{nominalGrid.axis ?? "—"}</b> · ΔU={nominalGrid.delta_u_mm ?? "—"} мм · ΔV={nominalGrid.delta_v_mm ?? "—"} мм. Требуется проверка.</>}
               </div>
             )}
             {!oldGridOnly && selectedElement.dimensions?.height_m && selectedElement.dimensions?.length_m && selectedElement.dimensions?.thickness_m && (
               <div>Высота: <b>{selectedElement.dimensions.height_m} м</b> · Сечение: <b>{Math.round(selectedElement.dimensions.length_m * 1000)}×{Math.round(selectedElement.dimensions.thickness_m * 1000)} мм</b></div>
             )}
-            {nominalGrid && (
+            {nominalGrid && nominalGrid.status !== "grid_control_not_provided" && (
               <div style={{ color: "#7dd3fc" }}>
                 Смещение от номинальной позиции — диагностический остаток, не инженерный допуск.
               </div>

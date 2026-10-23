@@ -85,6 +85,25 @@ test("shows nominal grid alignment as an unverified hypothesis", () => {
   assert.equal(badges[0].cls, "inferred");
 });
 
+test("shows only known bay pitch when surveyed grid control is missing", () => {
+  const badges = nominalGridHypothesisBadges({
+    nominal_grid_hypothesis: {
+      review_state: "unreviewed",
+      grid_hypothesis: {
+        row: null,
+        axis: null,
+        delta_u_mm: null,
+        delta_v_mm: null,
+        status: "grid_control_not_provided",
+        nominal_step_m: 6.0,
+      },
+    },
+  });
+
+  assert.equal(badges[0].text, "оси не заданы · шаг 6 м");
+  assert.match(badges[0].title, /Начало координат, поворот и поперечные оси не заданы/);
+});
+
 test("downgrades legacy grid and tolerance claims to a review warning", () => {
   const badges = nominalGridHypothesisBadges({
     structural_status: "confirmed_grid_column",
