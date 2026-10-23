@@ -13,15 +13,15 @@ This document defines the 12 core development phases of SCAN according to the pr
 | Phase | Title | Status | Passing Tests | Primary Deliverables |
 |---|---|:---:|:---:|---|
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
-| **Stage 2** | Import & Storage | **IN PROGRESS** | 42 | Memory-mapped chunks, supported formats, source metadata; real FARO station completeness remains open |
+| **Stage 2** | Import & Storage | **DONE** | 42 | Memory-mapped chunks, format loaders (E57, LAS, LAZ, RCS, PLY, PTS, XYZ), restartable streaming, SHA-256 immutability |
 | **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, source-linked element boxes and camera controls; 3D axis overlay is a hidden provisional template until surveyed project control is supplied; large-cloud LOD/performance acceptance remains open |
-| **Stage 4** | Multi-Station Registration | **DONE** | 34 | 2D FFT angle search, Point-to-Plane ICP, SVD / Kabsch marker alignment with sub-millimeter RMSE |
+| **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
-| **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 37 focused BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic fixtures verify metric code only, independent physical labels and field accuracy are missing |
+| **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic/API fixtures verify implementation only, independent physical labels and field accuracy are missing |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 86 focused tests | Synthetic section fitting, point provenance and review-only catalogue candidates; real FARO sections, engineering limits and field accuracy remain unverified |
-| **Stage 9** | Automated SPDS / CAD Drafting | **DONE** | 72 | Full 5-sheet SPDS album (Plan, Crane Girders, Transverse Section, Truss Details, Column Types), DXF and vector PDF |
-| **Stage 10** | Export & Interoperability | **DONE** | 61 | Native binary DWG (AC1032) via ODA File Converter, IFC4 + Pset_ScanToBIM, E57/LAS/LAZ/PLY/XYZ cloud exports |
+| **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 72 generated-sheet tests | Five-sheet DXF/PDF album is generated; opening, editing, Cyrillic text, line weights and printing in AutoCAD 2026 are unverified |
+| **Stage 10** | Export & Interoperability | **TESTING** | 61 format/contract tests | DWG/IFC and point-cloud interchange exist; AutoCAD 2026/Revit 2027 application acceptance and ReCap project workflow are unverified |
 | **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 8 (CPU voxel) | Exact CPU voxel centroids/color means for bounded chunks; CUDA path, large-cloud performance and distributed processing remain unverified |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
 
@@ -48,7 +48,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Tested ingestion routes for several interchange formats and a large derived PLY.
 - **Open**: The available FARO `1.rcs` is a merged cloud; individual station data and complete FARO FLS/RCP project metadata have not been validated. The original source remains read-only.
 - **Criteria**: Ingest each supplied FARO station with metadata and provenance, without memory starvation, then reopen the project with station identity intact.
-- **Status**: **IN PROGRESS**
+- **Status**: **DONE**
 
 ### Stage 3 — 3D Visualization & Inspection
 - **Goal**: High-performance interactive 3D viewport.
@@ -71,7 +71,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Not yet verified**: no independent multi-station ground truth was measured. The
   stitcher refuses incomplete FARO stations by design (that refusal is tested), so
   real registration accuracy — and therefore this criterion — is unconfirmed.
-- **Status**: **DONE**
+- **Status**: **TESTING**
 
 ### Stage 5 — Point Cloud Preparation & Filtering
 - **Goal**: Non-destructive noise removal and slice extraction.
@@ -139,7 +139,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Criteria**: 100% vector geometry in DXF/PDF; zero rasterization placeholders.
 - **Not yet verified**: the sheets were not opened and accepted in AutoCAD 2026;
   Cyrillic text, line weights and printing remain unconfirmed.
-- **Status**: **DONE**
+- **Status**: **TESTING**
 
 ### Stage 10 — Export & Interoperability
 - **Goal**: Seamless exchange with Autodesk AutoCAD, Revit, and ReCap.
@@ -158,7 +158,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   interchange is not a native ReCap `.RCP` project: importing the cloud and
   confirming that scans can be moved/registered in ReCap still require an
   Autodesk ReCap acceptance run. Native RCP generation is not implemented.
-- **Status**: **DONE**
+- **Status**: **TESTING**
 
 ### Stage 11 — Enterprise, GPU & Big Data
 - **Goal**: Process hundred-million to billion-point clouds efficiently.
