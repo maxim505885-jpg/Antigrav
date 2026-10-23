@@ -794,15 +794,17 @@ def fit_column_section_series(
         for hypothesis in built_up_hypotheses:
             hypothesis["source_point_ids"] = sorted(built_up_source_ids[index] for index in hypothesis["input_point_indices"])
         fit["shape_hypotheses"] = shape_hypotheses
-        # Match built-up and rectangular hypotheses against GOST steel catalog
+        # Show only dimension-nearby reference candidates. Missing wall/flange
+        # thicknesses are never filled with fabricated nominal values.
         for hypothesis in built_up_hypotheses:
             env = hypothesis.get("envelope_side_lengths_m", [])
-            if len(env) >= 2:
+            web_thickness = hypothesis.get("web_thickness_m")
+            flange_thicknesses = hypothesis.get("flange_thicknesses_m")
+            if len(env) >= 2 and web_thickness is not None and flange_thicknesses:
                 h_mm = max(env[0], env[1]) * 1000.0
                 w_mm = min(env[0], env[1]) * 1000.0
-                w_th = float(hypothesis.get("web_thickness_m", 0.01)) * 1000.0
-                fl_ths = hypothesis.get("flange_thicknesses_m", [0.01])
-                fl_th = float(np.mean(fl_ths)) * 1000.0 if fl_ths else 10.0
+                w_th = float(web_thickness) * 1000.0
+                fl_th = float(np.mean(flange_thicknesses)) * 1000.0
                 matches = match_steel_profile(h_mm, w_mm, w_th, fl_th, profile_type="i_beam")
                 if matches:
                     hypothesis["catalog_matches"] = matches[:3]

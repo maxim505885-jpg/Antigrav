@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 import numpy as np
 from scipy.spatial import cKDTree
+from .normals import estimate_normals_pca
 
 MAX_CLEANUP_POINTS = 5_000_000
 QUERY_CHUNK = 500_000
@@ -237,6 +238,18 @@ def apply_cleanup(
     derived_dir.mkdir(parents=True, exist_ok=True)
     derived_positions = np.asarray(points[indices], dtype=np.float32)
     np.save(derived_dir / "positions.npy", derived_positions)
+
+    # Estimate surface normals for derived cloud if requested or reasonable size
+    normals_written = False
+    if params.get("estimate_normals", True) and len(derived_positions) <= 500_000:
+        _notify(progress, 0.95, "расчёт нормалей поверхностей")
+        try:
+            normals, curvature = estimate_normals_pca(derived_positions, k_neighbors=16)
+            np.save(derived_dir / "normals.npy", normals)
+            np.save(derived_dir / "curvature.npy", curvature)
+            normals_written = True
+        except Exception:
+            normals_written = False
     colors = _read_colors(colors_path, total)
     color_written = False
     if colors is not None:
@@ -257,6 +270,7 @@ def apply_cleanup(
         "output_count": int(len(indices)),
         "removed_count": int(total - len(indices)),
         "has_colors": color_written,
+        "has_normals": normals_written,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_s": round(time.perf_counter() - started, 2),
         "source": {

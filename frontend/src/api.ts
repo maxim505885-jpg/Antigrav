@@ -160,11 +160,12 @@ export interface ColumnSurfaceTrackAnalysisResponse {
         source_point_row_id_sample: number[]; review_required: true;
         engineering_status: "not_assessed";
         catalog_matches?: Array<{
-          profile: { standard: string; designation: string; profile_type: string; height_mm: number; width_mm: number; mass_kg_m: number };
+          profile: { standard: string; designation: string; profile_type: string; height_mm: number; width_mm: number; mass_kg_m: number; source_url: string; review_required: true };
           delta_height_mm: number;
           delta_width_mm: number;
-          residual_mm: number;
-          match_confidence: number;
+          ranking_score_mm: number;
+          catalog_status: string;
+          review_required: true;
         }>;
       }[];
       source_point_row_id_count: number; source_point_row_id_sample: number[];

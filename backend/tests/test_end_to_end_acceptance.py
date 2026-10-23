@@ -5,7 +5,7 @@ Validates the full Scan-to-BIM pipeline in one continuous run without mocking:
 2. Filtering & Cleanup: non-destructive voxel downsampling and PLY export.
 3. Multi-Station Registration: pairwise SVD marker alignment with < 0.1 mm precision.
 4. Structural AI Recognition: column detection, crane girders, and MEP pipe segment tracing.
-5. Parametric Fitting & GOST Assortment: fitting I-profiles and matching to standard СТО АСЧМ 20-93.
+5. Parametric Fitting & GOST Assortment: fitting I-profiles and returning review-only candidates from ГОСТ 35087-2024.
 6. Vector Drafting & SPDS Export: generation of 5-sheet SPDS drawing package and DXF files.
 7. Open BIM IFC4 Export: generating native IFC4 file with Pset_ScanToBIM, IfcColumn, and IfcPipeSegment.
 """
@@ -81,8 +81,10 @@ def test_full_pipeline_acceptance_certification(client, tmp_path):
     catalog_matches = match_steel_profile(298.0, 299.0, profile_type="i_beam")
     assert len(catalog_matches) > 0
     top_match = catalog_matches[0]["profile"]
-    assert top_match["designation"] in ("30К1", "30К2")
-    assert catalog_matches[0]["match_confidence"] > 0.8
+    assert top_match["designation"] == "30К1"
+    assert catalog_matches[0]["review_required"] is True
+    assert catalog_matches[0]["catalog_status"] == "base_edition_only_latest_corrections_unverified"
+    assert "match_confidence" not in catalog_matches[0]
 
     # -------------------------------------------------------------
     # 4. SPDS Full 5-Sheet Drawing Generation (Stage 9)

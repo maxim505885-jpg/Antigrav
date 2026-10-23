@@ -182,8 +182,8 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
             {dimensions && <> · контур {dimensions.map((value) => `${mm(value)} мм`).join(" × ")}</>}
             {builtUp && <> · составной двутавр (гипотеза): габарит {builtUp.envelope_side_lengths_m.map((value) => `${mm(value)} мм`).join(" × ")}, стенка {mm(builtUp.web_thickness_m)} мм, полки {builtUp.flange_thicknesses_m.map((value) => `${mm(value)} мм`).join(" / ")}, точек {builtUp.source_point_row_id_count.toLocaleString("ru-RU")}
               {builtUp.catalog_matches && builtUp.catalog_matches.length > 0 && (
-                <span style={{ color: "#38bdf8", marginLeft: "4px" }}>
-                  · сортамент: {builtUp.catalog_matches[0].profile.standard} {builtUp.catalog_matches[0].profile.designation} (Δh: {builtUp.catalog_matches[0].delta_height_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_height_mm} мм, Δb: {builtUp.catalog_matches[0].delta_width_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_width_mm} мм)
+                <span style={{ color: "inherit", marginLeft: "4px" }}>
+                  · справочный кандидат: {builtUp.catalog_matches[0].profile.standard} {builtUp.catalog_matches[0].profile.designation} (Δh: {builtUp.catalog_matches[0].delta_height_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_height_mm} мм, Δb: {builtUp.catalog_matches[0].delta_width_mm > 0 ? "+" : ""}{builtUp.catalog_matches[0].delta_width_mm} мм; поправки к стандарту требуют сверки; марка и допуск не подтверждены)
                 </span>
               )}
             </>}

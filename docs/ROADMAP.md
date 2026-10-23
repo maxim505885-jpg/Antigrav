@@ -121,8 +121,9 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Deviation of each candidate from a nominal grid reported as an *unverified
     hypothesis*; it never rejects detections or assigns marks.
 - **Open**: Built-up profile fitting has not been verified against labeled FARO
-  sections or a steel catalogue; stepped pilot profiles and physical accuracy remain
-  unaccepted.
+  sections; a small ГОСТ 35087-2024 base-edition excerpt can return reference-only
+  candidates, but its October 2026 corrigendum is not verified and cannot establish a
+  confirmed project type. Stepped pilot profiles and physical accuracy remain unaccepted.
 - **Reverted / missing**: the SP 70.13330 tolerance schedule integration was reverted
   (commit 37506fb); tolerance grading is not part of the current build.
 - **Criteria**: Parametric geometry bounds match measured points within 95% confidence intervals.
