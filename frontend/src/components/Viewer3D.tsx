@@ -5,6 +5,7 @@ import { api } from "../api";
 import type { Cloud, Element, LodManifest } from "../types";
 import { groupCameraDistance } from "../columnGroupGeometry";
 import { selectLodLevel } from "../lodLevel";
+import { RenderFpsSampler } from "../renderFps";
 import { elementBoxLinePositions } from "../structuralFrameGeometry";
 import { computeStructuralGridGeometry } from "../structuralGrid3D";
 import { classLabel } from "../types";
@@ -197,6 +198,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(0);
+  const [fps, setFps] = useState<number | null>(null);
 
   function fitSphere(sphere: THREE.Sphere) {
     const camera = cameraRef.current, controls = controlsRef.current;
@@ -264,10 +266,13 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     resize();
 
     let frame = 0;
-    const animate = () => {
+    const fpsSampler = new RenderFpsSampler();
+    const animate = (time = performance.now()) => {
       frame = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
+      const measuredFps = fpsSampler.sample(time);
+      if (measuredFps !== null) setFps(measuredFps);
     };
     animate();
     return () => {
@@ -820,6 +825,16 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
           >
             🔘 Все слои
           </button>
+          {loaded > 0 && fps !== null && (
+            <span
+              className={`viewer-fps ${fps >= 55 ? "viewer-fps--good" : fps >= 30 ? "viewer-fps--warning" : "viewer-fps--low"}`}
+              role="status"
+              aria-live="off"
+              title="Кадры WebGL-цикла за последнюю секунду; приёмку производительности выполняйте при активном окне и навигации"
+            >
+              {fps} FPS
+            </span>
+          )}
           <button
             type="button"
             className="hud-chip"

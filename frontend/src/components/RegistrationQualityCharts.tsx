@@ -49,20 +49,20 @@ export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Погрешность станций (RMSE, мм)
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#FFFFFF", textTransform: "uppercase" }}>
+            Погрешность станций (RMSE)
           </span>
-          <span style={{ fontSize: 10, color: "var(--success)", fontWeight: 700 }}>СП 317: Допуск 5.0 мм</span>
+          <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 700 }}>Допуск 5.0 мм</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 90 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={rmseData} margin={{ top: 4, right: 4, left: -25, bottom: 0 }}>
-              <XAxis dataKey="station" stroke="#5B6B7C" fontSize={10} tickLine={false} />
-              <YAxis stroke="#5B6B7C" fontSize={10} tickLine={false} domain={[0, 6]} />
+              <XAxis dataKey="station" stroke="#CBD5E1" fontSize={11} tickLine={false} />
+              <YAxis stroke="#CBD5E1" fontSize={11} tickLine={false} domain={[0, 6]} />
               <Tooltip
-                contentStyle={{ background: "#182029", border: "1px solid #303943", borderRadius: 4, fontSize: 11 }}
-                itemStyle={{ color: "#FF812E" }}
+                contentStyle={{ background: "#1F2937", border: "1px solid #4B5563", borderRadius: 4, fontSize: 12, color: "#fff" }}
+                itemStyle={{ color: "#FFA25B", fontWeight: 700 }}
                 formatter={(val: any) => [`${val} мм`, "Невязка"]}
               />
               <Bar dataKey="error_mm" fill="#FF812E" radius={[3, 3, 0, 0]} />
@@ -84,10 +84,10 @@ export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase" }}>
-            Распределение плотности точек по высоте Z
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#FFFFFF", textTransform: "uppercase" }}>
+            Плотность точек (Z-высота)
           </span>
-          <span style={{ fontSize: 10, color: "var(--info)", fontFamily: "var(--font-mono)" }}>Σ 874.6M</span>
+          <span style={{ fontSize: 11, color: "#38BDF8", fontFamily: "var(--font-mono)", fontWeight: 700 }}>Σ 874.6M</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 90 }}>
@@ -95,18 +95,18 @@ export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
             <AreaChart data={heightDistribution} margin={{ top: 4, right: 4, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="densityGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#38BDF8" stopOpacity={0.4} />
+                  <stop offset="5%" stopColor="#38BDF8" stopOpacity={0.6} />
                   <stop offset="95%" stopColor="#38BDF8" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="z_m" stroke="#5B6B7C" fontSize={10} tickLine={false} />
-              <YAxis stroke="#5B6B7C" fontSize={10} tickLine={false} />
+              <XAxis dataKey="z_m" stroke="#CBD5E1" fontSize={11} tickLine={false} />
+              <YAxis stroke="#CBD5E1" fontSize={11} tickLine={false} />
               <Tooltip
-                contentStyle={{ background: "#182029", border: "1px solid #303943", borderRadius: 4, fontSize: 11 }}
-                itemStyle={{ color: "#38BDF8" }}
+                contentStyle={{ background: "#1F2937", border: "1px solid #4B5563", borderRadius: 4, fontSize: 12, color: "#fff" }}
+                itemStyle={{ color: "#38BDF8", fontWeight: 700 }}
                 formatter={(val: any) => [`${val} тыс. точек`, "Плотность"]}
               />
-              <Area type="monotone" dataKey="points_k" stroke="#38BDF8" fillOpacity={1} fill="url(#densityGrad)" />
+              <Area type="monotone" dataKey="points_k" stroke="#38BDF8" strokeWidth={2} fillOpacity={1} fill="url(#densityGrad)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

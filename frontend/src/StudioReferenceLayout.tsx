@@ -8,7 +8,6 @@ import { RegistrationQualityCharts } from "./components/RegistrationQualityChart
 import { ElementTanStackTable } from "./components/ElementTanStackTable";
 import { type Cloud, type Element, type Project } from "./types";
 
-// Lucide Icons
 import {
   Folder,
   UploadCloud,
@@ -56,15 +55,14 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   jobLabel,
   jobProgress,
 }) => {
-  const [activeNav, setActiveNav] = useState("stitching");
-  const [activeSecondaryTab, setActiveSecondaryTab] = useState("overview");
+  const [activeNav, setActiveNav] = useState("pointcloud");
+  const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
   const [assistantMode, setAssistantMode] = useState<"manual" | "ai" | "hybrid">("hybrid");
   const [activeStationIndex, setActiveStationIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
   const [selectedCloudIndex, setSelectedCloudIndex] = useState(0);
 
-  // Layers visibility state
   const [layers, setLayers] = useState({
     pointCloud: true,
     stations: true,
@@ -79,17 +77,17 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   };
 
   const navItems = [
-    { id: "projects", label: "Проекты", icon: <Folder size={15} /> },
-    { id: "import", label: "Импорт сканов", icon: <UploadCloud size={15} /> },
-    { id: "stitching", label: "Сшивка станций", icon: <Network size={15} /> },
-    { id: "pointcloud", label: "Облако точек", icon: <CloudIcon size={15} /> },
-    { id: "panoramas", label: "Панорамы 360°", icon: <Camera size={15} /> },
-    { id: "recognition", label: "ИИ Распознавание", icon: <Cpu size={15} /> },
-    { id: "cad", label: "Чертежи (CAD)", icon: <Compass size={15} /> },
-    { id: "bim", label: "BIM Модель IFC", icon: <Building size={15} /> },
-    { id: "reports", label: "Паспорта и Отчёты", icon: <FileSpreadsheet size={15} /> },
-    { id: "export", label: "Экспорт DWG", icon: <FileDown size={15} /> },
-    { id: "settings", label: "Настройки СП", icon: <Settings size={15} /> },
+    { id: "projects", label: "Проекты", icon: <Folder size={16} /> },
+    { id: "import", label: "Импорт сканов", icon: <UploadCloud size={16} /> },
+    { id: "stitching", label: "Сшивка станций", icon: <Network size={16} /> },
+    { id: "pointcloud", label: "Облако точек", icon: <CloudIcon size={16} /> },
+    { id: "panoramas", label: "Панорамы 360°", icon: <Camera size={16} /> },
+    { id: "recognition", label: "ИИ Распознавание", icon: <Cpu size={16} /> },
+    { id: "cad", label: "Чертежи (CAD)", icon: <Compass size={16} /> },
+    { id: "bim", label: "BIM Модель IFC", icon: <Building size={16} /> },
+    { id: "reports", label: "Паспорта и Отчёты", icon: <FileSpreadsheet size={16} /> },
+    { id: "export", label: "Экспорт DWG", icon: <FileDown size={16} /> },
+    { id: "settings", label: "Настройки СП", icon: <Settings size={16} /> },
   ];
 
   const secondaryTabs = [
@@ -119,38 +117,38 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const currentCloud = clouds[selectedCloudIndex] || cloud;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-deep)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-deep)", color: "#FFFFFF" }}>
       {/* 1. TOP APPLICATION BAR */}
       <header className="app-header">
         <div className="app-brand">
           <div className="app-logo">
-            <Sparkles size={14} color="#0A0E13" />
+            <Sparkles size={16} color="#0A0E13" />
           </div>
           <div className="app-title">
             SCAN AI <span className="sub">STUDIO</span>
           </div>
 
           <div className="project-title-badge">
-            <span style={{ color: "var(--accent)" }}>●</span>
-            <span>{project?.name || "Цех_№1 (1.rcs + 2.rcs)"}</span>
-            <span style={{ color: "var(--text-muted)", fontSize: 10 }}>[874.6M точек]</span>
+            <span style={{ color: "#FF812E" }}>●</span>
+            <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{project?.name || "Цех_№1 (1.rcs + 2.rcs)"}</span>
+            <span style={{ color: "#94A3B8", fontSize: 11 }}>[874.6M точек]</span>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Scientific Colormap Switcher */}
-          <div style={{ display: "flex", background: "var(--bg-surface)", padding: 2, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", background: "#1C2430", padding: 3, borderRadius: 6, border: "1px solid #334050" }}>
             {(["rgb", "height", "intensity", "normals", "error"] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setColorMode(mode)}
                 style={{
-                  background: colorMode === mode ? "var(--accent)" : "transparent",
-                  color: colorMode === mode ? "#0A0D11" : "var(--text-secondary)",
+                  background: colorMode === mode ? "#FF812E" : "transparent",
+                  color: colorMode === mode ? "#0A0D11" : "#E2E8F0",
                   border: "none",
-                  padding: "4px 8px",
-                  fontSize: 11,
-                  fontWeight: colorMode === mode ? 700 : 500,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  fontWeight: colorMode === mode ? 800 : 600,
                   borderRadius: 4,
                   cursor: "pointer",
                 }}
@@ -172,7 +170,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           <button
             className="primary"
             onClick={onRunSinglePass}
-            style={{ padding: "5px 14px" }}
+            style={{ padding: "6px 16px", color: "#0A0D12", fontWeight: 800 }}
           >
             <Zap size={14} /> Сквозной расчёт цеха
           </button>
@@ -188,6 +186,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             onClick={() => {
               setActiveSecondaryTab(tab.id);
               if (tab.id === "stitching") setActiveNav("stitching");
+              if (tab.id === "pointcloud") setActiveNav("pointcloud");
               if (tab.id === "panoramas") setActiveNav("panoramas");
             }}
           >
@@ -208,19 +207,20 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 onClick={() => {
                   setActiveNav(item.id);
                   if (item.id === "stitching") setActiveSecondaryTab("stitching");
+                  if (item.id === "pointcloud") setActiveSecondaryTab("pointcloud");
                   if (item.id === "panoramas") setActiveSecondaryTab("panoramas");
                 }}
               >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
+                <span className="nav-icon" style={{ color: activeNav === item.id ? "#FF812E" : "#94A3B8" }}>{item.icon}</span>
+                <span style={{ color: activeNav === item.id ? "#FFA25B" : "#E2E8F0" }}>{item.label}</span>
               </div>
             ))}
           </div>
 
-          <div style={{ padding: "8px 12px", background: "var(--bg-surface)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: 11 }}>
-            <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>АКТИВНЫЙ СКАНЕР:</div>
-            <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>FARO Focus S350</div>
-            <div style={{ color: "var(--success)", fontSize: 10, marginTop: 2 }}>● Погрешность: 1.0 мм / 25 м</div>
+          <div style={{ padding: "10px 12px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050", fontSize: 11.5 }}>
+            <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>АКТИВНЫЙ СКАНЕР:</div>
+            <div style={{ fontWeight: 700, color: "#FFFFFF" }}>FARO Focus S350</div>
+            <div style={{ color: "#4ADE80", fontSize: 11, marginTop: 3, fontWeight: 600 }}>● Погрешность: 1.0 мм / 25 м</div>
           </div>
         </aside>
 
@@ -228,9 +228,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         <main className="viewport-center">
           {/* Floating 3D Tools Ribbon */}
           <div className="viewport-tools-ribbon">
-            <button className="ribbon-btn active" title="Выбор"><Crosshair size={13} /> Выбор</button>
-            <button className="ribbon-btn" title="Замер"><Maximize2 size={13} /> Замер</button>
-            <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><Camera size={13} /> Панорама</button>
+            <button className="ribbon-btn active" title="Выбор"><Crosshair size={14} /> Выбор</button>
+            <button className="ribbon-btn" title="Замер"><Maximize2 size={14} /> Замер</button>
+            <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><Camera size={14} /> Панорама</button>
             <button
               className="ribbon-btn"
               onClick={() => {
@@ -238,9 +238,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   setInspectingElement(selectedElement || elements[0]);
                 }
               }}
-              style={{ color: "var(--accent)" }}
+              style={{ color: "#FFA25B" }}
             >
-              <Building size={13} /> ГОСТ Сортамент
+              <Building size={14} /> ГОСТ Сортамент
             </button>
             <button
               className="ribbon-btn"
@@ -264,12 +264,12 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           {/* Floating Layers Card */}
           <div className="floating-layers-card">
             <div className="card-header-sm">
-              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <Layers size={11} /> Слои проекта
+              <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#FFFFFF" }}>
+                <Layers size={13} /> Слои проекта
               </span>
-              <Eye size={12} style={{ cursor: "pointer" }} />
+              <Eye size={13} style={{ cursor: "pointer", color: "#CBD5E1" }} />
             </div>
-            <div style={{ padding: "4px 0" }}>
+            <div style={{ padding: "6px 0" }}>
               {[
                 { key: "pointCloud", label: "Облако точек (LOD)", color: "#38BDF8" },
                 { key: "stations", label: "Стоянки тахеометра", color: "#FF812E" },
@@ -286,9 +286,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span className="layer-color-dot" style={{ background: item.color }}></span>
-                    <span>{item.label}</span>
+                    <span style={{ color: "#FFFFFF", fontWeight: 600 }}>{item.label}</span>
                   </div>
-                  <span style={{ fontSize: 11 }}>{(layers as any)[item.key] ? "●" : "○"}</span>
+                  <span style={{ fontSize: 12, color: "#4ADE80" }}>{(layers as any)[item.key] ? "●" : "○"}</span>
                 </div>
               ))}
             </div>
@@ -296,7 +296,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           {/* Core 3D Viewport Scene or Split-Screen Registration */}
           <div className="scene-container">
-            {activeNav === "stitching" || activeSecondaryTab === "stitching" ? (
+            {activeNav === "stitching" ? (
               <SplitScreenRegistrationView
                 sourceCloud={clouds[0] || cloud}
                 targetCloud={clouds[1] || clouds[0] || cloud}
@@ -315,7 +315,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 section={null}
               />
             ) : (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>
                 Загрузите облако точек для отображения в 3D сцене
               </div>
             )}
@@ -330,9 +330,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
             {/* Card 2: Interactive 360 Panorama Preview */}
             <div className="dock-card" style={{ width: 280, minWidth: 280, position: "relative" }}>
-              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
                 <span>360° REALVIEW+</span>
-                <span style={{ color: "var(--success)" }}>АКТИВНА</span>
+                <span style={{ color: "#4ADE80", fontWeight: 800 }}>АКТИВНА</span>
               </div>
               <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
                 <BubblePanoramaViewer
@@ -344,9 +344,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
             {/* Card 3: TanStack Table of Classified Elements */}
             <div className="dock-card" style={{ flex: 1, minWidth: 320 }}>
-              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
-                <span>СПЕЦИФИКАЦИЯ ЭЛЕМЕНТОВ (TANSTACK TABLE)</span>
-                <span style={{ color: "var(--text-muted)" }}>{elements.length} элементов</span>
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
+                <span>СПЕЦИФИКАЦИЯ ЭЛЕМЕНТОВ (СП 70.13330)</span>
+                <span style={{ color: "#94A3B8" }}>{elements.length} элементов</span>
               </div>
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <ElementTanStackTable
@@ -376,41 +376,41 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             ))}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
-            <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "12px", marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontWeight: 700, fontSize: 12, color: "var(--accent)" }}>ИИ АССИСТЕНТ SCAN STUDIO</span>
-                <span style={{ fontSize: 10, background: "var(--accent-subtle)", color: "var(--accent)", padding: "2px 6px", borderRadius: 3 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+            <div style={{ background: "#1C2430", border: "1px solid #334050", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: "#FFA25B" }}>ИИ АССИСТЕНТ SCAN STUDIO</span>
+                <span style={{ fontSize: 10, background: "rgba(255, 129, 46, 0.2)", color: "#FF812E", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
                   Active
                 </span>
               </div>
-              <p style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12.5, color: "#E2E8F0", lineHeight: 1.6 }}>
                 Выполнен глобальный уравнитель связей Bundle Adjustment для 1.rcs + 2.rcs.
-                Среднеквадратическая ошибка сшивки: <strong>2.1 мм</strong>. Найдено 18 колонн цеха, соответствующих ГОСТ 35087.
+                Среднеквадратическая ошибка сшивки: <strong style={{ color: "#4ADE80" }}>2.1 мм</strong>. Найдено 18 несущих колонн цеха, проверенных по ГОСТ 35087.
               </p>
             </div>
 
             {/* Quick Action Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
               >
-                <Network size={14} /> Открыть сплит-сшивку станций
+                <Network size={16} color="#FF812E" /> Открыть сплит-сшивку станций
               </button>
               <button
                 onClick={() => {
                   if (elements.length > 0) setInspectingElement(elements[0]);
                 }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
               >
-                <Building size={14} /> Проверить ГОСТ-сортамент колонн
+                <Building size={16} color="#38BDF8" /> Проверить ГОСТ-сортамент колонн
               </button>
               <button
                 onClick={() => alert("Экспорт ведомости отклонений по СП 70.13330 в PDF сформирован!")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
               >
-                <BarChart3 size={14} /> Сформировать ведомость отклонений PDF
+                <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
               </button>
             </div>
           </div>
@@ -420,9 +420,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
       {/* 4. BOTTOM STATUS STRIP */}
       <footer className="bottom-status-strip">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }}></span>
-          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{jobLabel || "Сшивка цеха (Bundle Adjustment)"}</span>
-          <span style={{ color: "var(--text-muted)" }}>[Сканов в проекте: 2 | 874.6M точек]</span>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF812E" }}></span>
+          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || "Сшивка цеха (Bundle Adjustment)"}</span>
+          <span style={{ color: "#94A3B8" }}>[Сканов в проекте: 2 | 874.6M точек]</span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -430,12 +430,12 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             <div className="progress-track-wide">
               <div className="progress-fill-wide" style={{ width: `${jobProgress || 74}%` }}></div>
             </div>
-            <span style={{ fontWeight: 700, color: "var(--accent)" }}>{jobProgress || 74}%</span>
+            <span style={{ fontWeight: 800, color: "#FFA25B" }}>{jobProgress || 74}%</span>
           </div>
 
-          <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--text-muted)" }}>
-            <span>RMSE: <strong style={{ color: "var(--success)" }}>2.1 мм</strong></span>
-            <span>Допуск: <strong>СП 70.13330</strong></span>
+          <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#CBD5E1" }}>
+            <span>RMSE: <strong style={{ color: "#4ADE80" }}>2.1 мм</strong></span>
+            <span>Допуск: <strong style={{ color: "#FFFFFF" }}>СП 70.13330</strong></span>
           </div>
         </div>
       </footer>

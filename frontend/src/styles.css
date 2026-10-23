@@ -512,6 +512,18 @@ input[type="checkbox"] {
   flex-wrap: wrap;
   align-items: center;
 }
+.viewer-fps {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.viewer-fps--good { color: #17633f; background: #e5f1e8; }
+.viewer-fps--warning { color: #805b14; background: #faf2df; }
+.viewer-fps--low { color: #8d3029; background: #fbebe8; }
 .viewer-hud .warn {
   color: #9a6819;
 }

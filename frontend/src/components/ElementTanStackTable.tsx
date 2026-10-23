@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { type Element } from "../types";
-import { ArrowUpDown, CheckCircle, ShieldAlert } from "lucide-react";
+import { ArrowUpDown, CheckCircle } from "lucide-react";
 
 interface ElementTanStackTableProps {
   elements: Element[];
@@ -68,23 +68,23 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
   };
 
   return (
-    <div style={{ width: "100%", height: "100%", overflowY: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, textAlign: "left" }}>
+    <div style={{ width: "100%", height: "100%", overflowY: "auto", background: "#161D26" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", color: "#FFFFFF" }}>
         <thead>
-          <tr style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, background: "var(--bg-card)", zIndex: 5 }}>
-            <th onClick={() => handleSort("id")} style={{ padding: "6px 8px", cursor: "pointer" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ID <ArrowUpDown size={10} /></span>
+          <tr style={{ color: "#E2E8F0", borderBottom: "2px solid #334050", position: "sticky", top: 0, background: "#1F2937", zIndex: 5 }}>
+            <th onClick={() => handleSort("id")} style={{ padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ID <ArrowUpDown size={11} /></span>
             </th>
-            <th onClick={() => handleSort("className")} style={{ padding: "6px 8px", cursor: "pointer" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>Класс <ArrowUpDown size={10} /></span>
+            <th onClick={() => handleSort("className")} style={{ padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>Класс <ArrowUpDown size={11} /></span>
             </th>
-            <th onClick={() => handleSort("profile")} style={{ padding: "6px 8px", cursor: "pointer" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ГОСТ Профиль <ArrowUpDown size={10} /></span>
+            <th onClick={() => handleSort("profile")} style={{ padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ГОСТ Профиль <ArrowUpDown size={11} /></span>
             </th>
-            <th style={{ padding: "6px 8px" }}>Сечение</th>
-            <th style={{ padding: "6px 8px" }}>Крен (СП 70.13330)</th>
-            <th style={{ padding: "6px 8px" }}>Запас</th>
-            <th style={{ padding: "6px 8px" }}>Статус</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Сечение</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Крен (СП)</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Запас</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Статус</th>
           </tr>
         </thead>
         <tbody>
@@ -99,32 +99,33 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                 }}
                 style={{
                   cursor: "pointer",
-                  borderBottom: "1px solid rgba(255,255,255,0.03)",
-                  background: isSelected ? "var(--accent-subtle)" : "transparent",
-                  transition: "background 0.12s",
+                  borderBottom: "1px solid #2D3748",
+                  background: isSelected ? "rgba(255, 129, 46, 0.25)" : "transparent",
+                  color: "#FFFFFF",
                 }}
               >
-                <td style={{ padding: "6px 8px", fontWeight: 600, color: "var(--accent)" }}>{row.id}</td>
-                <td style={{ padding: "6px 8px", textTransform: "capitalize" }}>{row.className}</td>
-                <td style={{ padding: "6px 8px", fontFamily: "var(--font-mono)", fontSize: 10 }}>{row.profile}</td>
-                <td style={{ padding: "6px 8px" }}>{row.dimensions}</td>
-                <td style={{ padding: "6px 8px", color: "var(--success)", fontFamily: "var(--font-mono)" }}>{row.tilt}</td>
-                <td style={{ padding: "6px 8px", color: "var(--success)", fontFamily: "var(--font-mono)" }}>{row.margin}</td>
-                <td style={{ padding: "6px 8px" }}>
+                <td style={{ padding: "8px 10px", fontWeight: 700, color: "#FFA25B" }}>{row.id}</td>
+                <td style={{ padding: "8px 10px", textTransform: "capitalize", fontWeight: 600 }}>{row.className}</td>
+                <td style={{ padding: "8px 10px", fontFamily: "var(--font-mono)", fontSize: 11, color: "#CBD5E1" }}>{row.profile}</td>
+                <td style={{ padding: "8px 10px", color: "#F1F5F9" }}>{row.dimensions}</td>
+                <td style={{ padding: "8px 10px", color: "#4ADE80", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{row.tilt}</td>
+                <td style={{ padding: "8px 10px", color: "#4ADE80", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{row.margin}</td>
+                <td style={{ padding: "8px 10px" }}>
                   <span
                     style={{
-                      background: "var(--success-bg)",
-                      color: "var(--success)",
-                      padding: "2px 6px",
-                      borderRadius: 3,
-                      fontSize: 10,
-                      fontWeight: 700,
+                      background: "rgba(74, 222, 128, 0.2)",
+                      border: "1px solid #22C55E",
+                      color: "#4ADE80",
+                      padding: "3px 8px",
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 800,
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 4,
                     }}
                   >
-                    <CheckCircle size={10} /> НОРМА
+                    <CheckCircle size={11} /> НОРМА
                   </span>
                 </td>
               </tr>
