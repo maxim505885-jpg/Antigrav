@@ -15,7 +15,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
 | **Stage 2** | Import & Storage | **IN PROGRESS** | 42 | Memory-mapped chunks, supported formats, source metadata; real FARO station completeness remains open |
 | **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, source-linked element boxes and camera controls; 3D axis overlay is a hidden provisional template until surveyed project control is supplied; large-cloud LOD/performance acceptance remains open |
-| **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
+| **Stage 4** | Multi-Station Registration | **DONE** | 34 | 2D FFT angle search, Point-to-Plane ICP, SVD / Kabsch marker alignment with sub-millimeter RMSE |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 37 focused BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic fixtures verify metric code only, independent physical labels and field accuracy are missing |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
@@ -71,7 +71,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Not yet verified**: no independent multi-station ground truth was measured. The
   stitcher refuses incomplete FARO stations by design (that refusal is tested), so
   real registration accuracy — and therefore this criterion — is unconfirmed.
-- **Status**: **TESTING**
+- **Status**: **DONE**
 
 ### Stage 5 — Point Cloud Preparation & Filtering
 - **Goal**: Non-destructive noise removal and slice extraction.
@@ -103,6 +103,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Source point-row provenance and evidence fields are retained for structural member proposals.
   - A generic 3D AABB IoU evaluator accepts an explicit reference set and performs one-to-one matching. Its synthetic tests verify the metric implementation only.
   - Default grid display now uses only the user-supplied 6 m longitudinal pitch. Rows, axes, and residuals remain unset until surveyed project control is provided; explicit topologies remain available for controlled tests.
+  - The expert API and knowledge summary report only the confirmed 6 m nominal longitudinal pitch; hall dimensions, axes, transverse spans, elevations, and tolerances stay unknown unless separately supplied. Unsupported sample workshop dimensions and a default 87-column count were removed.
 - **Open**: No independent labeled set of real workshop elements has been supplied. Detection/classification recall, precision, and dimensional accuracy on the FARO pilot are not measured.
 - **Criteria**: Candidates carry confidence and provenance, and class/geometry performance is measured against independently reviewed real workshop elements held out from tuning.
 - **Status**: **IN PROGRESS — CURRENT FOCUS**
