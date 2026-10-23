@@ -49,6 +49,14 @@ def test_full_pipeline(client):
     assert section["result"]["polygons"]
     assert section["result"]["frame"]["kind"] == "horizontal"
 
+    # A section is an audit snapshot: fetching it again must return the
+    # stored extraction and frame, not recompute against a possibly changed cloud.
+    stored_section_response = client.get(f"/api/v1/sections/{section['id']}")
+    assert stored_section_response.status_code == 200, stored_section_response.text
+    stored_section = stored_section_response.json()
+    assert stored_section["result"] == section["result"]
+    assert stored_section["point_count"] == section["point_count"]
+
     dxf_response = client.post(f"/api/v1/sections/{section['id']}/export?format=dxf&scale=50")
     assert dxf_response.status_code == 200
     assert b"SECTION" in dxf_response.content[:200]

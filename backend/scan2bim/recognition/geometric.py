@@ -530,6 +530,64 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
             "распознаны."
         )
 
+    # MEP pipelines and linear equipment recognition
+    from .mep import detect_pipe_network
+    if progress:
+        progress(0.96, "поиск трасс трубопроводов и сетей (MEP)")
+    try:
+        sample_pts = geom.positions
+        if len(sample_pts) > 50000:
+            step = len(sample_pts) // 50000
+            sample_pts = sample_pts[::step]
+        detected_pipes = detect_pipe_network(sample_pts, min_segment_points=25)
+        mep_elements = []
+        for p in detected_pipes:
+            sp = p.start_point
+            ep = p.end_point
+            center = [(sp[0] + ep[0]) / 2.0, (sp[1] + ep[1]) / 2.0, (sp[2] + ep[2]) / 2.0]
+            bbox = [
+                min(sp[0], ep[0]) - p.radius_m, min(sp[1], ep[1]) - p.radius_m, min(sp[2], ep[2]) - p.radius_m,
+                max(sp[0], ep[0]) + p.radius_m, max(sp[1], ep[1]) + p.radius_m, max(sp[2], ep[2]) + p.radius_m,
+            ]
+            mep_el = DetectedElement(
+                class_name="pipe",
+                geometry={
+                    "start_point": sp,
+                    "end_point": ep,
+                    "axis_direction": p.axis_direction,
+                    "center": center,
+                    "radius_m": p.radius_m,
+                    "diameter_mm": p.diameter_mm,
+                    "length_m": p.length_m,
+                    "slope_percent": p.slope_percent,
+                },
+                bbox=bbox,
+                confidence=p.confidence,
+                measured=True,
+                inferred=False,
+                source="geometric",
+                dimensions={
+                    "diameter_mm": p.diameter_mm,
+                    "length_m": p.length_m,
+                    "slope_percent": p.slope_percent,
+                    "system_type": p.system_type,
+                },
+                metadata={
+                    "shape": "cylinder",
+                    "inliers": p.inlier_count,
+                    "review_required": True,
+                },
+            )
+            mep_elements.append(mep_el)
+        elements = elements + mep_elements
+        if mep_elements:
+            warnings.append(
+                f"Инженерные сети (MEP): обнаружено {len(mep_elements)} участков трубопроводов "
+                "методом цилиндрического RANSAC. Требуется верификация диаметра и уклонов."
+            )
+    except Exception as exc:
+        warnings.append(f"Ошибка трассировки MEP сетей: {exc}")
+
     # Review-only workshop layout hypothesis:
     # The nominal grid is not surveyed control, so it must never reject detections,
     # assign engineering marks/sections, or promote a candidate to confirmed.

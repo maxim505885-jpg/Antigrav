@@ -72,6 +72,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const [showWalls, setShowWalls] = useState(true);
   const [showStairs, setShowStairs] = useState(true);
   const [showOpenings, setShowOpenings] = useState(true);
+  const [showPipes, setShowPipes] = useState(true);
   const [activePreset, setActivePreset] = useState<string>("all");
 
   const setPresetAll = () => {
@@ -85,6 +86,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowWalls(true);
     setShowStairs(true);
     setShowOpenings(true);
+    setShowPipes(true);
   };
 
   const setPresetColumnsAndBeams = () => {
@@ -98,6 +100,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setShowWalls(false);
     setShowStairs(false);
     setShowOpenings(false);
+    setShowPipes(false);
   };
 
   const setPresetWallsOnly = () => {
@@ -633,6 +636,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       { key: "wall", color: 0x94a3b8, visible: showWalls, renderOrder: 6 },
       { key: "stair", color: 0xea580c, visible: showStairs, renderOrder: 5 },
       { key: "opening", color: 0xef4444, visible: showOpenings, renderOrder: 4 },
+      { key: "pipe", color: 0x06b6d4, visible: showPipes, renderOrder: 3 },
     ];
 
     for (const layer of layers) {
@@ -654,7 +658,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       lines.frustumCulled = false;
       bimGroup.add(lines);
     }
-  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls, showStairs, showOpenings]);
+  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls, showStairs, showOpenings, showPipes]);
 
   const selectedDims = selectedElement?.dimensions || {};
   const nominalGrid = selectedDims.nominal_grid_hypothesis?.grid_hypothesis;
@@ -932,6 +936,24 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
               title="Показать / скрыть проёмы (двери, окна)"
             >
               🚪 Проёмы ({counts.opening})
+            </button>
+          )}
+          {(counts.pipe || 0) > 0 && (
+            <button
+              type="button"
+              className="hud-chip"
+              style={{
+                cursor: "pointer",
+                background: showPipes ? "#0891b2" : "#f5f2ed",
+                color: showPipes ? "#fff" : "#888",
+                border: "1px solid #0891b2",
+                borderRadius: "4px",
+                padding: "2px 8px",
+              }}
+              onClick={() => { setActivePreset("custom"); setShowPipes(!showPipes); }}
+              title="Показать / скрыть трубопроводы и инженерные сети (MEP)"
+            >
+              🔧 Трубы ({counts.pipe})
             </button>
           )}
           {cloud?.decimated && <span className="warn">прорежено</span>}

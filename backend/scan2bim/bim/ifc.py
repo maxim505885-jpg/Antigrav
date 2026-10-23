@@ -320,6 +320,13 @@ def export_ifc(
                         solid = _member_solid(ifc, p0, p1, section)
                         geometry_status = "square_envelope_approximation"
                     z_for_storey = min(float(p0[2]), float(p1[2]))
+            elif geom.get("start_point") and geom.get("end_point") and (geom.get("radius_m") or cls == "pipe"):
+                sp = geom["start_point"]
+                ep = geom["end_point"]
+                rad = float(geom.get("radius_m", 0.05))
+                solid = _member_solid(ifc, sp, ep, rad * 2.0)
+                geometry_status = "cylinder_envelope_approximation"
+                z_for_storey = min(float(sp[2]), float(ep[2]))
             else:
                 continue
         except Exception:
@@ -391,6 +398,15 @@ def export_ifc(
                 ObjectPlacement=placement,
                 Representation=representation,
                 PredefinedType="STRAIGHT_RUN_STAIR",
+            )
+        elif cls == "pipe":
+            product = ifc.create_entity(
+                "IfcPipeSegment",
+                GlobalId=_guid(),
+                Name=f"Pipe {element['id'][:8]}",
+                ObjectPlacement=placement,
+                Representation=representation,
+                PredefinedType="RIGIDSEGMENT",
             )
         elif cls == "opening":
             # IfcOpeningElement without a RelVoidsElement: the void is

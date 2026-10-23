@@ -16,16 +16,16 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 2** | Import & Storage | **IN PROGRESS** | 42 | Memory-mapped chunks, supported formats, source metadata; real FARO station completeness remains open |
 | **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, SPDS 3D grid, color-coded element boxes, camera controls; large-cloud LOD/performance acceptance remains open |
 | **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
-| **Stage 5** | Cleaning & Preparation | **TESTING** | 38 | Недеструктивные SOR/ROR/воксель в `processing/cleanup.py`, производные копии, API и панель |
+| **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 76 | Synthetic candidates for structural classes; real-pilot accuracy and independent labels remain open |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review, undo/redo and leakage-safe split; independent real-element labels and evaluation remain open |
-| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуски СП 70 откатаны |
+| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуск цехового пилота не определён |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
 | **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
 | **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 22 | Multi-core chunking, cancel/resume streaming, large dataset profiling |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
 
-Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. At this point only Stage 1 is fully closed (1/12); all other stages remain open, partial, or under testing.
+Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
 
 ---
 
@@ -89,7 +89,9 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Missing**: normal estimation; GPU acceleration; cleanup is capped at 5 M
   points because the cKDTree would not fit a desktop's memory honestly.
 - **Criteria**: Original point cloud coordinates remain byte-identical; slices stored as audit snapshots.
-- **Status**: **TESTING**
+- **Acceptance verified**: The cleanup suite confirms the original `positions.npy` SHA-256 is identical after filtering; the API pipeline fetches the persisted section and confirms its result and point count match the original extraction. The same route continues through editable DXF export.
+- **Verification**: `test_cleanup.py`, `test_geometry.py`, `test_api_pipeline.py` — 18 passed on October 23, 2026.
+- **Status**: **DONE**
 
 ### Stage 6 — AI & Structural Element Recognition
 - **Goal**: Automatic identification of structural building elements.
