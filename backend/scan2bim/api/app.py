@@ -45,8 +45,10 @@ from ..structure.column_surface_assignment import (
 from ..structure.column_section_series import fit_column_track_sections
 from ..structure.vertical_surfaces import extract_vertical_surfaces
 from ..processing.cleanup import apply_cleanup, write_ply, write_xyz
+from ..processing.cloud_export import EXPORT_FORMATS, CloudExportError, export_cloud
 from ..schemas import (
     CleanupRequest,
+    CloudExportRequest,
     CloudImportPath,
     CloudOut,
     ColumnTypeAssign,
@@ -1676,6 +1678,101 @@ def create_app() -> FastAPI:
             media_type=media,
             filename=f"{cloud['name']}_{derived_id}.{format}",
         )
+
+    @api.post("/clouds/{cloud_id}/export")
+    def export_cloud_endpoint(cloud_id: str, payload: CloudExportRequest):
+        """Export the registered (or a derived) cloud to E57/LAS/LAZ/PLY/XYZ."""
+        cloud = _cloud(cloud_id)
+        if cloud["status"] != "ready":
+            raise HTTPException(409, f"cloud is not ready (status: {cloud['status']})")
+        paths = cloud_paths(cloud["project_id"], cloud["id"])
+        if not paths["positions"].exists():
+            raise HTTPException(409, "cloud positions are missing on disk")
+        positions_path = paths["positions"]
+        colors_path = paths["colors"] if paths["colors"].is_file() else None
+        intensity_path = paths["intensity"] if paths["intensity"].is_file() else None
+        if payload.derived_id:
+            if len(payload.derived_id) > 64 or not all(
+                ch.isalnum() or ch in "-_" for ch in payload.derived_id
+            ):
+                raise HTTPException(404, "derived cloud not found")
+            derived_dir = paths["dir"] / "derived" / payload.derived_id
+            if not (derived_dir / "positions.npy").is_file():
+                raise HTTPException(404, "derived cloud not found")
+            positions_path = derived_dir / "positions.npy"
+            colors_path = derived_dir / "colors.npy" if (derived_dir / "colors.npy").is_file() else None
+            intensity_path = None
+
+        project_id = cloud["project_id"]
+        export_id, folder = new_export_dir(project_id, f"cloud_{payload.format}_{cloud_id[:8]}")
+        out_path = folder / f"cloud.{payload.format}"
+        job_id = create_job("cloud_export", project_id, cloud_id, f"экспорт облака в {payload.format.upper()}")
+
+        def work(progress):
+            try:
+                meta = export_cloud(
+                    positions_path,
+                    out_path,
+                    payload.format,
+                    colors_path=colors_path,
+                    intensity_path=intensity_path,
+                    progress=progress,
+                    verify=payload.verify,
+                )
+            except CloudExportError as exc:
+                raise ValueError(str(exc)) from exc
+            meta.update({"export_id": export_id, "cloud_id": cloud_id, "path": str(out_path)})
+            write_json_atomic(folder / "meta.json", meta)
+            dispatch_event(
+                "cloud.exported",
+                {"job_id": job_id, "cloud_id": cloud_id, "export_id": export_id},
+            )
+            return meta
+
+        submit(job_id, work)
+        dispatch_event("cloud.export.started", {"job_id": job_id, "cloud_id": cloud_id})
+        return get_job(job_id)
+
+    @api.get("/clouds/{cloud_id}/exports")
+    def list_cloud_exports(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        base = project_dir(cloud["project_id"]) / "exports"
+        items = []
+        if base.is_dir():
+            for meta_path in sorted(base.glob(f"cloud_*_{cloud_id[:8]}_*/meta.json")):
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                meta["export_id"] = meta_path.parent.name
+                items.append(meta)
+        return items
+
+    @api.get("/clouds/{cloud_id}/exports/{export_id}/download")
+    def download_cloud_export(cloud_id: str, export_id: str):
+        cloud = _cloud(cloud_id)
+        if len(export_id) > 64 or not all(ch.isalnum() or ch in "-_" for ch in export_id):
+            raise HTTPException(404, "export not found")
+        folder = project_dir(cloud["project_id"]) / "exports" / export_id
+        meta_path = folder / "meta.json"
+        if not meta_path.is_file():
+            raise HTTPException(404, "export not found")
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            raise HTTPException(404, "export not found") from exc
+        out_path = folder / f"cloud.{meta.get('format', 'bin')}"
+        if not out_path.is_file():
+            raise HTTPException(404, "export file is missing on disk")
+        fmt = meta.get("format", "bin")
+        media = {
+            "ply": "application/ply",
+            "xyz": "text/plain",
+            "las": "application/octet-stream",
+            "laz": "application/octet-stream",
+            "e57": "application/octet-stream",
+        }.get(fmt, "application/octet-stream")
+        return FileResponse(out_path, media_type=media, filename=out_path.name)
 
 
     @api.get("/clouds/{cloud_id}/structural-plan.dxf")
