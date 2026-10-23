@@ -30,6 +30,14 @@ def test_absent_duplicate_remote_or_wrong_height_columns_do_not_support_runway(c
     assert context(columns)['status'] == 'insufficient_context'
 
 
+def test_parallel_column_row_outside_beam_footprint_does_not_support_runway():
+    # The old fixed 0.8 m lateral allowance could associate a narrow girder
+    # with a separate parallel row of columns.
+    result = context([column(0, y=0.7), column(6, y=0.7)])
+    assert result['status'] == 'insufficient_context'
+    assert result['supports'] == []
+
+
 def test_rotated_translated_hall_uses_world_coordinates():
     result = _runway_column_context(np.array([0., 3.]), np.array([0., 1.]),
         6., 5., np.array([100., 200., 30.]),

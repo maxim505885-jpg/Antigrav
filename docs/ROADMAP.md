@@ -108,6 +108,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - A generic 3D AABB IoU evaluator accepts an explicit reference set and performs one-to-one matching. Its synthetic tests verify the metric implementation only.
   - Default grid display now uses only the user-supplied 6 m longitudinal pitch. Rows, axes, and residuals remain unset until surveyed project control is provided; explicit topologies remain available for controlled tests.
   - The expert API and knowledge summary report only the confirmed 6 m nominal longitudinal pitch; hall dimensions, axes, transverse spans, elevations, and tolerances stay unknown unless separately supplied. Unsupported sample workshop dimensions and a default 87-column count were removed.
+  - Crane-girder support context now checks whether candidate column footprints overlap the measured beam strip, with a width-aware allowance for coarse detection. A parallel column row outside that strip is rejected; the UI shows support count, spacing, and measured axis offset as evidence. This remains a review hypothesis and does not confirm a corbel, rail, or physical bearing.
 - **Open**: No independent labeled set of real workshop elements has been supplied. Detection/classification recall, precision, and dimensional accuracy on the FARO pilot are not measured.
 - **Criteria**: Candidates carry confidence and provenance, and class/geometry performance is measured against independently reviewed real workshop elements held out from tuning.
 - **Status**: **IN PROGRESS — CURRENT FOCUS**
@@ -185,7 +186,8 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Tasks**:
   - [x] Full regression test harness (`pytest backend/tests/`, `npm test`).
   - [ ] Desktop launcher exists (`desktop_app.py`), but the installer-referenced batch launcher is missing and the installed runtime path is unverified.
-  - [ ] Repair and verify the Windows installer: its current script references a nonexistent launcher and wrong source directory; no relocatable runtime bundle has been built; the current frontend/dist exists, but a reproducible build was not verified in this audit.
+  - [x] Launcher and installer source paths now match the repository; user data routes to `%LOCALAPPDATA%` and is excluded from the installation. Release preflight validates files and built UI assets.
+  - [ ] Produce a relocatable Python runtime: the bundled `.venv` still depends on Python 3.13 at the developer’s absolute path. Compile the Inno Setup package and verify installation on a clean Windows 11 machine.
   - [x] Automated end-to-end acceptance certification suite (ackend/tests/test_end_to_end_acceptance.py).
 - **Status**: **IN PROGRESS**
 

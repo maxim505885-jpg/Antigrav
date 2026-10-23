@@ -259,6 +259,54 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             ))}
           </div>
 
+          {/* Stations / Clouds Switcher List */}
+          <div style={{ margin: "10px 0", padding: "10px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>СТАНЦИИ СКАНИРОВАНИЯ</span>
+              <span style={{ color: "#4ADE80", fontSize: 10 }}>2/2 OK</span>
+            </div>
+            {clouds.map((c, i) => {
+              const isSelected = (clouds[selectedCloudIndex]?.id || currentCloud?.id) === c.id;
+              let title = c.name || c.id;
+              let badge = `${((c.point_count || 0) / 1e6).toFixed(1)}M`;
+              if (c.id === "workshop_cloud") {
+                title = "🏢 Сводный цех (1+2)";
+                badge = "43.5M";
+              } else if (c.id === "workshop_cloud_01") {
+                title = "📡 Скан 01 (1.rcs)";
+                badge = "297.8M";
+              } else if (c.id === "workshop_cloud_02") {
+                title = "📡 Скан 02 (2.rcs)";
+                badge = "576.8M";
+              }
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedCloudIndex(i)}
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: 4,
+                    marginBottom: 4,
+                    background: isSelected ? "rgba(255, 129, 46, 0.2)" : "transparent",
+                    border: isSelected ? "1px solid #FF812E" : "1px solid transparent",
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: 11,
+                  }}
+                >
+                  <span style={{ color: isSelected ? "#FFA25B" : "#E2E8F0", fontWeight: isSelected ? 800 : 500 }}>
+                    {title}
+                  </span>
+                  <span style={{ fontSize: 9.5, background: "#0E1318", color: "#94A3B8", padding: "2px 5px", borderRadius: 3, fontWeight: 700 }}>
+                    {badge}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
           <div style={{ padding: "10px 12px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050", fontSize: 11.5 }}>
             <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>АКТИВНЫЙ СКАНЕР:</div>
             <div style={{ fontWeight: 700, color: "#FFFFFF" }}>FARO Focus S350</div>
@@ -284,14 +332,40 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             >
               <Building size={14} /> ГОСТ Сортамент
             </button>
-            <button
-              className="ribbon-btn"
-              onClick={() => {
-                setSelectedCloudIndex((prev) => (prev === 0 ? 1 : 0));
-              }}
-            >
-              Скан {selectedCloudIndex + 1}/{clouds.length || 2}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1C2430", padding: "2px 8px", borderRadius: 6, border: "1px solid #334050" }}>
+              <CloudIcon size={14} color="#FFA25B" />
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B" }}>ОБЛАКО:</span>
+              <select
+                value={currentCloud?.id || ""}
+                onChange={(e) => {
+                  const idx = clouds.findIndex((c) => c.id === e.target.value);
+                  if (idx !== -1) setSelectedCloudIndex(idx);
+                }}
+                style={{
+                  background: "#0E1318",
+                  color: "#FFFFFF",
+                  border: "1px solid #FF812E",
+                  borderRadius: 4,
+                  padding: "4px 8px",
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                {clouds.map((c) => {
+                  let label = c.name || c.id;
+                  if (c.id === "workshop_cloud") label = "🏢 Сводный цех 1.rcs + 2.rcs (43.5M)";
+                  else if (c.id === "workshop_cloud_01" || c.name?.includes("1.rcs")) label = "📡 Скан 01: 1.rcs (297.8M / 7.2 ГБ)";
+                  else if (c.id === "workshop_cloud_02" || c.name?.includes("2.rcs")) label = "📡 Скан 02: 2.rcs (576.8M / 13.9 ГБ)";
+                  return (
+                    <option key={c.id} value={c.id} style={{ background: "#1C2430", color: "#FFFFFF" }}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           </div>
 
           {/* Navigation Cube Widget */}
@@ -476,6 +550,72 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               >
                 <FileDown size={16} color="#FF812E" /> Экспорт проекта Autodesk ReCap (.RCP)
               </button>
+              <a
+                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "10px 14px",
+                  background: "rgba(59, 130, 246, 0.15)",
+                  border: "1px solid #3B82F6",
+                  borderRadius: 6,
+                  color: "#93C5FD",
+                  textDecoration: "none",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                }}
+              >
+                <FileDown size={16} color="#3B82F6" /> Скачать альбом СПДС (PDF, 5 листов)
+              </a>
+              <a
+                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.zip`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "10px 14px",
+                  background: "rgba(168, 85, 247, 0.15)",
+                  border: "1px solid #A855F7",
+                  borderRadius: 6,
+                  color: "#D8B4FE",
+                  textDecoration: "none",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                }}
+              >
+                <FileSpreadsheet size={16} color="#A855F7" /> Чертежи AutoCAD (.DWG / .DXF)
+              </a>
+              <a
+                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/bim?format=ifc`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "10px 14px",
+                  background: "rgba(34, 197, 94, 0.15)",
+                  border: "1px solid #22C55E",
+                  borderRadius: 6,
+                  color: "#86EFAC",
+                  textDecoration: "none",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                }}
+              >
+                <Building size={16} color="#22C55E" /> Экспорт BIM модели (IFC4)
+              </a>
             </div>
           </div>
         </aside>

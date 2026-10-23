@@ -6,9 +6,15 @@ import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothes
 test("column context stays a runway hypothesis with unknown physical support", () => {
   const [badge] = elementEvidenceBadges({column_support_context: {
     status: "supported_hypothesis", support_spacing_m: 6,
+    supports: [
+      {axis_offset_m: 0.08},
+      {axis_offset_m: 0.14},
+    ],
   }});
   assert.match(badge.text, /колонны/);
   assert.match(badge.title, /6 м/);
+  assert.match(badge.title, /2 колонны/);
+  assert.match(badge.title, /0\.14 м/);
   assert.match(badge.title, /не подтверждены/);
   assert.equal(badge.cls, "inferred");
 });

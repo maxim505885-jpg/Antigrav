@@ -1295,7 +1295,9 @@ def _emit_horizontal_braces(
 
 
 # ------------------------------------------------------------- horizontal stage
-def _runway_column_context(center, direction, length, z_local, origin, columns):
+def _runway_column_context(
+    center, direction, length, z_local, origin, columns, member_thickness_m=0.4,
+):
     """Geometric context only: nearby columns cannot prove a crane runway.
 
     Search margins are proposal heuristics, not engineering tolerances.
@@ -1321,15 +1323,22 @@ def _runway_column_context(center, direction, length, z_local, origin, columns):
         delta = (lo[:2] + hi[:2]) / 2 - world_center
         along, across = float(delta @ direction), abs(float(delta @ normal))
         half_width = float(np.abs(normal) @ (hi[:2] - lo[:2])) / 2
-        if abs(along) <= length / 2 + 0.6 and across <= half_width + 0.8:
+        # A column supports this candidate only when its footprint reaches the
+        # beam strip (allowing 20 cm for coarse detection and scan occlusion).
+        # The previous fixed 0.8 m offset linked beams to a separate parallel
+        # column row, which made the runway context misleading.
+        lateral_gap = max(0.15, float(member_thickness_m) / 2 + 0.20)
+        if abs(along) <= length / 2 + 0.6 and across <= half_width + lateral_gap:
             supports.append({"column_index": index, "along_m": round(along, 4),
-                             "axis_offset_m": round(across, 4)})
+                             "axis_offset_m": round(across, 4),
+                             "axis_offset_limit_m": round(half_width + lateral_gap, 4)})
     spacing = max((s["along_m"] for s in supports), default=0) - min(
         (s["along_m"] for s in supports), default=0)
     return {"status": "supported_hypothesis" if spacing >= 2.0 else "insufficient_context",
             "supports": supports, "support_spacing_m": round(spacing, 4),
+            "support_count": len(supports),
             "requires_review": True,
-            "basis": "column bbox proximity and height; rail/corbel not verified"}
+            "basis": "column height, span and overlap with the measured beam strip; rail/corbel not verified"}
 
 
 def _horizontal_members(
@@ -1400,6 +1409,7 @@ def _horizontal_members(
             confidence = 0.45
             column_context = _runway_column_context(
                 center, direction, length, (bz0 + bz1) / 2, geom.origin, columns or [],
+                member_thickness_m=thickness,
             )
             if diagonal:
                 if kind in ("crane", "roof") and length >= BRACE_MIN_LENGTH_M:

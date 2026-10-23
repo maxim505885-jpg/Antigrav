@@ -86,9 +86,18 @@ export function elementEvidenceBadges(metadata: EvidenceMetadata | null | undefi
     const value = context as Record<string, unknown>;
     if (value.status === "supported_hypothesis") {
       const spacing = value.support_spacing_m;
+      const supports = Array.isArray(value.supports) ? value.supports : [];
+      const offsets = supports
+        .map((item) => item && typeof item === "object"
+          ? (item as Record<string, unknown>).axis_offset_m
+          : undefined)
+        .filter((item): item is number => typeof item === "number" && Number.isFinite(item));
+      const offsetText = offsets.length
+        ? ` Макс. смещение оси балки от найденных колонн: ${Math.max(...offsets).toFixed(2)} м.`
+        : "";
       badges.push({
         text: "рядом колонны · роль балки проверить",
-        title: `Найдены разнесённые колонны подходящей высоты.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Расстояние: ${spacing} м.` : ""} Опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
+        title: `Найдены ${supports.length || "разнесённые"} колонны подходящей высоты.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Крайние найденные колонны разнесены на ${spacing} м.` : ""}${offsetText} Опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
         cls: "inferred",
       });
     } else if (value.status === "insufficient_context") {
