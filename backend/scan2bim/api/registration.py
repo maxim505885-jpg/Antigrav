@@ -16,6 +16,8 @@ from ..registration.stitching import (
     create_recap_registration_project,
     compute_pairwise_svd_alignment,
 )
+from ..registration.targets import detect_spherical_targets
+from ..registration.bundle_adjustment import optimize_pose_graph
 from ..storage import cloud_paths
 
 router = APIRouter(tags=["registration"])
@@ -41,6 +43,26 @@ class StitchingRequest(BaseModel):
     max_iterations: int = Field(default=30, ge=5, le=100)
     tolerance_m: float = Field(default=0.001, ge=0.0001, le=0.05)
     random_seed: int = Field(default=0, ge=0)
+
+
+class TargetDetectRequest(BaseModel):
+    cloud_id: str
+    expected_radius_m: float = Field(default=0.0725, ge=0.02, le=0.5, description="Expected radius in meters (e.g. 0.0725 for 145mm)")
+    sample_points: int = Field(default=200000, ge=10, le=2000000)
+
+
+class PoseGraphConstraint(BaseModel):
+    from_id: str
+    to_id: str
+    matrix_4x4: list[list[float]]
+    weight: float = Field(default=1.0, ge=0.01, le=100.0)
+    rmse_mm: float | None = None
+
+
+class BundleAdjustmentRequest(BaseModel):
+    station_ids: list[str] = Field(..., min_length=2)
+    constraints: list[PoseGraphConstraint] = Field(..., min_length=1)
+    fixed_station_id: str | None = None
 
 
 class RecapExportRequest(BaseModel):
@@ -178,6 +200,34 @@ def match_clouds_icp(req: StitchingRequest):
         np.asarray(result["target_sample_indices"], dtype=np.int64)
     ].tolist()
     return result
+
+
+@router.post("/registration/detect-targets")
+def detect_targets_endpoint(req: TargetDetectRequest):
+    """Detect geodetic spheres (145mm/100mm/200mm) with sub-millimeter precision."""
+    pts, _ = _load_cloud_points(req.cloud_id, req.sample_points)
+    targets = detect_spherical_targets(pts, expected_radius_m=req.expected_radius_m)
+    return {
+        "status": "ok",
+        "cloud_id": req.cloud_id,
+        "targets_found": len(targets),
+        "targets": targets,
+    }
+
+
+@router.post("/registration/bundle-adjustment")
+def bundle_adjustment_endpoint(req: BundleAdjustmentRequest):
+    """Run global multi-station pose graph optimization to eliminate drift."""
+    try:
+        raw_constraints = [c.model_dump() for c in req.constraints]
+        result = optimize_pose_graph(
+            station_ids=req.station_ids,
+            relative_constraints=raw_constraints,
+            fixed_station_id=req.fixed_station_id,
+        )
+        return {"status": "ok", **result}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/registration/export-ply")
