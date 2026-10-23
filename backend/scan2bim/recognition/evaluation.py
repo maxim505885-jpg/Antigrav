@@ -1,104 +1,138 @@
-"""Evaluation and verification metrics for Stage 6 (AI & Geometric Recognition).
+"""Evaluate recognition output against an explicitly supplied reference set.
 
-Evaluates candidate element detections against the verified workshop ground truth dataset:
-- 3D Bounding Box Intersection-over-Union (IoU).
-- Per-class and aggregate Detection Precision, Recall, and F1-score.
-- Bounding box dimension residuals (length, thickness, height errors in mm/m).
+This module never manufactures workshop truth. Metrics describe only the
+reference annotations passed by the caller; synthetic fixtures test the metric
+implementation and are not evidence of field accuracy.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
-import numpy as np
 
-from ..learning.ground_truth import generate_workshop_ground_truth_catalog, GroundTruthElement
+import numpy as np
+from scipy.optimize import linear_sum_assignment
+
+
+def _valid_bbox(value: Any, name: str) -> dict[str, list[float]]:
+    if not isinstance(value, dict) or not {"min", "max"}.issubset(value):
+        raise ValueError(f"{name} must contain min and max")
+    result: dict[str, list[float]] = {}
+    for bound in ("min", "max"):
+        raw = value[bound]
+        if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+            raise ValueError(f"{name}.{bound} must be a finite 3D point")
+        if any(isinstance(item, bool) for item in raw):
+            raise ValueError(f"{name}.{bound} must be a finite 3D point")
+        try:
+            coords = [float(item) for item in raw]
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(f"{name}.{bound} must be a finite 3D point") from exc
+        if not all(math.isfinite(item) for item in coords):
+            raise ValueError(f"{name}.{bound} must be a finite 3D point")
+        result[bound] = coords
+    if any(result["max"][index] <= result["min"][index] for index in range(3)):
+        raise ValueError(f"{name} must have positive volume")
+    return result
+
+
+def _records(items: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        raise ValueError(f"{name} must be a list")
+    clean = []
+    seen: set[str] = set()
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ValueError(f"{name}[{index}] must be an object")
+        record_id = item.get("id")
+        class_name = item.get("class_name")
+        if not isinstance(record_id, str) or not record_id.strip() or record_id in seen:
+            raise ValueError(f"{name}[{index}].id must be unique and non-empty")
+        if not isinstance(class_name, str) or not class_name.strip():
+            raise ValueError(f"{name}[{index}].class_name must be non-empty")
+        seen.add(record_id)
+        clean.append({
+            "id": record_id,
+            "class_name": class_name,
+            "bbox": _valid_bbox(item.get("bbox"), f"{name}[{index}].bbox"),
+        })
+    return clean
 
 
 def compute_3d_box_iou(bbox_a: dict[str, list[float]], bbox_b: dict[str, list[float]]) -> float:
-    """Compute 3D Axis-Aligned Bounding Box (AABB) Intersection over Union."""
-    min_a = np.array(bbox_a["min"])
-    max_a = np.array(bbox_a["max"])
-    min_b = np.array(bbox_b["min"])
-    max_b = np.array(bbox_b["max"])
-
-    inter_min = np.maximum(min_a, min_b)
-    inter_max = np.minimum(max_a, max_b)
-    inter_dims = np.maximum(0.0, inter_max - inter_min)
-    intersection_vol = float(np.prod(inter_dims))
-
-    vol_a = float(np.prod(np.maximum(0.0, max_a - min_a)))
-    vol_b = float(np.prod(np.maximum(0.0, max_b - min_b)))
-
-    union_vol = vol_a + vol_b - intersection_vol
-    if union_vol <= 1e-9:
-        return 0.0
-    return intersection_vol / union_vol
+    """Compute axis-aligned 3D box intersection over union."""
+    a = _valid_bbox(bbox_a, "bbox_a")
+    b = _valid_bbox(bbox_b, "bbox_b")
+    min_a, max_a = np.asarray(a["min"]), np.asarray(a["max"])
+    min_b, max_b = np.asarray(b["min"]), np.asarray(b["max"])
+    inter_dims = np.maximum(0.0, np.minimum(max_a, max_b) - np.maximum(min_a, min_b))
+    intersection = float(np.prod(inter_dims))
+    volume_a = float(np.prod(max_a - min_a))
+    volume_b = float(np.prod(max_b - min_b))
+    union = volume_a + volume_b - intersection
+    return intersection / union if union > 0 else 0.0
 
 
-def evaluate_recognition_against_ground_truth(
+def evaluate_recognition(
     detected_candidates: list[dict[str, Any]],
+    reference_elements: list[dict[str, Any]],
     iou_threshold: float = 0.50,
+    reference_set_id: str | None = None,
+    reference_kind: str = "unspecified",
 ) -> dict[str, Any]:
-    """Measure precision, recall, F1, and mean IoU against the 106-element workshop ground truth."""
-    catalog = generate_workshop_ground_truth_catalog()
-    classes = sorted(list({elem.class_name for elem in catalog}))
+    """Measure one-to-one box matches against caller-supplied reference labels.
 
-    metrics_per_class: dict[str, dict[str, Any]] = {}
-    total_tp = 0
-    total_fp = 0
-    total_fn = 0
+    `reference_elements` must contain `{id, class_name, bbox: {min, max}}`.
+    The caller is responsible for the independence and provenance of those
+    references. This function does not assert that they are physical survey data.
+    """
+    if isinstance(iou_threshold, bool) or not isinstance(iou_threshold, (int, float)):
+        raise ValueError("iou_threshold must be finite and within (0, 1]")
+    threshold = float(iou_threshold)
+    if not math.isfinite(threshold) or not 0.0 < threshold <= 1.0:
+        raise ValueError("iou_threshold must be finite and within (0, 1]")
+    if not isinstance(reference_kind, str) or not reference_kind.strip():
+        raise ValueError("reference_kind must be non-empty")
+    if reference_set_id is not None and (not isinstance(reference_set_id, str) or not reference_set_id.strip()):
+        raise ValueError("reference_set_id must be non-empty when supplied")
+
+    detections = _records(detected_candidates, "detected_candidates")
+    references = _records(reference_elements, "reference_elements")
+    classes = sorted({record["class_name"] for record in detections + references})
+    per_class: dict[str, dict[str, Any]] = {}
+    total_tp = total_fp = total_fn = 0
     matched_ious: list[float] = []
 
-    for cls in classes:
-        gt_class = [gt for gt in catalog if gt.class_name == cls]
-        det_class = [d for d in detected_candidates if d.get("class_name") == cls]
+    for class_name in classes:
+        refs = [record for record in references if record["class_name"] == class_name]
+        dets = [record for record in detections if record["class_name"] == class_name]
+        ious = np.zeros((len(dets), len(refs)), dtype=np.float64)
+        for det_idx, det in enumerate(dets):
+            for ref_idx, ref in enumerate(refs):
+                ious[det_idx, ref_idx] = compute_3d_box_iou(det["bbox"], ref["bbox"])
 
-        # Cost matrix of IoU between detected candidates and ground truth
-        matched_gt = set()
-        tp = 0
-        fp = 0
+        # First maximize the number of matches over threshold, then maximize
+        # IoU among those matches. Greedy detection order can lose valid matches.
+        if ious.size:
+            weights = np.where(ious >= threshold, 1_000_000.0 + ious, -1_000_000.0)
+            det_indices, ref_indices = linear_sum_assignment(weights, maximize=True)
+            matched = [
+                (int(det_idx), int(ref_idx), float(ious[det_idx, ref_idx]))
+                for det_idx, ref_idx in zip(det_indices, ref_indices)
+                if ious[det_idx, ref_idx] >= threshold
+            ]
+        else:
+            matched = []
 
-        for det in det_class:
-            det_bbox = det.get("bbox") or {}
-            if "min" not in det_bbox or "max" not in det_bbox:
-                fp += 1
-                continue
-
-            best_iou = 0.0
-            best_gt_idx = -1
-
-            for idx, gt in enumerate(gt_class):
-                if idx in matched_gt:
-                    continue
-                # Derive ground truth bbox
-                half_l = gt.sizes.get("length", 0.3) / 2.0
-                half_w = gt.sizes.get("thickness", 0.3) / 2.0
-                half_h = gt.sizes.get("height", 3.0) / 2.0
-                cx, cy, cz = gt.center
-                gt_bbox = {
-                    "min": [cx - half_l, cy - half_w, cz - half_h],
-                    "max": [cx + half_l, cy + half_w, cz + half_h],
-                }
-
-                iou = compute_3d_box_iou(det_bbox, gt_bbox)
-                if iou > best_iou:
-                    best_iou = iou
-                    best_gt_idx = idx
-
-            if best_iou >= iou_threshold and best_gt_idx >= 0:
-                matched_gt.add(best_gt_idx)
-                matched_ious.append(best_iou)
-                tp += 1
-            else:
-                fp += 1
-
-        fn = len(gt_class) - len(matched_gt)
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-
-        metrics_per_class[cls] = {
-            "ground_truth_count": len(gt_class),
-            "detected_count": len(det_class),
+        tp = len(matched)
+        fp = len(dets) - tp
+        fn = len(refs) - tp
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        matched_ious.extend(iou for _det, _ref, iou in matched)
+        per_class[class_name] = {
+            "reference_count": len(refs),
+            "detected_count": len(dets),
             "true_positives": tp,
             "false_positives": fp,
             "false_negatives": fn,
@@ -106,27 +140,23 @@ def evaluate_recognition_against_ground_truth(
             "recall": round(recall, 4),
             "f1": round(f1, 4),
         }
-
         total_tp += tp
         total_fp += fp
         total_fn += fn
 
-    global_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
-    global_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
-    global_f1 = (
-        (2 * global_precision * global_recall) / (global_precision + global_recall)
-        if (global_precision + global_recall) > 0
-        else 0.0
-    )
-    mean_iou = float(np.mean(matched_ious)) if matched_ious else 0.0
-
+    precision = total_tp / (total_tp + total_fp) if total_tp + total_fp else 0.0
+    recall = total_tp / (total_tp + total_fn) if total_tp + total_fn else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
-        "benchmark_dataset_elements": len(catalog),
-        "total_detected_candidates": len(detected_candidates),
-        "iou_threshold": iou_threshold,
-        "mean_matched_iou": round(mean_iou, 4),
-        "overall_precision": round(global_precision, 4),
-        "overall_recall": round(global_recall, 4),
-        "overall_f1": round(global_f1, 4),
-        "per_class": metrics_per_class,
+        "metric_scope": "caller_supplied_reference_annotations_only",
+        "reference_set_id": reference_set_id,
+        "reference_kind": reference_kind,
+        "reference_element_count": len(references),
+        "total_detected_candidates": len(detections),
+        "iou_threshold": threshold,
+        "mean_matched_iou": round(float(np.mean(matched_ious)), 4) if matched_ious else 0.0,
+        "overall_precision": round(precision, 4),
+        "overall_recall": round(recall, 4),
+        "overall_f1": round(f1, 4),
+        "per_class": per_class,
     }

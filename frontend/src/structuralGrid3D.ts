@@ -1,6 +1,7 @@
 /**
- * Structural Coordination Grid (Координационная сетка СПДС цеха)
- * 3 Spans (4 rows: А, Б, В, Г), 24 Transverse Axes (1..24, step 6000 mm).
+ * Provisional visual template for layout exploration, not surveyed project control.
+ * Its origin, rotation, row offsets and axis count are hypotheses; only the 6 m
+ * nominal longitudinal pitch was supplied by the user.
  */
 
 export interface GridAxisNode {

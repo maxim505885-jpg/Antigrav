@@ -23,6 +23,8 @@ def test_structural_fitting_synthetic():
     cloud_pts = np.vstack(pts)
     res = extract_actual_workshop_structural_members(cloud_pts, rotation_deg=0.0)
 
+    assert res["result_type"] == "experimental_hypothesis"
+    assert res["verified"] is False
     assert len(res["crane_rails"]) >= 1
     rail = res["crane_rails"][0]
     assert abs(rail["y_local_m"] - 6.0) < 0.2

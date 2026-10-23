@@ -1,5 +1,8 @@
-"""Fitted structural frame extractor: extracts actual crane beam axes and roof truss positions
-directly from cloud points, complementing column recognition.
+"""Experimental coordinate-band prototype, not used by the production detector.
+
+This routine assumes a hand-set rotation, fixed scan-Z ranges, fixed local-Y
+rows, and synthetic density thresholds. Its output is a hypothesis only; it
+must not be used as measured workshop geometry or as an acceptance result.
 """
 from __future__ import annotations
 
@@ -76,6 +79,9 @@ def extract_actual_workshop_structural_members(
                 })
 
     return {
+        "result_type": "experimental_hypothesis",
+        "verified": False,
+        "method": "fixed coordinate bands and synthetic density thresholds",
         "rotation_deg": rotation_deg,
         "crane_rails": crane_rails,
         "trusses": detected_trusses,

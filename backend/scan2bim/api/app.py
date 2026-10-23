@@ -1744,7 +1744,9 @@ def create_app() -> FastAPI:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     continue
-                meta["export_id"] = meta_path.parent.name
+                # Keep the public ID stable and usable by the download route;
+                # the directory name also includes the descriptive prefix.
+                meta.setdefault("export_id", meta_path.parent.name.rsplit("_", 1)[-1])
                 items.append(meta)
         return items
 
@@ -1753,10 +1755,16 @@ def create_app() -> FastAPI:
         cloud = _cloud(cloud_id)
         if len(export_id) > 64 or not all(ch.isalnum() or ch in "-_" for ch in export_id):
             raise HTTPException(404, "export not found")
-        folder = project_dir(cloud["project_id"]) / "exports" / export_id
+        base = project_dir(cloud["project_id"]) / "exports"
+        folder = base / export_id
+        if not (folder / "meta.json").is_file():
+            # new_export_dir stores exports as ``<prefix>_<export_id>``; the job
+            # result carries the bare id, so resolve by folder-name suffix.
+            matches = [p.parent for p in base.glob(f"*_{export_id}/meta.json")]
+            if len(matches) != 1:
+                raise HTTPException(404, "export not found")
+            folder = matches[0]
         meta_path = folder / "meta.json"
-        if not meta_path.is_file():
-            raise HTTPException(404, "export not found")
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
         except ValueError as exc:

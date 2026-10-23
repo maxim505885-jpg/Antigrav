@@ -59,14 +59,15 @@ def _load(positions_path: Path, colors_path: Path | None, intensity_path: Path |
     )
     if intensity is not None and len(intensity) != n:
         intensity = None
-    finite = np.isfinite(np.asarray(positions[: min(n, 1000)])).all()
-    if not finite:
-        mask = np.isfinite(positions).all(axis=1)
-        positions = np.asarray(positions[mask])
-        if colors is not None:
-            colors = np.asarray(colors)[mask]
-        if intensity is not None:
-            intensity = np.asarray(intensity)[mask]
+    # Validate the full memory-mapped file in bounded slices. Silently
+    # dropping bad coordinates would make exports differ from the source and
+    # could hide corruption in a large scan beyond the first sample.
+    for start in range(0, n, CHUNK):
+        stop = min(start + CHUNK, n)
+        if not np.isfinite(positions[start:stop]).all():
+            raise CloudExportError(
+                f"cloud positions contain non-finite coordinates in points {start}:{stop}"
+            )
     return positions, colors, intensity
 
 

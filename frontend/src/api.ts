@@ -559,13 +559,17 @@ export const api = {
         drafting_rules: string;
       }>;
       workshop_topology: {
-        hall_length_m: number;
-        hall_width_m: number;
-        spans: { name: string; row_from: string; row_to: string; width_m: number }[];
-        rows: Record<string, number>;
-        bay_step_m: number;
-        axes_count: number;
-        elevations: Record<string, { z_scan: number; label: string }>;
+        confirmed_inputs: {
+          longitudinal_column_pitch_m: number;
+          source: string;
+        };
+        engineering_tolerance_mm: number | null;
+        hall_length_m: number | null;
+        hall_width_m: number | null;
+        spans: { name: string; row_from: string; row_to: string; width_m: number }[] | null;
+        rows: Record<string, number> | null;
+        axes_count: number | null;
+        elevations: Record<string, { z_scan: number; label: string }> | null;
         crane_capacity_tons: number | null;
         standards: string[];
       };

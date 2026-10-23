@@ -63,7 +63,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const groupSphereRef = useRef<THREE.Sphere | null>(null);
   const bimGroupRef = useRef<THREE.Group | null>(null);
   const gridGroupRef = useRef<THREE.Group | null>(null);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
   const [showCloud, setShowCloud] = useState(true);
   const [showColumns, setShowColumns] = useState(true);
   const [showBeams, setShowBeams] = useState(true);
@@ -808,9 +808,9 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
               fontWeight: showGrid ? 700 : 500,
             }}
             onClick={() => setShowGrid(!showGrid)}
-            title="Показать / скрыть координационные оси 1..24 и А..Г (шаг 6000 мм)"
+            title="Схематическая сетка-шаблон: шаг 6 м. Начало координат, поворот и поперечные ряды не подтверждены контрольной съёмкой."
           >
-            📐 Сетка осей (6000 мм)
+            {showGrid ? "📐 Скрыть сетку-шаблон" : "📐 Сетка-шаблон (6 м)"}
           </button>
           {(counts.column || 0) > 0 && (
             <button
