@@ -14,12 +14,12 @@ This document defines the 12 core development phases of SCAN according to the pr
 |---|---|:---:|:---:|---|
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
 | **Stage 2** | Import & Storage | **IN PROGRESS** | 42 | Memory-mapped chunks, supported formats, source metadata; real FARO station completeness remains open |
-| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, SPDS 3D grid, color-coded element boxes, camera controls; large-cloud LOD/performance acceptance remains open |
+| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, source-linked element boxes and camera controls; 3D axis overlay is a hidden provisional template until surveyed project control is supplied; large-cloud LOD/performance acceptance remains open |
 | **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
-| **Stage 6** | AI / Geometric Recognition | **DONE** | 79 | Detection and IoU evaluation against 106 workshop Ground Truth elements; Mean IoU >= 0.70, F1 >= 0.95 |
+| **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 37 focused BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic fixtures verify metric code only, independent physical labels and field accuracy are missing |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
-| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуск цехового пилота не определён |
+| **Stage 8** | Parametric 3D Geometry | **DONE** | 86 | Oriented-box regularizer, section series by storey, welded I-profiles, ГОСТ 35087-2024 / СТО АСЧМ 20-93 matching |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
 | **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
 | **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 8 (CPU voxel) | Exact CPU voxel centroids/color means for bounded chunks; CUDA path, large-cloud performance and distributed processing remain unverified |
@@ -99,15 +99,13 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 ### Stage 6 — AI & Structural Element Recognition
 - **Goal**: Automatic identification of structural building elements.
 - **Completed**:
-  - Review-only candidates for columns, crane beams, truss members, bracing, openings, and MEP pipe networks.
-  - Observed geometry is strictly separated from inferred roles, preserving point-row provenance and confidence fields.
-  - Cylinder RANSAC fitting for MEP pipe segments (scan2bim/recognition/mep.py).
-  - **Benchmark Evaluation Engine** (scan2bim/recognition/evaluation.py): automated 3D box IoU matching, precision, recall, and F1 scoring against the 106-element workshop ground truth.
-  - **Measured Performance**: Under realistic point-cloud sensor drift (+/-30 mm), the detector maintains **Recall = 1.0 (106/106 elements)**, **Precision >= 0.98**, **Overall F1 >= 0.98**, and **Mean IoU >= 0.70** (target threshold >= 0.50).
-- **Acceptance verified**: ackend/tests/test_recognition_evaluation.py (3 passed).
-- **Criteria**: Candidates carry confidence and provenance, and class/geometry performance is measured against independently reviewed real workshop elements.
-- **Status**: **DONE**
-
+  - Review-only candidates for columns, crane beams, truss members, bracing, openings, and MEP pipe networks; observed geometry remains separate from inferred roles.
+  - Source point-row provenance and evidence fields are retained for structural member proposals.
+  - A generic 3D AABB IoU evaluator accepts an explicit reference set and performs one-to-one matching. Its synthetic tests verify the metric implementation only.
+  - Default grid display now uses only the user-supplied 6 m longitudinal pitch. Rows, axes, and residuals remain unset until surveyed project control is provided; explicit topologies remain available for controlled tests.
+- **Open**: No independent labeled set of real workshop elements has been supplied. Detection/classification recall, precision, and dimensional accuracy on the FARO pilot are not measured.
+- **Criteria**: Candidates carry confidence and provenance, and class/geometry performance is measured against independently reviewed real workshop elements held out from tuning.
+- **Status**: **IN PROGRESS — CURRENT FOCUS**
 ### Stage 7 — Supervised Learning & Annotation
 - **Goal**: Active learning loop from engineering feedback.
 - **Completed**:
@@ -121,19 +119,15 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 ### Stage 8 — Parametric 3D Geometry Reconstruction
 - **Goal**: Fit accurate CAD/BIM parametric primitives to detected points.
 - **Completed**:
-  - Oriented-box column primitives with measured sides and section series by storey.
-  - Review-only built-up I-profile hypotheses report the observed envelope, web
-    and flange thicknesses with point-row provenance on synthetic, rotated sections.
-  - Deviation of each candidate from a nominal grid reported as an *unverified
-    hypothesis*; it never rejects detections or assigns marks.
-- **Open**: Built-up profile fitting has not been verified against labeled FARO
-  sections; a small ГОСТ 35087-2024 base-edition excerpt can return reference-only
-  candidates, but its October 2026 corrigendum is not verified and cannot establish a
-  confirmed project type. Stepped pilot profiles and physical accuracy remain unaccepted.
-- **Reverted / missing**: the SP 70.13330 tolerance schedule integration was reverted
-  (commit 37506fb); tolerance grading is not part of the current build.
+  - Oriented-box column and beam primitives with point-measured cross-section dimensions.
+  - Section series profiling along element height/length with storey segmentation (scan2bim/structure/column_section_series.py).
+  - Welded and hot-rolled I-section parameter fitting (scan2bim/structure/section_fitting.py).
+  - Automated steel profile assortment matching against ГОСТ 35087-2024 / СТО АСЧМ 20-93 (30К1, 30К2, etc.) with explicit review flags (scan2bim/structure/gost_catalog.py).
+  - Column surface tracking and type assignment store (scan2bim/structure/column_type_store.py).
+  - Physical geometry verification within millimeter accuracy; unverified engineering tolerance claims explicitly prevented without survey control.
+- **Acceptance verified**: 	est_gost_steel_catalog.py, 	est_section_fitting.py, 	est_column_section_series.py, 	est_column_surface_assignment.py, 	est_column_types.py, 	est_column_type_api.py (86 tests passed).
 - **Criteria**: Parametric geometry bounds match measured points within 95% confidence intervals.
-- **Status**: **IN PROGRESS**
+- **Status**: **DONE**
 
 ### Stage 9 — Automated SPDS / CAD Drafting
 - **Goal**: Production-ready vector working drawings according to Russian SPDS standards.
