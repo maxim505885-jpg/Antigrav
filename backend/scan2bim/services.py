@@ -80,7 +80,12 @@ def _restore_element_state(element_id: str, state: dict[str, Any]) -> dict[str, 
 
 
 def list_elements(cloud_id: str) -> list[dict[str, Any]]:
-    return [element_from_row(r) for r in rows("SELECT * FROM elements WHERE cloud_id = ? ORDER BY class_name, id", (cloud_id,))]
+    els = [element_from_row(r) for r in rows("SELECT * FROM elements WHERE cloud_id = ? ORDER BY class_name, id", (cloud_id,))]
+    if not els:
+        c_row = one("SELECT project_id FROM clouds WHERE id = ?", (cloud_id,))
+        if c_row:
+            els = [element_from_row(r) for r in rows("SELECT * FROM elements WHERE project_id = ? ORDER BY class_name, id", (c_row["project_id"],))]
+    return els
 
 
 def _update_element(element_id: str, updates: dict[str, Any]) -> dict[str, Any]:

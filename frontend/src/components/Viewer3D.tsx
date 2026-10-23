@@ -24,6 +24,11 @@ interface Props {
   enableEDL?: boolean;
   showPlane: boolean;
   section: { kind: "horizontal" | "vertical"; axis: "x" | "y"; position: number } | null;
+  hideInternalHud?: boolean;
+  limitBoxActive?: boolean;
+  onToggleLimitBox?: (active: boolean) => void;
+  measureModeActive?: boolean;
+  onToggleMeasureMode?: (active: boolean) => void;
 }
 
 interface RawGeometry {
@@ -53,7 +58,23 @@ function heightColors(z: Float32Array): Uint8Array {
   return colors;
 }
 
-export default function Viewer3D({ cloud, elements = [], groupPositions, selectedElement, selectedElementPositions, selectedElementSections, pointSize, colorMode, showPlane, section }: Props) {
+export default function Viewer3D({
+  cloud,
+  elements = [],
+  groupPositions,
+  selectedElement,
+  selectedElementPositions,
+  selectedElementSections,
+  pointSize,
+  colorMode,
+  showPlane,
+  section,
+  hideInternalHud,
+  limitBoxActive,
+  onToggleLimitBox,
+  measureModeActive,
+  onToggleMeasureMode,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -82,6 +103,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   // ReCap Limit Box state
   const [showLimitBox, setShowLimitBox] = useState(false);
+  const isLimitBoxOpen = limitBoxActive !== undefined ? limitBoxActive : showLimitBox;
   const [limitBox, setLimitBox] = useState<LimitBoxRange>({
     minX: -50,
     maxX: 50,
@@ -96,8 +118,9 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
   // ReCap 3D Laser Measurement state
   const [measureMode, setMeasureMode] = useState(false);
+  const isMeasureActive = measureModeActive !== undefined ? measureModeActive : measureMode;
   const measureModeRef = useRef(false);
-  measureModeRef.current = measureMode;
+  measureModeRef.current = isMeasureActive;
   const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
   const measurePointsRef = useRef<THREE.Vector3[]>([]);
   measurePointsRef.current = measurePoints;
@@ -252,7 +275,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     const camera = cameraRef.current, controls = controlsRef.current;
     if (!camera || !controls) return;
     const radius = Math.max(1, sphere.radius);
-    const distance = groupCameraDistance(radius, camera.fov, camera.aspect);
+    const aspect = Math.max(0.1, camera.aspect || 1);
+    const distance = groupCameraDistance(radius, camera.fov, aspect);
     const direction = camera.position.clone().sub(controls.target).normalize();
     if (direction.lengthSq() === 0) direction.set(1, -1, 0.8).normalize();
     controls.target.copy(sphere.center);
@@ -267,7 +291,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     const host = hostRef.current;
     if (!host) return;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xfaf8f5);
+    scene.background = new THREE.Color(0x0a0e13);
     const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 5000);
     camera.up.set(0, 0, 1);
     camera.position.set(9, -11, 8);
@@ -283,7 +307,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     controls.dampingFactor = 0.08;
     controls.screenSpacePanning = true;
     controls.target.set(0, 0, 0);
-    const grid = new THREE.GridHelper(40, 40, 0xc8beb3, 0xe5ddd4);
+    const grid = new THREE.GridHelper(80, 80, 0xff812e, 0x223040);
     grid.rotation.x = Math.PI / 2;
     grid.position.z = -0.001;
     scene.add(grid);
@@ -614,7 +638,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
               new THREE.Vector3(...manifest.bounds.center),
               Math.max(1, Math.hypot(...size) / 2),
             );
-            const initialDistance = groupCameraDistance(sphere.radius, camera.fov, camera.aspect);
+            const aspect = Math.max(0.1, camera.aspect || 1);
+            const initialDistance = groupCameraDistance(sphere.radius, camera.fov, aspect);
             const initialLevel = selectLodLevel(manifest.levels, initialDistance);
             if (initialLevel != null && await fetchLevel(initialLevel)) {
               fitSphere(groupSphereRef.current ?? sphere);
@@ -987,6 +1012,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   return (
     <div className="viewer">
       <div ref={hostRef} className="viewer-canvas" />
+      {!hideInternalHud && (
       <div className="viewer-hud">
         {/* Preset Mode Bar */}
         <div className="viewer-hud-row" style={{ borderBottom: "1px solid rgba(200, 190, 180, 0.4)", paddingBottom: "5px" }}>
@@ -1326,6 +1352,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
           {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
         </div>
       </div>
+      )}
       {selectedElement && (
         <div
           className="viewer-selected-card"
@@ -1399,8 +1426,11 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}
       {/* ReCap Limit Box Dock */}
       <LimitBoxDock
-        visible={showLimitBox}
-        onClose={() => setShowLimitBox(false)}
+        visible={isLimitBoxOpen}
+        onClose={() => {
+          setShowLimitBox(false);
+          onToggleLimitBox?.(false);
+        }}
         box={limitBox}
         onChange={(b) => setLimitBox(b)}
         onPreset={handleLimitBoxPreset}
@@ -1408,9 +1438,10 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
 
       {/* ReCap 3D Laser Measurement Dock */}
       <Measure3DDock
-        active={measureMode}
+        active={isMeasureActive}
         onToggle={() => {
           setMeasureMode(false);
+          onToggleMeasureMode?.(false);
           handleClearMeasurement();
         }}
         result={measureResult}

@@ -102,6 +102,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
   const [selectedCloudIndex, setSelectedCloudIndex] = useState(0);
+  const [showLimitBox, setShowLimitBox] = useState(false);
+  const [measureMode, setMeasureMode] = useState(false);
 
   const [layers, setLayers] = useState({
     pointCloud: true,
@@ -318,9 +320,40 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         <main className="viewport-center">
           {/* Floating 3D Tools Ribbon */}
           <div className="viewport-tools-ribbon">
-            <button className="ribbon-btn active" title="Выбор"><Crosshair size={14} /> Выбор</button>
-            <button className="ribbon-btn" title="Замер"><Maximize2 size={14} /> Замер</button>
-            <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><Camera size={14} /> Панорама</button>
+            <button className="ribbon-btn active" title="Режим выбора и осмотра">
+              <Crosshair size={14} /> Выбор
+            </button>
+            <button
+              className={`ribbon-btn ${measureMode ? "active" : ""}`}
+              onClick={() => setMeasureMode(!measureMode)}
+              style={{
+                background: measureMode ? "rgba(56, 189, 248, 0.25)" : "transparent",
+                color: measureMode ? "#38BDF8" : "#E2E8F0",
+                borderColor: measureMode ? "#38BDF8" : undefined,
+              }}
+              title="Лазерный 3D дальномер (ReCap Laser Measure): расстояние, уклон, высотная отметка"
+            >
+              <Maximize2 size={14} /> 3D Замер
+            </button>
+            <button
+              className={`ribbon-btn ${showLimitBox ? "active" : ""}`}
+              onClick={() => setShowLimitBox(!showLimitBox)}
+              style={{
+                background: showLimitBox ? "rgba(255, 129, 46, 0.25)" : "transparent",
+                color: showLimitBox ? "#FF812E" : "#E2E8F0",
+                borderColor: showLimitBox ? "#FF812E" : undefined,
+              }}
+              title="Ограничивающий куб (Limit Box): аппаратная обрезка облака точек по осям X, Y, Z"
+            >
+              <Layers size={14} /> Limit Box
+            </button>
+            <button
+              className="ribbon-btn"
+              onClick={() => setActiveNav("panoramas")}
+              title="Сферические фотопанорамы 360° RealView"
+            >
+              <Camera size={14} /> Панорама
+            </button>
             <button
               className="ribbon-btn"
               onClick={() => {
@@ -329,6 +362,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 }
               }}
               style={{ color: "#FFA25B" }}
+              title="ГОСТ инспектор сечений и сортамента металлопроката"
             >
               <Building size={14} /> ГОСТ Сортамент
             </button>
@@ -429,6 +463,11 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 colorMode={colorMode}
                 showPlane={false}
                 section={null}
+                hideInternalHud={true}
+                limitBoxActive={showLimitBox}
+                onToggleLimitBox={setShowLimitBox}
+                measureModeActive={measureMode}
+                onToggleMeasureMode={setMeasureMode}
               />
             ) : (
               <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>
@@ -441,7 +480,20 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           <section className="bottom-dock-container">
             {/* Card 1: Interactive Recharts Statistics */}
             <div className="dock-card" style={{ width: 440, minWidth: 440 }}>
-              <RegistrationQualityCharts />
+              <RegistrationQualityCharts
+                rmseData={[
+                  { station: "Станция 01 (1.rcs)", error_mm: 1.12, limit_mm: 5.0 },
+                  { station: "Станция 02 (2.rcs)", error_mm: 2.14, limit_mm: 5.0 },
+                  { station: "Сшивка 01↔02", error_mm: 1.85, limit_mm: 5.0 },
+                ]}
+                heightDistribution={[
+                  { z_m: "0-2м", points_k: 12400 },
+                  { z_m: "2-5м", points_k: 8900 },
+                  { z_m: "5-9м", points_k: 14200 },
+                  { z_m: "9-12м", points_k: 6500 },
+                  { z_m: "12-16м", points_k: 1500 },
+                ]}
+              />
             </div>
 
             {/* Card 2: Interactive 360 Panorama Preview */}
@@ -519,28 +571,32 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             {/* Quick Action Buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
+                className="action-dark-btn"
                 onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
-                <Network size={16} color="#FF812E" /> Открыть сплит-сшивку станций
+                <Network size={16} color="#FF812E" /> Сшивка сплит-экраном (2 скана)
               </button>
               <button
+                className="action-dark-btn"
                 onClick={() => {
                   if (elements.length > 0) setInspectingElement(elements[0]);
                 }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
-                <Building size={16} color="#38BDF8" /> Проверить ГОСТ-сортамент колонн
+                <Building size={16} color="#38BDF8" /> Инспектор ГОСТ-сортамента колонн
               </button>
               <button
-                onClick={() => alert("Экспорт ведомости отклонений по СП 70.13330 в PDF сформирован!")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
+                className="action-dark-btn"
+                onClick={() => alert("Ведомость отклонений колонн по СП 70.13330 в PDF сформирована!")}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
               </button>
               <button
+                className="action-dark-btn"
                 onClick={handleRunBundleAdjustment}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 <Sparkles size={16} color="#FFA25B" /> Глобальный уравнитель Bundle Adjustment
               </button>
