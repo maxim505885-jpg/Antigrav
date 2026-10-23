@@ -3,6 +3,7 @@ import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse,
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
+import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
 import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
 import SectionCanvas from "./components/SectionCanvas";
@@ -1532,6 +1533,13 @@ export default function App() {
                   onAligned={(res) => {
                     alert(`Совмещение по маркам выполнено! RMSE: ${res.rmse_mm} мм, пар: ${res.pairs_count}`);
                   }}
+                />
+                <div className="panel-title" style={{ marginTop: 24 }}>
+                  <span>360° Панорамный просмотр (Bubble-View станций)</span>
+                </div>
+                <BubblePanoramaViewer
+                  stationName={cloud ? cloud.name : "Станция 01"}
+                  stationPosition={[0, 0, 1.5]}
                 />
                 <div className="panel-title" style={{ marginTop: 24 }}>
                   <span>Сшивка сканов и экспорт в Autodesk ReCap</span>
