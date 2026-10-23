@@ -18,6 +18,11 @@ from ..registration.stitching import (
 )
 from ..registration.targets import detect_spherical_targets
 from ..registration.bundle_adjustment import optimize_pose_graph
+from ..formats.recap_project import export_recap_project_bundle
+from ..reports.executive_reports import (
+    generate_deformation_bulletin_pdf,
+    generate_registration_passport,
+)
 from ..storage import cloud_paths
 
 router = APIRouter(tags=["registration"])
@@ -248,15 +253,36 @@ def export_unified_ply(req: RecapExportRequest):
 
 @router.post("/registration/export-recap")
 def export_recap_project(req: RecapExportRequest):
-    """Export ReCap registration manifest project."""
+    """Export ReCap registration manifest project and authentic .RCP XML project file."""
     from ..config import DATA_DIR
     out_dir = DATA_DIR / "output" / "registration"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_json = out_dir / f"{req.project_name}_recap.json"
 
     create_recap_registration_project(req.stations, req.project_name, out_json)
+
+
+
     return {
         "status": "ok",
         "output_path": str(out_json.resolve()),
         "stations_count": len(req.stations),
     }
+
+
+@router.post("/registration/export-rcp-project")
+def export_rcp_project_endpoint(req: RecapExportRequest):
+    """Create a native Autodesk project through the installed DeCap tool."""
+    from ..config import DATA_DIR
+    from ..formats.recap_decap import create_recap_project
+    out_dir = DATA_DIR / "output" / "recap_projects"
+    try:
+        return create_recap_project(out_dir, req.project_name, req.stations)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

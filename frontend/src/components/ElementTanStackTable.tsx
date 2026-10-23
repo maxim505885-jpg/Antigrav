@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { type Element } from "../types";
-import { ArrowUpDown, CheckCircle } from "lucide-react";
+import { ArrowUpDown, CircleHelp } from "lucide-react";
+import { elementEvidenceBadges } from "../elementEvidence";
 
 interface ElementTanStackTableProps {
   elements: Element[];
@@ -105,7 +106,14 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                 }}
               >
                 <td style={{ padding: "8px 10px", fontWeight: 700, color: "#FFA25B" }}>{row.id}</td>
-                <td style={{ padding: "8px 10px", textTransform: "capitalize", fontWeight: 600 }}>{row.className}</td>
+                <td style={{ padding: "8px 10px", fontWeight: 600 }}>
+                  {row.raw.dimensions?.role_label || (row.className === "column" ? "Колонна" : row.className === "beam" ? "Балка" : row.className)}
+                  {elementEvidenceBadges(row.raw.metadata).map((badge) => (
+                    <div key={badge.text} title={badge.title} style={{fontSize: 11, color: "#FCD34D", marginTop: 4}}>
+                      {badge.text}<details><summary>Основание</summary>{badge.title}</details>
+                    </div>
+                  ))}
+                </td>
                 <td style={{ padding: "8px 10px", fontFamily: "var(--font-mono)", fontSize: 11, color: "#CBD5E1" }}>{row.profile}</td>
                 <td style={{ padding: "8px 10px", color: "#F1F5F9" }}>{row.dimensions}</td>
                 <td style={{ padding: "8px 10px", color: "#4ADE80", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{row.tilt}</td>
@@ -113,9 +121,9 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                 <td style={{ padding: "8px 10px" }}>
                   <span
                     style={{
-                      background: "rgba(74, 222, 128, 0.2)",
-                      border: "1px solid #22C55E",
-                      color: "#4ADE80",
+                      background: "rgba(252, 211, 77, 0.1)",
+                      border: "1px solid #FCD34D",
+                      color: "#FCD34D",
                       padding: "3px 8px",
                       borderRadius: 4,
                       fontSize: 11,
@@ -125,7 +133,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                       gap: 4,
                     }}
                   >
-                    <CheckCircle size={11} /> ТРЕБУЕТ ПРОВЕРКИ
+                    <CircleHelp size={11} /> ТРЕБУЕТ ПРОВЕРКИ
                   </span>
                 </td>
               </tr>

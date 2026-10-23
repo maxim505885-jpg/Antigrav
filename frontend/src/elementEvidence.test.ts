@@ -3,6 +3,26 @@ import test from "node:test";
 
 import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothesisBadges } from "./elementEvidence.ts";
 
+test("column context stays a runway hypothesis with unknown physical support", () => {
+  const [badge] = elementEvidenceBadges({column_support_context: {
+    status: "supported_hypothesis", support_spacing_m: 6,
+  }});
+  assert.match(badge.text, /колонны/);
+  assert.match(badge.title, /6 м/);
+  assert.match(badge.title, /не подтверждены/);
+  assert.equal(badge.cls, "inferred");
+});
+
+test("missing column context is visible and invalid spacing is not printed", () => {
+  const [badge] = elementEvidenceBadges({column_support_context: {status: "insufficient_context"}});
+  assert.match(badge.text, /не установлена/);
+  const invalid = elementEvidenceBadges({column_support_context: {
+    status: "supported_hypothesis", support_spacing_m: NaN,
+  }});
+  assert.doesNotMatch(invalid[0].title, /NaN/);
+  assert.deepEqual(elementEvidenceBadges({column_support_context: {status: "other"}}), []);
+});
+
 test("labels geometry-passing column as a candidate pending review", () => {
   assert.deepEqual(columnCandidateStatusBadges({ structural_status: "structural_candidate" }), [{
     text: "кандидат колонны · нужна проверка",

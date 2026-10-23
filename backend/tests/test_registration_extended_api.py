@@ -88,3 +88,38 @@ def test_detect_targets_api(client, tmp_path):
     assert data["status"] == "ok"
     assert data["targets_found"] >= 1
     assert data["targets"][0]["target_type"] == "sphere"
+
+
+def test_export_recap_project_api(client, monkeypatch):
+    from scan2bim.formats import recap_decap
+    monkeypatch.setattr(recap_decap, "create_recap_project", lambda *_args: {
+        "status": "created_by_autodesk_decap", "rcp_path": "test.rcp",
+        "support_dir": "test Support", "linked_rcs_count": 1,
+    })
+    req_payload = {
+        "project_name": "API_ReCap_Test",
+        "stations": [
+            {
+                "id": "st1",
+                "name": "Station 1",
+                "path": "1.rcs",
+                "point_count": 10000,
+                "matrix_4x4": np.eye(4).tolist(),
+                "rmse_mm": 1.2,
+            }
+        ],
+    }
+    resp = client.post("/api/v1/registration/export-rcp-project", json=req_payload)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "created_by_autodesk_decap"
+
+
+def test_export_recap_project_api_does_not_fallback_to_xml_draft(client, monkeypatch):
+    from scan2bim.formats import recap_decap
+    monkeypatch.setattr(recap_decap, "create_recap_project",
+                        lambda *_args: (_ for _ in ()).throw(RuntimeError("failed scans 1")))
+    response = client.post("/api/v1/registration/export-rcp-project", json={
+        "project_name": "failed", "stations": [{"path": "station.rcs"}],
+    })
+    assert response.status_code == 422
+    assert "failed scans 1" in response.json()["detail"]

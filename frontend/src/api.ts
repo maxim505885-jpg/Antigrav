@@ -534,6 +534,48 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ project_name: projectName, stations }),
     }),
+  bundleAdjustment: (payload: {
+    station_ids: string[];
+    constraints: Array<{
+      from_id: string;
+      to_id: string;
+      matrix_4x4: number[][];
+      weight?: number;
+      rmse_mm?: number;
+    }>;
+    fixed_station_id?: string;
+  }) =>
+    request<{
+      status: string;
+      success: boolean;
+      iterations: number;
+      initial_error: number;
+      final_error: number;
+      optimized_poses: Record<string, number[][]>;
+    }>("/registration/bundle-adjustment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  detectTargets: (cloudId: string, expectedRadiusM?: number, samplePoints?: number) =>
+    request<{
+      status: string;
+      cloud_id: string;
+      targets_found: number;
+      targets: Array<{
+        target_type: string;
+        center: number[];
+        radius_m: number;
+        inlier_count: number;
+        residual_rms_mm: number;
+      }>;
+    }>("/registration/detect-targets", {
+      method: "POST",
+      body: JSON.stringify({
+        cloud_id: cloudId,
+        expected_radius_m: expectedRadiusM ?? 0.0725,
+        sample_points: samplePoints ?? 200000,
+      }),
+    }),
 
   // AI Workshop Construction Expert Agent
   askWorkshopExpert: (query: string, cloudContext?: any) =>

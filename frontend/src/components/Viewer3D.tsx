@@ -9,6 +9,8 @@ import { RenderFpsSampler } from "../renderFps";
 import { elementBoxLinePositions } from "../structuralFrameGeometry";
 import { computeStructuralGridGeometry } from "../structuralGrid3D";
 import { classLabel } from "../types";
+import { LimitBoxDock, type LimitBoxRange } from "./LimitBoxDock";
+import { Measure3DDock, type MeasureResult } from "./Measure3DDock";
 
 interface Props {
   cloud: Cloud | null;
@@ -77,6 +79,94 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
   const [showOpenings, setShowOpenings] = useState(true);
   const [showPipes, setShowPipes] = useState(true);
   const [activePreset, setActivePreset] = useState<string>("all");
+
+  // ReCap Limit Box state
+  const [showLimitBox, setShowLimitBox] = useState(false);
+  const [limitBox, setLimitBox] = useState<LimitBoxRange>({
+    minX: -50,
+    maxX: 50,
+    minY: -50,
+    maxY: 50,
+    minZ: -2,
+    maxZ: 25,
+    invert: false,
+  });
+  const limitBoxHelperRef = useRef<THREE.Box3Helper | null>(null);
+  const activeClippingPlanesRef = useRef<THREE.Plane[]>([]);
+
+  // ReCap 3D Laser Measurement state
+  const [measureMode, setMeasureMode] = useState(false);
+  const measureModeRef = useRef(false);
+  measureModeRef.current = measureMode;
+  const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
+  const measurePointsRef = useRef<THREE.Vector3[]>([]);
+  measurePointsRef.current = measurePoints;
+  const [measureResult, setMeasureResult] = useState<MeasureResult | null>(null);
+  const measureGroupRef = useRef<THREE.Group | null>(null);
+
+  const handleLimitBoxPreset = (preset: "all" | "floor" | "crane" | "roof") => {
+    const originZ = cloud?.origin ? cloud.origin[2] : 0;
+    if (preset === "all") {
+      if (cloud?.bbox_min && cloud?.bbox_max && cloud.origin) {
+        setLimitBox({
+          minX: cloud.bbox_min[0] - cloud.origin[0] - 1.0,
+          maxX: cloud.bbox_max[0] - cloud.origin[0] + 1.0,
+          minY: cloud.bbox_min[1] - cloud.origin[1] - 1.0,
+          maxY: cloud.bbox_max[1] - cloud.origin[1] + 1.0,
+          minZ: cloud.bbox_min[2] - cloud.origin[2] - 0.5,
+          maxZ: cloud.bbox_max[2] - cloud.origin[2] + 0.5,
+          invert: false,
+        });
+      } else {
+        setLimitBox((prev) => ({ ...prev, minZ: -5, maxZ: 30, invert: false }));
+      }
+    } else if (preset === "floor") {
+      setLimitBox((prev) => ({ ...prev, minZ: -originZ, maxZ: 2.0 - originZ, invert: false }));
+    } else if (preset === "crane") {
+      setLimitBox((prev) => ({ ...prev, minZ: 5.0 - originZ, maxZ: 9.0 - originZ, invert: false }));
+    } else if (preset === "roof") {
+      setLimitBox((prev) => ({ ...prev, minZ: 9.0 - originZ, maxZ: 18.0 - originZ, invert: false }));
+    }
+  };
+
+  const handleClearMeasurement = () => {
+    setMeasurePoints([]);
+    setMeasureResult(null);
+    const grp = measureGroupRef.current;
+    if (!grp) return;
+    while (grp.children.length > 0) {
+      const obj = grp.children[0];
+      grp.remove(obj);
+      if ((obj as any).geometry) (obj as any).geometry.dispose();
+      if ((obj as any).material) (obj as any).material.dispose();
+    }
+  };
+
+  const updateMeasureVisuals = (pts: THREE.Vector3[]) => {
+    const grp = measureGroupRef.current;
+    if (!grp) return;
+    while (grp.children.length > 0) {
+      const obj = grp.children[0];
+      grp.remove(obj);
+      if ((obj as any).geometry) (obj as any).geometry.dispose();
+      if ((obj as any).material) (obj as any).material.dispose();
+    }
+    pts.forEach((pt) => {
+      const sphereGeo = new THREE.SphereGeometry(0.12, 16, 16);
+      const sphereMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, depthTest: false, transparent: true, opacity: 0.95 });
+      const mesh = new THREE.Mesh(sphereGeo, sphereMat);
+      mesh.position.copy(pt);
+      mesh.renderOrder = 9999;
+      grp.add(mesh);
+    });
+    if (pts.length === 2) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xffd54a, linewidth: 2, depthTest: false, transparent: true, opacity: 0.95 });
+      const line = new THREE.Line(lineGeo, lineMat);
+      line.renderOrder = 9998;
+      grp.add(line);
+    }
+  };
 
   const setPresetAll = () => {
     setActivePreset("all");
@@ -182,6 +272,7 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     camera.up.set(0, 0, 1);
     camera.position.set(9, -11, 8);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.localClippingEnabled = true;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
@@ -201,6 +292,11 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     bimGroup.name = "bim-structural-elements";
     scene.add(bimGroup);
     bimGroupRef.current = bimGroup;
+
+    const measureGroup = new THREE.Group();
+    measureGroup.name = "recap-measurements";
+    scene.add(measureGroup);
+    measureGroupRef.current = measureGroup;
     sceneRef.current = scene;
     cameraRef.current = camera;
     rendererRef.current = renderer;
@@ -208,6 +304,66 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     // Debug hook: lets support/automation check what the GPU actually drew
     // (renderer.info.render.points) without a screenshot. Read-only usage.
     (window as unknown as Record<string, unknown>).__s2bViewer = { renderer, scene, camera };
+
+    let startX = 0;
+    let startY = 0;
+    const onPointerDown = (e: PointerEvent) => {
+      startX = e.clientX;
+      startY = e.clientY;
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 5) return;
+      if (!measureModeRef.current) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.params.Points = { threshold: 0.25 };
+      raycaster.setFromCamera(mouse, camera);
+
+      let clickedPoint: THREE.Vector3 | null = null;
+      if (pointsRef.current) {
+        const hits = raycaster.intersectObject(pointsRef.current);
+        if (hits.length > 0) clickedPoint = hits[0].point.clone();
+      }
+      if (!clickedPoint && bimGroupRef.current) {
+        const bimHits = raycaster.intersectObjects(bimGroupRef.current.children, true);
+        if (bimHits.length > 0) clickedPoint = bimHits[0].point.clone();
+      }
+      if (!clickedPoint) {
+        const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+        const target = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(plane, target)) clickedPoint = target;
+      }
+      if (clickedPoint) {
+        const curPts = measurePointsRef.current;
+        if (curPts.length === 0 || curPts.length >= 2) {
+          const nextPts = [clickedPoint];
+          setMeasurePoints(nextPts);
+          setMeasureResult(null);
+          updateMeasureVisuals(nextPts);
+        } else {
+          const p1 = curPts[0];
+          const p2 = clickedPoint;
+          const nextPts = [p1, p2];
+          setMeasurePoints(nextPts);
+          updateMeasureVisuals(nextPts);
+
+          const dist3d = p1.distanceTo(p2);
+          const dx = Math.abs(p2.x - p1.x);
+          const dy = Math.abs(p2.y - p1.y);
+          const dz = p2.z - p1.z;
+          const dxy = Math.hypot(dx, dy);
+          const angleDeg = Math.abs(Math.atan2(Math.abs(dz), dxy) * (180 / Math.PI));
+          setMeasureResult({ dist3d, dx, dy, dz, dxy, angleDeg });
+        }
+      }
+    };
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
+    renderer.domElement.addEventListener("pointerup", onPointerUp);
 
     const resize = () => {
       const width = host.clientWidth;
@@ -234,6 +390,8 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     };
     animate();
     return () => {
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointerup", onPointerUp);
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();
@@ -248,6 +406,75 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       sceneRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (cloud?.bbox_min && cloud?.bbox_max && cloud.origin) {
+      setLimitBox({
+        minX: cloud.bbox_min[0] - cloud.origin[0] - 1.0,
+        maxX: cloud.bbox_max[0] - cloud.origin[0] + 1.0,
+        minY: cloud.bbox_min[1] - cloud.origin[1] - 1.0,
+        maxY: cloud.bbox_max[1] - cloud.origin[1] + 1.0,
+        minZ: cloud.bbox_min[2] - cloud.origin[2] - 0.5,
+        maxZ: cloud.bbox_max[2] - cloud.origin[2] + 0.5,
+        invert: false,
+      });
+    }
+  }, [cloud?.id]);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    if (showLimitBox) {
+      const box = new THREE.Box3(
+        new THREE.Vector3(limitBox.minX, limitBox.minY, limitBox.minZ),
+        new THREE.Vector3(limitBox.maxX, limitBox.maxY, limitBox.maxZ)
+      );
+      if (!limitBoxHelperRef.current) {
+        const helper = new THREE.Box3Helper(box, new THREE.Color(0xff812e));
+        helper.renderOrder = 9999;
+        scene.add(helper);
+        limitBoxHelperRef.current = helper;
+      } else {
+        limitBoxHelperRef.current.box = box;
+        limitBoxHelperRef.current.visible = true;
+      }
+
+      const sign = limitBox.invert ? -1 : 1;
+      const planes = [
+        new THREE.Plane(new THREE.Vector3(sign * 1, 0, 0), -sign * limitBox.minX),
+        new THREE.Plane(new THREE.Vector3(-sign * 1, 0, 0), sign * limitBox.maxX),
+        new THREE.Plane(new THREE.Vector3(0, sign * 1, 0), -sign * limitBox.minY),
+        new THREE.Plane(new THREE.Vector3(0, -sign * 1, 0), sign * limitBox.maxY),
+        new THREE.Plane(new THREE.Vector3(0, 0, sign * 1), -sign * limitBox.minZ),
+        new THREE.Plane(new THREE.Vector3(0, 0, -sign * 1), sign * limitBox.maxZ),
+      ];
+      activeClippingPlanesRef.current = planes;
+      if (materialRef.current) {
+        materialRef.current.clippingPlanes = planes;
+      }
+      if (bimGroupRef.current) {
+        bimGroupRef.current.traverse((child) => {
+          if ((child as any).material) {
+            (child as any).material.clippingPlanes = planes;
+          }
+        });
+      }
+    } else {
+      if (limitBoxHelperRef.current) limitBoxHelperRef.current.visible = false;
+      activeClippingPlanesRef.current = [];
+      if (materialRef.current) {
+        materialRef.current.clippingPlanes = [];
+      }
+      if (bimGroupRef.current) {
+        bimGroupRef.current.traverse((child) => {
+          if ((child as any).material) {
+            (child as any).material.clippingPlanes = [];
+          }
+        });
+      }
+    }
+  }, [showLimitBox, limitBox]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -310,6 +537,9 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
         sizeAttenuation: true,
         transparent: false,
       });
+      if (activeClippingPlanesRef.current.length > 0) {
+        material.clippingPlanes = activeClippingPlanesRef.current;
+      }
       const points = new THREE.Points(geometry, material);
       points.frustumCulled = false;
       if (pointsRef.current) {
@@ -898,6 +1128,44 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
             className="hud-chip"
             style={{
               cursor: "pointer",
+              background: showLimitBox ? "#FF812E" : "#1C2430",
+              color: showLimitBox ? "#0A0E13" : "#FFFFFF",
+              border: "1px solid #FF812E",
+              borderRadius: "4px",
+              padding: "2px 10px",
+              fontWeight: 700,
+            }}
+            onClick={() => setShowLimitBox(!showLimitBox)}
+            title="Интерактивный Limit Box (секущий куб ReCap): обрезка по осям X, Y, Z в реальном времени"
+          >
+            📦 Limit Box
+          </button>
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
+              background: measureMode ? "#38BDF8" : "#1C2430",
+              color: measureMode ? "#0A0E13" : "#FFFFFF",
+              border: "1px solid #38BDF8",
+              borderRadius: "4px",
+              padding: "2px 10px",
+              fontWeight: 700,
+            }}
+            onClick={() => {
+              const next = !measureMode;
+              setMeasureMode(next);
+              if (!next) handleClearMeasurement();
+            }}
+            title="Лазерные 3D замеры ReCap: кликните две точки для замера прямого расстояния, ΔXY и высотного перепада ΔZ"
+          >
+            📐 Линейка 3D
+          </button>
+          <button
+            type="button"
+            className="hud-chip"
+            style={{
+              cursor: "pointer",
               background: showGrid ? "#475569" : "#f5f2ed",
               color: showGrid ? "#fff" : "#888",
               border: "1px solid #475569",
@@ -1129,6 +1397,26 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       )}
       {error && <div className="viewer-error">{error}</div>}
       {!cloud && <div className="viewer-empty">Импортируйте облако точек или загрузите демо-комнату</div>}
+      {/* ReCap Limit Box Dock */}
+      <LimitBoxDock
+        visible={showLimitBox}
+        onClose={() => setShowLimitBox(false)}
+        box={limitBox}
+        onChange={(b) => setLimitBox(b)}
+        onPreset={handleLimitBoxPreset}
+      />
+
+      {/* ReCap 3D Laser Measurement Dock */}
+      <Measure3DDock
+        active={measureMode}
+        onToggle={() => {
+          setMeasureMode(false);
+          handleClearMeasurement();
+        }}
+        result={measureResult}
+        pointCount={measurePoints.length}
+        onClear={handleClearMeasurement}
+      />
     </div>
   );
 }

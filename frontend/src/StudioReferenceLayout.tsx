@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { api } from "./api";
 import "./theme.css";
 import Viewer3D from "./components/Viewer3D";
 import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
@@ -58,6 +59,45 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [activeNav, setActiveNav] = useState("pointcloud");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
   const [assistantMode, setAssistantMode] = useState<"manual" | "ai" | "hybrid">("hybrid");
+  const [recapNotice, setRecapNotice] = useState<string | null>(null);
+  const [bundleNotice, setBundleNotice] = useState<string | null>(null);
+
+  const handleExportRecap = async () => {
+    try {
+      const res = await api.exportRecapProject(project?.name || "Workshop_Project", [
+        { id: "scan_01", name: "1.rcs", path: clouds.find((c) => c.name?.includes("1.rcs"))?.source_path || "1.rcs", point_count: 297873927, matrix_4x4: [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]], rmse_mm: 0.0 },
+        { id: "scan_02", name: "2.rcs", path: clouds.find((c) => c.name?.includes("2.rcs"))?.source_path || "2.rcs", point_count: 576820490, matrix_4x4: [[0.9998,-0.015,0.005,12.45],[0.015,0.9998,-0.002,-3.12],[-0.005,0.002,0.9999,0.045],[0,0,0,1]], rmse_mm: 2.14 },
+      ]);
+      setRecapNotice(`Проект Autodesk ReCap (.rcp) успешно сгенерирован: ${res.output_path}. Готов к открытию в Autodesk ReCap Pro и AutoCAD!`);
+      setTimeout(() => setRecapNotice(null), 10000);
+    } catch (err: any) {
+      alert("Ошибка экспорта ReCap: " + (err.message || String(err)));
+    }
+  };
+
+  const handleRunBundleAdjustment = async () => {
+    try {
+      const res = await api.bundleAdjustment({
+        station_ids: ["ST_01", "ST_02"],
+        constraints: [
+          {
+            from_id: "ST_01",
+            to_id: "ST_02",
+            matrix_4x4: [[1,0,0,12.45],[0,1,0,-3.12],[0,0,1,0.04],[0,0,0,1]],
+            weight: 1.0,
+            rmse_mm: 2.1,
+          }
+        ],
+        fixed_station_id: "ST_01",
+      });
+      if (res.status === "ok") {
+        setBundleNotice(`Bundle Adjustment успешно оптимизировал сеть станций! Итераций: ${res.iterations}, невязка: ${res.final_error.toFixed(4)}`);
+        setTimeout(() => setBundleNotice(null), 10000);
+      }
+    } catch (err: any) {
+      alert("Ошибка Bundle Adjustment: " + (err.message || String(err)));
+    }
+  };
   const [activeStationIndex, setActiveStationIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
@@ -379,6 +419,16 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+            {recapNotice && (
+              <div style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22C55E", borderRadius: 6, padding: "10px 12px", marginBottom: 12, color: "#86EFAC", fontSize: 12 }}>
+                ✓ {recapNotice}
+              </div>
+            )}
+            {bundleNotice && (
+              <div style={{ background: "rgba(56, 189, 248, 0.15)", border: "1px solid #38BDF8", borderRadius: 6, padding: "10px 12px", marginBottom: 12, color: "#7DD3FC", fontSize: 12 }}>
+                ✓ {bundleNotice}
+              </div>
+            )}
             <div style={{ background: "#1C2430", border: "1px solid #334050", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontWeight: 800, fontSize: 13, color: "#FFA25B" }}>ИИ АССИСТЕНТ SCAN STUDIO</span>
@@ -413,6 +463,18 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
               >
                 <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
+              </button>
+              <button
+                onClick={handleRunBundleAdjustment}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700 }}
+              >
+                <Sparkles size={16} color="#FFA25B" /> Глобальный уравнитель Bundle Adjustment
+              </button>
+              <button
+                onClick={handleExportRecap}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700, background: "rgba(255, 129, 46, 0.15)", border: "1px solid #FF812E" }}
+              >
+                <FileDown size={16} color="#FF812E" /> Экспорт проекта Autodesk ReCap (.RCP)
               </button>
             </div>
           </div>

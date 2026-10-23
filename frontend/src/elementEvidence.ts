@@ -81,6 +81,21 @@ export function elementEvidenceBadges(metadata: EvidenceMetadata | null | undefi
   if (!metadata || typeof metadata !== "object") return [];
   const badges: EvidenceBadge[] = [];
   const vertical = metadata.vertical_profile_evidence;
+  const context = metadata.column_support_context;
+  if (context && typeof context === "object") {
+    const value = context as Record<string, unknown>;
+    if (value.status === "supported_hypothesis") {
+      const spacing = value.support_spacing_m;
+      badges.push({
+        text: "рядом колонны · роль балки проверить",
+        title: `Найдены разнесённые колонны подходящей высоты.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Расстояние: ${spacing} м.` : ""} Опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
+        cls: "inferred",
+      });
+    } else if (value.status === "insufficient_context") {
+      badges.push({text: "связь с колоннами не установлена",
+        title: "Недостаточно геометрических данных о двух колоннах. Это не доказывает отсутствие опор; назначение балки требует проверки.", cls: "inferred"});
+    }
+  }
   if (vertical && typeof vertical === "object"
       && (vertical as Record<string, unknown>).interpretation === "ambiguous_vertical_profile") {
     badges.push({

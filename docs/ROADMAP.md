@@ -184,8 +184,8 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Goal**: One-click local deployment on Windows 11 with full self-diagnostic test suite.
 - **Tasks**:
   - [x] Full regression test harness (`pytest backend/tests/`, `npm test`).
-  - [x] Desktop launcher script (`desktop_app.py`, Windows batch launchers).
-  - [x] Windows 11 standalone installer / self-contained runtime bundle (installer/scan_studio_setup.iss).
+  - [ ] Desktop launcher exists (`desktop_app.py`), but the installer-referenced batch launcher is missing and the installed runtime path is unverified.
+  - [ ] Repair and verify the Windows installer: its current script references a nonexistent launcher and wrong source directory; no relocatable runtime bundle has been built; the current frontend/dist exists, but a reproducible build was not verified in this audit.
   - [x] Automated end-to-end acceptance certification suite (ackend/tests/test_end_to_end_acceptance.py).
 - **Status**: **IN PROGRESS**
 
