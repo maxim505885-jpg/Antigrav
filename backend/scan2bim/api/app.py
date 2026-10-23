@@ -336,6 +336,18 @@ def _unassigned_type_elements(elements: list[dict[str, Any]], confirmed: list[di
     return [item for item in elements if item["id"] not in assigned_ids and item["review_status"] != "rejected"]
 
 
+def _column_reference_candidates(cloud_id: str) -> list[dict[str, Any]]:
+    """Return columns eligible for independent reference annotation.
+
+    Invalidated synthetic rows are retained in the database for audit, but must
+    never enter a reference dataset or be reintroduced through annotation APIs.
+    """
+    return [
+        item for item in list_elements(cloud_id)
+        if item["class_name"] == "column" and item.get("source") != "invalidated_synthetic_ground_truth"
+    ]
+
+
 def _column_type_export_catalog(project_id: str, elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
     confirmed = list_column_types(project_id)
     excluded = {item["proposal_key"] for item in list_rejected_column_types(project_id)}
@@ -849,7 +861,7 @@ def create_app() -> FastAPI:
     @api.get("/clouds/{cloud_id}/column-annotations")
     def get_column_annotations(cloud_id: str):
         cloud = _cloud(cloud_id)
-        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        elements = _column_reference_candidates(cloud_id)
         if not elements:
             raise HTTPException(404, "cloud has no column candidates")
         try:
@@ -890,7 +902,7 @@ def create_app() -> FastAPI:
     @api.post("/clouds/{cloud_id}/column-annotations/{element_id}")
     def save_column_annotation(cloud_id: str, element_id: str, payload: ColumnAnnotationSave):
         cloud = _cloud(cloud_id)
-        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        elements = _column_reference_candidates(cloud_id)
         element = next((item for item in elements if item["id"] == element_id), None)
         if element is None:
             raise HTTPException(404, "column candidate not found in this cloud")
@@ -908,7 +920,7 @@ def create_app() -> FastAPI:
             # re-ingest may commit in that gap, so validate the snapshot again
             # while BEGIN IMMEDIATE prevents another writer from changing it.
             current_cloud = _cloud(cloud_id)
-            current_elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+            current_elements = _column_reference_candidates(cloud_id)
             try:
                 current_source_hash = column_snapshot_sha256(current_elements, current_cloud)
             except ValueError as exc:
@@ -954,7 +966,7 @@ def create_app() -> FastAPI:
     @api.get("/clouds/{cloud_id}/column-annotations/export")
     def export_column_annotations(cloud_id: str):
         cloud = _cloud(cloud_id)
-        elements = [item for item in list_elements(cloud_id) if item["class_name"] == "column"]
+        elements = _column_reference_candidates(cloud_id)
         if not elements:
             raise HTTPException(404, "cloud has no column candidates")
         try:
@@ -977,9 +989,11 @@ def create_app() -> FastAPI:
     def get_column_annotation_history(cloud_id: str):
         cloud = _cloud(cloud_id)
         history = rows(
-            "SELECT source_snapshot_sha256,element_id,revision,payload_json,created_at "
-            "FROM column_annotations WHERE cloud_id=? ORDER BY created_at,element_id,revision",
-            (cloud_id,),
+            "SELECT a.source_snapshot_sha256,a.element_id,a.revision,a.payload_json,a.created_at "
+            "FROM column_annotations a LEFT JOIN elements e ON e.id=a.element_id "
+            "WHERE a.cloud_id=? AND (e.id IS NULL OR COALESCE(e.source,'') != ?) "
+            "ORDER BY a.created_at,a.element_id,a.revision",
+            (cloud_id, "invalidated_synthetic_ground_truth"),
         )
         records = []
         for record in history:

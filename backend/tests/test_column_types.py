@@ -96,15 +96,20 @@ def test_descriptor_and_grouping_exclude_rejected_and_invalidated_elements():
         "source": "invalidated_synthetic_ground_truth",
         "review_status": "invalidated",
     })
+    status_invalidated = _column()
+    status_invalidated.update({"id": "status-invalidated", "review_status": "invalidated"})
 
     rejected_result = column_descriptor(rejected)
     invalidated_result = column_descriptor(invalidated)
+    status_invalidated_result = column_descriptor(status_invalidated)
 
     assert rejected_result["eligible"] is False
     assert "element_rejected" in rejected_result["reasons"]
     assert invalidated_result["eligible"] is False
     assert "invalidated_source" in invalidated_result["reasons"]
-    assert propose_column_types([rejected, invalidated], linear_tolerance_m=0.01) == []
+    assert status_invalidated_result["eligible"] is False
+    assert "invalidated_source" in status_invalidated_result["reasons"]
+    assert propose_column_types([rejected, invalidated, status_invalidated], linear_tolerance_m=0.01) == []
 
 
 def test_descriptor_preserves_stepped_and_built_up_section_evidence():

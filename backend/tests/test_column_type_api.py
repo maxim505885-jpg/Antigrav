@@ -50,6 +50,16 @@ def api_data(client, monkeypatch):
                     "{}", json.dumps({"column_type": "solid", "section_coverage": 0.9}), now, now,
                 ),
             )
+        con.execute(
+            "INSERT INTO elements (id,project_id,cloud_id,class_name,geometry_json,bbox_json,"
+            "dimensions_json,source,review_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "column-invalidated", projects["a"], clouds["a"], "column",
+                json.dumps({"kind": "oriented_box", "center": [9.0, 0.0, 0.0],
+                            "sizes": {"length": 0.5, "thickness": 0.4, "height": 5.0}, "rotation_z": 0.0}),
+                "{}", "{}", "invalidated_synthetic_ground_truth", "invalidated", now, now,
+            ),
+        )
     yield {"projects": projects, "clouds": clouds}
     for suffix in ("", "-wal", "-shm"):
         Path(f"{path}{suffix}").unlink(missing_ok=True)
@@ -110,9 +120,50 @@ def test_manual_column_annotations_are_independent_versioned_and_exportable(clie
     assert exported_row["note"] == "dimensions checked in two sections"
     assert exported["source_cloud_manifest"] == source_model["source"]["snapshot_manifest"]
     from scan2bim.structure.column_annotations import column_snapshot_sha256
-    assert column_snapshot_sha256(source_model["elements"], source_model["source"]["snapshot_manifest"]) == exported["source_snapshot_sha256"]
+    reference_ids = {item["element_id"] for item in dataset["annotations"]}
+    reference_elements = [item for item in source_model["elements"] if item["id"] in reference_ids]
+    assert column_snapshot_sha256(reference_elements, source_model["source"]["snapshot_manifest"]) == exported["source_snapshot_sha256"]
     after = database.one("SELECT geometry_json, review_status FROM elements WHERE id='column-a1'")
     assert after == before
+
+
+def test_invalidated_synthetic_columns_are_never_reference_annotations(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations")
+    assert dataset.status_code == 200, dataset.text
+    assert {item["element_id"] for item in dataset.json()["annotations"]} == {
+        "column-a1", "column-a2", "column-a3",
+    }
+
+    payload = {
+        "source_snapshot_sha256": dataset.json()["source_snapshot_sha256"],
+        "annotator": "reviewer-a", "state": "unknown", "physical_instance_id": None,
+        "type_label": None, "sides_m": None, "measurement_source": None, "z_measurements": [],
+        "visible_faces": [], "hidden_faces": [], "confidence": None,
+        "reason_unknown": "synthetic row", "note": "must not become reference data",
+    }
+    saved = client.post(
+        f"/api/v1/clouds/{cloud_id}/column-annotations/column-invalidated", json=payload,
+    )
+    exported = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/export")
+    database.execute(
+        "INSERT INTO column_annotations "
+        "(id,project_id,cloud_id,source_snapshot_sha256,element_id,revision,payload_json,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        ("archived-invalidated", api_data["projects"]["a"], cloud_id, "old-snapshot",
+         "column-invalidated", 1, json.dumps({"state": "labeled", "type_label": "SYNTHETIC"}),
+         database.utcnow()),
+    )
+    history = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations/history")
+
+    assert saved.status_code == 404
+    assert exported.status_code == 200, exported.text
+    assert {item["element_id"] for item in exported.json()["annotations"]} == {
+        "column-a1", "column-a2", "column-a3",
+    }
+    assert history.status_code == 200
+    assert all(item["element_id"] != "column-invalidated" for item in history.json()["history"])
 
 
 def test_column_annotation_rejects_duplicate_physical_ids_and_preserves_history(client, api_data):

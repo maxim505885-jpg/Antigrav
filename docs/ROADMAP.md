@@ -18,7 +18,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic IoU implementation; independent physical labels and field accuracy are missing |
-| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 38 focused tests | Review/undo, revision-safe storage, leakage-safe split, and synthetic-data invalidation; independently labeled pilot elements and real holdout metrics are missing |
+| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 40 focused tests | Review/undo, revision-safe storage, leakage-safe split, and synthetic-data invalidation; invalidated synthetic rows are excluded from independent annotation; independently labeled pilot elements and real holdout metrics are missing |
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 86 focused tests | Synthetic section fitting and review-only catalogue candidates; real FARO sections, engineering limits and field accuracy remain unverified |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 72 generated-sheet tests | Five-sheet DXF/PDF album is generated; opening, editing, Cyrillic text, line weights and printing in AutoCAD 2026 are unverified |
 | **Stage 10** | Export & Interoperability | **TESTING** | 61 format/contract tests | DWG/IFC and point-cloud interchange exist; AutoCAD 2026/Revit 2027 application acceptance and ReCap project workflow are unverified |
@@ -115,9 +115,11 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Reuse of reviewed column types guarded by source-cloud fingerprints.
   - Training and similarity search now accept only explicit `engineer` samples; invalidated, generated, and undone examples are excluded. Model versions marked `invalidated` cannot be activated, including with `force`.
   - Invalidated synthetic elements cannot be confirmed, split, merged, or submitted as training samples through the review APIs.
+  - Column-type proposal generation also excludes rejected and invalidated elements when called directly, outside those APIs.
+  - Independent column-reference annotation GET/save/export/history endpoints exclude invalidated synthetic ground-truth rows; regression coverage confirms they cannot be annotated, restored from visible history, or exported as references.
   - The false 106-row synthetic workshop dataset, its engineer-labelled samples, and all four derived model versions were retained for audit but invalidated in the runtime database. A SQLite backup was saved before the change.
   - Synthetic profile fixtures support regression tests; they are not physical measurements and are not training labels.
-- **Missing**: Independently labeled real workshop elements, reviewer provenance, and a leakage-safe holdout evaluation on those labels. The preserved synthetic records remain visible for audit and must never be treated as training evidence.
+- **Missing**: Independently labeled real workshop elements, reviewer provenance, and a leakage-safe holdout evaluation on those labels. A tolerance sweep of the existing decimated 40M-point 1.rcs derivative found only 33 candidates with point-measured sections on two axes; group counts vary with threshold and do not identify true physical types. The preserved synthetic records remain visible for audit and must never be treated as training evidence.
 - **Criteria**: Feedback is reversible and persisted, and any reported model score is measured on independently labeled physical elements excluded from training.
 - **Status**: **IN PROGRESS**
 ### Stage 8 — Parametric 3D Geometry Reconstruction
