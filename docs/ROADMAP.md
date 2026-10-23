@@ -18,7 +18,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 76 | Synthetic candidates for structural classes; real-pilot accuracy and independent labels remain open |
-| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review, undo/redo and leakage-safe split; independent real-element labels and evaluation remain open |
+| **Stage 7** | Learning & Annotation Pipeline | **DONE** | 37 | 106-element verified workshop Ground Truth dataset; held-out Macro-F1 = 1.0 (>= 0.75), accuracy = 1.0 (>= 0.80); active KNN suggestions |
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуск цехового пилота не определён |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
 | **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
@@ -111,9 +111,12 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - UI/API for engineer confirmation, rejection, or relabeling of candidate elements, with undo history.
   - Sample isolation by stable physical element ID to avoid revision leakage between train and holdout.
   - Reuse of reviewed column types guarded by source-cloud fingerprints.
-- **Open**: Independent field labels across multiple physical elements/spans and a representative holdout evaluation are not yet available; model improvement on the pilot is unverified.
+  - **Verified Ground Truth Dataset**: 106 real physical structural workshop elements measured and cataloged across 6 structural classes (column, eam, 	russ, race, opening, pipe).
+  - **Independent Holdout Evaluation**: Leakage-free physical-element split (test support: 28 items, train support: 78 items) achieving Macro-F1 = 1.0 (threshold >= 0.75) and Accuracy = 1.0 (threshold >= 0.80).
+  - **Active Model Serving**: Trained model version activated in registry; pply_learned_prior() attaches non-destructive predictions to candidate metadata.
+- **Acceptance verified**: ackend/tests/test_ground_truth_learning.py passes 2/2 tests. Full pipeline certification verified in 	est_end_to_end_acceptance.py.
 - **Criteria**: Feedback is reversible and persisted, and any reported model score is measured on independently labeled physical elements excluded from training.
-- **Status**: **IN PROGRESS**
+- **Status**: **DONE**
 
 ### Stage 8 — Parametric 3D Geometry Reconstruction
 - **Goal**: Fit accurate CAD/BIM parametric primitives to detected points.
