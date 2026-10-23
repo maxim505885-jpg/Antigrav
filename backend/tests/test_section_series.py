@@ -163,7 +163,7 @@ def test_partial_circular_arc_stays_unknown_instead_of_becoming_a_full_circle():
     assert section["status"] in {"unknown", "open_section"}
 
 
-def test_built_up_i_section_is_not_forced_into_a_circular_or_rectangular_type():
+def test_built_up_i_section_is_measured_as_review_only_profile_hypothesis():
     outline = np.asarray([
         [0.0, 0.0], [0.4, 0.0], [0.4, 0.1], [0.28, 0.1],
         [0.28, 0.3], [0.4, 0.3], [0.4, 0.4], [0.0, 0.4],
@@ -173,12 +173,26 @@ def test_built_up_i_section_is_not_forced_into_a_circular_or_rectangular_type():
         start + np.linspace(0, 1, 80)[:, None] * (end - start)
         for start, end in zip(outline, np.roll(outline, -1, axis=0))
     ])
+    angle = np.deg2rad(27.0)
+    rotation = np.asarray([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    points = points @ rotation.T + np.asarray([120_000.0, -250_000.0])
 
-    result = fit_column_section_series([{"z_m": 3.0, "points_xy": points}], known_sides_m=(0.4, 0.4))
+    source_ids = np.arange(9000, 9000 + len(points), dtype=np.int64)
+    result = fit_column_section_series([{
+        "z_m": 3.0, "points_xy": points, "source_point_ids": source_ids.tolist(),
+    }], known_sides_m=(0.4, 0.4))
 
     section = result["section_slices"][0]
     assert section["shape_hypotheses"] == []
-    assert section["shape_status"] == "unknown"
+    assert section["built_up_hypotheses"][0]["shape"] == "built_up_i"
+    built_up = section["built_up_hypotheses"][0]
+    assert built_up["envelope_side_lengths_m"] == pytest.approx([0.4, 0.4], abs=0.01)
+    assert built_up["web_thickness_m"] == pytest.approx(0.16, abs=0.01)
+    assert built_up["flange_thicknesses_m"] == pytest.approx([0.1, 0.1], abs=0.01)
+    assert built_up["review_required"] is True
+    assert built_up["engineering_status"] == "not_assessed"
+    assert set(built_up["source_point_ids"]).issubset(set(source_ids.tolist()))
+    assert section["shape_status"] == "candidate"
     assert section["status"] == "ambiguous"
     assert all(item["shape_interpretation"] == "outer_envelope_only" for item in section["hypotheses"])
     assert result["shape_variation_status"] == "insufficient"

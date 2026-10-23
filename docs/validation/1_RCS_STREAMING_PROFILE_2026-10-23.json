@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-10-23T11:25:00+03:00",
+  "dataset": {
+    "filename": "1.rcs",
+    "filesize_bytes": 7196593757,
+    "filesize_gib": 6.702,
+    "total_points_estimate": 297873927,
+    "source_format": "Autodesk ReCap RCS (ADOCT v3)"
+  },
+  "benchmark_run": {
+    "points_extracted": 100000,
+    "total_duration_seconds": 281.39,
+    "read_throughput_pts_sec": 355.37,
+    "process_rss_delta_mb": 3.3,
+    "process_rss_peak_mb": 33.8,
+    "system_ram_total_gib": 31.9,
+    "system_ram_available_gib": 6.0
+  },
+  "geometry_bounds": {
+    "min": [-93.41796875, 6.36815691, -2.95257282],
+    "max": [51.9307251, 88.88323212, 9.8270092],
+    "span_meters": [145.34869385, 82.51507521, 12.77958202]
+  },
+  "attributes": {
+    "rgb_present": true,
+    "intensity_present": false,
+    "read_mode": "subprocess_isolated_streaming",
+    "heap_overflow_risk": "none (peak 33.8 MB RSS)"
+  },
+  "verdict": "passed_under_memory_budget"
+}

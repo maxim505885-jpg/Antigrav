@@ -333,6 +333,156 @@ def fit_circular_section(
     }
 
 
+def fit_built_up_i_section(
+    points_xy: np.ndarray,
+    *,
+    distance_tolerance_m: float = 0.004,
+    max_faces: int = 16,
+) -> dict[str, Any] | None:
+    """Measure a fully observed I-shaped outline as a review-only hypothesis.
+
+    The detector requires four parallel coordinate levels in each of two
+    orthogonal directions and the expected flange/web edge connectivity. It
+    reports only dimensions supported by those observed line segments; partial
+    or cluttered outlines remain unknown. This is not a steel catalogue type.
+    """
+    points = np.asarray(points_xy, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all():
+        raise ValueError("points_xy must be a finite N×2 array")
+    if not math.isfinite(distance_tolerance_m) or distance_tolerance_m <= 0:
+        raise ValueError("distance_tolerance_m must be finite and positive")
+    if not isinstance(max_faces, int) or max_faces < 12:
+        raise ValueError("max_faces must be an integer of at least 12")
+    if len(points) < 60:
+        return None
+
+    center = points.mean(axis=0)
+    faces = _extract_faces(points - center, distance_tolerance_m, max_faces)
+    if len(faces) < 12:
+        return None
+    for face in faces:
+        for key in ("origin", "start", "end"):
+            face[key] = face[key] + center
+
+    coordinate_tolerance = max(3 * distance_tolerance_m, 0.006)
+    interval_tolerance = max(5 * distance_tolerance_m, 0.015)
+
+    def merge_intervals(intervals: list[tuple[float, float]]) -> list[tuple[float, float]]:
+        merged: list[list[float]] = []
+        for low, high in sorted(intervals):
+            if not merged or low > merged[-1][1] + coordinate_tolerance:
+                merged.append([low, high])
+            else:
+                merged[-1][1] = max(merged[-1][1], high)
+        return [(low, high) for low, high in merged]
+
+    def matches(actual: list[tuple[float, float]], expected: list[tuple[float, float]]) -> bool:
+        if len(actual) != len(expected):
+            return False
+        return all(
+            abs(a0 - e0) <= interval_tolerance and abs(a1 - e1) <= interval_tolerance
+            for (a0, a1), (e0, e1) in zip(actual, expected)
+        )
+
+    def line_groups(
+        direction: np.ndarray, normal: np.ndarray,
+    ) -> tuple[list[tuple[float, list[tuple[float, float]], list[int]]],
+               list[tuple[float, list[tuple[float, float]], list[int]]]]:
+        parallel: list[dict[str, Any]] = []
+        perpendicular: list[dict[str, Any]] = []
+        for face in faces:
+            face_direction = np.asarray(face["direction"], dtype=np.float64)
+            is_parallel = _angle(face_direction, direction) <= math.radians(3)
+            is_perpendicular = _angle(face_direction, normal) <= math.radians(3)
+            if not is_parallel and not is_perpendicular:
+                continue
+            origin = np.asarray(face["origin"], dtype=np.float64)
+            if is_parallel:
+                coordinate = float(np.dot(origin, normal))
+                start, end, axis = face["start"], face["end"], direction
+                group_list = parallel
+            else:
+                coordinate = float(np.dot(origin, direction))
+                start, end, axis = face["start"], face["end"], normal
+                group_list = perpendicular
+            interval = sorted((float(np.dot(start, axis)), float(np.dot(end, axis))))
+            group = next((item for item in group_list
+                          if abs(item["coordinate"] - coordinate) <= coordinate_tolerance), None)
+            if group is None:
+                group = {"coordinate": coordinate, "intervals": [], "indices": []}
+                group_list.append(group)
+            group["intervals"].append(tuple(interval))
+            group["indices"].extend(face["input_point_indices"])
+
+        def finalized(groups: list[dict[str, Any]]) -> list[tuple[float, list[tuple[float, float]], list[int]]]:
+            return sorted((
+                float(group["coordinate"]), merge_intervals(group["intervals"]),
+                sorted(set(group["indices"])),
+            ) for group in groups)
+
+        return finalized(parallel), finalized(perpendicular)
+
+    # Try each observed line orientation. Equivalent axis swaps are collapsed
+    # by returning the first complete, strongest consensus.
+    tested: set[tuple[int, int]] = set()
+    for seed in sorted(faces, key=lambda face: (-face["span_m"], -face["support"])):
+        direction = _unit(np.asarray(seed["direction"], dtype=np.float64))
+        if direction[0] < 0 or (abs(direction[0]) < 1e-10 and direction[1] < 0):
+            direction = -direction
+        direction_key = tuple(np.rint(direction * 1000).astype(int))
+        if direction_key in tested:
+            continue
+        tested.add(direction_key)
+        normal = np.array([-direction[1], direction[0]], dtype=np.float64)
+        parallel, perpendicular = line_groups(direction, normal)
+        if len(parallel) != 4 or len(perpendicular) != 4:
+            continue
+        v = [item[0] for item in parallel]
+        u = [item[0] for item in perpendicular]
+        if min(u[1] - u[0], u[2] - u[1], u[3] - u[2],
+               v[1] - v[0], v[2] - v[1], v[3] - v[2]) <= coordinate_tolerance:
+            continue
+
+        expected_parallel = [
+            [(u[0], u[3])],
+            [(u[0], u[1]), (u[2], u[3])],
+            [(u[0], u[1]), (u[2], u[3])],
+            [(u[0], u[3])],
+        ]
+        expected_perpendicular = [
+            [(v[0], v[1]), (v[2], v[3])],
+            [(v[1], v[2])],
+            [(v[1], v[2])],
+            [(v[0], v[1]), (v[2], v[3])],
+        ]
+        if not all(matches(actual[1], expected)
+                   for actual, expected in zip(parallel, expected_parallel)):
+            continue
+        if not all(matches(actual[1], expected)
+                   for actual, expected in zip(perpendicular, expected_perpendicular)):
+            continue
+
+        source_indices = sorted({
+            point_index
+            for group in [*parallel, *perpendicular]
+            for point_index in group[2]
+        })
+        return {
+            "shape": "built_up_i",
+            "status": "candidate",
+            "envelope_side_lengths_m": [float(u[3] - u[0]), float(v[3] - v[0])],
+            "web_thickness_m": float(u[2] - u[1]),
+            "flange_thicknesses_m": [float(v[1] - v[0]), float(v[3] - v[2])],
+            "centerline_axes_xy": [direction.tolist(), normal.tolist()],
+            "support_count": len(source_indices),
+            "input_point_indices": source_indices,
+            "review_required": True,
+            "engineering_status": "not_assessed",
+            "tolerance_status": "provisional_algorithm_filter",
+        }
+    return None
+
+
 def fit_rectangular_section(
     points_xy: np.ndarray,
     *,
@@ -593,6 +743,7 @@ def fit_column_section_series(
     slices: list[dict[str, Any]] = []
     dimensions_by_height: list[tuple[float, tuple[float, float]]] = []
     shape_measurements: list[dict[str, Any]] = []
+    built_up_measurements: list[dict[str, Any]] = []
     shape_by_height: list[tuple[float, str, tuple[float, ...]] | None] = []
     for z_m, points, source_ids, source_scope in sorted(prepared, key=lambda entry: entry[0]):
         if len(points) < 2:
@@ -611,10 +762,15 @@ def fit_column_section_series(
         shape_hypotheses = [circle] if circle is not None else []
         for hypothesis in shape_hypotheses:
             hypothesis["source_point_ids"] = sorted(source_ids[index] for index in hypothesis["input_point_indices"])
+        built_up = fit_built_up_i_section(points, distance_tolerance_m=distance_tolerance_m) if len(points) >= 60 else None
+        built_up_hypotheses = [built_up] if built_up is not None else []
+        for hypothesis in built_up_hypotheses:
+            hypothesis["source_point_ids"] = sorted(source_ids[index] for index in hypothesis["input_point_indices"])
         fit["shape_hypotheses"] = shape_hypotheses
+        fit["built_up_hypotheses"] = built_up_hypotheses
         fit["shape_status"] = (
-            "ambiguous" if shape_hypotheses and fit["hypotheses"]
-            else "candidate" if shape_hypotheses or len(fit["hypotheses"]) == 1
+            "ambiguous" if len(shape_hypotheses) + len(built_up_hypotheses) > 1
+            else "candidate" if shape_hypotheses or built_up_hypotheses or len(fit["hypotheses"]) == 1
             else "unknown"
         )
 
@@ -644,6 +800,25 @@ def fit_column_section_series(
                 "center_xy_m": hypothesis["center_xy_m"],
             })
             shape_by_height.append((z_m, "circle", (diameter,)))
+        elif len(built_up_hypotheses) == 1:
+            hypothesis = built_up_hypotheses[0]
+            measurement = {
+                "z_m": z_m,
+                "shape": "built_up_i",
+                "envelope_side_lengths_m": hypothesis["envelope_side_lengths_m"],
+                "web_thickness_m": hypothesis["web_thickness_m"],
+                "flange_thicknesses_m": hypothesis["flange_thicknesses_m"],
+                "centerline_axes_xy": hypothesis["centerline_axes_xy"],
+            }
+            shape_measurements.append(measurement)
+            built_up_measurements.append(measurement)
+            shape_by_height.append((
+                z_m, "built_up_i", tuple(float(value) for value in (
+                    *hypothesis["envelope_side_lengths_m"],
+                    hypothesis["web_thickness_m"],
+                    *hypothesis["flange_thicknesses_m"],
+                )),
+            ))
         else:
             shape_by_height.append(None)
         slices.append({
@@ -700,6 +875,7 @@ def fit_column_section_series(
         "dimension_ranges_m": ranges,
         "profile_variation_status": variation,
         "shape_measurements_by_height_m": shape_measurements,
+        "built_up_profile_measurements_by_height_m": built_up_measurements,
         "shape_diameter_range_m": circle_range,
         "shape_variation_status": shape_variation,
         "engineering_status": "not_assessed",

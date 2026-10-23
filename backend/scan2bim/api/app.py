@@ -44,7 +44,9 @@ from ..structure.column_surface_assignment import (
 )
 from ..structure.column_section_series import fit_column_track_sections
 from ..structure.vertical_surfaces import extract_vertical_surfaces
+from ..processing.cleanup import apply_cleanup, write_ply, write_xyz
 from ..schemas import (
+    CleanupRequest,
     CloudImportPath,
     CloudOut,
     ColumnTypeAssign,
@@ -1376,12 +1378,23 @@ def create_app() -> FastAPI:
                 hypothesis_ids = hypothesis.pop("source_point_ids", [])
                 hypothesis["source_point_row_id_count"] = len(hypothesis_ids)
                 hypothesis["source_point_row_id_sample"] = hypothesis_ids[:100]
+                hypothesis.pop("input_point_indices", None)
+            for hypothesis in section.get("built_up_hypotheses", []):
+                hypothesis_ids = hypothesis.pop("source_point_ids", [])
+                hypothesis["source_point_row_id_count"] = len(hypothesis_ids)
+                hypothesis["source_point_row_id_sample"] = hypothesis_ids[:100]
+                hypothesis.pop("input_point_indices", None)
+            for hypothesis in section.get("shape_hypotheses", []):
+                hypothesis_ids = hypothesis.pop("source_point_ids", [])
+                hypothesis["source_point_row_id_count"] = len(hypothesis_ids)
+                hypothesis["source_point_row_id_sample"] = hypothesis_ids[:100]
+                hypothesis.pop("input_point_indices", None)
 
         return {
             "schema": "scan.column-surface-track-analysis/1",
             "candidate_id": element_id,
             "cloud_id": cloud["id"],
-            "algorithm": {"surface_extraction": "extract_vertical_surfaces/1", "section_series": "fit_column_track_sections/1"},
+            "algorithm": {"surface_extraction": "extract_vertical_surfaces/1", "section_series": "fit_column_track_sections/2"},
             "parameters": {
                 "candidate_margin_m": margin_m,
                 "vertical_context_margin_m": z_margin_m,
@@ -1574,6 +1587,95 @@ def create_app() -> FastAPI:
         export_elements_dxf(elements, dxf_path, project_name=project["name"])
         path = _dxf_to_dwg_or_409(dxf_path, folder / "elements.dwg")
         return FileResponse(path, media_type="application/acad", filename=path.name)
+
+    # ------------------------------------------------------------ cleanup
+    @api.post("/clouds/{cloud_id}/cleanup", response_model=JobOut)
+    def cleanup_cloud(cloud_id: str, request: CleanupRequest):
+        """Filter a cloud into a derived copy; the source stays untouched."""
+        cloud = _cloud(cloud_id)
+        if cloud["status"] != "ready":
+            raise HTTPException(409, f"cloud is not ready (status: {cloud['status']})")
+        paths = cloud_paths(cloud["project_id"], cloud["id"])
+        if not paths["positions"].exists():
+            raise HTTPException(409, "cloud positions are missing on disk")
+        project_id = cloud["project_id"]
+        derived_id = new_id()[:12]
+        job_id = create_job("cleanup", project_id, cloud_id, "очистка облака")
+        params = request.model_dump()
+        method = params.pop("method")
+        derived_dir = paths["dir"] / "derived" / derived_id
+
+        def work(progress):
+            result = apply_cleanup(
+                paths["positions"],
+                derived_dir,
+                method,
+                params,
+                colors_path=paths["colors"],
+                progress=progress,
+            )
+            result["derived_id"] = derived_id
+            result["cloud_id"] = cloud_id
+            dispatch_event(
+                "cleanup.completed",
+                {"job_id": job_id, "cloud_id": cloud_id, "derived_id": derived_id},
+            )
+            return result
+
+        submit(job_id, work)
+        dispatch_event("cleanup.started", {"job_id": job_id, "cloud_id": cloud_id})
+        return get_job(job_id)
+
+    @api.get("/clouds/{cloud_id}/derived")
+    def list_derived(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        base = cloud_paths(cloud["project_id"], cloud["id"])["dir"] / "derived"
+        items = []
+        if base.is_dir():
+            for meta_path in sorted(base.glob("*/meta.json")):
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                meta["derived_id"] = meta_path.parent.name
+                items.append(meta)
+        return items
+
+    @api.get("/clouds/{cloud_id}/derived/{derived_id}/download")
+    def download_derived(
+        cloud_id: str,
+        derived_id: str,
+        format: str = Query(default="ply", pattern="^(ply|xyz|npy)$"),
+    ):
+        cloud = _cloud(cloud_id)
+        if len(derived_id) > 64 or not all(ch.isalnum() or ch in "-_" for ch in derived_id):
+            raise HTTPException(404, "derived cloud not found")
+        derived_dir = cloud_paths(cloud["project_id"], cloud["id"])["dir"] / "derived" / derived_id
+        positions_path = derived_dir / "positions.npy"
+        meta_path = derived_dir / "meta.json"
+        if not positions_path.is_file() or not meta_path.is_file():
+            raise HTTPException(404, "derived cloud not found")
+        if format == "npy":
+            return FileResponse(
+                positions_path,
+                media_type="application/octet-stream",
+                filename=f"{cloud['name']}_{derived_id}.npy",
+            )
+        positions = np.load(positions_path, mmap_mode="r")
+        colors_path = derived_dir / "colors.npy"
+        colors = np.load(colors_path, mmap_mode="r") if colors_path.is_file() else None
+        out_path = derived_dir / f"cloud.{format}"
+        if not out_path.is_file():
+            if format == "ply":
+                write_ply(positions, colors, out_path)
+            else:
+                write_xyz(positions, out_path)
+        media = "application/ply" if format == "ply" else "text/plain"
+        return FileResponse(
+            out_path,
+            media_type=media,
+            filename=f"{cloud['name']}_{derived_id}.{format}",
+        )
 
 
     @api.get("/clouds/{cloud_id}/structural-plan.dxf")

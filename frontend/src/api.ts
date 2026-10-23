@@ -152,8 +152,14 @@ export interface ColumnSurfaceTrackAnalysisResponse {
   section_series: {
     status: string;
     section_slices: {
-      z_m: number; status: string;
+      z_m: number; status: string; shape_status: string;
       hypotheses: ColumnSectionFitResponse["hypotheses"];
+      built_up_hypotheses: {
+        shape: "built_up_i"; envelope_side_lengths_m: number[]; web_thickness_m: number;
+        flange_thicknesses_m: number[]; source_point_row_id_count: number;
+        source_point_row_id_sample: number[]; review_required: true;
+        engineering_status: "not_assessed";
+      }[];
       source_point_row_id_count: number; source_point_row_id_sample: number[];
       track_ids: string[]; track_evidence: { track_id: string; edge_id: string; source_point_count: number }[];
     }[];

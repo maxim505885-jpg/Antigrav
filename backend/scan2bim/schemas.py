@@ -291,3 +291,18 @@ class SampleOut(BaseModel):
 class SampleCreate(BaseModel):
     element_id: str
     class_name: str | None = None
+
+
+class CleanupRequest(BaseModel):
+    """Non-destructive cleanup of a registered cloud.
+
+    Only the requested filter runs; the source cloud is never rewritten. The
+    result is a derived artefact with its own positions file and metadata.
+    """
+
+    method: Literal["statistical", "radius", "voxel"] = "voxel"
+    voxel_m: float = Field(default=0.05, gt=0.0005, le=2.0)
+    k: int = Field(default=16, ge=1, le=200)
+    std_ratio: float = Field(default=2.0, gt=0.1, le=10.0)
+    radius_m: float = Field(default=0.05, gt=0.0005, le=5.0)
+    min_neighbors: int = Field(default=4, ge=1, le=500)
