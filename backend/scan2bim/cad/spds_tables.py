@@ -119,3 +119,115 @@ def draw_spds_specification_table(
         curr_y -= row_h
 
     return y0 - total_h
+
+
+def draw_spds_tolerance_schedule_table(
+    msp: Any,
+    top_right_x: float,
+    top_right_y: float,
+    rows: list[dict[str, Any]],
+    scale_factor: float = 200.0,
+    title: str = "Ведомость отклонений колонн от разбивочных осей (СП 70.13330)",
+) -> float:
+    """Draw Executive Tolerance Schedule table according to SP 70.13330.2012 / GOST R 51872-2019.
+
+    Columns:
+    - Поз. (15 мм)
+    - Ряд/Ось (30 мм)
+    - ΔU, мм (20 мм)
+    - ΔV, мм (20 мм)
+    - ΔR, мм (20 мм)
+    - Допуск СП 70 (35 мм)
+    - Оценка (45 мм)
+    Total width = 185 мм.
+    """
+    s = scale_factor / 1000.0
+
+    col_widths_mm = [15.0, 30.0, 20.0, 20.0, 20.0, 35.0, 45.0]
+    total_w_mm = sum(col_widths_mm)  # 185.0 mm
+    col_widths = [w * s for w in col_widths_mm]
+    total_w = total_w_mm * s
+
+    x0 = top_right_x - total_w
+    y0 = top_right_y
+
+    header_h = 14.0 * s
+    row_h = 7.0 * s
+    total_h = header_h + len(rows) * row_h
+
+    msp.add_text(
+        title,
+        dxfattribs={
+            "layer": "SPDS-TEXT",
+            "style": "SPDS_TITLE",
+            "height": 3.2 * s,
+            "color": 7,
+        },
+    ).set_placement((x0, y0 + 3.0 * s))
+
+    # Outer border
+    pts = [
+        (x0, y0),
+        (x0 + total_w, y0),
+        (x0 + total_w, y0 - total_h),
+        (x0, y0 - total_h),
+    ]
+    msp.add_lwpolyline(pts, close=True, dxfattribs={"layer": "SPDS-TITLE", "color": 7})
+    msp.add_line((x0, y0 - header_h), (x0 + total_w, y0 - header_h), dxfattribs={"layer": "SPDS-TITLE", "color": 7})
+
+    # Vertical separators
+    curr_x = x0
+    for w in col_widths[:-1]:
+        curr_x += w
+        msp.add_line((curr_x, y0), (curr_x, y0 - total_h), dxfattribs={"layer": "SPDS-TITLE", "color": 7})
+
+    headers = [
+        "Поз.",
+        "Ряд / Ось",
+        "ΔU, мм",
+        "ΔV, мм",
+        "ΔR, мм",
+        "Допуск СП 70",
+        "Заключение",
+    ]
+    curr_x = x0
+    for w, h_text in zip(col_widths, headers):
+        msp.add_text(
+            h_text,
+            dxfattribs={
+                "layer": "SPDS-TEXT",
+                "style": "SPDS_TEXT",
+                "height": 2.3 * s,
+                "color": 7,
+            },
+        ).set_placement((curr_x + 1.5 * s, y0 - 8.0 * s))
+        curr_x += w
+
+    curr_y = y0 - header_h
+    for item in rows:
+        msp.add_line((x0, curr_y - row_h), (x0 + total_w, curr_y - row_h), dxfattribs={"layer": "SPDS-TITLE", "color": 7})
+        row_vals = [
+            str(item.get("pos", "")),
+            str(item.get("grid", "")),
+            str(item.get("delta_u", "")),
+            str(item.get("delta_v", "")),
+            str(item.get("delta_r", "")),
+            str(item.get("tolerance", "±15 мм")),
+            str(item.get("status", "")),
+        ]
+        curr_x = x0
+        for w, val in zip(col_widths, row_vals):
+            msp.add_text(
+                val,
+                dxfattribs={
+                    "layer": "SPDS-TEXT",
+                    "style": "SPDS_TEXT",
+                    "height": 2.2 * s,
+                    "color": 7,
+                },
+            ).set_placement((curr_x + 1.2 * s, curr_y - 5.0 * s))
+            curr_x += w
+        curr_y -= row_h
+
+    return y0 - total_h
+

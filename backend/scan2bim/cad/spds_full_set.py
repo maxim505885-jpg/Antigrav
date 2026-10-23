@@ -8,7 +8,7 @@ Produces 4 complete engineering sheets:
 """
 from __future__ import annotations
 
-from .spds_tables import draw_spds_specification_table
+from .spds_tables import draw_spds_specification_table, draw_spds_tolerance_schedule_table
 from ..recognition.column_validator import WorkshopColumnValidator
 
 import math
@@ -533,6 +533,37 @@ def generate_sheet_5_executive_deviation_scheme(
 
     draw_spds_dimension_chain(msp, x_bays, fixed_coord=min_y - 6.0, axis="x", offset=-bubble_r * 4.0, tick_size=bubble_r * 0.5)
     draw_spds_dimension_chain(msp, y_spans, fixed_coord=min_x - 6.0, axis="y", offset=-bubble_r * 4.0, tick_size=bubble_r * 0.5)
+
+    # Ведомость фактических отклонений колонн по СП 70.13330
+    table_rows = []
+    for idx_c, col in enumerate(cols, start=1):
+        gx, gy = col["grid_pos"]
+        nearest_x = min(x_bays, key=lambda x: abs(x - gx))
+        nearest_y = min(y_spans, key=lambda y: abs(y - gy))
+        dx = int(round((gx - nearest_x) * 1000.0))
+        dy = int(round((gy - nearest_y) * 1000.0))
+        dr = int(round(math.sqrt(dx * dx + dy * dy)))
+        ax_i = x_bays.index(nearest_x) + 1
+        rw_l = cyr_letters[y_spans.index(nearest_y) % len(cyr_letters)]
+        st_text = "В норме" if dr <= 15 else ("Предельное" if dr <= 25 else "Превышение")
+        table_rows.append({
+            "pos": f"К-{idx_c}",
+            "grid": f"{rw_l}/{ax_i}",
+            "delta_u": f"{dx:+d}",
+            "delta_v": f"{dy:+d}",
+            "delta_r": f"{dr}",
+            "tolerance": "≤15 мм",
+            "status": st_text,
+        })
+
+    if table_rows:
+        draw_spds_tolerance_schedule_table(
+            msp,
+            top_right_x=inner_box[2] - 5.0,
+            top_right_y=inner_box[3] - 5.0,
+            rows=table_rows[:25],
+            scale_factor=scale_factor,
+        )
 
     doc.saveas(out_dxf)
     if out_pdf:
