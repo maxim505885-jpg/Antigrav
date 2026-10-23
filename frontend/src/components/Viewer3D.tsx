@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { api } from "../api";
-import type { Cloud, Element } from "../types";
+import type { Cloud, Element, LodManifest } from "../types";
 import { groupCameraDistance } from "../columnGroupGeometry";
+import { selectLodLevel } from "../lodLevel";
 import { elementBoxLinePositions } from "../structuralFrameGeometry";
 import { computeStructuralGridGeometry } from "../structuralGrid3D";
 import { classLabel } from "../types";
@@ -302,70 +303,142 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
       setError(null);
       return () => controller.abort();
     }
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    let manifest: LodManifest | null = null;
+    let activeLevel: number | null = null;
+    let pendingLevel: number | null = null;
+    let lodRequest: AbortController | null = null;
+    let lodTimer = 0;
+
+    const installBuffer = (buffer: ArrayBuffer): number => {
+      if (buffer.byteLength === 0 || buffer.byteLength % 15 !== 0) {
+        throw new Error("LOD point buffer must use 15-byte XYZ/RGB records");
+      }
+      const count = buffer.byteLength / 15;
+      const view = new DataView(buffer);
+      const positions = new Float32Array(count * 3);
+      const z = new Float32Array(count);
+      const colors = new Uint8Array(count * 3);
+      let maxRadius = 0;
+      for (let i = 0; i < count; i += 1) {
+        const offset = i * 15;
+        const x = view.getFloat32(offset, true);
+        const y = view.getFloat32(offset + 4, true);
+        const zz = view.getFloat32(offset + 8, true);
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = zz;
+        z[i] = zz;
+        colors[i * 3] = view.getUint8(offset + 12);
+        colors[i * 3 + 1] = view.getUint8(offset + 13);
+        colors[i * 3 + 2] = view.getUint8(offset + 14);
+        maxRadius = Math.max(maxRadius, Math.hypot(x, y, zz));
+      }
+      rawRef.current = { positions, colors, z, radius: maxRadius };
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const shownColors = colorMode === "rgb" && cloud.has_color ? colors : heightColors(z);
+      geometry.setAttribute("color", new THREE.BufferAttribute(shownColors, 3, true));
+      geometry.computeBoundingSphere();
+      const material = new THREE.PointsMaterial({
+        size: Math.max(0.004, maxRadius / 600) * pointSize,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: false,
+      });
+      const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
+      if (pointsRef.current) {
+        scene.remove(pointsRef.current);
+        pointsRef.current.geometry.dispose();
+        materialRef.current?.dispose();
+      }
+      scene.add(points);
+      pointsRef.current = points;
+      materialRef.current = material;
+      setLoaded(count);
+      return maxRadius;
+    };
+
+    const fetchLevel = async (level: number): Promise<boolean> => {
+      if (!manifest || controller.signal.aborted) return false;
+      lodRequest?.abort();
+      const request = new AbortController();
+      lodRequest = request;
+      try {
+        const response = await fetch(api.lodBinaryUrl(cloud.id, level), { signal: request.signal });
+        if (!response.ok) throw new Error(`LOD ${level} HTTP ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        if (controller.signal.aborted || request.signal.aborted || lodRequest !== request) return false;
+        installBuffer(buffer);
+        activeLevel = level;
+        pendingLevel = level;
+        setError(null);
+        return true;
+      } catch (reason: any) {
+        if (reason?.name !== "AbortError" && !controller.signal.aborted) {
+          setError(String(reason?.message || reason));
+        }
+        return false;
+      } finally {
+        if (lodRequest === request) lodRequest = null;
+        if (pendingLevel === level && activeLevel !== level && !request.signal.aborted) {
+          pendingLevel = null;
+        }
+      }
+    };
+
+    const scheduleLevelForCamera = () => {
+      if (!manifest || !camera || !controls) return;
+      const target = selectLodLevel(manifest.levels, camera.position.distanceTo(controls.target));
+      if (target == null) return;
+      if (target === activeLevel) {
+        if (lodTimer) window.clearTimeout(lodTimer);
+        lodTimer = 0;
+        pendingLevel = activeLevel;
+        lodRequest?.abort();
+        return;
+      }
+      if (target === pendingLevel) return;
+      if (lodTimer) window.clearTimeout(lodTimer);
+      pendingLevel = target;
+      lodTimer = window.setTimeout(() => {
+        lodTimer = 0;
+        void fetchLevel(target);
+      }, 140);
+    };
+
     setLoading(true);
     setError(null);
     (async () => {
       try {
-        // Try dynamic streaming LOD pyramid if available, fallback to previewUrl
-        let buffer: ArrayBuffer | null = null;
         try {
-          const lodManifest = await api.getLodManifest(cloud.id);
-          if (lodManifest && lodManifest.levels && lodManifest.levels.length > 0) {
-            // Load highest detail level or standard level 1
-            const targetLvl = lodManifest.levels[Math.min(1, lodManifest.levels.length - 1)].level;
-            const lodResp = await fetch(api.lodBinaryUrl(cloud.id, targetLvl), { signal: controller.signal });
-            if (lodResp.ok) {
-              buffer = await lodResp.arrayBuffer();
+          manifest = await api.getLodManifest(cloud.id);
+          if (manifest.levels.length > 0 && camera && controls) {
+            const size = manifest.bounds.size;
+            const sphere = new THREE.Sphere(
+              new THREE.Vector3(...manifest.bounds.center),
+              Math.max(1, Math.hypot(...size) / 2),
+            );
+            const initialDistance = groupCameraDistance(sphere.radius, camera.fov, camera.aspect);
+            const initialLevel = selectLodLevel(manifest.levels, initialDistance);
+            if (initialLevel != null && await fetchLevel(initialLevel)) {
+              fitSphere(groupSphereRef.current ?? sphere);
+              controls.addEventListener("change", scheduleLevelForCamera);
+              scheduleLevelForCamera();
+              return;
             }
           }
         } catch {
-          buffer = null;
+          manifest = null;
         }
 
-        if (!buffer) {
-          const response = await fetch(api.previewUrl(cloud.id), { signal: controller.signal });
-          if (!response.ok) throw new Error(`preview HTTP ${response.status}`);
-          buffer = await response.arrayBuffer();
-        }
-        const stride = 15;
-        const count = Math.floor(buffer.byteLength / stride);
-        const view = new DataView(buffer);
-        const positions = new Float32Array(count * 3);
-        const z = new Float32Array(count);
-        const colors = new Uint8Array(count * 3);
-        let maxRadius = 0;
-        for (let i = 0; i < count; i += 1) {
-          const offset = i * stride;
-          const x = view.getFloat32(offset, true);
-          const y = view.getFloat32(offset + 4, true);
-          const zz = view.getFloat32(offset + 8, true);
-          positions[i * 3] = x;
-          positions[i * 3 + 1] = y;
-          positions[i * 3 + 2] = zz;
-          z[i] = zz;
-          colors[i * 3] = view.getUint8(offset + 12);
-          colors[i * 3 + 1] = view.getUint8(offset + 13);
-          colors[i * 3 + 2] = view.getUint8(offset + 14);
-          maxRadius = Math.max(maxRadius, Math.hypot(x, y, zz));
-        }
-        rawRef.current = { positions, colors, z, radius: maxRadius };
-        setLoaded(count);
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3, true));
-        geometry.computeBoundingSphere();
-        const material = new THREE.PointsMaterial({
-          size: Math.max(0.004, maxRadius / 600) * pointSize,
-          vertexColors: true,
-          sizeAttenuation: true,
-          transparent: false,
-        });
-        const points = new THREE.Points(geometry, material);
-        points.frustumCulled = false;
-        scene.add(points);
-        pointsRef.current = points;
-        materialRef.current = material;
-
+        manifest = null;
+        const response = await fetch(api.previewUrl(cloud.id), { signal: controller.signal });
+        if (!response.ok) throw new Error(`preview HTTP ${response.status}`);
+        const maxRadius = installBuffer(await response.arrayBuffer());
+        setError(null);
         fitSphere(groupSphereRef.current ?? new THREE.Sphere(new THREE.Vector3(), Math.max(1, maxRadius)));
       } catch (err: any) {
         if (err?.name !== "AbortError") setError(String(err?.message || err));
@@ -373,7 +446,12 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      lodRequest?.abort();
+      if (lodTimer) window.clearTimeout(lodTimer);
+      controls?.removeEventListener("change", scheduleLevelForCamera);
+    };
   }, [cloud?.id, cloud?.updated_at]);
 
   useEffect(() => {

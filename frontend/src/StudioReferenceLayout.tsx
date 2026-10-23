@@ -2,13 +2,33 @@ import React, { useState } from "react";
 import "./theme.css";
 import Viewer3D from "./components/Viewer3D";
 import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
-import ElementTable from "./components/ElementTable";
-import ColumnTypesPanel from "./components/ColumnTypesPanel";
-import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
-import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
+import { RegistrationQualityCharts } from "./components/RegistrationQualityCharts";
+import { ElementTanStackTable } from "./components/ElementTanStackTable";
 import { type Cloud, type Element, type Project } from "./types";
+
+// Lucide Icons
+import {
+  Folder,
+  UploadCloud,
+  Network,
+  Cloud as CloudIcon,
+  Camera,
+  Cpu,
+  Compass,
+  Building,
+  FileSpreadsheet,
+  FileDown,
+  Settings,
+  Eye,
+  Crosshair,
+  Maximize2,
+  BarChart3,
+  Layers,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 
 interface StudioLayoutProps {
   project: Project | null;
@@ -51,8 +71,6 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     panoramas: true,
     aiStructures: true,
     axes: true,
-    dimensions: true,
-    drawings: true,
     bimModel: true,
   });
 
@@ -61,18 +79,17 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   };
 
   const navItems = [
-    { id: "home", label: "Главная", icon: "⌂" },
-    { id: "projects", label: "Проекты", icon: "📁" },
-    { id: "import", label: "Импорт сканов", icon: "📥" },
-    { id: "stitching", label: "Сшивка станций", icon: "☍" },
-    { id: "pointcloud", label: "Облако точек", icon: "☁" },
-    { id: "panoramas", label: "Панорамы 360°", icon: "📷" },
-    { id: "recognition", label: "ИИ Распознавание", icon: "🧠" },
-    { id: "cad", label: "Чертежи (СПДС)", icon: "📐" },
-    { id: "bim", label: "BIM Модель IFC", icon: "🏛" },
-    { id: "reports", label: "Паспорта и Отчёты", icon: "📋" },
-    { id: "export", label: "Экспорт CAD/DWG", icon: "📤" },
-    { id: "settings", label: "Настройки СП", icon: "⚙" },
+    { id: "projects", label: "Проекты", icon: <Folder size={15} /> },
+    { id: "import", label: "Импорт сканов", icon: <UploadCloud size={15} /> },
+    { id: "stitching", label: "Сшивка станций", icon: <Network size={15} /> },
+    { id: "pointcloud", label: "Облако точек", icon: <CloudIcon size={15} /> },
+    { id: "panoramas", label: "Панорамы 360°", icon: <Camera size={15} /> },
+    { id: "recognition", label: "ИИ Распознавание", icon: <Cpu size={15} /> },
+    { id: "cad", label: "Чертежи (CAD)", icon: <Compass size={15} /> },
+    { id: "bim", label: "BIM Модель IFC", icon: <Building size={15} /> },
+    { id: "reports", label: "Паспорта и Отчёты", icon: <FileSpreadsheet size={15} /> },
+    { id: "export", label: "Экспорт DWG", icon: <FileDown size={15} /> },
+    { id: "settings", label: "Настройки СП", icon: <Settings size={15} /> },
   ];
 
   const secondaryTabs = [
@@ -90,7 +107,6 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     { id: "Станция 01 (1.rcs)", time: "13.10.2026 16:25", pos: [0.0, 0.0, 1.5] as [number, number, number], pts: "297.8M" },
     { id: "Станция 02 (2.rcs)", time: "16.10.2026 12:14", pos: [12.0, 0.0, 1.5] as [number, number, number], pts: "576.8M" },
     { id: "Станция 03 (Цех)", time: "18.10.2026 09:30", pos: [24.0, 0.0, 1.5] as [number, number, number], pts: "184.2M" },
-    { id: "Станция 04 (Кровля)", time: "18.10.2026 11:45", pos: [36.0, 0.0, 7.8] as [number, number, number], pts: "142.5M" },
   ];
 
   const emptyFloatArray = new Float32Array(0);
@@ -107,7 +123,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
       {/* 1. TOP APPLICATION BAR */}
       <header className="app-header">
         <div className="app-brand">
-          <div className="app-logo">S</div>
+          <div className="app-logo">
+            <Sparkles size={14} color="#0A0E13" />
+          </div>
           <div className="app-title">
             SCAN AI <span className="sub">STUDIO</span>
           </div>
@@ -115,7 +133,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           <div className="project-title-badge">
             <span style={{ color: "var(--accent)" }}>●</span>
             <span>{project?.name || "Цех_№1 (1.rcs + 2.rcs)"}</span>
-            <span style={{ color: "var(--text-muted)", fontSize: 11 }}>[mmap 6-LOD]</span>
+            <span style={{ color: "var(--text-muted)", fontSize: 10 }}>[874.6M точек]</span>
           </div>
         </div>
 
@@ -156,7 +174,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             onClick={onRunSinglePass}
             style={{ padding: "5px 14px" }}
           >
-            ⚡ Сквозной расчёт цеха
+            <Zap size={14} /> Сквозной расчёт цеха
           </button>
         </div>
       </header>
@@ -210,11 +228,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         <main className="viewport-center">
           {/* Floating 3D Tools Ribbon */}
           <div className="viewport-tools-ribbon">
-            <button className="ribbon-btn active" title="Выбор"><span>↖</span> Выбор</button>
-            <button className="ribbon-btn" title="Измерение"><span>📏</span> Замер</button>
-            <button className="ribbon-btn" title="Сечение"><span>✂</span> Разрез</button>
-            <button className="ribbon-btn" title="Обрезка"><span>◩</span> Фильтр</button>
-            <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><span>📷</span> Панорама</button>
+            <button className="ribbon-btn active" title="Выбор"><Crosshair size={13} /> Выбор</button>
+            <button className="ribbon-btn" title="Замер"><Maximize2 size={13} /> Замер</button>
+            <button className="ribbon-btn" onClick={() => setActiveNav("panoramas")}><Camera size={13} /> Панорама</button>
             <button
               className="ribbon-btn"
               onClick={() => {
@@ -224,7 +240,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               }}
               style={{ color: "var(--accent)" }}
             >
-              <span>🏛</span> ГОСТ Сортамент
+              <Building size={13} /> ГОСТ Сортамент
             </button>
             <button
               className="ribbon-btn"
@@ -232,7 +248,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 setSelectedCloudIndex((prev) => (prev === 0 ? 1 : 0));
               }}
             >
-              <span>🔄</span> Скан {selectedCloudIndex + 1}/{clouds.length || 2}
+              Скан {selectedCloudIndex + 1}/{clouds.length || 2}
             </button>
           </div>
 
@@ -248,8 +264,10 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           {/* Floating Layers Card */}
           <div className="floating-layers-card">
             <div className="card-header-sm">
-              <span>Слои проекта</span>
-              <span style={{ cursor: "pointer" }}>👁</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <Layers size={11} /> Слои проекта
+              </span>
+              <Eye size={12} style={{ cursor: "pointer" }} />
             </div>
             <div style={{ padding: "4px 0" }}>
               {[
@@ -305,43 +323,15 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           {/* BOTTOM DOCK DRAWER */}
           <section className="bottom-dock-container">
-            {/* Card 1: Stations */}
-            <div className="dock-card" style={{ width: 260, minWidth: 260 }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
-                <span>СТАНЦИИ СКАНИРОВАНИЯ ({stations.length})</span>
-                <span style={{ color: "var(--accent)" }}>● 2.1 мм RMSE</span>
-              </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "4px" }}>
-                {stations.map((st, idx) => (
-                  <div
-                    key={st.id}
-                    onClick={() => setActiveStationIndex(idx)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "5px 8px",
-                      borderRadius: "var(--radius-xs)",
-                      background: activeStationIndex === idx ? "var(--accent-subtle)" : "transparent",
-                      border: activeStationIndex === idx ? "1px solid var(--accent)" : "1px solid transparent",
-                      cursor: "pointer",
-                      marginBottom: 2,
-                      fontSize: 11,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, color: activeStationIndex === idx ? "var(--accent)" : "inherit" }}>
-                      {st.id}
-                    </span>
-                    <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 10 }}>{st.pts}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Card 1: Interactive Recharts Statistics */}
+            <div className="dock-card" style={{ width: 440, minWidth: 440 }}>
+              <RegistrationQualityCharts />
             </div>
 
             {/* Card 2: Interactive 360 Panorama Preview */}
-            <div className="dock-card" style={{ width: 340, minWidth: 340, position: "relative" }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
-                <span>360° REALVIEW+ ПАНОРАМА</span>
+            <div className="dock-card" style={{ width: 280, minWidth: 280, position: "relative" }}>
+              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
+                <span>360° REALVIEW+</span>
                 <span style={{ color: "var(--success)" }}>АКТИВНА</span>
               </div>
               <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -352,52 +342,19 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               </div>
             </div>
 
-            {/* Card 3: Recognized Elements Schedule */}
-            <div className="dock-card" style={{ flex: 1, minWidth: 300 }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
-                <span>СПЕЦИФИКАЦИЯ ЭЛЕМЕНТОВ (СП 70.13330)</span>
-                <span style={{ color: "var(--text-muted)" }}>{elements.length} проверено</span>
+            {/* Card 3: TanStack Table of Classified Elements */}
+            <div className="dock-card" style={{ flex: 1, minWidth: 320 }}>
+              <div style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
+                <span>СПЕЦИФИКАЦИЯ ЭЛЕМЕНТОВ (TANSTACK TABLE)</span>
+                <span style={{ color: "var(--text-muted)" }}>{elements.length} элементов</span>
               </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "6px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}>
-                      <th style={{ padding: "4px 8px" }}>ID</th>
-                      <th>Класс</th>
-                      <th>ГОСТ Профиль</th>
-                      <th>Сечение</th>
-                      <th>Крен</th>
-                      <th>Статус</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {elements.map((el) => (
-                      <tr
-                        key={el.id}
-                        onClick={() => {
-                          onSelectElement(el);
-                          setInspectingElement(el);
-                        }}
-                        style={{
-                          cursor: "pointer",
-                          borderBottom: "1px solid rgba(255,255,255,0.03)",
-                          background: selectedElement?.id === el.id ? "var(--accent-subtle)" : "transparent",
-                        }}
-                      >
-                        <td style={{ padding: "6px 8px", fontWeight: 600, color: "var(--accent)" }}>{el.id}</td>
-                        <td>{el.class_name}</td>
-                        <td>{el.dimensions?.profile || "Двутавр 30К2"}</td>
-                        <td>300 × 300 мм</td>
-                        <td style={{ color: "var(--success)" }}>ΔX: +3.2 мм</td>
-                        <td>
-                          <span style={{ background: "var(--success-bg)", color: "var(--success)", padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700 }}>
-                            НОРМА
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <ElementTanStackTable
+                  elements={elements}
+                  selectedElement={selectedElement}
+                  onSelectElement={onSelectElement}
+                  onInspectElement={(el) => setInspectingElement(el)}
+                />
               </div>
             </div>
           </section>
@@ -439,7 +396,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 onClick={() => setActiveNav("stitching")}
                 style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
               >
-                <span>☍</span> Открыть сплит-сшивку станций
+                <Network size={14} /> Открыть сплит-сшивку станций
               </button>
               <button
                 onClick={() => {
@@ -447,13 +404,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 }}
                 style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
               >
-                <span>🏛</span> Проверить ГОСТ-сортамент колонн
+                <Building size={14} /> Проверить ГОСТ-сортамент колонн
               </button>
               <button
                 onClick={() => alert("Экспорт ведомости отклонений по СП 70.13330 в PDF сформирован!")}
                 style={{ width: "100%", justifyContent: "flex-start", padding: "8px 12px" }}
               >
-                <span>📋</span> Сформировать ведомость отклонений PDF
+                <BarChart3 size={14} /> Сформировать ведомость отклонений PDF
               </button>
             </div>
           </div>
