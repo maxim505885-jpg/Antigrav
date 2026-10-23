@@ -253,7 +253,7 @@ def export_unified_ply(req: RecapExportRequest):
 
 @router.post("/registration/export-recap")
 def export_recap_project(req: RecapExportRequest):
-    """Export ReCap registration manifest project and authentic .RCP XML project file."""
+    """Export a SCAN station-pose JSON manifest; this endpoint does not create an Autodesk RCP."""
     from ..config import DATA_DIR
     out_dir = DATA_DIR / "output" / "registration"
     out_dir.mkdir(parents=True, exist_ok=True)

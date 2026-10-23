@@ -108,10 +108,10 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [layers, setLayers] = useState({
     pointCloud: true,
     stations: true,
-    panoramas: true,
-    aiStructures: true,
-    axes: true,
-    bimModel: true,
+    panoramas: false,
+    aiStructures: false,
+    axes: false,
+    bimModel: false,
   });
 
   const toggleLayer = (layerKey: keyof typeof layers) => {
@@ -468,6 +468,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 onToggleLimitBox={setShowLimitBox}
                 measureModeActive={measureMode}
                 onToggleMeasureMode={setMeasureMode}
+                showBim={layers.aiStructures || layers.bimModel}
               />
             ) : (
               <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>

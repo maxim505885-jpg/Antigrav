@@ -29,6 +29,7 @@ interface Props {
   onToggleLimitBox?: (active: boolean) => void;
   measureModeActive?: boolean;
   onToggleMeasureMode?: (active: boolean) => void;
+  showBim?: boolean;
 }
 
 interface RawGeometry {
@@ -74,6 +75,7 @@ export default function Viewer3D({
   onToggleLimitBox,
   measureModeActive,
   onToggleMeasureMode,
+  showBim = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -91,14 +93,14 @@ export default function Viewer3D({
   const gridGroupRef = useRef<THREE.Group | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showCloud, setShowCloud] = useState(true);
-  const [showColumns, setShowColumns] = useState(true);
-  const [showBeams, setShowBeams] = useState(true);
-  const [showBraces, setShowBraces] = useState(true);
-  const [showTrusses, setShowTrusses] = useState(true);
-  const [showWalls, setShowWalls] = useState(true);
-  const [showStairs, setShowStairs] = useState(true);
-  const [showOpenings, setShowOpenings] = useState(true);
-  const [showPipes, setShowPipes] = useState(true);
+  const [showColumns, setShowColumns] = useState(false);
+  const [showBeams, setShowBeams] = useState(false);
+  const [showBraces, setShowBraces] = useState(false);
+  const [showTrusses, setShowTrusses] = useState(false);
+  const [showWalls, setShowWalls] = useState(false);
+  const [showStairs, setShowStairs] = useState(false);
+  const [showOpenings, setShowOpenings] = useState(false);
+  const [showPipes, setShowPipes] = useState(false);
   const [activePreset, setActivePreset] = useState<string>("all");
 
   // ReCap Limit Box state
@@ -556,7 +558,7 @@ export default function Viewer3D({
       geometry.setAttribute("color", new THREE.BufferAttribute(shownColors, 3, true));
       geometry.computeBoundingSphere();
       const material = new THREE.PointsMaterial({
-        size: Math.max(0.004, maxRadius / 600) * pointSize,
+        size: Math.max(0.008, maxRadius / 280) * pointSize,
         vertexColors: true,
         sizeAttenuation: true,
         transparent: false,
@@ -705,7 +707,7 @@ export default function Viewer3D({
     const attribute = points.geometry.getAttribute("color") as THREE.BufferAttribute;
     attribute.array = colors;
     attribute.needsUpdate = true;
-    material.size = Math.max(0.004, raw.radius / 600) * pointSize;
+    material.size = Math.max(0.008, raw.radius / 280) * pointSize;
     material.needsUpdate = true;
   }, [colorMode, pointSize, loaded, cloud?.has_color]);
 
@@ -968,7 +970,7 @@ export default function Viewer3D({
       (child.material as THREE.Material)?.dispose();
     }
 
-    if (!elements || elements.length === 0) return;
+    if (!showBim || !elements || elements.length === 0) return;
     const origin = cloud?.origin || [0, 0, 0];
 
     const layers: { key: string; color: number; visible: boolean; renderOrder: number }[] = [

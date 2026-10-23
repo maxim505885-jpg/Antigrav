@@ -123,7 +123,7 @@
 
     <h2>Отдельные станции FARO</h2>
     <ul>
-      <li class="pending"><span class="mark">○</span><span><span class="phase">R1–R3 · Сшивка и ReCap</span><span class="detail">Изучены публичные workflows ReCap/Trimble/FARO и библиотеки Open3D, small_gicp, TEASER++, E57, PDAL. ReCap 24.0.0.240 и decap.exe установлены, отдельный Reality Solutions SDK/CCK в проверенных каталогах не найден. SCENE API FARO ограничен доступом партнёра. Текущая XML-заготовка SCAN не открывается в ReCap и не считается экспортом. Для приёмки нужны отдельные станции, контрольные точки и ReCap round-trip. <a href="RECAP_TRIMBLE_RESEARCH_2026-10-24.md">Отчёт и источники</a>.</span></span></li>
+      <li class="pending"><span class="mark">○</span><span><span class="phase">R1–R3 · Сшивка и ReCap</span><span class="detail">Установка ReCap 24.0.0.240 статически проверена: нативный подписанный x64 PE; ключевые модули импорта, экспорта, регистрации, point-cloud engine и FARO converter также подписаны Autodesk. DeCap уже интегрирован в SCAN endpoint для нативного RCP, но пользовательский FARO round-trip не проверен. SDK/CCK отдельно не найден, машинная декомпиляция недоступна без Ghidra/IDA. <a href="RECAP_TRIMBLE_RESEARCH_2026-10-24.md">Отчёт и источники</a>.</span></span></li>
     </ul>
 
     <p class="legend"><span style="color:var(--green)">✓</span> готово · <span style="color:var(--muted)">○</span> осталось · выделенный этап — в работе. Автоматически найденные элементы пока кандидаты.</p>
