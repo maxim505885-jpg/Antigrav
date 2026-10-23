@@ -70,6 +70,13 @@ def column_descriptor(element: dict[str, Any]) -> dict[str, Any]:
         reasons.append("not_measured")
     if element.get("inferred") is True:
         reasons.append("inferred_geometry")
+    if element.get("review_status") in {"rejected", "invalidated"}:
+        reasons.append("element_rejected")
+    if (
+        element.get("review_status") == "invalidated"
+        or element.get("source") == "invalidated_synthetic_ground_truth"
+    ):
+        reasons.append("invalidated_source")
 
     section_status = dimensions.get("section_status")
     point_measured_statuses = {

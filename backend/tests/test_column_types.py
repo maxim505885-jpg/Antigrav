@@ -87,6 +87,26 @@ def test_descriptor_rejects_unmeasured_inferred_and_noncolumn_candidates():
     assert "not_a_column" in column_descriptor(beam)["reasons"]
 
 
+def test_descriptor_and_grouping_exclude_rejected_and_invalidated_elements():
+    rejected = _column()
+    rejected.update({"id": "rejected", "review_status": "rejected"})
+    invalidated = _column()
+    invalidated.update({
+        "id": "invalidated",
+        "source": "invalidated_synthetic_ground_truth",
+        "review_status": "invalidated",
+    })
+
+    rejected_result = column_descriptor(rejected)
+    invalidated_result = column_descriptor(invalidated)
+
+    assert rejected_result["eligible"] is False
+    assert "element_rejected" in rejected_result["reasons"]
+    assert invalidated_result["eligible"] is False
+    assert "invalidated_source" in invalidated_result["reasons"]
+    assert propose_column_types([rejected, invalidated], linear_tolerance_m=0.01) == []
+
+
 def test_descriptor_preserves_stepped_and_built_up_section_evidence():
     stepped = _column(dimensions={
         "column_type": "stepped",
