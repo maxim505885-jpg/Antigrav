@@ -170,8 +170,8 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Tasks**:
   - [x] Full regression test harness (`pytest backend/tests/`, `npm test`).
   - [x] Desktop launcher script (`desktop_app.py`, Windows batch launchers).
-  - [ ] Windows 11 standalone installer / self-contained runtime bundle.
-  - [ ] Automated end-to-end acceptance certification suite.
+  - [x] Windows 11 standalone installer / self-contained runtime bundle (installer/scan_studio_setup.iss).
+  - [x] Automated end-to-end acceptance certification suite (ackend/tests/test_end_to_end_acceptance.py).
 - **Status**: **IN PROGRESS**
 
 ---
