@@ -89,6 +89,13 @@ def test_apply_cleanup_keeps_source_bytes_and_writes_meta(tmp_path: Path):
     stored_colors = np.load(derived / "colors.npy")
     assert stored_colors.shape == (meta["output_count"], 3)
     assert (derived / "meta.json").is_file()
+    assert meta["has_normals"] is True
+    normals = np.load(derived / "normals.npy")
+    curvature = np.load(derived / "curvature.npy")
+    assert normals.shape == (meta["output_count"], 3)
+    assert curvature.shape == (meta["output_count"],)
+    assert np.all(np.isfinite(normals))
+    assert np.all(np.isfinite(curvature))
 
 
 def test_apply_cleanup_drops_non_finite_points(tmp_path: Path):

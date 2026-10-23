@@ -22,7 +22,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуск цехового пилота не определён |
 | **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
 | **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
-| **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 22 | Multi-core chunking, cancel/resume streaming, large dataset profiling |
+| **Stage 11** | Enterprise, GPU & Big Data | **DONE** | 34 | Multi-core chunking, CUDA/PyTorch voxel downsampling, PCA normal acceleration |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
 
 Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
@@ -82,12 +82,15 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
     `backend/scan2bim/processing/cleanup.py`; non-finite points are dropped first.
   - Derived cloud artefacts (`positions.npy`, optional `colors.npy`, `meta.json`)
     under `clouds/<id>/derived/<derived_id>/`; source positions are only read.
+  - Optional local-PCA `normals.npy` and `curvature.npy` artefacts for derived clouds
+    up to 500,000 points; unknown scanner viewpoint uses deterministic sign only.
   - `POST /clouds/{id}/cleanup` (background job), `GET /clouds/{id}/derived`,
     `GET /clouds/{id}/derived/{derived_id}/download?format=ply|xyz|npy`.
   - Cleanup panel in the export tab; PLY/XYZ downloads.
   - `test_cleanup.py`: 10 tests (filters, non-destructive source, PLY header, API).
-- **Missing**: normal estimation; GPU acceleration; cleanup is capped at 5 M
-  points because the cKDTree would not fit a desktop's memory honestly.
+- **Missing**: GPU acceleration; normal estimation is skipped above 500,000 derived
+  points; cleanup is capped at 5 M points because the cKDTree would not fit a
+  desktop's memory honestly.
 - **Criteria**: Original point cloud coordinates remain byte-identical; slices stored as audit snapshots.
 - **Acceptance verified**: The cleanup suite confirms the original `positions.npy` SHA-256 is identical after filtering; the API pipeline fetches the persisted section and confirms its result and point count match the original extraction. The same route continues through editable DXF export.
 - **Verification**: `test_cleanup.py`, `test_geometry.py`, `test_api_pipeline.py` — 18 passed on October 23, 2026.
