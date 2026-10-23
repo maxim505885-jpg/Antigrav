@@ -71,6 +71,48 @@ def test_four_candidate_face_tracks_reconstruct_each_section_with_source_rows():
     assert np.array_equal(source_ids, ids_before)
 
 
+def test_built_up_profile_uses_candidate_crop_rows_beyond_assigned_outer_tracks():
+    geom = geometry(sides=(0.4, 0.4), height=2.0)
+    point_parts, row_parts, tracked_rows = [], [], []
+    web_source_ids = []
+    next_id = 50000
+    outline = np.asarray([
+        [0.0, 0.0], [0.4, 0.0], [0.4, 0.1], [0.28, 0.1],
+        [0.28, 0.3], [0.4, 0.3], [0.4, 0.4], [0.0, 0.4],
+        [0.0, 0.3], [0.12, 0.3], [0.12, 0.1], [0.0, 0.1],
+    ])
+    outline -= np.asarray([0.2, 0.2])
+    for z in np.arange(0.125, 2.0, 0.25):
+        for edge_index, (start, end) in enumerate(zip(outline, np.roll(outline, -1, axis=0))):
+            xy = start + np.linspace(0, 1, 40)[:, None] * (end - start)
+            xyz = np.column_stack((xy, np.full(len(xy), z)))
+            source_ids = np.arange(next_id, next_id + len(xyz), dtype=np.int64)
+            next_id += len(xyz)
+            point_parts.append(xyz)
+            row_parts.append(source_ids)
+            if edge_index == 0:
+                tracked_rows.extend(source_ids.tolist())
+            if edge_index == 4:
+                web_source_ids.extend(source_ids.tolist())
+    xyz = np.concatenate(point_parts)
+    source_ids = np.concatenate(row_parts)
+    tracks = [{
+        "track_id": "bottom-flange-track",
+        "candidate_edge_id": "v-",
+        "track_status": "candidate_track",
+        "source_point_indices": tracked_rows,
+    }]
+
+    report = fit_column_track_sections(geom, tracks, xyz, source_ids)
+
+    sections = report["section_series"]["section_slices"]
+    assert len(sections) == 8
+    assert all(section["built_up_hypotheses"] for section in sections)
+    assert any(set(hypothesis["source_point_ids"]) & set(web_source_ids)
+               for section in sections for hypothesis in section["built_up_hypotheses"])
+    assert all(section["track_ids"] == ["bottom-flange-track"] for section in sections)
+
+
 def test_known_sides_complete_only_two_observed_candidate_tracks():
     geom, tracks, xyz, source_ids = cloud_tracks(edge_ids=("u+", "v+"))
 

@@ -51,6 +51,7 @@ intelligent-scan-to-bim/
 │   │   ├── geometry/            # Point slicing, rasterization, vectorization, RANSAC fitting
 │   │   ├── learning/            # Feature extraction, KNN prior, dataset management, fine-tuning
 │   │   ├── pointdata/           # Spatial indexing (k-d tree, octree), chunked streaming
+│   │   ├── processing/          # Non-destructive cleanup: SOR, ROR, voxel downsample, derived artefacts
 │   │   ├── recognition/         # Walls, columns, beams, trusses, braces, stairs, openings
 │   │   ├── registration/        # Neural BEV matching, Point-to-Plane ICP, pose graph optimization
 │   │   └── structure/           # Workshop topology (СП 16/56/70), column section series & fitting
@@ -78,8 +79,8 @@ intelligent-scan-to-bim/
 ### 4.2. Multi-Station Registration & Stitching (`backend/scan2bim/registration`)
 - **Stage A (Analysis)**: Automatic bounding box, density estimation, and ground plane alignment.
 - **Stage B (Global Coarse Matching)**: BEV (Bird's Eye View) multi-channel structural feature tensors (density + $\Delta Z$ height + occupancy) convolved via 2D FFT with continuous 3D candidate verification to break $180^\circ$ symmetric hall traps.
-- **Stage C (Fine Registration)**: Point-to-Plane ICP with adaptive normal estimation converging to sub-millimeter residuals ($\text{RMSE} < 0.1\text{ mm}$ on clean structural targets).
-- **Stage D (Global Network Adjustment)**: Multi-station Pose Graph Optimization (loop closure) minimizing accumulated drift.
+- **Stage C (Fine Registration)**: Point-to-plane ICP with normal estimation, plus a Kabsch fit for known target pairs. No independent control measurement has been made, so the registration accuracy (RMSE) is **not yet established** — do not read the ICP cost as a survey accuracy.
+- **Stage D (Global Network Adjustment)**: pose-graph style error accumulation with loop-closure reporting; gated by the full-resolution station check (incomplete FARO stations are refused).
 
 ### 4.3. Structural & Architectural Recognition (`backend/scan2bim/recognition`)
 - **Industrial Framework**:
@@ -93,13 +94,25 @@ intelligent-scan-to-bim/
   2. *Hypothesis Role*: Class, nominal grid association, deviation.
   3. *Engineer Review Status*: `unreviewed`, `confirmed`, `rejected`, `modified`.
 
-### 4.4. SPDS / CAD Drafting Engine (`backend/scan2bim/cad`)
+### 4.4. Non-destructive Cleanup (`backend/scan2bim/processing`)
+- **Filters**: statistical outlier removal (mean kNN distance), radius outlier removal,
+  voxel downsampling; non-finite coordinates are dropped first.
+- **Contract**: filters take arrays and return masks/indices; the source
+  `positions.npy` is only read. A derived copy (`positions.npy`, optional
+  `colors.npy`, `meta.json`) is written under `derived/<id>/`, with input/output
+  counts, parameters and a timestamp.
+- **API**: `POST /clouds/{id}/cleanup` runs as a background job; `GET /derived`
+  lists copies; download as binary PLY, XYZ or NPY.
+- **Limit**: 5 M points for cKDTree-based filters; beyond that the job fails with
+  an explicit message instead of silently decimating. Normals are not implemented yet.
+
+### 4.5. SPDS / CAD Drafting Engine (`backend/scan2bim/cad`)
 - Pure vector CAD primitives generated strictly from measured and verified geometry:
   - **Sheet 01**: Column layout plan at el. 0.000 (M 1:200).
   - **Sheet 02**: Crane runway layout at el. +6.800 (M 1:200).
   - **Sheet 03**: Transverse building section 1-1 (M 1:100).
   - **Sheet 04**: Roof truss and bracing structural plan (M 1:200).
-  - **Sheet 05**: Executive Geodetic Deviation Scheme with SP 70 tolerance compliance table (GOST R 51872-2019).
+  - **Sheet 05**: Executive geodetic deviation scheme — draft residuals only; the SP 70 tolerance compliance block was reverted and is not part of this build.
 - **Native DWG Generation**: Direct conversion via installed `ODAFileConverter` or AutoCAD `accoreconsole.exe`.
 
 ---
@@ -107,5 +120,6 @@ intelligent-scan-to-bim/
 ## 5. Reliability, Security & Traceability
 
 - **Non-destructive Operations**: Original raw scans are treated as read-only.
-- **SHA-256 Provenance Ledger**: Every generated DXF, DWG, PDF, and IFC file is stamped with the SHA-256 hash of the canonical element set and point source manifest.
+- **Provenance**: SPDS albums record the SHA-256 of the canonical element set; DXF entities carry element IDs/provenance in XDATA; IFC products carry `Pset_ScanToBIM`. This is traceability, not a hash ledger over every exported file.
+- **Honest limits**: RCS has no station export; cloud export is DWG/DXF/PLY/XYZ, not RCP; panoramas and FLS reading are not implemented.
 - **Active Testing & Verification**: Changes are verified with `pytest` (backend) and `npm test` + `npm run build` (frontend) before any release commit.

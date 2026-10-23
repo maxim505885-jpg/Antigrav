@@ -699,7 +699,7 @@ def fit_column_section_series(
     ):
         raise ValueError("known_sides_m must contain two finite positive lengths")
 
-    prepared: list[tuple[float, np.ndarray, list[int], str]] = []
+    prepared: list[tuple[float, np.ndarray, list[int], str, np.ndarray, list[int]]] = []
     seen_z: set[float] = set()
     for item in section_slices:
         if not isinstance(item, Mapping):
@@ -738,14 +738,33 @@ def fit_column_section_series(
                     or any(converted != original for converted, original in zip(source_ids, raw_ids))):
                 raise ValueError("source_point_ids length must match points_xy and IDs must be unique")
             source_scope = "source_rows"
-        prepared.append((z_m, points, source_ids, source_scope))
+        built_up_points = np.asarray(item.get("built_up_points_xy", points), dtype=np.float64)
+        if built_up_points.size == 0:
+            built_up_points = np.empty((0, 2), dtype=np.float64)
+        if built_up_points.ndim != 2 or built_up_points.shape[1] != 2 or not np.isfinite(built_up_points).all():
+            raise ValueError("built_up_points_xy must be a finite N×2 array")
+        raw_built_up_ids = item.get("built_up_source_point_ids", raw_ids)
+        if raw_built_up_ids is None:
+            built_up_source_ids = list(range(len(built_up_points)))
+        else:
+            if not isinstance(raw_built_up_ids, Sequence) or isinstance(raw_built_up_ids, (str, bytes)):
+                raise ValueError("built_up_source_point_ids must be a sequence of integers")
+            try:
+                built_up_source_ids = [int(value) for value in raw_built_up_ids]
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("built_up_source_point_ids must be a sequence of integers") from exc
+            if (len(built_up_source_ids) != len(built_up_points)
+                    or len(set(built_up_source_ids)) != len(built_up_source_ids)
+                    or any(converted != original for converted, original in zip(built_up_source_ids, raw_built_up_ids))):
+                raise ValueError("built_up_source_point_ids must uniquely map built_up_points_xy")
+        prepared.append((z_m, points, source_ids, source_scope, built_up_points, built_up_source_ids))
 
     slices: list[dict[str, Any]] = []
     dimensions_by_height: list[tuple[float, tuple[float, float]]] = []
     shape_measurements: list[dict[str, Any]] = []
     built_up_measurements: list[dict[str, Any]] = []
     shape_by_height: list[tuple[float, str, tuple[float, ...]] | None] = []
-    for z_m, points, source_ids, source_scope in sorted(prepared, key=lambda entry: entry[0]):
+    for z_m, points, source_ids, source_scope, built_up_points, built_up_source_ids in sorted(prepared, key=lambda entry: entry[0]):
         if len(points) < 2:
             fit = {
                 "status": "unknown", "hypotheses": [], "observed_faces": [],
@@ -762,10 +781,10 @@ def fit_column_section_series(
         shape_hypotheses = [circle] if circle is not None else []
         for hypothesis in shape_hypotheses:
             hypothesis["source_point_ids"] = sorted(source_ids[index] for index in hypothesis["input_point_indices"])
-        built_up = fit_built_up_i_section(points, distance_tolerance_m=distance_tolerance_m) if len(points) >= 60 else None
+        built_up = fit_built_up_i_section(built_up_points, distance_tolerance_m=distance_tolerance_m) if len(built_up_points) >= 60 else None
         built_up_hypotheses = [built_up] if built_up is not None else []
         for hypothesis in built_up_hypotheses:
-            hypothesis["source_point_ids"] = sorted(source_ids[index] for index in hypothesis["input_point_indices"])
+            hypothesis["source_point_ids"] = sorted(built_up_source_ids[index] for index in hypothesis["input_point_indices"])
         fit["shape_hypotheses"] = shape_hypotheses
         fit["built_up_hypotheses"] = built_up_hypotheses
         fit["shape_status"] = (

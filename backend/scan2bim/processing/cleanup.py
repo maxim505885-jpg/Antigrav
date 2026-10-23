@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -256,6 +257,7 @@ def apply_cleanup(
         "output_count": int(len(indices)),
         "removed_count": int(total - len(indices)),
         "has_colors": color_written,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "duration_s": round(time.perf_counter() - started, 2),
         "source": {
             "positions_file": positions_path.name,

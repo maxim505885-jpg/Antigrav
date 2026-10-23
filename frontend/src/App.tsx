@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse } from "./api";
+import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud } from "./api";
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
@@ -31,6 +31,11 @@ const STAT_LABELS: Record<string, string> = {
   density_grade: "плотность",
   grid_res_m: "шаг сетки, м",
   level_candidates: "уровней",
+};
+const CLEANUP_LABELS: Record<string, string> = {
+  voxel: "воксельное прореживание",
+  statistical: "статистический (SOR)",
+  radius: "радиусный (ROR)",
 };
 const CLASSES = [
   "wall",
@@ -101,6 +106,7 @@ export default function App() {
   });
 
   const [elements, setElements] = useState<Element[]>([]);
+  const [derivedClouds, setDerivedClouds] = useState<DerivedCloud[]>([]);
   const [columnReferenceStates, setColumnReferenceStates] = useState<Record<string, string>>({});
   const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
@@ -145,6 +151,18 @@ export default function App() {
   const [training, setTraining] = useState(false);
 
   const recognition = useMemo(() => cloud?.metadata?.recognition ?? null, [cloud]);
+
+  useEffect(() => {
+    let current = true;
+    if (!cloud) {
+      setDerivedClouds([]);
+      return;
+    }
+    api.derivedClouds(cloud.id)
+      .then((items) => { if (current) setDerivedClouds(items); })
+      .catch(() => { if (current) setDerivedClouds([]); });
+    return () => { current = false; };
+  }, [cloud?.id]);
 
   useEffect(() => {
     if (!selectedElement) {
@@ -405,6 +423,32 @@ export default function App() {
         setCloud(refreshed);
         setClouds((list) => list.map((item) => (item.id === refreshed.id ? refreshed : item)));
         setElements(await api.elements(cloud.id));
+      }
+    } catch (err) {
+      setError(detailText(err));
+    } finally {
+      setBusy(false);
+      setJobLabel(null);
+      setJobProgress(0);
+    }
+  };
+
+  const runCleanup = async (payload: Record<string, unknown>) => {
+    if (!cloud) return;
+    setError(null);
+    setBusy(true);
+    setJobLabel("Очистка облака");
+    setJobProgress(0.02);
+    try {
+      const job = await api.runCleanup(cloud.id, payload);
+      const finished = await waitForJob(job.id, (update) => {
+        setJobProgress(update.progress || 0.05);
+        setJobLabel(`Очистка: ${update.message || statusLabel(update.status)}`);
+      });
+      if (finished.status === "failed") {
+        setError(finished.error || "очистка завершилась ошибкой");
+      } else {
+        setDerivedClouds(await api.derivedClouds(cloud.id));
       }
     } catch (err) {
       setError(detailText(err));
@@ -1538,6 +1582,49 @@ export default function App() {
                 {!cloud && <div className="empty-note">Выберите облако.</div>}
                 {cloud && (
                   <>
+                    <div className="panel-title">
+                      <span>ОЧИСТКА ОБЛАКА</span>
+                    </div>
+                    <p className="hint">
+                      Фильтры создают отдельную копию облака: исходные точки не изменяются.
+                      Воксель прореживает равномерно, SOR/ROR убирают выбросы по соседям.
+                      Ограничение этой сборки — 5 млн точек; результат скачивается как PLY/XYZ.
+                    </p>
+                    <div className="button-row">
+                      <button onClick={() => runCleanup({ method: "voxel", voxel_m: 0.05 })} disabled={busy}>
+                        Воксель 5 см
+                      </button>
+                      <button onClick={() => runCleanup({ method: "statistical", k: 16, std_ratio: 2.0 })} disabled={busy}>
+                        Шумовой фильтр (SOR)
+                      </button>
+                      <button onClick={() => runCleanup({ method: "radius", radius_m: 0.05, min_neighbors: 4 })} disabled={busy}>
+                        Радиусный фильтр (ROR)
+                      </button>
+                    </div>
+                    {derivedClouds.length > 0 && (
+                      <table className="element-table">
+                        <thead>
+                          <tr><th>метод</th><th>точек</th><th>удалено</th><th /></tr>
+                        </thead>
+                        <tbody>
+                          {derivedClouds.map((item) => (
+                            <tr key={item.derived_id}>
+                              <td>{CLEANUP_LABELS[item.method] || item.method}</td>
+                              <td>{item.output_count} из {item.input_count}</td>
+                              <td>{item.removed_count}</td>
+                              <td className="actions">
+                                <button onClick={() => download(() => api.downloadDerived(cloud.id, item.derived_id, "ply"), "Скачивание PLY")} disabled={busy}>
+                                  PLY
+                                </button>
+                                <button onClick={() => download(() => api.downloadDerived(cloud.id, item.derived_id, "xyz"), "Скачивание XYZ")} disabled={busy}>
+                                  XYZ
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                     <div className="panel-title">
                       <span>BIM</span>
                     </div>

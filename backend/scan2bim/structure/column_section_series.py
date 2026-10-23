@@ -45,6 +45,12 @@ def fit_column_track_sections(
         raise ValueError("candidate dimensions must be finite and positive")
     if not math.isfinite(float(vertical_bin_m)) or vertical_bin_m <= 0:
         raise ValueError("vertical_bin_m must be finite and positive")
+    try:
+        rotation_z = float(candidate_geometry.get("rotation_z", 0.0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("candidate rotation_z must be finite") from exc
+    if not math.isfinite(rotation_z):
+        raise ValueError("candidate rotation_z must be finite")
     if not isinstance(surface_tracks, Sequence) or isinstance(surface_tracks, (str, bytes)):
         raise ValueError("surface_tracks must be a sequence")
 
@@ -57,6 +63,18 @@ def fit_column_track_sections(
     row_ids = row_ids.astype(np.int64, copy=False)
     if len(np.unique(row_ids)) != len(row_ids):
         raise ValueError("source rows must be unique")
+    z_min, z_max = center[2] - height / 2, center[2] + height / 2
+    delta_xy = xyz[:, :2] - center[:2]
+    cosine, sine = math.cos(rotation_z), math.sin(rotation_z)
+    local_u = cosine * delta_xy[:, 0] + sine * delta_xy[:, 1]
+    local_v = -sine * delta_xy[:, 0] + cosine * delta_xy[:, 1]
+    crop_margin = max(4 * float(distance_tolerance_m), 0.015)
+    in_candidate_crop = (
+        (np.abs(local_u) <= length / 2 + crop_margin)
+        & (np.abs(local_v) <= thickness / 2 + crop_margin)
+        & (xyz[:, 2] >= z_min)
+        & (xyz[:, 2] <= z_max)
+    )
 
     accepted: list[dict[str, Any]] = []
     excluded: list[dict[str, str]] = []
@@ -90,7 +108,6 @@ def fit_column_track_sections(
         })
 
     if not accepted:
-        z_min, z_max = center[2] - height / 2, center[2] + height / 2
         empty_slices: list[dict[str, Any]] = []
         empty_bins: list[dict[str, Any]] = []
         for bin_id in range(math.floor(z_min / vertical_bin_m), math.ceil(z_max / vertical_bin_m)):
@@ -99,7 +116,20 @@ def fit_column_track_sections(
             if upper <= lower:
                 continue
             z_m = (lower + upper) / 2
-            empty_slices.append({"z_m": z_m, "points_xy": np.empty((0, 2)), "source_point_ids": []})
+            in_bin = in_candidate_crop & (xyz[:, 2] >= lower) & (
+                (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
+            )
+            candidate_rows = row_ids[in_bin]
+            source_order = np.argsort(candidate_rows, kind="stable")
+            candidate_rows = candidate_rows[source_order]
+            candidate_xy = xyz[in_bin, :2][source_order]
+            empty_slices.append({
+                "z_m": z_m,
+                "points_xy": np.empty((0, 2)),
+                "source_point_ids": [],
+                "built_up_points_xy": candidate_xy,
+                "built_up_source_point_ids": candidate_rows.tolist(),
+            })
             empty_bins.append({"bin_id": bin_id, "z_m": z_m, "source_point_count": 0, "track_evidence": []})
         series = fit_column_section_series(
             empty_slices, known_sides_m=known_sides_m,
@@ -125,7 +155,6 @@ def fit_column_track_sections(
 
     sorted_order = np.argsort(row_ids, kind="stable")
     sorted_rows = row_ids[sorted_order]
-    z_min, z_max = center[2] - height / 2, center[2] + height / 2
     first_bin = math.floor(z_min / vertical_bin_m)
     last_bin = math.ceil(z_max / vertical_bin_m)
     track_local_parts: list[np.ndarray] = []
@@ -216,6 +245,16 @@ def fit_column_track_sections(
             "z_m": (lower + upper) / 2,
             "points_xy": xyz[local_indices, :2],
             "source_point_ids": source_ids,
+            "built_up_points_xy": xyz[
+                np.flatnonzero(in_candidate_crop & (xyz[:, 2] >= lower) & (
+                    (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
+                )), :2
+            ],
+            "built_up_source_point_ids": row_ids[
+                np.flatnonzero(in_candidate_crop & (xyz[:, 2] >= lower) & (
+                    (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
+                ))
+            ].tolist(),
         })
 
     series = fit_column_section_series(

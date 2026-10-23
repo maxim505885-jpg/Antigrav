@@ -176,9 +176,11 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
         <summary>Сечения по высоте и происхождение</summary>
         {surfaceAnalysis.section_series.section_slices.map((slice) => {
           const dimensions = surfaceAnalysis.section_series.dimensions_by_height_m.find((item) => item.z_m === slice.z_m)?.side_lengths_m;
+          const builtUp = slice.built_up_hypotheses?.[0];
           return <p className="hint" key={slice.z_m}>
             Z {slice.z_m.toLocaleString("ru-RU", { maximumFractionDigits: 3 })} м · {SECTION_STATUS[slice.status] || slice.status} · {slice.source_point_row_id_count.toLocaleString("ru-RU")} строк
             {dimensions && <> · контур {dimensions.map((value) => `${mm(value)} мм`).join(" × ")}</>}
+            {builtUp && <> · составной двутавр (гипотеза): габарит {builtUp.envelope_side_lengths_m.map((value) => `${mm(value)} мм`).join(" × ")}, стенка {mm(builtUp.web_thickness_m)} мм, полки {builtUp.flange_thicknesses_m.map((value) => `${mm(value)} мм`).join(" / ")}, точек {builtUp.source_point_row_id_count.toLocaleString("ru-RU")}</>}
             {slice.track_ids.length > 0 && <> · дорожки {slice.track_ids.join(", ")}</>}
             {slice.source_point_row_id_sample.length > 0 && <> · строки <code>{slice.source_point_row_id_sample.slice(0, 6).join(", ")}</code></>}
           </p>;

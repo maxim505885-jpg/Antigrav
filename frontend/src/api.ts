@@ -154,7 +154,7 @@ export interface ColumnSurfaceTrackAnalysisResponse {
     section_slices: {
       z_m: number; status: string; shape_status: string;
       hypotheses: ColumnSectionFitResponse["hypotheses"];
-      built_up_hypotheses: {
+      built_up_hypotheses?: {
         shape: "built_up_i"; envelope_side_lengths_m: number[]; web_thickness_m: number;
         flange_thicknesses_m: number[]; source_point_row_id_count: number;
         source_point_row_id_sample: number[]; review_required: true;
@@ -274,6 +274,17 @@ async function download(path: string, method: "GET" | "POST" = "POST", fallback 
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+export interface DerivedCloud {
+  derived_id: string;
+  method: "statistical" | "radius" | "voxel" | string;
+  input_count: number;
+  output_count: number;
+  removed_count: number;
+  has_colors: boolean;
+  duration_s: number;
+  created_at?: string;
+}
+
 export const api = {
   health: () => request<{ status: string; version: string; auth_required: boolean }>("/health"),
 
@@ -332,6 +343,16 @@ export const api = {
 
   recognize: (cloudId: string) =>
     request<Job>(`/clouds/${cloudId}/recognize`, { method: "POST" }),
+  runCleanup: (cloudId: string, payload: Record<string, unknown>) =>
+    request<Job>(`/clouds/${cloudId}/cleanup`, { method: "POST", body: JSON.stringify(payload) }),
+  derivedClouds: (cloudId: string) =>
+    request<DerivedCloud[]>(`/clouds/${cloudId}/derived`),
+  downloadDerived: (cloudId: string, derivedId: string, format: "ply" | "xyz" | "npy") =>
+    download(
+      `/clouds/${cloudId}/derived/${encodeURIComponent(derivedId)}/download?format=${format}`,
+      "GET",
+      `cloud.${format}`,
+    ),
   elements: (cloudId: string) => request<Element[]>(`/clouds/${cloudId}/elements`),
   columnTypes: (cloudId: string) => request<ColumnTypesResponse>(`/clouds/${encodeURIComponent(cloudId)}/column-types`),
   columnAnnotations: (cloudId: string) =>

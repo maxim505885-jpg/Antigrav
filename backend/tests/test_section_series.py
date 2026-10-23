@@ -1,6 +1,7 @@
 """Multi-height section series keep measured changes and unknowns explicit."""
 import numpy as np
 import pytest
+import warnings
 
 from scan2bim.structure.section_fitting import fit_column_section_series
 
@@ -196,3 +197,47 @@ def test_built_up_i_section_is_measured_as_review_only_profile_hypothesis():
     assert section["status"] == "ambiguous"
     assert all(item["shape_interpretation"] == "outer_envelope_only" for item in section["hypotheses"])
     assert result["shape_variation_status"] == "insufficient"
+
+
+def test_built_up_profile_measurements_keep_height_changes_and_source_rows():
+    def sample(width: float, height: float, web: float, flange: float, z_m: float, row_offset: int):
+        left_web, right_web = (width - web) / 2, (width + web) / 2
+        outline = np.asarray([
+            [0, 0], [width, 0], [width, flange], [right_web, flange],
+            [right_web, height - flange], [width, height - flange],
+            [width, height], [0, height], [0, height - flange],
+            [left_web, height - flange], [left_web, flange], [0, flange],
+        ], dtype=np.float64)
+        points = np.concatenate([
+            start + np.linspace(0, 1, 70)[:, None] * (end - start)
+            for start, end in zip(outline, np.roll(outline, -1, axis=0))
+        ])
+        angle = np.deg2rad(13.0)
+        rotation = np.asarray([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        points = points @ rotation.T + np.asarray([2.0, -1.0])
+        source_ids = np.arange(row_offset, row_offset + len(points), dtype=np.int64)
+        return {"z_m": z_m, "points_xy": points, "source_point_ids": source_ids.tolist()}
+
+    result = fit_column_section_series([
+        sample(0.4, 0.4, 0.16, 0.1, 1.0, 10000),
+        sample(0.5, 0.5, 0.2, 0.12, 5.0, 20000),
+    ])
+
+    measurements = result["built_up_profile_measurements_by_height_m"]
+    assert [item["z_m"] for item in measurements] == [1.0, 5.0]
+    assert measurements[0]["envelope_side_lengths_m"] == pytest.approx([0.4, 0.4], abs=0.01)
+    assert measurements[1]["envelope_side_lengths_m"] == pytest.approx([0.5, 0.5], abs=0.01)
+    assert [item["web_thickness_m"] for item in measurements] == pytest.approx([0.16, 0.2], abs=0.01)
+    assert result["shape_variation_status"] == "observed_variation"
+    assert result["engineering_status"] == "not_assessed"
+
+
+def test_single_line_sections_skip_circle_ransac_without_warning_noise():
+    points = np.column_stack((np.linspace(-0.2, 0.2, 80), np.zeros(80)))
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = fit_column_section_series([{"z_m": 1.0, "points_xy": points}])
+
+    assert result["section_slices"][0]["shape_hypotheses"] == []
+    assert not [warning for warning in caught if "No inliers found" in str(warning.message)]

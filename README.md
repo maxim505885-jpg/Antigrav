@@ -111,6 +111,7 @@ backend/scan2bim/
   ingest.py           нормализация, origin, превью, статистика
   geometry/section.py плоскости сечений, сбор точек в слое
   geometry/vectorize.py растр → векторы, регуляризация, площади, отверстия
+  processing/         cleanup.py — SOR/ROR/воксель недеструктивно, производные копии
   recognition/        geometric.py (стены/колонны/плиты/уровни), walls.py (Hough),
                       steel.py (каркас, фермы, связи), stairs.py, openings.py
   cad/                DXF (ezdxf), PDF-лист (matplotlib)
@@ -208,6 +209,8 @@ POST /api/v1/sections/{id}/export?format=dxf|dwg|pdf|json
 POST /api/v1/clouds/{id}/recognize          GET /clouds/{id}/elements  /levels
 POST /api/v1/elements/{id}/feedback         GET /elements/{id}/similar  /points
 GET  /api/v1/clouds/{id}/elements.dxf|.dwg GET /clouds/{id}/bim?format=json|ifc
+POST /api/v1/clouds/{id}/cleanup            GET /clouds/{id}/derived
+GET  /api/v1/clouds/{id}/derived/{derived}/download?format=ply|xyz|npy
 POST /api/v1/projects/{id}/train            GET /models  POST /models/{id}/activate
 POST /api/v1/webhooks                       GET /events    GET /jobs/{id}
 GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
@@ -239,6 +242,10 @@ cd frontend && npm test && npm run build
   плоские плиты не считаются лестницей, дверь и окно находятся по разрывам в
   стене, непросканированная полоса и целая стена проёмов не дают; IFC-экспорт
   даёт `IfcStair` и `IfcOpeningElement` с геометрией.
+- `test_cleanup.py` — SOR/ROR убирают изолированную точку и не трогают плотную
+  сетку, воксель оставляет одного представителя, исходный `positions.npy`
+  остаётся байт-в-байт, PLY имеет бинарный заголовок и точный размер; API создаёт
+  производное облако, отдаёт его в списке и скачивает PLY.
 
 ---
 

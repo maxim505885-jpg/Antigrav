@@ -16,7 +16,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 2** | Import & Storage | **IN PROGRESS** | 42 | Memory-mapped chunks, supported formats, source metadata; real FARO station completeness remains open |
 | **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer, SPDS 3D grid, color-coded element boxes, camera controls; large-cloud LOD/performance acceptance remains open |
 | **Stage 4** | Multi-Station Registration | **TESTING** | 31 | BEV coarse matching, ICP, pose graph; точность RMSE на реальных станциях не измерена |
-| **Stage 5** | Cleaning & Preparation | **IN PROGRESS** | 28 | Недеструктивные сечения и срезы; фильтры SOR/ROR/воксель ещё не реализованы |
+| **Stage 5** | Cleaning & Preparation | **TESTING** | 38 | Недеструктивные SOR/ROR/воксель в `processing/cleanup.py`, производные копии, API и панель |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 76 | Synthetic candidates for structural classes; real-pilot accuracy and independent labels remain open |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review, undo/redo and leakage-safe split; independent real-element labels and evaluation remain open |
 | **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 34 | Bounding box regularizer, oriented boxes, column section series; допуски СП 70 откатаны |
@@ -78,11 +78,18 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Completed**:
   - Adaptive 2D horizontal and vertical slice generation with user-defined thickness
     and resolution; slices are audit snapshots, the source cloud is never rewritten.
-- **Missing**: statistical (SOR), radius (ROR) and voxel-downsample filters with
-  normals estimation are not implemented yet; there is no cleanup panel or derived
-  cloud artefact in the API.
+  - Statistical (SOR), radius (ROR) and voxel-downsample filters in
+    `backend/scan2bim/processing/cleanup.py`; non-finite points are dropped first.
+  - Derived cloud artefacts (`positions.npy`, optional `colors.npy`, `meta.json`)
+    under `clouds/<id>/derived/<derived_id>/`; source positions are only read.
+  - `POST /clouds/{id}/cleanup` (background job), `GET /clouds/{id}/derived`,
+    `GET /clouds/{id}/derived/{derived_id}/download?format=ply|xyz|npy`.
+  - Cleanup panel in the export tab; PLY/XYZ downloads.
+  - `test_cleanup.py`: 10 tests (filters, non-destructive source, PLY header, API).
+- **Missing**: normal estimation; GPU acceleration; cleanup is capped at 5 M
+  points because the cKDTree would not fit a desktop's memory honestly.
 - **Criteria**: Original point cloud coordinates remain byte-identical; slices stored as audit snapshots.
-- **Status**: **IN PROGRESS**
+- **Status**: **TESTING**
 
 ### Stage 6 — AI & Structural Element Recognition
 - **Goal**: Automatic identification of structural building elements.
@@ -107,8 +114,13 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Goal**: Fit accurate CAD/BIM parametric primitives to detected points.
 - **Completed**:
   - Oriented-box column primitives with measured sides and section series by storey.
+  - Review-only built-up I-profile hypotheses report the observed envelope, web
+    and flange thicknesses with point-row provenance on synthetic, rotated sections.
   - Deviation of each candidate from a nominal grid reported as an *unverified
     hypothesis*; it never rejects detections or assigns marks.
+- **Open**: Built-up profile fitting has not been verified against labeled FARO
+  sections or a steel catalogue; stepped pilot profiles and physical accuracy remain
+  unaccepted.
 - **Reverted / missing**: the SP 70.13330 tolerance schedule integration was reverted
   (commit 37506fb); tolerance grading is not part of the current build.
 - **Criteria**: Parametric geometry bounds match measured points within 95% confidence intervals.
