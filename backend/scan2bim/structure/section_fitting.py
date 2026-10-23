@@ -777,7 +777,14 @@ def fit_column_section_series(
                 points, known_sides_m=known_sides_m,
                 distance_tolerance_m=distance_tolerance_m,
             )
-        circle = fit_circular_section(points, distance_tolerance_m=distance_tolerance_m) if len(points) >= 30 else None
+        circle_supported = False
+        if len(points) >= 30:
+            singular_values = np.linalg.svd(points - points.mean(axis=0), compute_uv=False)
+            circle_supported = (
+                len(singular_values) >= 2
+                and singular_values[1] > distance_tolerance_m * math.sqrt(len(points))
+            )
+        circle = fit_circular_section(points, distance_tolerance_m=distance_tolerance_m) if circle_supported else None
         shape_hypotheses = [circle] if circle is not None else []
         for hypothesis in shape_hypotheses:
             hypothesis["source_point_ids"] = sorted(source_ids[index] for index in hypothesis["input_point_indices"])

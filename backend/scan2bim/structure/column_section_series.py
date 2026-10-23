@@ -76,6 +76,15 @@ def fit_column_track_sections(
         & (xyz[:, 2] <= z_max)
     )
 
+    def built_up_points_for_bin(lower: float, upper: float) -> tuple[np.ndarray, list[int]]:
+        in_bin = in_candidate_crop & (xyz[:, 2] >= lower) & (
+            (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
+        )
+        local_indices = np.flatnonzero(in_bin)
+        source_order = np.argsort(row_ids[local_indices], kind="stable")
+        local_indices = local_indices[source_order]
+        return xyz[local_indices, :2], row_ids[local_indices].tolist()
+
     accepted: list[dict[str, Any]] = []
     excluded: list[dict[str, str]] = []
     seen_track_ids: set[str] = set()
@@ -116,19 +125,13 @@ def fit_column_track_sections(
             if upper <= lower:
                 continue
             z_m = (lower + upper) / 2
-            in_bin = in_candidate_crop & (xyz[:, 2] >= lower) & (
-                (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
-            )
-            candidate_rows = row_ids[in_bin]
-            source_order = np.argsort(candidate_rows, kind="stable")
-            candidate_rows = candidate_rows[source_order]
-            candidate_xy = xyz[in_bin, :2][source_order]
+            candidate_xy, candidate_rows = built_up_points_for_bin(lower, upper)
             empty_slices.append({
                 "z_m": z_m,
                 "points_xy": np.empty((0, 2)),
                 "source_point_ids": [],
                 "built_up_points_xy": candidate_xy,
-                "built_up_source_point_ids": candidate_rows.tolist(),
+                "built_up_source_point_ids": candidate_rows,
             })
             empty_bins.append({"bin_id": bin_id, "z_m": z_m, "source_point_count": 0, "track_evidence": []})
         series = fit_column_section_series(
@@ -241,20 +244,13 @@ def fit_column_track_sections(
             "source_point_count": len(local_indices),
             "track_evidence": track_evidence,
         })
+        built_up_xy, built_up_source_ids = built_up_points_for_bin(lower, upper)
         section_slices.append({
             "z_m": (lower + upper) / 2,
             "points_xy": xyz[local_indices, :2],
             "source_point_ids": source_ids,
-            "built_up_points_xy": xyz[
-                np.flatnonzero(in_candidate_crop & (xyz[:, 2] >= lower) & (
-                    (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
-                )), :2
-            ],
-            "built_up_source_point_ids": row_ids[
-                np.flatnonzero(in_candidate_crop & (xyz[:, 2] >= lower) & (
-                    (xyz[:, 2] < upper) | ((upper == z_max) & (xyz[:, 2] <= upper))
-                ))
-            ].tolist(),
+            "built_up_points_xy": built_up_xy,
+            "built_up_source_point_ids": built_up_source_ids,
         })
 
     series = fit_column_section_series(

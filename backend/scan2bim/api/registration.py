@@ -10,10 +10,28 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import one, rows
-from ..registration.stitching import rigid_icp, export_stitched_cloud, create_recap_registration_project
+from ..registration.stitching import (
+    rigid_icp,
+    export_stitched_cloud,
+    create_recap_registration_project,
+    compute_pairwise_svd_alignment,
+)
 from ..storage import cloud_paths
 
 router = APIRouter(tags=["registration"])
+
+
+class PointPair(BaseModel):
+    source_point: list[float] = Field(..., description="[x, y, z] in source cloud coordinates")
+    target_point: list[float] = Field(..., description="[x, y, z] in target cloud coordinates")
+    label: str | None = Field(default=None, description="Optional label for pair (e.g. Marker 1)")
+
+
+class PairwiseAlignRequest(BaseModel):
+    source_cloud_id: str
+    target_cloud_id: str
+    pairs: list[PointPair] = Field(..., min_length=3, description="At least 3 corresponding point pairs")
+    apply_icp_refinement: bool = Field(default=False, description="Whether to refine with Point-to-Plane/Kabsch ICP after SVD initial guess")
 
 
 class StitchingRequest(BaseModel):
@@ -52,6 +70,92 @@ def _load_cloud_points(cloud_id: str, sample_size: int) -> tuple[np.ndarray, np.
     source_row_ids = np.linspace(0, len(data) - 1, count, dtype=np.int64)
     pts = np.asarray(data[source_row_ids], dtype=np.float64)
     return pts, source_row_ids
+
+
+@router.post("/registration/pair-align")
+def pair_align_clouds(req: PairwiseAlignRequest):
+    """Calculate rigid transformation from user-selected corresponding point pairs via Kabsch/SVD.
+
+    Optionally refines with ICP if requested.
+    """
+    if len(req.pairs) < 3:
+        raise HTTPException(status_code=400, detail="Необходимо как минимум 3 пары реперных точек")
+
+    # Verify clouds exist
+    c_src = one("SELECT id, project_id FROM clouds WHERE id = ?", (req.source_cloud_id,))
+    c_dst = one("SELECT id, project_id FROM clouds WHERE id = ?", (req.target_cloud_id,))
+    if not c_src:
+        raise HTTPException(status_code=404, detail=f"Исходное облако {req.source_cloud_id} не найдено")
+    if not c_dst:
+        raise HTTPException(status_code=404, detail=f"Целевое облако {req.target_cloud_id} не найдено")
+
+    src_pts = np.array([p.source_point for p in req.pairs], dtype=np.float64)
+    dst_pts = np.array([p.target_point for p in req.pairs], dtype=np.float64)
+
+    if src_pts.shape[1] != 3 or dst_pts.shape[1] != 3:
+        raise HTTPException(status_code=400, detail="Точки должны быть 3-мерными координатами [x, y, z]")
+
+    try:
+        svd_res = compute_pairwise_svd_alignment(src_pts, dst_pts)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    result: dict[str, Any] = {
+        "status": "ok",
+        "method": "svd_kabsch_manual_pairs",
+        "source_cloud_id": req.source_cloud_id,
+        "target_cloud_id": req.target_cloud_id,
+        "pairs_count": svd_res["pairs_count"],
+        "matrix_4x4": svd_res["matrix_4x4"],
+        "rotation_3x3": svd_res["rotation_3x3"],
+        "translation": svd_res["translation"],
+        "rmse_mm": svd_res["rmse_mm"],
+        "max_error_mm": svd_res["max_error_mm"],
+        "residuals_mm": svd_res["residuals_mm"],
+        "pair_details": [
+            {
+                "label": req.pairs[i].label or f"Репер {i + 1}",
+                "source": req.pairs[i].source_point,
+                "target": req.pairs[i].target_point,
+                "residual_mm": round(svd_res["residuals_mm"][i], 4),
+            }
+            for i in range(len(req.pairs))
+        ],
+    }
+
+    if req.apply_icp_refinement:
+        try:
+            source_cloud_pts, _ = _load_cloud_points(req.source_cloud_id, 20000)
+            target_cloud_pts, _ = _load_cloud_points(req.target_cloud_id, 20000)
+
+            # Apply SVD initial transform to source cloud points before ICP
+            init_r = np.array(svd_res["rotation_3x3"], dtype=np.float64)
+            init_t = np.array(svd_res["translation"], dtype=np.float64)
+            pre_aligned_src = (init_r @ source_cloud_pts.T).T + init_t
+
+            icp_res = rigid_icp(
+                pre_aligned_src,
+                target_cloud_pts,
+                max_iterations=30,
+                tolerance_m=0.0005,
+                max_correspondence_distance_m=0.3,
+            )
+
+            # Combine transformations: T_final = T_icp @ T_svd
+            icp_mat = np.array(icp_res["matrix_4x4"], dtype=np.float64)
+            svd_mat = np.array(svd_res["matrix_4x4"], dtype=np.float64)
+            final_mat = icp_mat @ svd_mat
+
+            result["refined_with_icp"] = True
+            result["icp_rmse_mm"] = icp_res["rmse_mm"]
+            result["matrix_4x4"] = final_mat.tolist()
+            result["rotation_3x3"] = final_mat[:3, :3].tolist()
+            result["translation"] = final_mat[:3, 3].tolist()
+        except Exception as e:
+            result["refined_with_icp"] = False
+            result["icp_warning"] = f"ICP refinement skipped or failed: {str(e)}"
+
+    return result
 
 
 @router.post("/registration/match")

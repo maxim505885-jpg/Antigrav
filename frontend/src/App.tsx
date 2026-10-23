@@ -3,6 +3,7 @@ import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse,
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
+import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
 import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
 import SectionCanvas from "./components/SectionCanvas";
 import Viewer3D from "./components/Viewer3D";
@@ -1526,7 +1527,13 @@ export default function App() {
 
             {tab === "registration" && (
               <div className="tab-body">
-                <div className="panel-title">
+                <ManualRegistrationPanel
+                  clouds={clouds}
+                  onAligned={(res) => {
+                    alert(`Совмещение по маркам выполнено! RMSE: ${res.rmse_mm} мм, пар: ${res.pairs_count}`);
+                  }}
+                />
+                <div className="panel-title" style={{ marginTop: 24 }}>
                   <span>Сшивка сканов и экспорт в Autodesk ReCap</span>
                 </div>
                 <p className="hint">

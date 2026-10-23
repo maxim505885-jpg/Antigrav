@@ -285,6 +285,35 @@ export interface DerivedCloud {
   created_at?: string;
 }
 
+export interface RegistrationPointPair {
+  source_point: [number, number, number];
+  target_point: [number, number, number];
+  label?: string;
+}
+
+export interface PairAlignResponse {
+  status: string;
+  method: string;
+  source_cloud_id: string;
+  target_cloud_id: string;
+  pairs_count: number;
+  matrix_4x4: number[][];
+  rotation_3x3: number[][];
+  translation: number[];
+  rmse_mm: number;
+  max_error_mm: number;
+  residuals_mm: number[];
+  pair_details: Array<{
+    label: string;
+    source: number[];
+    target: number[];
+    residual_mm: number;
+  }>;
+  refined_with_icp?: boolean;
+  icp_rmse_mm?: number;
+  icp_warning?: string;
+}
+
 export const api = {
   health: () => request<{ status: string; version: string; auth_required: boolean }>("/health"),
 
@@ -345,6 +374,21 @@ export const api = {
     request<Job>(`/clouds/${cloudId}/recognize`, { method: "POST" }),
   runCleanup: (cloudId: string, payload: Record<string, unknown>) =>
     request<Job>(`/clouds/${cloudId}/cleanup`, { method: "POST", body: JSON.stringify(payload) }),
+  pairAlign: (
+    sourceCloudId: string,
+    targetCloudId: string,
+    pairs: RegistrationPointPair[],
+    applyIcpRefinement = false,
+  ) =>
+    request<PairAlignResponse>("/registration/pair-align", {
+      method: "POST",
+      body: JSON.stringify({
+        source_cloud_id: sourceCloudId,
+        target_cloud_id: targetCloudId,
+        pairs,
+        apply_icp_refinement: applyIcpRefinement,
+      }),
+    }),
   derivedClouds: (cloudId: string) =>
     request<DerivedCloud[]>(`/clouds/${cloudId}/derived`),
   downloadDerived: (cloudId: string, derivedId: string, format: "ply" | "xyz" | "npy") =>

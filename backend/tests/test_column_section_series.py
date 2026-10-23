@@ -95,6 +95,10 @@ def test_built_up_profile_uses_candidate_crop_rows_beyond_assigned_outer_tracks(
             if edge_index == 4:
                 web_source_ids.extend(source_ids.tolist())
     xyz = np.concatenate(point_parts)
+    angle = np.deg2rad(23.0)
+    rotation = np.asarray([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    xyz[:, :2] = xyz[:, :2] @ rotation.T
+    geom["rotation_z"] = float(angle)
     source_ids = np.concatenate(row_parts)
     tracks = [{
         "track_id": "bottom-flange-track",

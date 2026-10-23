@@ -203,6 +203,76 @@ def kabsch_fit(source: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.n
     return r, t
 
 
+def compute_pairwise_svd_alignment(
+    source_points: np.ndarray,
+    target_points: np.ndarray,
+) -> dict[str, Any]:
+    """Compute rigid 6-DOF transformation from user-selected matching point pairs.
+
+    Requires at least 3 non-collinear corresponding point pairs:
+    source_points[i] corresponds to target_points[i].
+
+    Returns:
+    - matrix_4x4: SE(3) transformation matrix (4x4)
+    - rotation_3x3: 3x3 rotation matrix
+    - translation: 3-vector translation
+    - residuals_m: list of Euclidean distances per pair after transformation (in meters)
+    - residuals_mm: list of Euclidean distances per pair after transformation (in mm)
+    - rmse_mm: root-mean-square error across all pairs (in mm)
+    - max_error_mm: maximum residual across all pairs (in mm)
+    """
+    src = np.asarray(source_points, dtype=np.float64)
+    dst = np.asarray(target_points, dtype=np.float64)
+
+    if src.ndim != 2 or src.shape[1] != 3:
+        raise ValueError("source_points must be an N×3 array")
+    if dst.ndim != 2 or dst.shape[1] != 3:
+        raise ValueError("target_points must be an N×3 array")
+    if len(src) != len(dst):
+        raise ValueError(f"Point pair count mismatch: source has {len(src)} points, target has {len(dst)} points")
+    if len(src) < 3:
+        raise ValueError(f"At least 3 point pairs are required for 3D rigid alignment, got {len(src)}")
+
+    if not np.isfinite(src).all() or not np.isfinite(dst).all():
+        raise ValueError("Point coordinates must be finite numbers")
+
+    # Check for collinearity / degeneracy (rank < 2 in centered coordinates)
+    src_centered = src - np.mean(src, axis=0)
+    if np.linalg.matrix_rank(src_centered) < 2:
+        raise ValueError("Source points are collinear or degenerate; cannot determine 3D orientation")
+
+    dst_centered = dst - np.mean(dst, axis=0)
+    if np.linalg.matrix_rank(dst_centered) < 2:
+        raise ValueError("Target points are collinear or degenerate; cannot determine 3D orientation")
+
+    r, t = kabsch_fit(src, dst)
+
+    # Transform source points
+    transformed_src = (r @ src.T).T + t
+
+    # Compute per-pair residuals
+    diffs = transformed_src - dst
+    residuals_m = np.linalg.norm(diffs, axis=1)
+    residuals_mm = residuals_m * 1000.0
+    rmse_mm = float(np.sqrt(np.mean(residuals_mm ** 2)))
+    max_error_mm = float(np.max(residuals_mm))
+
+    mat_4x4 = np.eye(4, dtype=np.float64)
+    mat_4x4[:3, :3] = r
+    mat_4x4[:3, 3] = t
+
+    return {
+        "matrix_4x4": mat_4x4.tolist(),
+        "rotation_3x3": r.tolist(),
+        "translation": t.tolist(),
+        "residuals_m": residuals_m.tolist(),
+        "residuals_mm": residuals_mm.tolist(),
+        "rmse_mm": round(rmse_mm, 4),
+        "max_error_mm": round(max_error_mm, 4),
+        "pairs_count": len(src),
+    }
+
+
 def rigid_icp(
     source_points: np.ndarray,
     target_points: np.ndarray,
