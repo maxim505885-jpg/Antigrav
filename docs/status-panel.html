@@ -37,6 +37,19 @@
     .legend { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
     .roadmap { margin: 0 0 16px; padding-left: 22px; }
     .roadmap li { display: list-item; padding: 3px 0; border: 0; }
+    .todo-card { margin: 16px 0 20px; padding: 10px 11px 7px; border: 1px solid var(--line); border-radius: 9px; background: light-dark(#f8f8f7, #303033); }
+    .todo-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 4px; }
+    .todo-header h2 { margin: 0; font-size: 13px; }
+    .todo-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .todo-list { margin: 0; }
+    .todo-list li { grid-template-columns: 14px 1fr; gap: 6px; padding: 5px 2px; font-size: 12px; }
+    .todo-list .mark { color: var(--muted); }
+    .todo-list li.done .mark { color: var(--green); }
+    .todo-list li.done .todo-title { color: var(--muted); text-decoration: line-through; }
+    .todo-list li.current { margin: 3px -4px; padding: 7px 6px; border: 0; border-radius: 6px; background: var(--active); color: var(--active-text); }
+    .todo-list li.current .mark { color: var(--active-text); }
+    .todo-state { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; }
+    .todo-list li.current .todo-state { color: inherit; opacity: .8; }
     @media (prefers-color-scheme: light) { :root { color-scheme: light; } }
     @media (prefers-color-scheme: dark) { :root { color-scheme: dark; } }
   </style>
@@ -46,6 +59,24 @@
     <h1>План работ SCAN</h1>
     <p class="subtitle">FARO → ReCap → AutoCAD 2026 / Revit 2027 · обновление раз в 30 секунд</p>
     <p><a href="ПЛАН-РАБОТЫ.md">Открыть план работ по этапам</a> · <a href="superpowers/plans/2026-10-21-scan-workshop-execution-plan.md">полный технический план с задачами и критериями приёмки</a></p>
+    <section class="todo-card" aria-labelledby="todo-title">
+      <div class="todo-header"><h2 id="todo-title">☷ Этапы проекта SCAN</h2><span class="todo-count" id="todo-count">0/12 этапов закрыто</span></div>
+      <ul class="todo-list" id="todo-list">
+        <li class="done" data-status="done"><span class="mark" aria-label="Готово">✓</span><span><span class="todo-title">1. Архитектура и защита исходных данных</span><span class="todo-state">Базовая структура, версии результатов, запрет менять оригинал 1.rcs</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">2. Импорт облаков и метаданных</span><span class="todo-state">Потоковые форматы и checkpoint проверяются; полный FARO набор ожидает станции</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">3. 3D-просмотр и инструменты измерения</span><span class="todo-state">Рабочий просмотр есть; полноценный LOD для огромных облаков ещё впереди</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">4. Регистрация нескольких станций</span><span class="todo-state">Есть алгоритмы и проверки; FARO-регистрация не принята на исходных станциях</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">5. Очистка и подготовка облака</span><span class="todo-state">Базовые фильтры реализованы; сквозная приёмка на полном цехе открыта</span></span></li>
+        <li class="current" data-status="current" aria-current="step"><span class="mark" aria-label="В работе">●</span><span><span class="todo-title">6. Распознавание конструкций</span><span class="todo-state">Колонны, подкрановые балки, фермы и связи: кандидаты требуют проверки</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">7. Обучение на подтверждениях инженера</span><span class="todo-state">Хранение ревизий и безопасное разделение выборки есть; нужны реальные метки</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">8. Параметрическая геометрия</span><span class="todo-state">Редактируемые кандидаты и общий контракт есть; точность пилота не подтверждена</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">9. Планы, разрезы и чертежи</span><span class="todo-state">Генерация DXF/PDF есть; нужен полный просмотр и проверка выпуска</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">10. Экспорт AutoCAD, Revit и ReCap</span><span class="todo-state">Обменные форматы подготовлены; приёмка в приложениях и ReCap-проект открыты</span></span></li>
+        <li data-status="partial"><span class="mark" aria-label="Частично">◐</span><span><span class="todo-title">11. Большие данные, локальный режим и безопасность</span><span class="todo-state">Проверены производные наборы до 43,5 млн точек; полный FARO прогон не принят</span></span></li>
+        <li data-status="pending"><span class="mark" aria-label="Впереди">○</span><span><span class="todo-title">12. Установщик, документация и приёмка релиза</span><span class="todo-state">Запускать после закрытия функциональных и пользовательских критериев</span></span></li>
+      </ul>
+      <p class="legend">Галочка ставится только после полного критерия приёмки этапа. ReCap-сшивка отдельно зависит от исходных станций FARO и контрольных точек.</p>
+    </section>
     <h2>Порядок следующих этапов</h2>
     <ol class="roadmap">
       <li>Завершить проверяемую геометрию колонн и раздельные пролёты балок; параллельно измерить полный потоковый прогон облака.</li>
@@ -89,5 +120,10 @@
 
     <p class="legend"><span style="color:var(--green)">✓</span> готово · <span style="color:var(--muted)">○</span> осталось · выделенный этап — в работе. Автоматически найденные элементы пока кандидаты.</p>
   </main>
+  <script>
+    const total = document.querySelectorAll('#todo-list [data-status]').length;
+    const done = document.querySelectorAll('#todo-list [data-status="done"]').length;
+    document.getElementById('todo-count').textContent = `${done}/${total} этапов закрыто`;
+  </script>
 </body>
 </html>
