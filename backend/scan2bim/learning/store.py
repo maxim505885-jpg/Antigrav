@@ -135,11 +135,14 @@ def list_samples(project_id: str, split: str | None = None) -> list[dict[str, An
 
 
 def samples_for_training(project_id: str) -> list[dict[str, Any]]:
-    return [sample for sample in list_samples(project_id) if sample.get("source") != "undone"]
+    # Only explicit engineer-reviewed annotations can be used as labels. Keeping
+    # this allowlist strict prevents imported, generated, or invalidated records
+    # from silently entering a future training run.
+    return [sample for sample in list_samples(project_id) if sample.get("source") == "engineer"]
 
 
 def similar_samples(project_id: str, features: dict[str, float], k: int = 5) -> list[dict[str, Any]]:
-    samples = [sample for sample in list_samples(project_id) if sample.get("source") != "undone"]
+    samples = [sample for sample in list_samples(project_id) if sample.get("source") == "engineer"]
     if not samples:
         return []
     names = list(features.keys())

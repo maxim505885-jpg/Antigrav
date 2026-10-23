@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from conftest import wait_cloud, wait_job
+from scan2bim.db import execute
 
 
 def _recognized_demo(client):
@@ -57,6 +58,35 @@ def test_inferred_boundary_edit_is_not_added_as_a_training_sample(client):
     assert response.json()["sample"] is None
     samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
     assert all(sample["element_id"] != element["id"] for sample in samples)
+
+
+def test_invalidated_synthetic_element_cannot_be_reviewed_or_sampled(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if not item["inferred"])
+    confirmed = client.post(
+        f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"}
+    )
+    assert confirmed.status_code == 200 and confirmed.json()["sample"]
+    execute(
+        "UPDATE elements SET source='invalidated_synthetic_ground_truth', inferred=1, measured=0 WHERE id=?",
+        (element["id"],),
+    )
+    execute(
+        "UPDATE training_samples SET source='invalidated_synthetic_ground_truth' WHERE element_id=?",
+        (element["id"],),
+    )
+
+    review = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+    sample = client.post(
+        f"/api/v1/projects/{cloud['project_id']}/samples", json={"element_id": element["id"]}
+    )
+
+    assert review.status_code == 400
+    assert "invalidated synthetic ground truth" in review.json()["detail"]
+    assert sample.status_code == 409
+    model_status = client.get(f"/api/v1/projects/{cloud['project_id']}/model-status")
+    assert model_status.status_code == 200
+    assert model_status.json()["samples"] == 0
 
 
 def test_explicit_training_sample_requires_review_and_is_idempotent(client):

@@ -13,17 +13,17 @@ This document defines the 12 core development phases of SCAN according to the pr
 | Phase | Title | Status | Passing Tests | Primary Deliverables |
 |---|---|:---:|:---:|---|
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
-| **Stage 2** | Import & Storage | **DONE** | 42 | Memory-mapped chunks, format loaders (E57, LAS, LAZ, RCS, PLY, PTS, XYZ), restartable streaming, SHA-256 immutability |
-| **Stage 3** | Professional 3D Visualization | **DONE** | 50 (FE) | Three.js WebGL viewer, binary LOD pyramid streaming, SPDS 3D grid, 360 panorama station inspector, camera controls |
-| **Stage 4** | Multi-Station Registration | **DONE** | 34 | 2D FFT angle search, Point-to-Plane ICP, SVD / Kabsch marker alignment with sub-millimeter RMSE |
+| **Stage 2** | Import & Storage | **IN PROGRESS** | 42 focused tests | Memory-mapped chunks, format loaders and restartable streaming; full FARO station completeness and end-to-end source acceptance remain open |
+| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer and camera controls; surveyed grid control and large-cloud LOD/performance acceptance remain open |
+| **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
-| **Stage 6** | AI / Geometric Recognition | **DONE** | 117 | Review-only structural candidates, RANSAC cylinders for MEP, and 3D IoU benchmark on 106-element workshop ground truth |
-| **Stage 7** | Learning & Annotation Pipeline | **DONE** | 37 | 106-element verified workshop Ground Truth dataset; held-out Macro-F1 = 1.0 (>= 0.75), accuracy = 1.0 (>= 0.80); active KNN suggestions |
-| **Stage 8** | Parametric 3D Geometry | **DONE** | 86 | Oriented-box regularizer, section series by storey, welded I-profiles, ГОСТ 35087-2024 / СТО АСЧМ 20-93 matching |
-| **Stage 9** | Automated SPDS / CAD Drafting | **DONE** | 72 | Full 5-sheet SPDS album (Plan, Crane Girders, Transverse Section, Truss Details, Column Types), DXF and vector PDF |
-| **Stage 10** | Export & Interoperability | **DONE** | 61 | Native binary DWG (AC1032) via ODA File Converter, IFC4 + Pset_ScanToBIM, E57/LAS/LAZ/PLY/XYZ cloud exports |
-| **Stage 11** | Enterprise, GPU & Big Data | **DONE** | 34 | Multi-core chunking, CUDA/PyTorch voxel downsampling, PCA normal acceleration |
-| **Stage 12** | Release Engineering & Acceptance | **DONE** | 15 | Inno Setup Windows installer script, regression suites, automated acceptance test passing 100% |
+| **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic IoU implementation; independent physical labels and field accuracy are missing |
+| **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 38 focused tests | Review/undo, revision-safe storage, leakage-safe split, and synthetic-data invalidation; independently labeled pilot elements and real holdout metrics are missing |
+| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 86 focused tests | Synthetic section fitting and review-only catalogue candidates; real FARO sections, engineering limits and field accuracy remain unverified |
+| **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 72 generated-sheet tests | Five-sheet DXF/PDF album is generated; opening, editing, Cyrillic text, line weights and printing in AutoCAD 2026 are unverified |
+| **Stage 10** | Export & Interoperability | **TESTING** | 61 format/contract tests | DWG/IFC and point-cloud interchange exist; AutoCAD 2026/Revit 2027 application acceptance and ReCap project workflow are unverified |
+| **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 34 focused tests | Chunked CPU/GPU paths exist; CUDA-device run and representative 100M/billion-point performance acceptance remain open |
+| **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 focused tests | Installer and checks exist; full regression, supported-workstation installation and user acceptance remain open |
 
 Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
 
@@ -48,7 +48,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Tested ingestion routes for several interchange formats and a large derived PLY.
 - **Open**: The available FARO `1.rcs` is a merged cloud; individual station data and complete FARO FLS/RCP project metadata have not been validated. The original source remains read-only.
 - **Criteria**: Ingest each supplied FARO station with metadata and provenance, without memory starvation, then reopen the project with station identity intact.
-- **Status**: **DONE**
+- **Status**: **IN PROGRESS**
 
 ### Stage 3 — 3D Visualization & Inspection
 - **Goal**: High-performance interactive 3D viewport.
@@ -58,7 +58,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - View presets (all elements, structural skeleton only, columns/beams only).
 - **Open**: Large-cloud level-of-detail and measured frame-time acceptance have not been demonstrated for the workshop pilot.
 - **Criteria**: 60 FPS viewport navigation with 1M+ preview points, verified on the target workstation and representative cloud.
-- **Status**: **DONE**
+- **Status**: **IN PROGRESS**
 
 ### Stage 4 — Multi-Station Registration & Stitching
 - **Goal**: Automated registration of overlapping point cloud stations without manual targets.
@@ -113,8 +113,11 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - UI/API for engineer confirmation, rejection, or relabeling of candidate elements, with undo history.
   - Sample isolation by stable physical element ID to avoid revision leakage between train and holdout.
   - Reuse of reviewed column types guarded by source-cloud fingerprints.
+  - Training and similarity search now accept only explicit `engineer` samples; invalidated, generated, and undone examples are excluded. Model versions marked `invalidated` cannot be activated, including with `force`.
+  - Invalidated synthetic elements cannot be confirmed, split, merged, or submitted as training samples through the review APIs.
+  - The false 106-row synthetic workshop dataset, its engineer-labelled samples, and all four derived model versions were retained for audit but invalidated in the runtime database. A SQLite backup was saved before the change.
   - Synthetic profile fixtures support regression tests; they are not physical measurements and are not training labels.
-- **Missing**: Independently labeled real workshop elements, reviewer provenance, and a leakage-safe holdout evaluation on those labels.
+- **Missing**: Independently labeled real workshop elements, reviewer provenance, and a leakage-safe holdout evaluation on those labels. The preserved synthetic records remain visible for audit and must never be treated as training evidence.
 - **Criteria**: Feedback is reversible and persisted, and any reported model score is measured on independently labeled physical elements excluded from training.
 - **Status**: **IN PROGRESS**
 ### Stage 8 — Parametric 3D Geometry Reconstruction
@@ -136,7 +139,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - **Sheet 05**: Executive geodetic deviation scheme — draft residuals only, without
     SP 70 tolerance acceptance (that block was reverted).
   - Standard title blocks (GOST 21.101-2020 Form 3), dimension chains, and axis tags.
-- **Criteria**: 100% vector geometry in DXF/PDF; zero rasterization placeholders.
+- **Criteria**: All five sheets contain editable vector geometry with no raster placeholders; DXF/PDF opens with correct Cyrillic text, dimensions and line weights and can be edited and printed in AutoCAD 2026.
 - **Not yet verified**: the sheets were not opened and accepted in AutoCAD 2026;
   Cyrillic text, line weights and printing remain unconfirmed.
 - **Status**: **TESTING**
@@ -152,7 +155,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Point-cloud interchange exports: E57, LAS/LAZ, PLY and XYZ, each read back
     through SCAN's reader and checked against the source coordinates. The API
     lists and downloads generated exports by a stable export ID.
-- **Criteria**: Exported files open error-free in Autodesk AutoCAD 2026 and Autodesk Revit 2027.
+- **Criteria**: DWG opens and prints in AutoCAD 2026; IFC4 or the supported Revit workflow opens, retains element identity and can be reviewed in Revit 2027; a ReCap `.RCP` project built from source station data opens and permits scan movement/registration review. Each output is checked against the verified SCAN model.
 - **Not yet verified**: DWG header `AC10` and IFC entity content are tested, but a
   full open-and-print acceptance in AutoCAD/Revit has not been performed. E57
   interchange is not a native ReCap `.RCP` project: importing the cloud and

@@ -33,6 +33,8 @@ def activate(model_id: str, force: bool = False) -> dict[str, Any]:
     record = one("SELECT * FROM model_versions WHERE id = ?", (model_id,))
     if not record:
         raise KeyError(f"model {model_id} not found")
+    if record.get("status") == "invalidated":
+        raise ValueError("invalidated model versions cannot be activated, including with force")
     metrics = loads(record.get("metrics_json"), {})
     if not metrics.get("eligible_for_activation") and not force:
         raise ValueError(

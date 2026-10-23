@@ -1,6 +1,7 @@
 """Training holdout must keep revisions of one physical element together."""
 
 from scan2bim.learning.training import _split_samples_by_element
+from scan2bim.learning import store
 
 
 def test_training_and_test_splits_never_separate_samples_for_same_element():
@@ -30,3 +31,16 @@ def test_single_physical_element_does_not_create_a_fake_holdout():
 
     assert train == samples
     assert test == []
+
+
+def test_only_engineer_reviewed_samples_are_trainable(monkeypatch):
+    samples = [
+        {"id": "approved", "source": "engineer", "class_name": "column", "features": {}},
+        {"id": "invalidated", "source": "invalidated_synthetic_ground_truth", "class_name": "column", "features": {}},
+        {"id": "undone", "source": "undone", "class_name": "column", "features": {}},
+        {"id": "generated", "source": "demo", "class_name": "column", "features": {}},
+    ]
+    monkeypatch.setattr(store, "list_samples", lambda project_id: samples)
+
+    assert [sample["id"] for sample in store.samples_for_training("p")] == ["approved"]
+    assert [sample["id"] for sample in store.similar_samples("p", {}, k=4)] == ["approved"]

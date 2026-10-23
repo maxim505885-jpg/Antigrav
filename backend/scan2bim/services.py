@@ -52,6 +52,11 @@ def get_element(element_id: str) -> dict[str, Any]:
     return element_from_row(row)
 
 
+def _assert_reviewable_source(element: dict[str, Any]) -> None:
+    if element.get("source") == "invalidated_synthetic_ground_truth":
+        raise ValueError("invalidated synthetic ground truth cannot be reviewed or used as project evidence")
+
+
 def _element_state(element: dict[str, Any]) -> dict[str, Any]:
     return {
         key: element.get(key)
@@ -170,6 +175,7 @@ def review_element(
     note: str = "",
 ) -> dict[str, Any]:
     element = get_element(element_id)
+    _assert_reviewable_source(element)
     before = _element_state(element)
     updates: dict[str, Any] = {}
     if action == "confirm":
@@ -223,6 +229,8 @@ def merge_elements(
         raise ValueError("cannot merge an element with itself")
     target = get_element(element_id)
     other = get_element(other_element_id)
+    _assert_reviewable_source(target)
+    _assert_reviewable_source(other)
     if target["cloud_id"] != other["cloud_id"]:
         raise ValueError("elements belong to different clouds")
     before = {"target": target, "other": other}
@@ -327,6 +335,7 @@ def split_element(
     note: str = "",
 ) -> dict[str, Any]:
     element = get_element(element_id)
+    _assert_reviewable_source(element)
     if axis not in {"x", "y", "z"}:
         raise ValueError("split axis must be x, y or z")
     bbox = element["bbox"]

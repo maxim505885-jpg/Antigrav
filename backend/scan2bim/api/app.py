@@ -33,7 +33,7 @@ from ..jobs import JobCancelled, create_job, dispatch_event, get_job, request_ca
 from ..learning.features import features_from_element
 from ..learning.knn import KNNModel
 from ..learning.registry import activate, list_models, rollback
-from ..learning.store import create_sample, list_samples, similar_samples
+from ..learning.store import create_sample, list_samples, samples_for_training, similar_samples
 from ..learning.training import active_artifact, apply_learned_prior, train_candidate
 from ..recognition import detect_structures, ml_status
 from ..recognition.geometric import DetectedElement
@@ -1899,6 +1899,8 @@ def create_app() -> FastAPI:
             raise HTTPException(400, "element belongs to another project")
         if element["review_status"] not in {"confirmed", "corrected"}:
             raise HTTPException(409, "training samples require an explicitly reviewed element")
+        if element.get("source") == "invalidated_synthetic_ground_truth":
+            raise HTTPException(409, "invalidated synthetic ground truth cannot be used for training")
         if element["inferred"]:
             raise HTTPException(409, "training samples cannot use inferred geometry")
         label = payload.class_name or element["class_name"]
@@ -1963,7 +1965,7 @@ def create_app() -> FastAPI:
     def model_status(project_id: str):
         _project(project_id)
         artifact = active_artifact()
-        samples = list_samples(project_id)
+        samples = samples_for_training(project_id)
         return {
             "samples": len(samples),
             "classes": sorted({s["class_name"] for s in samples}),
