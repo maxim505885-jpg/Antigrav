@@ -102,6 +102,7 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [ ] Use the manual review UI and derived slice sheets to identify which candidates are physically observable and which are occluded/context-only. Do not infer a physical ID from candidate numbering.
 - [ ] Prepare a new annotation version for selected observable members; never edit the existing SHA-pinned template in place.
 - [ ] Compare at least the existing six tolerance sweeps (dimension thresholds 2/5/10 mm × relative thresholds 0.5/1%) against the annotations and retain all results, including null metrics.
+- [x] Keep every revision of one stable candidate `element_id` in the same deterministic train/holdout group; when only one candidate exists, keep all of its samples in train instead of fabricating a test set. This does not establish a physical-member/bay holdout.
 - [ ] Add a held-out set split by physical member/bay, not by multiple slices of the same member. Keep it untouched while thresholds are selected.
 - [ ] At the engineering acceptance gate, ask for allowable position/level/section errors and recording convention. Until supplied, leave every pass/fail accuracy field “not assessed” and report raw residuals only.
 - [ ] Record whether 3–4 recurring section types are actually observed; treat that count as a hypothesis, not an algorithm constraint.

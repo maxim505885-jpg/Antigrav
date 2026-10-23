@@ -27,7 +27,7 @@ def _bucket(sample_id: str) -> int:
 def _split_samples_by_element(
     samples: list[dict[str, Any]], test_fraction: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Split by physical element so repeated revisions cannot leak across holdout."""
+    """Keep revisions of one stable element ID together in train or holdout."""
     threshold = int(round(test_fraction * 10000))
     groups: dict[str, list[dict[str, Any]]] = {}
     for sample in samples:
