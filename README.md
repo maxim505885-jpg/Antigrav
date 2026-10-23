@@ -224,7 +224,7 @@ GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
 
 ```bash
 .venv/Scripts/python.exe -m pytest backend/tests -q
-# 504 passed, одно предупреждение Starlette/httpx
+# 510 passed, одно предупреждение Starlette/httpx
 cd frontend && npm test && npm run build
 ```
 
