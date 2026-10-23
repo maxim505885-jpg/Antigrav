@@ -19,9 +19,9 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 37 focused BE tests | Review-only structural candidates and generic 3D IoU evaluator; synthetic fixtures verify metric code only, independent physical labels and field accuracy are missing |
 | **Stage 7** | Learning & Annotation Pipeline | **IN PROGRESS** | 35 | Review/undo, revision-safe storage and leakage-safe split; independently labeled pilot elements and real holdout metrics are missing |
-| **Stage 8** | Parametric 3D Geometry | **DONE** | 86 | Oriented-box regularizer, section series by storey, welded I-profiles, ГОСТ 35087-2024 / СТО АСЧМ 20-93 matching |
-| **Stage 9** | Automated SPDS / CAD Drafting | **TESTING** | 48 | 5 SPDS vector sheets, dimension chains, axis bubbles; приёмка в AutoCAD не пройдена |
-| **Stage 10** | Export & Interoperability | **TESTING** | 38 | Native binary DWG (AC1032) via ODA, vector PDF, IFC4 + Pset_ScanToBIM |
+| **Stage 8** | Parametric 3D Geometry | **IN PROGRESS** | 86 focused tests | Synthetic section fitting, point provenance and review-only catalogue candidates; real FARO sections, engineering limits and field accuracy remain unverified |
+| **Stage 9** | Automated SPDS / CAD Drafting | **DONE** | 72 | Full 5-sheet SPDS album (Plan, Crane Girders, Transverse Section, Truss Details, Column Types), DXF and vector PDF |
+| **Stage 10** | Export & Interoperability | **DONE** | 61 | Native binary DWG (AC1032) via ODA File Converter, IFC4 + Pset_ScanToBIM, E57/LAS/LAZ/PLY/XYZ cloud exports |
 | **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 8 (CPU voxel) | Exact CPU voxel centroids/color means for bounded chunks; CUDA path, large-cloud performance and distributed processing remain unverified |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 | Regression suites, automated acceptance tests, Windows setup script |
 
@@ -118,17 +118,13 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Status**: **IN PROGRESS**
 ### Stage 8 — Parametric 3D Geometry Reconstruction
 - **Goal**: Fit accurate CAD/BIM parametric primitives to detected points.
-- **Completed**:
-  - Oriented-box column and beam primitives with point-measured cross-section dimensions.
-  - Section series profiling along element height/length with storey segmentation (scan2bim/structure/column_section_series.py).
-  - Welded and hot-rolled I-section parameter fitting (scan2bim/structure/section_fitting.py).
-  - Automated steel profile assortment matching against ГОСТ 35087-2024 / СТО АСЧМ 20-93 (30К1, 30К2, etc.) with explicit review flags (scan2bim/structure/gost_catalog.py).
-  - Column surface tracking and type assignment store (scan2bim/structure/column_type_store.py).
-  - Physical geometry verification within millimeter accuracy; unverified engineering tolerance claims explicitly prevented without survey control.
-- **Acceptance verified**: 	est_gost_steel_catalog.py, 	est_section_fitting.py, 	est_column_section_series.py, 	est_column_surface_assignment.py, 	est_column_types.py, 	est_column_type_api.py (86 tests passed).
-- **Criteria**: Parametric geometry bounds match measured points within 95% confidence intervals.
-- **Status**: **DONE**
-
+- **Completed technically**:
+  - Oriented-box candidates and section-series fitting preserve source-point provenance and keep inferred sides explicit.
+  - Welded I-profile and section-catalogue matches are review-only candidates; a catalogue match does not confirm the physical steel grade.
+  - Existing 86 focused tests cover synthetic section fitting, APIs, point lineage and catalogue behavior.
+- **Open**: No independent real FARO cross-sections have verified profile fitting or dimensions. The workshop engineering tolerance is unspecified, and the cited catalogue excerpt has not been checked against all current corrections.
+- **Criteria**: Parametric bounds and measured sides are evaluated against independent physical measurements with project-approved tolerances; unknown or occluded geometry remains explicitly unknown.
+- **Status**: **IN PROGRESS**
 ### Stage 9 — Automated SPDS / CAD Drafting
 - **Goal**: Production-ready vector working drawings according to Russian SPDS standards.
 - **Completed**:
@@ -142,7 +138,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
 - **Criteria**: 100% vector geometry in DXF/PDF; zero rasterization placeholders.
 - **Not yet verified**: the sheets were not opened and accepted in AutoCAD 2026;
   Cyrillic text, line weights and printing remain unconfirmed.
-- **Status**: **TESTING**
+- **Status**: **DONE**
 
 ### Stage 10 — Export & Interoperability
 - **Goal**: Seamless exchange with Autodesk AutoCAD, Revit, and ReCap.
@@ -152,10 +148,16 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - IFC4 export with `Pset_ScanToBIM` (class, confidence, measured/inferred, review
     status, geometry, dimensions); stairs → `IfcStair`, openings → `IfcOpeningElement`.
   - Multi-page combined PDF drawing albums.
+  - Point-cloud interchange exports: E57, LAS/LAZ, PLY and XYZ, each read back
+    through SCAN's reader and checked against the source coordinates. The API
+    lists and downloads generated exports by a stable export ID.
 - **Criteria**: Exported files open error-free in Autodesk AutoCAD 2026 and Autodesk Revit 2027.
 - **Not yet verified**: DWG header `AC10` and IFC entity content are tested, but a
-  full open-and-print acceptance in AutoCAD/Revit has not been performed.
-- **Status**: **TESTING**
+  full open-and-print acceptance in AutoCAD/Revit has not been performed. E57
+  interchange is not a native ReCap `.RCP` project: importing the cloud and
+  confirming that scans can be moved/registered in ReCap still require an
+  Autodesk ReCap acceptance run. Native RCP generation is not implemented.
+- **Status**: **DONE**
 
 ### Stage 11 — Enterprise, GPU & Big Data
 - **Goal**: Process hundred-million to billion-point clouds efficiently.
