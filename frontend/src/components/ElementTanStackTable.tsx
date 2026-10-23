@@ -16,7 +16,7 @@ interface TableRowItem {
   dimensions: string;
   tilt: string;
   margin: string;
-  status: "compliant" | "exceeded";
+  status: "unverified";
   raw: Element;
 }
 
@@ -31,18 +31,18 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
 
   const rows: TableRowItem[] = useMemo(() => {
     return elements.map((el) => {
-      const min = el.bbox?.min || [0, 0, 0];
-      const max = el.bbox?.max || [0.4, 0.4, 6.0];
-      const w = Math.round(Math.abs(max[0] - min[0]) * 1000);
-      const d = Math.round(Math.abs(max[1] - min[1]) * 1000);
+      const min = el.bbox?.min;
+      const max = el.bbox?.max;
+      const w = Math.round(Math.abs((max?.[0] ?? NaN) - (min?.[0] ?? NaN)) * 1000);
+      const d = Math.round(Math.abs((max?.[1] ?? NaN) - (min?.[1] ?? NaN)) * 1000);
       return {
         id: el.id,
         className: el.class_name,
-        profile: el.dimensions?.profile || (el.class_name === "column" ? "30К2" : "—"),
-        dimensions: `${w} × ${d} мм`,
-        tilt: "ΔX: +2.8 мм",
-        margin: "+5.2 мм",
-        status: "compliant",
+        profile: el.dimensions?.profile || "не определён",
+        dimensions: Number.isFinite(w) && Number.isFinite(d) ? `${w} × ${d} мм (bbox)` : "не определены",
+        tilt: "не измерен",
+        margin: "не определён",
+        status: "unverified",
         raw: el,
       };
     });
@@ -81,7 +81,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
             <th onClick={() => handleSort("profile")} style={{ padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ГОСТ Профиль <ArrowUpDown size={11} /></span>
             </th>
-            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Сечение</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Габарит XY</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Крен (СП)</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Запас</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Статус</th>
@@ -125,7 +125,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                       gap: 4,
                     }}
                   >
-                    <CheckCircle size={11} /> НОРМА
+                    <CheckCircle size={11} /> ТРЕБУЕТ ПРОВЕРКИ
                   </span>
                 </td>
               </tr>

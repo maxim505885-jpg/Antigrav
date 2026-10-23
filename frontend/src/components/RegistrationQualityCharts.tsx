@@ -16,24 +16,12 @@ interface InspectionChartProps {
 }
 
 export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
-  rmseData = [
-    { station: "ST_01", error_mm: 1.2, limit_mm: 5.0 },
-    { station: "ST_02", error_mm: 2.1, limit_mm: 5.0 },
-    { station: "ST_03", error_mm: 1.8, limit_mm: 5.0 },
-    { station: "ST_04", error_mm: 3.4, limit_mm: 5.0 },
-    { station: "ST_05", error_mm: 2.6, limit_mm: 5.0 },
-    { station: "ST_06", error_mm: 1.9, limit_mm: 5.0 },
-    { station: "ST_07", error_mm: 2.3, limit_mm: 5.0 },
-  ],
-  heightDistribution = [
-    { z_m: "0-2м", points_k: 840 },
-    { z_m: "2-4м", points_k: 620 },
-    { z_m: "4-6м", points_k: 410 },
-    { z_m: "6-8м", points_k: 780 },
-    { z_m: "8-10м", points_k: 320 },
-    { z_m: "10-12м", points_k: 560 },
-  ],
+  rmseData = [],
+  heightDistribution = [],
 }) => {
+  if (!rmseData.length && !heightDistribution.length) {
+    return <p role="status">Измерения регистрации и распределение точек пока отсутствуют.</p>;
+  }
   return (
     <div style={{ display: "flex", gap: 12, width: "100%", height: "100%" }}>
       {/* 1. RMSE Station Bar Chart */}
@@ -50,9 +38,9 @@ export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
       >
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#FFFFFF", textTransform: "uppercase" }}>
-            Погрешность станций (RMSE)
+            Невязки регистрации (RMSE)
           </span>
-          <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 700 }}>Допуск 5.0 мм</span>
+          <span style={{ fontSize: 11, color: "var(--success)", fontWeight: 700 }}>Допуск не задан</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 90 }}>
@@ -87,7 +75,7 @@ export const RegistrationQualityCharts: React.FC<InspectionChartProps> = ({
           <span style={{ fontSize: 12, fontWeight: 700, color: "#FFFFFF", textTransform: "uppercase" }}>
             Плотность точек (Z-высота)
           </span>
-          <span style={{ fontSize: 11, color: "#38BDF8", fontFamily: "var(--font-mono)", fontWeight: 700 }}>Σ 874.6M</span>
+          <span style={{ fontSize: 11, color: "#38BDF8", fontFamily: "var(--font-mono)", fontWeight: 700 }}>Переданные данные</span>
         </div>
 
         <div style={{ flex: 1, minHeight: 90 }}>

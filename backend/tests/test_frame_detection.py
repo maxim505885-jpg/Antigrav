@@ -55,3 +55,13 @@ def test_individual_six_metre_member_can_be_a_runway_candidate(tmp_path):
     candidates=[e for e in elements if e.dimensions.get('role')=='crane_girder']
     assert candidates
     assert any(5.5 < e.dimensions['length_m'] < 6.2 for e in candidates)
+    assert all(e.metadata['column_support_context']['status'] == 'insufficient_context' for e in candidates)
+    from scan2bim.recognition.geometric import DetectedElement
+    columns = [DetectedElement('column', {},
+        {'min': [x-.2, -.2, 0.], 'max': [x+.2, .2, 8.]}, .6)
+        for x in (-3., 3.)]
+    supported, *_ = _horizontal_members(geom, levels, grid, columns=columns)
+    runways = [e for e in supported if e.dimensions.get('role') == 'crane_girder']
+    assert runways
+    assert any(e.metadata['column_support_context']['status'] == 'supported_hypothesis' for e in runways)
+    assert all(e.dimensions['role_status'] == 'proposed' for e in runways)

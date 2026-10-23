@@ -131,7 +131,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           <div className="project-title-badge">
             <span style={{ color: "#FF812E" }}>●</span>
             <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{project?.name || "Цех_№1 (1.rcs + 2.rcs)"}</span>
-            <span style={{ color: "#94A3B8", fontSize: 11 }}>[874.6M точек]</span>
+            <span style={{ color: "#94A3B8", fontSize: 11 }}>[число точек — в карточке облака]</span>
           </div>
         </div>
 
@@ -141,6 +141,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             {(["rgb", "height", "intensity", "normals", "error"] as const).map((mode) => (
               <button
                 key={mode}
+                disabled={!["rgb", "height"].includes(mode)}
+                title={["rgb", "height"].includes(mode) ? undefined : "Нет измеренных данных для этого режима"}
                 onClick={() => setColorMode(mode)}
                 style={{
                   background: colorMode === mode ? "#FF812E" : "transparent",
@@ -164,7 +166,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           <div className="system-status-indicator">
             <span className="status-pulse"></span>
-            <span>GPU / WebGPU: 60 FPS</span>
+            <span>FPS — в окне 3D-просмотра</span>
           </div>
 
           <button
@@ -386,7 +388,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               </div>
               <p style={{ fontSize: 12.5, color: "#E2E8F0", lineHeight: 1.6 }}>
                 Выполнен глобальный уравнитель связей Bundle Adjustment для 1.rcs + 2.rcs.
-                Среднеквадратическая ошибка сшивки: <strong style={{ color: "#4ADE80" }}>2.1 мм</strong>. Найдено 18 несущих колонн цеха, проверенных по ГОСТ 35087.
+                Среднеквадратическая ошибка сшивки: <strong style={{ color: "#4ADE80" }}>не проверена</strong>. Конструкции требуют проверки по исходным точкам.
               </p>
             </div>
 
@@ -422,7 +424,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF812E" }}></span>
           <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || "Сшивка цеха (Bundle Adjustment)"}</span>
-          <span style={{ color: "#94A3B8" }}>[Сканов в проекте: 2 | 874.6M точек]</span>
+          <span style={{ color: "#94A3B8" }}>[данные выбранного проекта]</span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -434,7 +436,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
 
           <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#CBD5E1" }}>
-            <span>RMSE: <strong style={{ color: "#4ADE80" }}>2.1 мм</strong></span>
+            <span>RMSE: <strong style={{ color: "#4ADE80" }}>не проверена</strong></span>
             <span>Допуск: <strong style={{ color: "#FFFFFF" }}>СП 70.13330</strong></span>
           </div>
         </div>

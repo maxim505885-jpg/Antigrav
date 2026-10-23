@@ -14,7 +14,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 |---|---|:---:|:---:|---|
 | **Stage 1** | Architecture & Base Services | **DONE** | 65 | FastAPI Gateway, Async Job Engine, SQLite Schemas, Base Contracts |
 | **Stage 2** | Import & Storage | **IN PROGRESS** | 42 focused tests | Memory-mapped chunks, format loaders and restartable streaming; full FARO station completeness and end-to-end source acceptance remain open |
-| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 50 (FE) | Three.js viewer and camera controls; surveyed grid control and large-cloud LOD/performance acceptance remain open |
+| **Stage 3** | Professional 3D Visualization | **IN PROGRESS** | 55 (FE) | API-backed UI, adaptive camera-distance LOD, synthetic 1M-point rendering, and an in-view FPS meter are implemented; target-workstation 60 FPS acceptance remains open |
 | **Stage 4** | Multi-Station Registration | **TESTING** | 34 synthetic/contract tests | 2D FFT angle search, Point-to-Plane ICP and Kabsch; independent multi-station FARO RMSE < 10 mm is not measured |
 | **Stage 5** | Cleaning & Preparation | **DONE** | 18 | Исходник неизменен по SHA-256; сечение повторно читается как сохранённый audit snapshot; очистка создаёт скачиваемую производную копию |
 | **Stage 6** | AI / Geometric Recognition | **IN PROGRESS** | 117 related BE tests | Review-only structural candidates and generic IoU implementation; independent physical labels and field accuracy are missing |
@@ -56,6 +56,10 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Three.js WebGL engine embedded in React with custom point cloud shaders.
   - Real-time 3D SPDS structural grid with circular axis bubbles.
   - View presets (all elements, structural skeleton only, columns/beams only).
+  - The production entry point renders the API-backed `App`, replacing the static presentation prototype.
+  - Viewer selects and streams a LOD level from camera distance, debounces camera changes, cancels stale requests, and retains the visible cloud while a new level loads. Browser smoke on a generated 1M-point cloud loaded levels 0 and 2 successfully.
+  - Warm light-theme styles now load after the dark token sheet so application surfaces and text retain readable contrast.
+  - Viewer shows FPS from completed WebGL render-loop frames in rolling one-second windows, so the target workstation can report its own navigation performance.
 - **Open**: Large-cloud level-of-detail and measured frame-time acceptance have not been demonstrated for the workshop pilot.
 - **Criteria**: 60 FPS viewport navigation with 1M+ preview points, verified on the target workstation and representative cloud.
 - **Status**: **IN PROGRESS**

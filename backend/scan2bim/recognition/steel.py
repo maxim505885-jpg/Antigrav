@@ -1295,11 +1295,49 @@ def _emit_horizontal_braces(
 
 
 # ------------------------------------------------------------- horizontal stage
+def _runway_column_context(center, direction, length, z_local, origin, columns):
+    """Geometric context only: nearby columns cannot prove a crane runway.
+
+    Search margins are proposal heuristics, not engineering tolerances.
+    Coordinates of columns are world coordinates; band geometry is local.
+    """
+    world_center = np.asarray(center) + np.asarray(origin)[:2]
+    direction = np.asarray(direction, dtype=float)
+    direction = direction / np.linalg.norm(direction)
+    normal = np.array([-direction[1], direction[0]])
+    z = float(z_local + origin[2])
+    supports = []
+    for index, column in enumerate(columns):
+        if column.class_name != "column":
+            continue
+        lo = np.asarray(column.bbox.get("min", []), dtype=float)
+        hi = np.asarray(column.bbox.get("max", []), dtype=float)
+        if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all():
+            continue
+        if np.any(hi <= lo) or hi[2] - lo[2] < 1.5:
+            continue
+        if not lo[2] <= z <= hi[2] + 0.3:
+            continue
+        delta = (lo[:2] + hi[:2]) / 2 - world_center
+        along, across = float(delta @ direction), abs(float(delta @ normal))
+        half_width = float(np.abs(normal) @ (hi[:2] - lo[:2])) / 2
+        if abs(along) <= length / 2 + 0.6 and across <= half_width + 0.8:
+            supports.append({"column_index": index, "along_m": round(along, 4),
+                             "axis_offset_m": round(across, 4)})
+    spacing = max((s["along_m"] for s in supports), default=0) - min(
+        (s["along_m"] for s in supports), default=0)
+    return {"status": "supported_hypothesis" if spacing >= 2.0 else "insufficient_context",
+            "supports": supports, "support_spacing_m": round(spacing, 4),
+            "requires_review": True,
+            "basis": "column bbox proximity and height; rail/corbel not verified"}
+
+
 def _horizontal_members(
     geom: CloudGeometry,
     levels: list[dict[str, Any]],
     grid: dict[str, Any],
     progress=None,
+    columns=None,
 ) -> tuple[list[DetectedElement], float | None, list[np.ndarray], list[str]]:
     warnings: list[str] = []
     band_xy: list[np.ndarray] = []
@@ -1360,6 +1398,9 @@ def _horizontal_members(
             role = None
             note = ""
             confidence = 0.45
+            column_context = _runway_column_context(
+                center, direction, length, (bz0 + bz1) / 2, geom.origin, columns or [],
+            )
             if diagonal:
                 if kind in ("crane", "roof") and length >= BRACE_MIN_LENGTH_M:
                     # Width alone is unusable here (it saturates on the roof);
@@ -1422,6 +1463,14 @@ def _horizontal_members(
                     ),
                 )
             )
+            if role in ("crane_girder", "floor_beam"):
+                elements[-1].metadata["column_support_context"] = column_context
+                elements[-1].metadata["role_alternatives"] = ["crane_girder", "floor_beam"]
+                elements[-1].metadata["notes"] += (
+                    " Найдены разнесённые колонны подходящей высоты; опирание и рельс требуют проверки."
+                    if column_context["status"] == "supported_hypothesis" else
+                    " Связь с двумя колоннами не установлена: назначение балки не подтверждено."
+                )
             role_counts[role] = role_counts.get(role, 0) + 1
         # Second, independent source of diagonal candidates: a thin plan slice
         # isolates a bracing member that the full 1 m band dilutes or hides.
@@ -2693,7 +2742,7 @@ def detect_structural_frame(
     if progress:
         progress(0.86, "распознавание горизонтальных балок по уровням")
     _set_grid_state(grid)
-    beams, axis, _band_xy, h_warnings = _horizontal_members(geom, levels, grid, progress)
+    beams, axis, _band_xy, h_warnings = _horizontal_members(geom, levels, grid, progress, columns=columns)
     warnings.extend(h_warnings)
     elements.extend(beams)
     stats["hall_axis_deg"] = round(math.degrees(axis), 4) if axis is not None else None
