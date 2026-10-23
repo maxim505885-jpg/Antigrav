@@ -159,26 +159,6 @@ def _property_set(ifc, product, element: dict[str, Any]) -> None:
         ("DimensionsJSON", "IfcText", json.dumps(element.get("dimensions", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
         ("MetadataJSON", "IfcText", json.dumps(element.get("metadata", {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))),
     ]
-    dims = element.get("dimensions") or {}
-    hypo = dims.get("nominal_grid_hypothesis", {}).get("grid_hypothesis", {})
-    if hypo:
-        if hypo.get("row") is not None and hypo.get("axis") is not None:
-            props.append(("SPDS_Grid_Location", "IfcText", f"Ряд {hypo.get('row')} / Ось {hypo.get('axis')}"))
-        if hypo.get("delta_u_mm") is not None:
-            props.append(("SP70_Delta_U_mm", "IfcInteger", int(hypo.get("delta_u_mm"))))
-        if hypo.get("delta_v_mm") is not None:
-            props.append(("SP70_Delta_V_mm", "IfcInteger", int(hypo.get("delta_v_mm"))))
-        if dims.get("dr_mm") is not None:
-            props.append(("SP70_Delta_Radial_mm", "IfcInteger", int(dims.get("dr_mm"))))
-        if dims.get("tolerance_badge"):
-            props.append(("SP70_Tolerance_Status", "IfcText", str(dims.get("tolerance_badge"))))
-    elif dims.get("dx_mm") is not None and dims.get("dy_mm") is not None:
-        props.append(("SP70_Delta_U_mm", "IfcInteger", int(dims.get("dx_mm"))))
-        props.append(("SP70_Delta_V_mm", "IfcInteger", int(dims.get("dy_mm"))))
-        if dims.get("dr_mm") is not None:
-            props.append(("SP70_Delta_Radial_mm", "IfcInteger", int(dims.get("dr_mm"))))
-        if dims.get("tolerance_badge"):
-            props.append(("SP70_Tolerance_Status", "IfcText", str(dims.get("tolerance_badge"))))
     ifc_props = []
     for name, kind, value in props:
         nominal = ifc.create_entity(

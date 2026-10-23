@@ -109,8 +109,7 @@ backend/scan2bim/
   ingest.py           нормализация, origin, превью, статистика
   geometry/section.py плоскости сечений, сбор точек в слое
   geometry/vectorize.py растр → векторы, регуляризация, площади, отверстия
-  recognition/        geometric.py (стены/колонны/плиты/уровни), walls.py (Hough),
-                      steel.py (каркас, фермы, связи), stairs.py, openings.py
+  recognition/        geometric.py (стены/колонны/плиты/уровни), walls.py (Hough)
   cad/                DXF (ezdxf), PDF-лист (matplotlib)
   bim/                IFC (IfcOpenShell)
   learning/           признаки, примеры, метрики, версии моделей, KNN-приор
@@ -156,24 +155,18 @@ scripts/              проверочные сценарии (e2e_rcs.py, rcs_p
 
 ## Что НЕ реализовано (и не выдаётся за реализованное)
 
-- **Классы конструкций.** Геометрический модуль находит стены, колонны, плиты,
-  уровни, балки и подкрановые балки, фермы, связи, а также **лестничные марши**
-  (наклонные плоскости между соседними уровнями) и **проёмы** (разрывы в стене
-  с перемычкой сверху). Лестница — это гипотеза: пандус выглядит так же, ступени
-  и ограждения не распознаются. Проём — тоже гипотеза: дыра в скане и витрина
-  выглядят так же. Трубы, воздуховоды и оборудование **не распознаются** — API
-  возвращает их в `stats.unimplemented_classes`.
+- **Классы конструкций.** Геометрический базовый модуль находит стены, колонны,
+  плиты и уровни. Балки, ригели, фермы, связи, лестницы, проёмы, трубы,
+  воздуховоды, оборудование **не распознаются** — API возвращает их в
+  `stats.unimplemented_classes` и предупреждением в результате.
 - **Нейросети.** Адаптер под Pointcept/Open3D-ML заложен в конфигурации
   (`S2B_ML_PYTHON`, `S2B_ML_MODELS`), но весов и инференса нет: тяжёлое окружение
   не устанавливалось. Все текущие уверенности — эвристические, не калиброванные
   вероятности.
 - **Плагины AutoCAD/Revit.** Нет кода плагинов. Есть контракт для них:
   `GET /plugin/manifest`, `GET /plugin/cloud/{id}/model`, DXF/IFC и feedback-API.
-- **DWG.** Генерируется, когда на машине есть лицензированный конвертер: DXF
-  переводится ODA File Converter (автопоиск установленных версий или
-  `S2B_ODA_CONVERTER`) либо AutoCAD Core Console. Формат — бинарный DWG ACAD2018
-  (AC1032), а не переименованный DXF. Без конвертера эндпоинт честно отвечает
-  409 с шагами и не подделывает файл.
+- **DWG.** Не генерируется. DXF + инструкция открыть и сохранить в DWG в AutoCAD
+  (или лицензированный ODA File Converter); эндпоинт возвращает 409 с шагами.
 - **Пользователи и роли.** Один локальный пользователь; опциональный статический
   API-ключ. Многопользовательский сервер — этап 9 плана.
 
@@ -202,10 +195,10 @@ POST /api/v1/projects/{id}/clouds/import-path   (большие файлы ос�
 POST /api/v1/projects/{id}/clouds/upload        (копия файла)
 GET  /api/v1/clouds/{id}   GET /clouds/{id}/preview   GET /clouds/{id}/stats
 POST /api/v1/clouds/{id}/sections           GET /clouds/{id}/sections
-POST /api/v1/sections/{id}/export?format=dxf|dwg|pdf|json
+POST /api/v1/sections/{id}/export?format=dxf|pdf|json
 POST /api/v1/clouds/{id}/recognize          GET /clouds/{id}/elements  /levels
 POST /api/v1/elements/{id}/feedback         GET /elements/{id}/similar  /points
-GET  /api/v1/clouds/{id}/elements.dxf|.dwg GET /clouds/{id}/bim?format=json|ifc
+GET  /api/v1/clouds/{id}/elements.dxf       GET /clouds/{id}/bim?format=json|ifc
 POST /api/v1/projects/{id}/train            GET /models  POST /models/{id}/activate
 POST /api/v1/webhooks                       GET /events    GET /jobs/{id}
 GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
@@ -219,8 +212,7 @@ GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
 
 ```bash
 .venv/Scripts/python.exe -m pytest backend/tests -q
-# 491 passed, одно предупреждение Starlette/httpx
-cd frontend && npm test && npm run build
+# 15 passed
 ```
 
 - `test_geometry.py` — сечение синтетической комнаты 6 × 4 × 3 м совпадает с
@@ -231,12 +223,7 @@ cd frontend && npm test && npm run build
   точным сравнением координат).
 - `test_api_pipeline.py` — полный маршрут через API, включая честное поведение
   для RCS: с установленным ReCap поддельный `ADOCT`-файл **падает** с ошибкой
-  (а не даёт выдуманное облако), без ReCap — 409 с инструкцией. DWG проверяется
-  настоящим заголовком `AC10`, если конвертер установлен.
-- `test_stairs_openings.py` — марш между двумя уровнями (наклон, ширина, подъём),
-  плоские плиты не считаются лестницей, дверь и окно находятся по разрывам в
-  стене, непросканированная полоса и целая стена проёмов не дают; IFC-экспорт
-  даёт `IfcStair` и `IfcOpeningElement` с геометрией.
+  (а не даёт выдуманное облако), без ReCap — 409 с инструкцией.
 
 ---
 

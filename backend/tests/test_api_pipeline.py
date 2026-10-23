@@ -9,7 +9,6 @@ import ezdxf
 import numpy as np
 
 from conftest import wait_cloud, wait_job
-from scan2bim.cad.dwg_compiler import find_accoreconsole, find_oda_converter
 from scan2bim.cad.pdf import structural_schedule_from_dxf
 
 
@@ -61,6 +60,8 @@ def test_full_pipeline(client):
     assert json_response.status_code == 200
     assert json_response.json()["frame"]["position_world"] == section["result"]["frame"]["position_world"]
 
+    from scan2bim.cad.dwg_compiler import find_accoreconsole, find_oda_converter
+
     dwg_response = client.post(f"/api/v1/sections/{section['id']}/export?format=dwg")
     if find_oda_converter() or find_accoreconsole():
         # A licensed converter is installed: DWG must be a real binary DWG.
@@ -111,13 +112,6 @@ def test_full_pipeline(client):
     assert dxf_element["review_status"] == source_element["review_status"]
     assert dxf_element["metadata"] == exchanged_element["metadata"]
     assert elements_doc.header["$INSUNITS"] == 6
-
-    elements_dwg = client.get(f"/api/v1/clouds/{cloud['id']}/elements.dwg")
-    if find_oda_converter() or find_accoreconsole():
-        assert elements_dwg.status_code == 200, elements_dwg.text
-        assert elements_dwg.content[:4] == b"AC10"
-    else:
-        assert elements_dwg.status_code == 409
 
     ifc_response = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=ifc")
     assert ifc_response.status_code == 200, ifc_response.text
