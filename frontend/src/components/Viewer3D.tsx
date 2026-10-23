@@ -260,9 +260,27 @@ export default function Viewer3D({ cloud, elements = [], groupPositions, selecte
     setError(null);
     (async () => {
       try {
-        const response = await fetch(api.previewUrl(cloud.id), { signal: controller.signal });
-        if (!response.ok) throw new Error(`preview HTTP ${response.status}`);
-        const buffer = await response.arrayBuffer();
+        // Try dynamic streaming LOD pyramid if available, fallback to previewUrl
+        let buffer: ArrayBuffer | null = null;
+        try {
+          const lodManifest = await api.getLodManifest(cloud.id);
+          if (lodManifest && lodManifest.levels && lodManifest.levels.length > 0) {
+            // Load highest detail level or standard level 1
+            const targetLvl = lodManifest.levels[Math.min(1, lodManifest.levels.length - 1)].level;
+            const lodResp = await fetch(api.lodBinaryUrl(cloud.id, targetLvl), { signal: controller.signal });
+            if (lodResp.ok) {
+              buffer = await lodResp.arrayBuffer();
+            }
+          }
+        } catch {
+          buffer = null;
+        }
+
+        if (!buffer) {
+          const response = await fetch(api.previewUrl(cloud.id), { signal: controller.signal });
+          if (!response.ok) throw new Error(`preview HTTP ${response.status}`);
+          buffer = await response.arrayBuffer();
+        }
         const stride = 15;
         const count = Math.floor(buffer.byteLength / stride);
         const view = new DataView(buffer);
