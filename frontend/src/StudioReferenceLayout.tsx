@@ -6,6 +6,7 @@ import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
 import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
+import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { type Cloud, type Element, type Project } from "./types";
 
 interface StudioLayoutProps {
@@ -245,9 +246,14 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               </div>
             </div>
 
-            {/* Core 3D Viewport Scene */}
+            {/* Core 3D Viewport Scene or Split-Screen Registration */}
             <div className="scene-container">
-              {cloud ? (
+              {activeNav === "stitching" || activeSecondaryTab === "stitching" ? (
+                <SplitScreenRegistrationView
+                  sourceCloud={cloud}
+                  targetCloud={clouds.length > 1 ? clouds[1] : cloud}
+                />
+              ) : cloud ? (
                 <Viewer3D
                   cloud={cloud}
                   elements={elements}
