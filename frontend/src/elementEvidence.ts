@@ -45,6 +45,14 @@ export function nominalGridHypothesisBadges(dimensions: EvidenceMetadata | null 
     const grid = (hypothesis as Record<string, unknown>).grid_hypothesis;
     if (grid && typeof grid === "object") {
       const value = grid as Record<string, unknown>;
+      if (value.status === "grid_control_not_provided") {
+        const step = typeof value.nominal_step_m === "number" ? value.nominal_step_m : null;
+        return [{
+          text: `оси не заданы${step == null ? "" : ` · шаг ${step} м`}`,
+          title: "Известен только номинальный продольный шаг. Начало координат, поворот и поперечные оси не заданы; номера осей и отклонения не рассчитаны.",
+          cls: "inferred",
+        }];
+      }
       const outside = value.status === "outside_nominal_grid_search_window";
       const row = typeof value.row === "string" ? value.row : "—";
       const axis = typeof value.axis === "number" ? value.axis : "—";

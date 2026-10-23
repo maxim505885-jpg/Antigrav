@@ -118,7 +118,10 @@ class StructuralTopologyValidator:
     """
 
     def __init__(self, topology: WorkshopGridTopology | None = None):
-        self.topo = topology or WorkshopGridTopology()
+        # The user supplied a nominal 6 m longitudinal pitch, but no surveyed
+        # origin, orientation, or transverse axes. Never silently substitute the
+        # historical provisional values in WorkshopGridTopology as project control.
+        self.topo = topology
 
     def classify_element_role(
         self,
@@ -127,15 +130,27 @@ class StructuralTopologyValidator:
         sizes: tuple[float, float, float],
     ) -> dict[str, Any]:
         """Return a review-only hypothesis without changing measured geometry."""
-        u, v, _z = self.topo.to_aligned(*center_world)
         _ = sizes  # Measured dimensions are evidence and are never rewritten here.
         result: dict[str, Any] = {
             "candidate_role": class_name,
             "review_state": "unreviewed",
-            "hypothesis_basis": "geometric_class_and_unverified_nominal_layout",
+            "hypothesis_basis": "geometric_class_and_surveyed_layout" if self.topo else "geometric_class_only",
         }
 
         if class_name == "column":
+            if self.topo is None:
+                result["grid_hypothesis"] = {
+                    "row": None,
+                    "axis": None,
+                    "delta_u_mm": None,
+                    "delta_v_mm": None,
+                    "status": "grid_control_not_provided",
+                    "nominal_step_m": 6.0,
+                    "review_state": "unreviewed",
+                }
+                return result
+
+            u, v, _z = self.topo.to_aligned(*center_world)
             row_letter, row_v = min(
                 self.topo.row_v_coords.items(), key=lambda item: abs(v - item[1])
             )

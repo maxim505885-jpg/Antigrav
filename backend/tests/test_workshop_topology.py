@@ -23,8 +23,26 @@ def test_workshop_grid_topology_spans_and_bays():
     assert pytest.approx(rows["Г"] - rows["В"], 0.1) == 13.25
 
 
+def test_default_validator_uses_only_the_user_supplied_bay_step():
+    result = StructuralTopologyValidator().classify_element_role(
+        "column", (12.0, 30.0, 4.25), (0.6, 0.5, 8.5),
+    )
+
+    grid = result["grid_hypothesis"]
+    assert grid == {
+        "row": None,
+        "axis": None,
+        "delta_u_mm": None,
+        "delta_v_mm": None,
+        "status": "grid_control_not_provided",
+        "nominal_step_m": 6.0,
+        "review_state": "unreviewed",
+    }
+    assert result["hypothesis_basis"] == "geometric_class_only"
+
+
 def test_validator_reports_grid_match_as_unreviewed_hypothesis():
-    validator = StructuralTopologyValidator()
+    validator = StructuralTopologyValidator(topology=WorkshopGridTopology())
     topo = validator.topo
 
     # World position corresponding to Row Б, Axis 5
@@ -45,7 +63,7 @@ def test_validator_reports_grid_match_as_unreviewed_hypothesis():
 
 
 def test_validator_keeps_off_grid_column_as_unreviewed_candidate():
-    validator = StructuralTopologyValidator()
+    validator = StructuralTopologyValidator(topology=WorkshopGridTopology())
     topo = validator.topo
 
     # Inside clear span between Row Б and В (e.g. V = -10.0m)
@@ -60,7 +78,7 @@ def test_validator_keeps_off_grid_column_as_unreviewed_candidate():
 
 
 def test_validator_identifies_crane_girder():
-    validator = StructuralTopologyValidator()
+    validator = StructuralTopologyValidator(topology=WorkshopGridTopology())
     topo = validator.topo
 
     # Along Row В at crane level Z_crane
@@ -77,7 +95,7 @@ def test_validator_identifies_crane_girder():
 
 
 def test_validator_never_reports_engineering_tolerance_without_project_limit():
-    validator = StructuralTopologyValidator()
+    validator = StructuralTopologyValidator(topology=WorkshopGridTopology())
     topo = validator.topo
 
     u_target = topo.transverse_u_coords[0]
@@ -135,4 +153,5 @@ def test_regularize_workshop_model_full():
     assert regularized[1]["class_name"] == "column"
     assert regularized[0]["dimensions"]["nominal_grid_hypothesis"]["review_state"] == "unreviewed"
     assert "mark" not in regularized[0]["dimensions"]["nominal_grid_hypothesis"]
+    assert regularized[0]["dimensions"]["nominal_grid_hypothesis"]["grid_hypothesis"]["status"] == "grid_control_not_provided"
 

@@ -29,6 +29,12 @@ function dimensionSummary(element: Element): string {
   const gridHypothesis = dims.nominal_grid_hypothesis?.grid_hypothesis;
   if (oldGridOnly) return "гипотеза по номинальной сетке · требуется проверка";
   if (gridHypothesis) {
+    if (gridHypothesis.status === "grid_control_not_provided") {
+      const step = typeof gridHypothesis.nominal_step_m === "number"
+        ? ` · известный шаг ${gridHypothesis.nominal_step_m} м`
+        : "";
+      return `оси не заданы${step} · отклонения не рассчитаны`;
+    }
     const rowAxis = `ряд ${gridHypothesis.row ?? "—"} · ось ${gridHypothesis.axis ?? "—"}`;
     const residual = `ΔU=${gridHypothesis.delta_u_mm ?? "—"} мм · ΔV=${gridHypothesis.delta_v_mm ?? "—"} мм`;
     return `${rowAxis} — гипотеза · ${residual}`;
@@ -222,7 +228,9 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
         || (d.structural_status === "confirmed_grid_column" && !["confirmed", "corrected"].includes(el.review_status));
       const hypothesis = d.nominal_grid_hypothesis?.grid_hypothesis;
       const gridSummary = hypothesis
-        ? `не подтверждено: ряд ${hypothesis.row ?? "—"}, ось ${hypothesis.axis ?? "—"}, ΔU=${hypothesis.delta_u_mm ?? "—"} мм, ΔV=${hypothesis.delta_v_mm ?? "—"} мм`
+        ? hypothesis.status === "grid_control_not_provided"
+          ? `сетка осей не задана; известный шаг ${hypothesis.nominal_step_m ?? "—"} м; отклонения не рассчитаны`
+          : `не подтверждено: ряд ${hypothesis.row ?? "—"}, ось ${hypothesis.axis ?? "—"}, ΔU=${hypothesis.delta_u_mm ?? "—"} мм, ΔV=${hypothesis.delta_v_mm ?? "—"} мм`
         : oldGridOnly ? "старое предположение · проверить" : "—";
       return [
         el.id,
