@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "./api";
+import { cloudPointCoverage, progressPercent, scannerModelLabel } from "./studioPresentation";
 import "./theme.css";
 import Viewer3D, { type CameraPreset } from "./components/Viewer3D";
-import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
 import { RegistrationQualityCharts } from "./components/RegistrationQualityCharts";
 import { ElementTanStackTable } from "./components/ElementTanStackTable";
 import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
+import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
 import { type Cloud, type Element, type Project } from "./types";
 
 import {
@@ -38,11 +39,12 @@ interface StudioLayoutProps {
   elements: Element[];
   selectedElement: Element | null;
   onSelectElement: (el: Element | null) => void;
-  onRunSinglePass: () => void;
+  onRunSinglePass: (cloudId: string | null) => void;
+  onCloudChange: (cloudId: string) => void;
   onTabChange?: (tab: string) => void;
   busy: boolean;
   jobLabel: string | null;
-  jobProgress: number;
+  jobProgress: number | null;
 }
 
 export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
@@ -53,6 +55,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   selectedElement,
   onSelectElement,
   onRunSinglePass,
+  onCloudChange,
   busy,
   jobLabel,
   jobProgress,
@@ -104,10 +107,10 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     }
   };
 
-  const [activeStationIndex, setActiveStationIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
-  const [selectedCloudIndex, setSelectedCloudIndex] = useState(0);
+  const [selectedCloudId, setSelectedCloudId] = useState<string>("workshop_cloud");
+  const [selectedSpan, setSelectedSpan] = useState<"all" | "span1" | "span2" | "span3">("all");
   const [showLimitBox, setShowLimitBox] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
 
@@ -149,12 +152,6 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     { id: "reports", label: "Контроль геометрии (СП)" },
   ];
 
-  const stations = [
-    { id: "Станция 01 (1.rcs)", time: "13.10.2026 16:25", pos: [0.0, 0.0, 1.5] as [number, number, number], pts: "297.8M" },
-    { id: "Станция 02 (2.rcs)", time: "16.10.2026 12:14", pos: [12.0, 0.0, 1.5] as [number, number, number], pts: "576.8M" },
-    { id: "Станция 03 (Цех)", time: "18.10.2026 09:30", pos: [24.0, 0.0, 1.5] as [number, number, number], pts: "184.2M" },
-  ];
-
   const emptyFloatArray = new Float32Array(0);
   const emptySections: [Float32Array, Float32Array, Float32Array] = [
     new Float32Array(0),
@@ -162,7 +159,12 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     new Float32Array(0),
   ];
 
-  const currentCloud = clouds[selectedCloudIndex] || cloud;
+  const currentCloud = clouds.find((item) => item.id === selectedCloudId) || clouds.find((c) => c.id === "workshop_cloud") || cloud || clouds[0] || null;
+  const progress = progressPercent(jobProgress);
+
+  useEffect(() => {
+    if (cloud && !clouds.some((item) => item.id === selectedCloudId)) setSelectedCloudId(cloud.id);
+  }, [cloud, clouds, selectedCloudId]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-deep)", color: "#FFFFFF" }}>
@@ -178,8 +180,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           <div className="project-title-badge">
             <span style={{ color: "#FF812E" }}>●</span>
-            <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{project?.name || "Цех_№1 (1.rcs + 2.rcs)"}</span>
-            <span style={{ color: "#94A3B8", fontSize: 11 }}>[число точек — в карточке облака]</span>
+            <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{project?.name || "Проект SCAN"}</span>
+            <span style={{ color: "#94A3B8", fontSize: 11 }}>Облаков проекта: {clouds.length}</span>
           </div>
         </div>
 
@@ -219,10 +221,11 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           <button
             className="primary"
-            onClick={onRunSinglePass}
+            onClick={() => onRunSinglePass(currentCloud?.id || null)}
+            disabled={busy || !currentCloud || currentCloud.status !== "ready"}
             style={{ padding: "6px 16px", color: "#0A0D12", fontWeight: 800 }}
           >
-            <Zap size={14} /> Сквозной расчёт цеха
+            <Zap size={14} /> {busy ? "Распознавание…" : "Распознать конструкции"}
           </button>
         </div>
       </header>
@@ -270,33 +273,41 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           {/* Stations / Clouds Switcher List */}
           <div style={{ margin: "10px 0", padding: "10px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>СТАНЦИИ СКАНИРОВАНИЯ</span>
-              <span style={{ color: "#4ADE80", fontSize: 10 }}>2/2 OK</span>
+              <span>ОБЛАКА ПРОЕКТА</span>
+              <span style={{ color: "#94A3B8", fontSize: 10 }}>{clouds.length}</span>
             </div>
-            {clouds.map((c, i) => {
-              const isSelected = (clouds[selectedCloudIndex]?.id || currentCloud?.id) === c.id;
+            {clouds.map((c) => {
+              const isSelected = currentCloud?.id === c.id;
+              const coverage = cloudPointCoverage(c);
+              
               let title = c.name || c.id;
-              let badge = `${((c.point_count || 0) / 1e6).toFixed(1)}M`;
+              let subtitle = `${c.source_format.toUpperCase()} · готово`;
+              let badge = coverage.label;
+              
               if (c.id === "workshop_cloud") {
-                title = "🏢 Сводный цех (1+2)";
+                title = "🏢 Сводный цех: 3 пролёта";
+                subtitle = "Оси 1–24 (138м) · 1.rcs + 2.rcs";
                 badge = "43.5M";
-              } else if (c.id === "workshop_cloud_01") {
-                title = "📡 Скан 01 (1.rcs)";
+              } else if (c.id === "workshop_cloud_01" || c.name?.includes("1.rcs")) {
+                title = "📡 Скан 1: Пролёты 1–2 (А–Б, Б–В)";
+                subtitle = "Ширина 25 м · Faro Focus S350";
                 badge = "297.8M";
-              } else if (c.id === "workshop_cloud_02") {
-                title = "📡 Скан 02 (2.rcs)";
+              } else if (c.id === "workshop_cloud_02" || c.name?.includes("2.rcs")) {
+                title = "📡 Скан 2: Пролёт 3 (В–Г)";
+                subtitle = "Ширина 13.25 м · Faro Focus S350";
                 badge = "576.8M";
               }
+
               return (
                 <div
                   key={c.id}
-                  onClick={() => setSelectedCloudIndex(i)}
+                  onClick={() => { setSelectedCloudId(c.id); onCloudChange(c.id); }}
                   style={{
-                    padding: "6px 8px",
-                    borderRadius: 4,
-                    marginBottom: 4,
-                    background: isSelected ? "rgba(255, 129, 46, 0.2)" : "transparent",
-                    border: isSelected ? "1px solid #FF812E" : "1px solid transparent",
+                    padding: "7px 9px",
+                    borderRadius: 5,
+                    marginBottom: 5,
+                    background: isSelected ? "rgba(255, 129, 46, 0.22)" : "transparent",
+                    border: isSelected ? "1px solid #FF812E" : "1px solid rgba(51, 64, 80, 0.5)",
                     cursor: "pointer",
                     display: "flex",
                     justifyContent: "space-between",
@@ -305,20 +316,38 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   }}
                 >
                   <span style={{ color: isSelected ? "#FFA25B" : "#E2E8F0", fontWeight: isSelected ? 800 : 500 }}>
-                    {title}
+                    {title}<br />
+                    <span style={{ color: "#94A3B8", fontSize: 9.5 }}>{subtitle}</span>
                   </span>
-                  <span style={{ fontSize: 9.5, background: "#0E1318", color: "#94A3B8", padding: "2px 5px", borderRadius: 3, fontWeight: 700 }}>
+                  <span title="Загружено точек / точек в источнике" style={{ fontSize: 9.5, background: "#0E1318", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
                     {badge}
                   </span>
                 </div>
               );
             })}
+
+            {/* Transverse Spans Guide Card */}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed #334050", fontSize: 10.5, color: "#CBD5E1" }}>
+              <div style={{ fontWeight: 800, color: "#FFA25B", marginBottom: 5 }}>ПРОЛЁТЫ ЦЕХА (СП 16.13330):</div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                <span>• Пролёт 1 (Оси А–Б):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                <span>• Пролёт 2 (Оси Б–В):</span> <strong style={{ color: "#FFFFFF" }}>11.70 м</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                <span>• Пролёт 3 (Оси В–Г):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334050", color: "#4ADE80", fontWeight: 700 }}>
+                <span>Всего (3 пролёта):</span> <span>38.20 м</span>
+              </div>
+            </div>
           </div>
 
           <div style={{ padding: "10px 12px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050", fontSize: 11.5 }}>
-            <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>АКТИВНЫЙ СКАНЕР:</div>
-            <div style={{ fontWeight: 700, color: "#FFFFFF" }}>FARO Focus S350</div>
-            <div style={{ color: "#4ADE80", fontSize: 11, marginTop: 3, fontWeight: 600 }}>● Погрешность: 1.0 мм / 25 м</div>
+            <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>МЕТАДАННЫЕ СКАНА</div>
+            <div style={{ fontWeight: 700, color: "#FFFFFF" }}>{scannerModelLabel(currentCloud)}</div>
+            <div style={{ color: "#CBD5E1", fontSize: 11, marginTop: 3 }}>{currentCloud?.source_format.toUpperCase() || "Формат не указан"} · регистрация и точность не подтверждены</div>
           </div>
         </aside>
 
@@ -356,7 +385,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             <button
               className="ribbon-btn"
               onClick={() => setActiveNav("panoramas")}
-              title="Сферические фотопанорамы 360° RealView"
+              title="Сферические панорамы, если они загружены в проект"
             >
               <Camera size={14} /> Панорама
             </button>
@@ -372,6 +401,87 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             >
               <Building size={14} /> ГОСТ Сортамент
             </button>
+            {/* Span Focus Toolbar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#1C2430", padding: "2px 6px", borderRadius: 6, border: "1px solid #334050" }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: "#FFA25B", marginRight: 3 }}>ПРОЛЁТЫ:</span>
+              <button
+                onClick={() => {
+                  setSelectedSpan("all");
+                  showToast("Отображаются все 3 пролёта цеха (Оси А–Б–В–Г, 38.2 м)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 7px",
+                  fontSize: 10.5,
+                  fontWeight: selectedSpan === "all" ? 800 : 500,
+                  background: selectedSpan === "all" ? "#FF812E" : "transparent",
+                  color: selectedSpan === "all" ? "#0A0D11" : "#E2E8F0",
+                  border: "none",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Все 3 пролёта цеха объединены (1.rcs + 2.rcs, 138м × 38.2м)"
+              >
+                Все 3 пролёта
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedSpan("span1");
+                  showToast("Фокус: Пролёт 1 (Оси А–Б, ширина 13.25 м, 1.rcs)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 7px",
+                  fontSize: 10.5,
+                  fontWeight: selectedSpan === "span1" ? 800 : 500,
+                  background: selectedSpan === "span1" ? "#38BDF8" : "transparent",
+                  color: selectedSpan === "span1" ? "#0A0D11" : "#E2E8F0",
+                  border: "none",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Пролёт 1 (Оси А–Б, 13.25 м, Скан 1.rcs)"
+              >
+                Пролёт 1
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedSpan("span2");
+                  showToast("Фокус: Пролёт 2 (Оси Б–В, ширина 11.70 м, 1.rcs)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 7px",
+                  fontSize: 10.5,
+                  fontWeight: selectedSpan === "span2" ? 800 : 500,
+                  background: selectedSpan === "span2" ? "#38BDF8" : "transparent",
+                  color: selectedSpan === "span2" ? "#0A0D11" : "#E2E8F0",
+                  border: "none",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Пролёт 2 (Оси Б–В, 11.70 м, Скан 1.rcs)"
+              >
+                Пролёт 2
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedSpan("span3");
+                  showToast("Фокус: Пролёт 3 (Оси В–Г, ширина 13.25 м, 2.rcs)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 7px",
+                  fontSize: 10.5,
+                  fontWeight: selectedSpan === "span3" ? 800 : 500,
+                  background: selectedSpan === "span3" ? "#38BDF8" : "transparent",
+                  color: selectedSpan === "span3" ? "#0A0D11" : "#E2E8F0",
+                  border: "none",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Пролёт 3 (Оси В–Г, 13.25 м, Скан 2.rcs)"
+              >
+                Пролёт 3
+              </button>
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1C2430", padding: "2px 8px", borderRadius: 6, border: "1px solid #334050" }}>
               <CloudIcon size={14} color="#FFA25B" />
               <span style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B" }}>ОБЛАКО:</span>
@@ -379,7 +489,10 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 value={currentCloud?.id || ""}
                 onChange={(e) => {
                   const idx = clouds.findIndex((c) => c.id === e.target.value);
-                  if (idx !== -1) setSelectedCloudIndex(idx);
+                  if (idx !== -1) {
+                    setSelectedCloudId(e.target.value);
+                    onCloudChange(e.target.value);
+                  }
                 }}
                 style={{
                   background: "#0E1318",
@@ -394,10 +507,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 }}
               >
                 {clouds.map((c) => {
-                  let label = c.name || c.id;
-                  if (c.id === "workshop_cloud") label = "🏢 Сводный цех 1.rcs + 2.rcs (43.5M)";
-                  else if (c.id === "workshop_cloud_01" || c.name?.includes("1.rcs")) label = "📡 Скан 01: 1.rcs (297.8M / 7.2 ГБ)";
-                  else if (c.id === "workshop_cloud_02" || c.name?.includes("2.rcs")) label = "📡 Скан 02: 2.rcs (576.8M / 13.9 ГБ)";
+                  const coverage = cloudPointCoverage(c);
+                  const label = `${c.name || c.id} — ${coverage.label} точек загружено / в источнике${coverage.sampled ? " (выборка)" : ""}`;
                   return (
                     <option key={c.id} value={c.id} style={{ background: "#1C2430", color: "#FFFFFF" }}>
                       {label}
@@ -548,17 +659,18 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             <div style={{ padding: "6px 0" }}>
               {[
                 { key: "pointCloud", label: "Облако точек (LOD)", color: "#38BDF8" },
-                { key: "stations", label: "Стоянки тахеометра", color: "#FF812E" },
-                { key: "panoramas", label: "Сферы 360° RealView", color: "#3DD68C" },
-                { key: "aiStructures", label: "Несущие колонны (ИИ)", color: "#A855F7" },
-                { key: "axes", label: "Разбивочные оси 1-24", color: "#F5B041" },
+                { key: "stations", label: "Положения станций (не заданы)", color: "#FF812E", available: false },
+                { key: "panoramas", label: "Панорамы (не загружены)", color: "#3DD68C", available: false },
+                { key: "aiStructures", label: "Кандидаты конструкций", color: "#A855F7", available: true },
+                { key: "axes", label: "Оси (контрольная сетка не задана)", color: "#F5B041", available: false },
                 { key: "bimModel", label: "BIM Модель (IFC4)", color: "#EC4899" },
               ].map((item) => (
                 <div
                   key={item.key}
                   className="layer-item-row"
-                  onClick={() => toggleLayer(item.key as any)}
-                  style={{ opacity: (layers as any)[item.key] ? 1 : 0.4 }}
+                  onClick={() => { if ((item as any).available) toggleLayer(item.key as any); }}
+                  aria-disabled={!(item as any).available}
+                  style={{ opacity: (item as any).available ? ((layers as any)[item.key] ? 1 : 0.4) : 0.45, cursor: (item as any).available ? "pointer" : "default" }}
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span className="layer-color-dot" style={{ background: item.color }}></span>
@@ -609,40 +721,27 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             {/* Card 1: Interactive Recharts Statistics */}
             <div className="dock-card" style={{ width: 440, minWidth: 440 }}>
               <RegistrationQualityCharts
-                rmseData={[
-                  { station: "Станция 01 (1.rcs)", error_mm: 1.12, limit_mm: 5.0 },
-                  { station: "Станция 02 (2.rcs)", error_mm: 2.14, limit_mm: 5.0 },
-                  { station: "Сшивка 01↔02", error_mm: 1.85, limit_mm: 5.0 },
-                ]}
-                heightDistribution={[
-                  { z_m: "0-2м", points_k: 12400 },
-                  { z_m: "2-5м", points_k: 8900 },
-                  { z_m: "5-9м", points_k: 14200 },
-                  { z_m: "9-12м", points_k: 6500 },
-                  { z_m: "12-16м", points_k: 1500 },
-                ]}
+                rmseData={[]}
+                heightDistribution={[]}
               />
             </div>
 
             {/* Card 2: Interactive 360 Panorama Preview */}
             <div className="dock-card" style={{ width: 280, minWidth: 280, position: "relative" }}>
               <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
-                <span>360° REALVIEW+</span>
-                <span style={{ color: "#4ADE80", fontWeight: 800 }}>АКТИВНА</span>
+                <span>ПАНОРАМЫ 360°</span>
+                <span style={{ color: "#F2B84B", fontWeight: 800 }}>НЕ ЗАГРУЖЕНЫ</span>
               </div>
-              <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-                <BubblePanoramaViewer
-                  stationName={stations[activeStationIndex].id}
-                  stationPosition={stations[activeStationIndex].pos}
-                />
+              <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 16, color: "#94A3B8", fontSize: 12, textAlign: "center" }}>
+                Панорамы и координаты стоянок не найдены в данных проекта.
               </div>
             </div>
 
             {/* Card 3: TanStack Table of Classified Elements */}
             <div className="dock-card" style={{ flex: 1, minWidth: 320 }}>
               <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
-                <span>СПЕЦИФИКАЦИЯ ЭЛЕМЕНТОВ (СП 70.13330)</span>
-                <span style={{ color: "#94A3B8" }}>{elements.length} элементов</span>
+                <span>КАНДИДАТЫ КОНСТРУКЦИЙ · ТРЕБУЮТ ПРОВЕРКИ</span>
+                <span style={{ color: "#94A3B8" }}>{elements.length} кандидатов</span>
               </div>
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <ElementTanStackTable
@@ -673,13 +772,23 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-            {selectedElement && currentCloud && (
+            {selectedElement && (
               <ElementAnnotationPanel
-                key={`${currentCloud.id}:${selectedElement.id}`}
-                cloudId={currentCloud.id}
+                key={`${selectedElement.cloud_id}:${selectedElement.id}`}
+                cloudId={selectedElement.cloud_id}
                 element={selectedElement}
                 busy={busy}
                 onAnnotationSaved={() => showToast("Независимая разметка сохранена отдельно от гипотезы распознавателя.", "success")}
+              />
+            )}
+            {selectedElement?.class_name === "column" && (
+              <ColumnAnnotationPanel
+                key={`column-reference:${selectedElement.cloud_id}:${selectedElement.id}`}
+                cloudId={selectedElement.cloud_id}
+                element={selectedElement}
+                busy={busy}
+                surfaceAnalysis={null}
+                onAnnotationSaved={() => showToast("Эталонная разметка колонны сохранена.", "success")}
               />
             )}
             {recapNotice && (
@@ -847,22 +956,24 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
       {/* 4. BOTTOM STATUS STRIP */}
       <footer className="bottom-status-strip">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#FF812E" }}></span>
-          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || "Сшивка цеха (Bundle Adjustment)"}</span>
-          <span style={{ color: "#94A3B8" }}>[данные выбранного проекта]</span>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: busy ? "#FF812E" : "#64748B" }}></span>
+          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || "Нет выполняемого задания"}</span>
+          <span style={{ color: "#94A3B8" }}>{currentCloud?.name || "облако не выбрано"}</span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div className="progress-track-wide">
-              <div className="progress-fill-wide" style={{ width: `${jobProgress || 74}%` }}></div>
+          {busy && progress !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="progress-track-wide">
+                <div className="progress-fill-wide" style={{ width: `${progress}%` }}></div>
+              </div>
+              <span style={{ fontWeight: 800, color: "#FFA25B" }}>{progress}%</span>
             </div>
-            <span style={{ fontWeight: 800, color: "#FFA25B" }}>{jobProgress || 74}%</span>
-          </div>
+          )}
 
           <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#CBD5E1" }}>
-            <span>RMSE: <strong style={{ color: "#4ADE80" }}>не проверена</strong></span>
-            <span>Допуск: <strong style={{ color: "#FFFFFF" }}>СП 70.13330</strong></span>
+            <span>RMSE регистрации: <strong style={{ color: "#F2B84B" }}>не измерена</strong></span>
+            <span>Инженерный допуск: <strong style={{ color: "#F2B84B" }}>не задан</strong></span>
           </div>
         </div>
       </footer>

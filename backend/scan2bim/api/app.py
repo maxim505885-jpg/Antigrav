@@ -33,9 +33,19 @@ from ..jobs import JobCancelled, create_job, dispatch_event, get_job, request_ca
 from ..learning.features import features_from_element
 from ..learning.knn import KNNModel
 from ..learning.registry import activate, list_models, rollback
-from ..learning.store import create_sample, list_samples, samples_for_training, similar_samples
+from ..learning.store import (
+    create_sample,
+    element_bbox_coordinate_frame,
+    inspect_source_point_alignment,
+    list_samples,
+    point_cloud_snapshot,
+    samples_for_training,
+    similar_samples,
+    validate_training_sample_source,
+)
 from ..learning.training import active_artifact, apply_learned_prior, train_candidate
 from ..recognition import detect_structures, ml_status
+from ..recognition.evaluation import evaluate_recognition
 from ..recognition.geometric import DetectedElement
 from ..recognition.reconcile import protect_reviewed_candidates
 from ..structure.column_surface_assignment import (
@@ -59,12 +69,14 @@ from ..schemas import (
     ColumnSectionFitRequest,
     ColumnSectionBatchFitRequest,
     ElementOut,
+    ElementAnnotationSave,
     ElementPatch,
     FeedbackCreate,
     JobOut,
     ModelOut,
     ProjectCreate,
     ProjectOut,
+    RecognitionEvaluationRequest,
     SampleCreate,
     SampleOut,
     SectionOut,
@@ -106,6 +118,12 @@ from ..structure.column_annotations import (
     column_snapshot_sha256,
     empty_annotation,
     validate_column_annotation,
+)
+from ..structure.element_annotations import (
+    INVALIDATED_SOURCE,
+    element_reference_document,
+    element_snapshot_sha256,
+    validate_element_annotation,
 )
 from ..structure.section_fitting import fit_rectangular_section
 from ..pointdata import NpyPointProvider, PointQuery
@@ -348,6 +366,36 @@ def _column_reference_candidates(cloud_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def _element_reference_candidates(cloud_id: str) -> list[dict[str, Any]]:
+    """Return all eligible candidates for independent semantic role labels."""
+    candidates = [element_from_row(row) for row in rows(
+        "SELECT * FROM elements WHERE cloud_id=? ORDER BY class_name,id", (cloud_id,),
+    )]
+    return [item for item in candidates if item.get("source") != INVALIDATED_SOURCE]
+
+
+def _current_physical_instance_id(cloud_id: str, element_id: str) -> str | None:
+    """Return only a labeled physical ID tied to the current candidate snapshot."""
+    cloud = _cloud(cloud_id)
+    elements = _element_reference_candidates(cloud_id)
+    if not any(item["id"] == element_id for item in elements):
+        return None
+    try:
+        snapshot = element_snapshot_sha256(elements, cloud)
+    except ValueError:
+        return None
+    record = one(
+        "SELECT payload_json FROM element_annotations WHERE cloud_id=? AND source_snapshot_sha256=? "
+        "AND element_id=? ORDER BY revision DESC LIMIT 1",
+        (cloud_id, snapshot, element_id),
+    )
+    annotation = loads(record["payload_json"], {}) if record else {}
+    physical_id = annotation.get("physical_instance_id")
+    if annotation.get("state") != "labeled" or not isinstance(physical_id, str) or not physical_id.strip():
+        return None
+    return physical_id.strip()
+
+
 def _column_type_export_catalog(project_id: str, elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
     confirmed = list_column_types(project_id)
     excluded = {item["proposal_key"] for item in list_rejected_column_types(project_id)}
@@ -446,7 +494,7 @@ def create_app() -> FastAPI:
         return [
             _cloud_out(row)
             for row in rows(
-                "SELECT * FROM clouds WHERE project_id = ? ORDER BY created_at DESC",
+                "SELECT * FROM clouds WHERE project_id = ? ORDER BY CASE WHEN id = 'workshop_cloud' THEN 0 ELSE 1 END, created_at DESC",
                 (project_id,),
             )
         ]
@@ -730,7 +778,15 @@ def create_app() -> FastAPI:
         project = _project(project_id)
 
         def work(progress):
+            source_snapshot = point_cloud_snapshot(
+                cloud_id, geom.positions_path, geom.count, geom.origin,
+            )
             result = detect_structures(geom, progress)
+            current_snapshot = point_cloud_snapshot(
+                cloud_id, geom.positions_path, geom.count, geom.origin,
+            )
+            if current_snapshot["snapshot_id"] != source_snapshot["snapshot_id"]:
+                raise RuntimeError("cloud positions changed during recognition; no candidates were saved")
             candidates = []
             for el in result.elements:
                 element = {
@@ -746,7 +802,11 @@ def create_app() -> FastAPI:
                     "inferred": 1 if el.inferred else 0,
                     "source": el.source,
                     "dimensions": el.dimensions,
-                    "metadata": el.metadata,
+                    "metadata": {
+                        **el.metadata,
+                        "bbox_coordinate_frame": "source_cloud_world",
+                        "source_cloud_snapshot": source_snapshot,
+                    },
                 }
                 element["features"] = features_from_element(element)
                 candidates.append(element)
@@ -857,6 +917,195 @@ def create_app() -> FastAPI:
     def get_elements(cloud_id: str):
         _cloud(cloud_id)
         return list_elements(cloud_id)
+
+    @api.get("/clouds/{cloud_id}/element-annotations")
+    def get_element_annotations(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        elements = _element_reference_candidates(cloud_id)
+        if not elements:
+            raise HTTPException(404, "cloud has no eligible element candidates")
+        try:
+            source_hash = element_snapshot_sha256(elements, cloud)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        history = rows(
+            "SELECT element_id,revision,payload_json,created_at FROM element_annotations "
+            "WHERE cloud_id=? AND source_snapshot_sha256=? ORDER BY element_id,revision",
+            (cloud_id, source_hash),
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        history_out = []
+        for record in history:
+            item = {**loads(record["payload_json"], {}), "element_id": record["element_id"],
+                    "revision": record["revision"], "created_at": record["created_at"]}
+            latest[record["element_id"]] = item
+            history_out.append(item)
+        dataset_id = f"{cloud_id}:{source_hash[:12]}"
+        document = element_reference_document(dataset_id, source_hash, elements, latest, cloud)
+        return {**document, "project_id": cloud["project_id"], "cloud_id": cloud_id,
+                "history": history_out}
+
+    @api.post("/clouds/{cloud_id}/recognition-evaluation")
+    def evaluate_cloud_recognition(cloud_id: str, payload: RecognitionEvaluationRequest):
+        cloud = _cloud(cloud_id)
+        elements = _element_reference_candidates(cloud_id)
+        if not elements:
+            raise HTTPException(404, "cloud has no eligible recognition candidates")
+        try:
+            source_hash = element_snapshot_sha256(elements, cloud)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if payload.source_snapshot_sha256 != source_hash:
+            raise HTTPException(409, "candidate snapshot changed; reload the cloud before evaluation")
+
+        references = []
+        physical_ids: set[str] = set()
+        for reference in payload.reference_elements:
+            physical_id = reference.physical_instance_id.strip()
+            if not physical_id:
+                raise HTTPException(422, "physical_instance_id must be non-empty")
+            if physical_id in physical_ids:
+                raise HTTPException(422, "reference physical_instance_id values must be unique")
+            physical_ids.add(physical_id)
+            references.append({
+                "id": physical_id,
+                "class_name": reference.class_name,
+                "role_name": reference.role_label,
+                "bbox": reference.bbox.model_dump(),
+            })
+
+        detections = [{
+            "id": item["id"],
+            "class_name": item["class_name"],
+            "role_name": (item.get("dimensions") or {}).get("role"),
+            "bbox": item.get("bbox"),
+            "geometry": item.get("geometry"),
+        } for item in elements]
+        try:
+            report = evaluate_recognition(
+                detections,
+                references,
+                iou_threshold=payload.iou_threshold,
+                reference_set_id=payload.reference_set_id.strip(),
+                reference_kind=payload.reference_kind,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {
+            **report,
+            "cloud_id": cloud_id,
+            "source_snapshot_sha256": source_hash,
+            "reference_origin": payload.reference_origin,
+            "annotator": payload.annotator.strip(),
+            "reference_set_id": payload.reference_set_id.strip(),
+            "holdout_status": "not_verified",
+            "training_usage": "not_used",
+            "missed_reference_elements_counted_as_false_negatives": True,
+        }
+
+    @api.post("/clouds/{cloud_id}/element-annotations/{element_id}")
+    def save_element_annotation(cloud_id: str, element_id: str, payload: ElementAnnotationSave):
+        cloud = _cloud(cloud_id)
+        elements = _element_reference_candidates(cloud_id)
+        if not any(item["id"] == element_id for item in elements):
+            raise HTTPException(404, "element candidate not found in this cloud")
+        try:
+            source_hash = element_snapshot_sha256(elements, cloud)
+            annotation = validate_element_annotation(payload.model_dump())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        if payload.source_snapshot_sha256 != source_hash:
+            raise HTTPException(409, "element snapshot changed; reload the annotation dataset before saving")
+
+        with db_session() as con:
+            con.execute("BEGIN IMMEDIATE")
+            current_cloud = _cloud(cloud_id)
+            current_elements = _element_reference_candidates(cloud_id)
+            try:
+                current_hash = element_snapshot_sha256(current_elements, current_cloud)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if current_hash != source_hash:
+                raise HTTPException(409, "element snapshot changed while saving; reload the annotation dataset")
+            current = con.execute(
+                "SELECT element_id,payload_json,MAX(revision) AS revision FROM element_annotations "
+                "WHERE cloud_id=? AND source_snapshot_sha256=? GROUP BY element_id",
+                (cloud_id, source_hash),
+            ).fetchall()
+            if annotation["state"] == "labeled":
+                duplicate = next((row["element_id"] for row in current
+                    if row["element_id"] != element_id
+                    and (stored := loads(row["payload_json"], {})).get("state") == "labeled"
+                    and stored.get("physical_instance_id") == annotation["physical_instance_id"]), None)
+                if duplicate:
+                    raise HTTPException(409, f"physical instance ID is already used by {duplicate}")
+            revision_row = con.execute(
+                "SELECT COALESCE(MAX(revision),0) AS revision FROM element_annotations "
+                "WHERE cloud_id=? AND source_snapshot_sha256=? AND element_id=?",
+                (cloud_id, source_hash, element_id),
+            ).fetchone()
+            revision = int(revision_row["revision"]) + 1
+            created_at = utcnow()
+            con.execute(
+                "INSERT INTO element_annotations "
+                "(id,project_id,cloud_id,source_snapshot_sha256,element_id,revision,payload_json,created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (new_id(), cloud["project_id"], cloud_id, source_hash, element_id,
+                 revision, dumps(annotation), created_at),
+            )
+            candidate = next(item for item in current_elements if item["id"] == element_id)
+            if annotation["state"] == "labeled" and annotation["class_label"] == candidate["class_name"]:
+                con.execute(
+                    "UPDATE training_samples SET physical_instance_id=? "
+                    "WHERE cloud_id=? AND element_id=? AND class_name=? AND source='engineer' "
+                    "AND physical_instance_id IS NULL",
+                    (annotation["physical_instance_id"], cloud_id, element_id, annotation["class_label"]),
+                )
+        result = {**annotation, "element_id": element_id, "revision": revision,
+                  "created_at": created_at, "source_snapshot_sha256": source_hash}
+        dispatch_event("element_annotation.saved", {
+            "project_id": cloud["project_id"], "cloud_id": cloud_id, "element_id": element_id,
+            "revision": revision, "source_snapshot_sha256": source_hash,
+        })
+        return result
+
+    @api.get("/clouds/{cloud_id}/element-annotations/export")
+    def export_element_annotations(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        elements = _element_reference_candidates(cloud_id)
+        if not elements:
+            raise HTTPException(404, "cloud has no eligible element candidates")
+        try:
+            source_hash = element_snapshot_sha256(elements, cloud)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        history = rows(
+            "SELECT element_id,payload_json,MAX(revision) AS revision FROM element_annotations "
+            "WHERE cloud_id=? AND source_snapshot_sha256=? GROUP BY element_id",
+            (cloud_id, source_hash),
+        )
+        latest = {record["element_id"]: loads(record["payload_json"], {}) for record in history}
+        document = element_reference_document(
+            f"{cloud_id}:{source_hash[:12]}", source_hash, elements, latest, cloud,
+        )
+        return {**document, "project_id": cloud["project_id"], "cloud_id": cloud_id}
+
+    @api.get("/clouds/{cloud_id}/element-annotations/history")
+    def get_element_annotation_history(cloud_id: str):
+        cloud = _cloud(cloud_id)
+        history = rows(
+            "SELECT a.source_snapshot_sha256,a.element_id,a.revision,a.payload_json,a.created_at "
+            "FROM element_annotations a LEFT JOIN elements e ON e.id=a.element_id "
+            "WHERE a.cloud_id=? AND (e.id IS NULL OR COALESCE(e.source,'') != ?) "
+            "ORDER BY a.created_at,a.element_id,a.revision",
+            (cloud_id, INVALIDATED_SOURCE),
+        )
+        return {"project_id": cloud["project_id"], "cloud_id": cloud_id, "history": [
+            {**loads(record["payload_json"], {}), "dataset_id": f"{cloud_id}:{record['source_snapshot_sha256'][:12]}",
+             "source_snapshot_sha256": record["source_snapshot_sha256"], "element_id": record["element_id"],
+             "revision": record["revision"], "created_at": record["created_at"]}
+            for record in history
+        ]}
 
     @api.get("/clouds/{cloud_id}/column-annotations")
     def get_column_annotations(cloud_id: str):
@@ -1450,6 +1699,12 @@ def create_app() -> FastAPI:
                 updates["review_status"] = payload.review_status
             if not updates:
                 return current
+            if payload.review_status == "confirmed":
+                proposed = {**current, **updates}
+                try:
+                    validate_training_sample_source(proposed["cloud_id"], proposed)
+                except ValueError as exc:
+                    raise HTTPException(409, str(exc)) from exc
             execute_fields = []
             values: list[Any] = []
             for key, value in updates.items():
@@ -1465,7 +1720,10 @@ def create_app() -> FastAPI:
             execute(f"UPDATE elements SET {', '.join(execute_fields)} WHERE id = ?", tuple(values))
             updated = get_element(element_id)
             if payload.review_status == "confirmed":
-                create_sample(updated["project_id"], updated["cloud_id"], updated, source="engineer")
+                create_sample(
+                    updated["project_id"], updated["cloud_id"], updated, source="engineer",
+                    physical_instance_id=_current_physical_instance_id(updated["cloud_id"], element_id),
+                )
             return updated
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
@@ -1499,6 +1757,10 @@ def create_app() -> FastAPI:
                     geometry=payload.geometry,
                     engineer=payload.engineer,
                     note=payload.note,
+                    physical_instance_id=(
+                        _current_physical_instance_id(get_element(element_id)["cloud_id"], element_id)
+                        if payload.action in {"confirm", "reclassify"} else None
+                    ),
                 )
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
@@ -1558,8 +1820,80 @@ def create_app() -> FastAPI:
         from ..learning.store import extract_element_points
 
         element = get_element(element_id)
-        points = extract_element_points(element["cloud_id"], element["bbox"], limit=limit)
-        return {"count": int(len(points)), "points": points.round(3).tolist()}
+        geometry = element.get("geometry") or {}
+        points = extract_element_points(
+            element["cloud_id"],
+            element["bbox"],
+            limit=limit,
+            coordinate_frame=element_bbox_coordinate_frame(element),
+            degenerate_context_half_extent_m=0.6 if geometry.get("kind") == "member" else None,
+        )
+        frame = element_bbox_coordinate_frame(element)
+        point_evidence = inspect_source_point_alignment(element["cloud_id"], element, frame)
+        return {
+            "count": int(len(points)),
+            "points": points.round(3).tolist(),
+            "bbox_coordinate_frame": frame,
+            "source_point_evidence": point_evidence,
+        }
+
+    @api.get("/clouds/{cloud_id}/source-evidence-audit")
+    def cloud_source_evidence_audit(cloud_id: str):
+        """Summarize persisted point-row provenance without changing cloud or candidates."""
+        cloud = _cloud(cloud_id)
+        if cloud["status"] != "ready":
+            raise HTTPException(409, f"cloud is not ready (status: {cloud['status']})")
+
+        elements = list_elements(cloud_id)
+        counts = {"consistent": 0, "mismatch": 0, "unverifiable": 0}
+        counts_by_class: dict[str, dict[str, int]] = {}
+        snapshot_counts = {"current": 0, "missing": 0, "stale": 0, "unchecked": 0}
+        attention = []
+        for element in elements:
+            evidence = inspect_source_point_alignment(
+                cloud_id,
+                element,
+                element_bbox_coordinate_frame(element),
+            )
+            status = evidence.get("status")
+            if status not in counts:
+                status = "unverifiable"
+                evidence = {**evidence, "status": status}
+            counts[status] += 1
+            metadata = element.get("metadata")
+            snapshot = metadata.get("source_cloud_snapshot") if isinstance(metadata, dict) else None
+            if evidence.get("snapshot_matches") is True:
+                snapshot_counts["current"] += 1
+            elif evidence.get("snapshot_matches") is False:
+                snapshot_counts["stale"] += 1
+            elif not isinstance(snapshot, dict):
+                snapshot_counts["missing"] += 1
+            else:
+                snapshot_counts["unchecked"] += 1
+            class_name = str(element.get("class_name") or "unknown")
+            class_counts = counts_by_class.setdefault(
+                class_name,
+                {"consistent": 0, "mismatch": 0, "unverifiable": 0},
+            )
+            class_counts[status] += 1
+            if status != "consistent":
+                attention.append({
+                    "id": element["id"],
+                    "class_name": class_name,
+                    "review_status": element["review_status"],
+                    "evidence": evidence,
+                })
+
+        return {
+            "cloud_id": cloud_id,
+            "candidate_count": len(elements),
+            "status_counts": counts,
+            "status_counts_by_class": dict(sorted(counts_by_class.items())),
+            "source_snapshot_counts": snapshot_counts,
+            "attention_count": len(attention),
+            "accuracy_status": "not_measured",
+            "candidates": attention,
+        }
 
     # ------------------------------------------------------------ BIM / drawings
     @api.get("/clouds/{cloud_id}/bim")
@@ -1903,7 +2237,10 @@ def create_app() -> FastAPI:
     @api.get("/projects/{project_id}/samples", response_model=list[SampleOut])
     def get_samples(project_id: str):
         _project(project_id)
-        return list_samples(project_id)
+        # Keep invalidated synthetic rows in the database for audit, but don't
+        # present them through the ordinary engineer-sample endpoint.
+        return [sample for sample in list_samples(project_id)
+                if sample.get("source") != INVALIDATED_SOURCE]
 
     @api.post("/projects/{project_id}/samples", response_model=SampleOut)
     def add_sample(project_id: str, payload: SampleCreate):
@@ -1920,18 +2257,27 @@ def create_app() -> FastAPI:
         label = payload.class_name or element["class_name"]
         if label != element["class_name"]:
             raise HTTPException(409, "training sample label must match the reviewed element class")
+        physical_instance_id = _current_physical_instance_id(element["cloud_id"], element["id"])
         existing = next((sample for sample in list_samples(project_id)
             if sample.get("element_id") == element["id"]
             and sample.get("class_name") == label and sample.get("source") != "undone"), None)
         if existing:
+            if physical_instance_id and not existing.get("physical_instance_id"):
+                execute("UPDATE training_samples SET physical_instance_id=? WHERE id=?",
+                        (physical_instance_id, existing["id"]))
+                existing["physical_instance_id"] = physical_instance_id
             return existing
-        sample = create_sample(
-            project_id,
-            element["cloud_id"],
-            element,
-            class_name=label,
-            source="engineer",
-        )
+        try:
+            sample = create_sample(
+                project_id,
+                element["cloud_id"],
+                element,
+                class_name=label,
+                source="engineer",
+                physical_instance_id=physical_instance_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
         return sample
 
     @api.post("/projects/{project_id}/train", response_model=ModelOut)
