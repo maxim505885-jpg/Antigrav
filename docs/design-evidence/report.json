@@ -1,0 +1,56 @@
+{
+  "contract": "../design-qa.md: SCAN Studio for reviewing a real point cloud with paired viewers, live status, and on-demand inspection; preserve truthful data and keep the scene stack and status readable on narrow screens.",
+  "targetViewports": ["1670x956", "1280x800", "375x812"],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "Tab from the project selector focuses the inspector button with a visible 2px orange outline. Footer status uses role=status and aria-live=polite; synthetic project API failure uses role=alert and aria-live=assertive. prefers-reduced-motion sets drawer transition duration to 0s. Scene mode selectors have accessible labels."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "Rendered and inspected at 1670x956, 1280x800 and 375x812. Desktop scenes remain side-by-side; at 375px they stack above the 150px bottom dock. The status strip wraps to 72px, its scrollWidth equals its clientWidth, and the document has no horizontal overflow."
+  },
+  "contentStates": {
+    "loading": {
+      "status": "pass",
+      "evidence": "A browser-tab-only 3-second delay on the project-list GET showed the live footer message 'Загрузка проекта'; the request then completed and project loading resolved."
+    },
+    "empty": {
+      "status": "pass",
+      "evidence": "Selected the existing read-only Test Proj with zero clouds: the scene explained that a cloud must be loaded and the Import scan command remained enabled. Restored the FARO project afterward."
+    },
+    "error": {
+      "status": "pass",
+      "evidence": "A browser-tab-only synthetic project-list fetch rejection produced a visible, assertive API error in the footer and kept the last successfully loaded project selected. The failure retained the FARO scenes and saved project ID; after restoring native fetch, reload reopened the FARO project. No server or project data was modified."
+    },
+    "partial": {
+      "status": "pass",
+      "evidence": "The live 1.rcs view reports 40,000,000 stored points out of 297,873,927 source points and marks the stored cloud as a sample."
+    },
+    "success": {
+      "status": "pass",
+      "evidence": "After restoring network access, the registered FARO project loaded with two WebGL scenes, 1,482 candidates, and a ready status."
+    },
+    "permission": {
+      "status": "not-applicable",
+      "reason": "This local desktop workflow has no account, role, or permission-gated screen; file selection uses the browser's normal explicit import control."
+    }
+  },
+  "renderedEvidence": [
+    {
+      "viewport": "1670x956",
+      "artifact": "artifacts/scan-studio-1670x956-current.png",
+      "observation": "Live FARO project, paired RGB/height scenes, command ribbon, candidate table, and truthful status strip."
+    },
+    {
+      "viewport": "1280x800",
+      "artifact": "artifacts/scan-studio-1280x800.png",
+      "observation": "Responsive desktop layout retains paired scenes and the bottom candidate/status areas without horizontal page overflow."
+    },
+    {
+      "viewport": "375x812",
+      "artifact": "artifacts/scan-studio-375x812-current.png",
+      "observation": "Scenes stack vertically above the bottom dock; the live scan status wraps across two lines without horizontal clipping."
+    }
+  ]
+}
+

@@ -128,7 +128,7 @@ class FeedbackCreate(BaseModel):
     class_name: str | None = None
     geometry: dict[str, Any] | None = None
     other_element_id: str | None = None
-    axis: Literal["x", "y", "z"] | None = None
+    axis: Literal["x", "y", "z", "member"] | None = None
     value: float | None = None
     note: str = ""
     engineer: str = ""

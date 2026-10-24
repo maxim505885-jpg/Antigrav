@@ -125,7 +125,18 @@ def _write_stream_checkpoint(
         json.dump(checkpoint, handle, sort_keys=True)
         handle.flush()
         os.fsync(handle.fileno())
-    os.replace(temporary, out_dir / "stream.json")
+    # Windows scanners and indexers can briefly hold the destination open. Keep
+    # the last committed checkpoint intact and retry the atomic swap before
+    # failing the whole (potentially multi-hour) native extraction.
+    destination = out_dir / "stream.json"
+    for attempt in range(5):
+        try:
+            os.replace(temporary, destination)
+            break
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.1 * (attempt + 1))
 
 
 def _read_stream_checkpoint(out_dir: Path, source_identity: dict[str, Any]) -> dict[str, Any] | None:

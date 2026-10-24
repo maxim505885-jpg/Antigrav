@@ -26,6 +26,11 @@ from ..db import db as db_session, dumps, execute, init_db, loads, new_id, one, 
 from ..demo import write_room_ply
 from ..formats import RcsConversionRequired, detect_format, read_cloud, supported_formats
 from ..formats.readers import rcs_guidance
+from ..formats.rcp_manifest import (
+    RcpManifestError,
+    compare_axis_aligned_asset_bounds,
+    read_rcp_manifest,
+)
 from ..geometry import extract_section
 from ..geometry.section import CloudGeometry
 from ..ingest import ingest_cloud
@@ -100,6 +105,7 @@ from ..storage import (
     new_export_dir,
     project_dir,
     safe_filename,
+    sha256_file,
     write_json_atomic,
 )
 from ..structure.column_type_store import (
@@ -247,14 +253,15 @@ def _cloud_row_from_import(
     source: Path,
     fmt: str,
     status: str = "processing",
+    metadata: dict[str, Any] | None = None,
 ) -> str:
     cloud_id = new_id()
     now = utcnow()
     execute(
         """
         INSERT INTO clouds
-        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?)
+        (id, project_id, name, source_path, source_format, size_bytes, status, metadata_json, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
         """,
         (
             cloud_id,
@@ -264,6 +271,7 @@ def _cloud_row_from_import(
             fmt,
             int(source.stat().st_size) if source.exists() else 0,
             status,
+            dumps(metadata or {}),
             now,
             now,
         ),
@@ -274,7 +282,51 @@ def _cloud_row_from_import(
 def _ingest_work(project_id: str, cloud_id: str):
     def work(progress):
         try:
-            return ingest_cloud(project_id, cloud_id, Path(_cloud(cloud_id)["source_path"]), progress)
+            row = _cloud(cloud_id)
+            import_metadata = loads(row.get("metadata_json"), {})
+            result = ingest_cloud(project_id, cloud_id, Path(row["source_path"]), progress)
+            recap_project = import_metadata.get("recap_project")
+            if recap_project:
+                current = _cloud(cloud_id)
+                selected_node = recap_project.get("selected_node", {})
+                declared = int(selected_node.get("declared_point_count") or 0)
+                actual = int(current.get("ingested_count") or 0)
+                recap_project["actual_ingested_point_count"] = actual
+                recap_project["declared_point_count_difference"] = (
+                    declared - actual if declared else None
+                )
+                asset_bounds = selected_node.get("asset_bounds") or {}
+                if asset_bounds.get("axis_aligned_interpretation_supported"):
+                    actual_min = [current[f"bbox_min_{axis}"] for axis in "xyz"]
+                    actual_max = [current[f"bbox_max_{axis}"] for axis in "xyz"]
+                    coordinate_check = compare_axis_aligned_asset_bounds(
+                        actual_min,
+                        actual_max,
+                        asset_bounds,
+                        recap_project.get("unit_type_raw"),
+                    )
+                    recap_project["coordinate_frame_check"] = coordinate_check
+                    if coordinate_check["translation_reapplication"] == "do_not_apply_for_this_node":
+                        recap_project["transform_note"] = (
+                            "SCAN did not reapply the RCP node translation: the full linked RCS extents "
+                            "match the axis-aligned RCP asset bounds within the metadata-consistency epsilon. "
+                            "This verifies extents for this node only, not every point or other RCP projects."
+                        )
+                metadata = loads(current.get("metadata_json"), {})
+                metadata["recap_project"] = recap_project
+                execute(
+                    "UPDATE clouds SET metadata_json = ?, updated_at = ? WHERE id = ?",
+                    (dumps(metadata), utcnow(), cloud_id),
+                )
+                meta_path = cloud_paths(project_id, cloud_id)["meta"]
+                if meta_path.is_file():
+                    try:
+                        stored = json.loads(meta_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        stored = {}
+                    stored["recap_project"] = recap_project
+                    write_json_atomic(meta_path, stored)
+            return result
         except JobCancelled:
             execute(
                 "UPDATE clouds SET status = 'cancelled', error = NULL, updated_at = ? WHERE id = ?",
@@ -514,7 +566,7 @@ def create_app() -> FastAPI:
             "supported": supported_formats(),
             "ml": ml_status().__dict__,
             "notes": [
-                "RCS/RCP are not read in-process; an approved Autodesk conversion step is required.",
+                "RCS point data is read through the installed Autodesk ReCap DLL; RCP manifests link scans to RCS files.",
                 "All source files are treated as read-only.",
             ],
         }
@@ -536,15 +588,55 @@ def create_app() -> FastAPI:
             raise HTTPException(409, detail=exc.guidance) from exc
         except Exception as exc:
             raise HTTPException(415, str(exc)) from exc
-        if fmt in {"rcs", "rcp"}:
+        import_metadata: dict[str, Any] = {}
+        if fmt == "rcp":
+            try:
+                manifest = read_rcp_manifest(source)
+            except RcpManifestError as exc:
+                raise HTTPException(415, str(exc)) from exc
+            if len(manifest["nodes"]) != 1:
+                raise HTTPException(
+                    409,
+                    {
+                        "summary": "Этот RCP содержит несколько станций.",
+                        "node_count": len(manifest["nodes"]),
+                        "message": "Пакетный импорт станций из многосканового RCP ещё не поддержан; выберите отдельные RCS-файлы.",
+                    },
+                )
+            node = manifest["nodes"][0]
+            linked_source = Path(node["resolved_rcs_path"]) if node["resolved_rcs_path"] else None
+            if linked_source is None or not linked_source.is_file():
+                raise HTTPException(
+                    409,
+                    {
+                        "summary": "Связанный RCS-файл не найден.",
+                        "project_file": str(source),
+                        "node": node,
+                    },
+                )
+            source = linked_source
+            fmt = "rcs"
+            name = payload.name or f"{Path(payload.path).stem} — {node['name']}"
+            import_metadata = {
+                "recap_project": {
+                    **manifest,
+                    "project_sha256": sha256_file(Path(payload.path).expanduser()),
+                    "selected_node": node,
+                    "declared_point_count_difference": None,
+                    "transform_applied": False,
+                    "transform_note": "RCP translation/rotation/scale are preserved; no transform is auto-applied before comparing the full linked RCS extents with the RCP asset bounds.",
+                }
+            }
+        if fmt == "rcs":
             # Native local reader (ReCap DLL, subprocess-isolated) is verified on
             # this machine; fall back to the documented guidance when it is absent.
             from scan2bim.formats.rcs_native import native_available
 
             if not native_available()["dll_exists"]:
                 raise HTTPException(409, detail=rcs_guidance(source))
-        name = payload.name or source.name
-        cloud_id = _cloud_row_from_import(project_id, name, source.resolve(), fmt)
+        if not import_metadata:
+            name = payload.name or source.name
+        cloud_id = _cloud_row_from_import(project_id, name, source.resolve(), fmt, metadata=import_metadata)
         job_id = create_job("ingest", project_id, cloud_id, f"чтение {name}")
         submit(job_id, _ingest_work(project_id, cloud_id))
         return _cloud_out(_cloud(cloud_id), job_id)

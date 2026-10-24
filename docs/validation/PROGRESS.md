@@ -1411,3 +1411,105 @@ Frontend после подключения панели: `npm test` и TypeScrip
 Проверки: frontend `npm test` прошёл; `npx tsc -b --pretty false` прошёл; `npm run build` прошёл после разрешённого запуска esbuild (Vite преобразовал 1 977 модулей). Браузер `http://127.0.0.1:5174/` загрузил проект с реальным FARO 1.rcs, 40 000 000 точек в хранимой выборке и 1 482 кандидатами. Live `/api/v1/health` и `/api/v1/projects` вернули 200. Повторно проверены браузерные действия сохранения вида, включения замера и перехода в панорамы; консоль после reload: 0 ошибок, 0 предупреждений. Итоговый скриншот — `screenshots/scan-studio-final.png`, сравнение с исходным референсом — `screenshots/scan-studio-design-comparison.png`; подробности — `docs/design-qa.md`.
 
 Не закрывать Stage 3: 60 FPS на целевой рабочей станции и представительном полном облаке ещё не измерены. Общий статус — 2/12 принятых этапа, Stage 6 активен. Точность распознавания остаётся `not_measured`; разметка и допуск не подменялись.
+Этап 6 — индексированные запросы и полный аудит колонн 1.rcs, 24 октября 2026
+
+Сверен точный point-query на реальном производном массиве 1.rcs из 40 000 000 строк. Для локального среза пространственный индекс оценил 73 357 строк-кандидатов, точный запрос вернул 10; линейный и индексированный провайдеры вернули одинаковые исходные row IDs. В этом замере индекс занял 0,015 с, линейное чтение — 2,945 с. Синтетические API-тесты обнаружили некорректное ожидание, будто индекс должен применяться к узкому по координатам, но плотному облаку среза: селектор правильно выбирает `linear_broad_query`, когда кандидатов больше 20% массива. Ожидание исправлено на фактический контракт fallback.
+
+Локальный backend на 8000 содержал предыдущую версию кода (ответ `surface-track-analysis` не имел поля `point_query`). Проверка всех проектов показала ноль активных/ожидающих заданий; сервер перезапущен из текущей папки репозитория и `/api/v1/health` ответил `ok`. Read-only endpoint для колонки `00933b157ee646c1831bacb5931050b7` теперь вернул `spatial_index`, 107 652 оценённых строк ячеек, 379 точек crop, `persisted=false`, `source_geometry_modified=false`; время запроса 134 мс.
+
+Полный read-only проход 267 ориентированных column-кандидатов зарегистрированного облака: 267 ответов, 0 ошибок, каждый запрос применил spatial index, 660 612 crop-точек суммарно; 262 `no_candidate_faces`, 5 `partial_candidate_faces`, 267 профилей `insufficient`; ни один ответ не сообщил о записи или смене geometry. Персональные поверхности и поля гипотез сохранены в [`COLUMN_SURFACE_AUDIT_2026-10-24.json`](COLUMN_SURFACE_AUDIT_2026-10-24.json). Для кандидата `00933b157ee646c1831bacb5931050b7` срез на отметке 4,7341 м при margin 0,15 и 0,35 м вернул 0 точек; margin 0,60 м — 206 точек, но 0 граней и статус `unknown`. Порог ассоциации не менялся. В Studio независимая колонная форма доступна, прогресс 0/267; выбран первый ожидающий ID `0239a018…`, метки не записывались. `test_pointdata_query.py` и `test_column_section_fit_api.py`: 5 passed, предупреждение только о Starlette/httpx deprecation. Источник RCS не изменялся. Это проверка индекса, API и покрытия кандидатов, не физическая приёмка этапа 6; счёт 2/12 остаётся.
+
+### Этап 3 — новый дизайн SCAN Studio, 24 октября 2026
+
+Приложенный пользователем графитово-оранжевый интерфейс подключён к production entry point React/Vite, который работает с локальным API. Две сцены увеличивают рабочую область; инспектор с независимой разметкой и анализом скрыт до запроса пользователя. В каждой сцене можно выбрать доступный режим цвета. Viewer получает XYZ/RGB: пока реально не поддержаны интенсивность, нормали и карта отклонений, эти пункты отключены и поясняют причину.
+
+Проверка в браузере на живом проекте: две сцены, 1 482 кандидата; 1670x956 и 1280x800, переполнения документа нет. Проверены переключение сцены RGB/высота Z, открытие и закрытие инспектора, видимый Tab-фокус, prefers-reduced-motion и console после перезагрузки. Снимки находятся в intelligent-scan-to-bim/screenshots. Frontend npm test, TypeScript и production npm run build завершились успешно; Vite преобразовал 1 977 модулей, максимальный отдельный чанк 479.86 kB. Этап 3 не закрыт: ещё требуется замер 60 FPS на целевой станции с репрезентативным полным облаком. Общий статус остаётся 2/12.
+
+Finish-gate content states: loading, empty, synthetic API error, partial-data notice and successful FARO load проверены без изменения серверных данных. Accessibility: Tab-фокус видим, footer status/error используются как live regions, reduced motion отключает transition. Validator evidence `docs/design-evidence/report.json`; артефакты локальные, в подкаталоге artifacts.
+
+Дополнение к error-state: отказ загрузки нового проекта не очищает предыдущие сцены/кандидаты и откатывает сохранённый project ID. После принудительного reload открылся прежний FARO-проект; тестовый сетевой перехват действовал только в одной вкладке и был удалён.
+
+### Этап 6 — source-plane provenance узлов фермы, 24 октября 2026
+
+Синтетический RED-тест выявил, что `_section_node_evidence` сравнивал медианные plane coordinates линий, но не проверял соответствие reference plane текущего truss candidate. При mixed-plane support медианы могли совпасть; `world_section_point` затем размещал узел на плоскости кандидата и прикладывал к нему чужие point rows. Добавлен параметр `reference_plane_m`, проверка обеих медиан относительно плоскости кандидата, фильтрация source rows к её tolerance-band и повторная проверка уникального числа точек и along-axis coverage. Новый тест отвергает полностью согласованное пересечение в чужой плоскости; второй RED/GREEN тест сохраняет валидное пересечение, исключая из provenance часть строк из соседнего слоя.
+
+Проверки: `backend/tests/test_truss_source_lineage.py` — 23 passed; профильная регрессия `test_steel`, frame/runway/beam/truss lineage, column fitting/surface, structural model/member/assembly proposal, API pipeline, drawings DXF/IFC и SPDS album — 187 passed, одно предупреждение Starlette/httpx. Первый запуск в ограниченном режиме завершился permission errors на pytest temp cleanup; повтор того же wrapper-командного набора с разрешённым temp access прошёл без ошибок. Данные пилота и источник RCS не менялись. Это проверка алгоритмической provenance, не физической связности или точности узлов; этап 6 выполняется, принято 2/12.
+
+### Функциональные слои SCAN Studio — 24 октября 2026
+
+Пользовательский дизайн подключён к основному приложению, и в live browser QA обнаружено, что часть панели «Слои проекта» не управляла viewer: выключение облака не скрывало точки, кандидаты и BIM не разделялись, а внешний клик не активировал типы геометрии из-за спрятанных внутренних контролов. Реализовано управление точками по `pointCloudVisible`, отдельный выбор `unreviewed` гипотез и `confirmed`/`corrected` BIM-элементов, фильтрация отклонённых/инвалидированных записей, автоматический показ доступных категорий в основной Studio. Панель свёрнута в компактный заголовок и перенесена под верхнюю ленту; слои доступны только когда в источнике есть соответствующие элементы.
+
+`frontend/src/studioLayers.test.ts` проверяет кандидаты, подтверждённую модель, комбинированное состояние и выключенные слои. `npm test` прошёл; `npm run build` прошёл после разрешённого запуска esbuild (1 978 модулей, максимальный Three.js chunk 479.86 kB). Browser QA на live FARO производной выборке визуально подтвердил кандидатные контуры в обеих сценах, независимое включение проверенной модели, скрытие/возврат точек и кликабельность слоёв без перекрытия ленты. Разрешения 1670×956 и 1280×800 не дали горизонтального переполнения документа. Локальное изображение: `screenshots/scan-studio-layers-final.png`. Серверные данные и 1.rcs не изменялись. Этап 3 остаётся открыт до измерения 60 FPS на целевой станции, этап 6 — до размеченного FARO holdout и допуска; общий статус 2/12.
+# 2026-10-24 — Live-аудит происхождения стержней ферм (Stage 6)
+
+- Проект: `Proverka skvoznogo marshruta 1.rcs`; cloud ID `2621e5a320df49949d04aa1b7399539e`.
+- Источник: RCS, 297,873,927 точек; хранимая производная равномерная выборка: 40,000,000 точек. Аудит ограничен её row IDs.
+- Read-only API GET проверил 24 truss envelopes: 5 `candidate_complete`, 19 `partial`, все 24 `unreviewed`.
+- 969 дочерних member proposal IDs разрешились в кандидаты; пропущенных ссылок нет. У каждого child proposal и узла было ≥5 source rows.
+- Роли: 12 `truss_top_chord`, 34 `truss_bottom_chord`, 923 `unknown`. Причины unknown: 598 коротких горизонтальных фрагментов; 245 без пары измеренных хорд; 79 не достигают обеих хорд; 1 непланарная поддержка. Без разметки физические false-negative и роли не определяются.
+- Проверено 407,841 ссылок member/node на исходные строки, 327,518 уникальных; 0 значений вне `[0, 40,000,000)`.
+- Структурированный результат: `docs/validation/TRUSS_PROVENANCE_AUDIT_2026-10-24.json`.
+- Ограничение: это проверка целостности provenance для производной выборки. Не подтверждает физический тип/роль/соединение, точность распознавания полного RCS, независимый holdout или инженерный допуск. `candidate_complete` — статус распознавателя, не решение инженера.
+- RCS, recognition candidates и annotation records не изменялись. Принято остаётся 2/12; Stage 6 открыт до размеченных физических членов, holdout и допуска.
+
+# 2026-10-24 — Быстрый отбор ферменных кандидатов для независимой разметки (Stage 6)
+
+- Таблица кандидатов получила поиск по ID, коду класса, локализованному имени класса и роли, плюс фильтр по классу.
+- Live browser QA на проекте `Proverka skvoznogo marshruta 1.rcs`: класс `Ферма` отобрал 24 из 1 482 элементов; поиск `ферма` дал те же 24. Неизвестный запрос показал пустое состояние, очистка восстановила 24.
+- На 1280×800 и 375×812 ширина документа совпала с viewport; мобильная сцена остаётся вертикально сложенной.
+- RED/GREEN тесты проверяют ID, локализованное имя класса без `role_label`, роль, точный класс и пустой результат. Полный frontend `npm test`, TypeScript и production build прошли (1 979 модулей; three chunk 479.86 kB).
+- Данные кандидатов и physical annotations не изменялись; tool помогает ручной проверке, но не создаёт метки и не закрывает критерии Stage 6.
+
+# 2026-10-24 — Finish pass: SCAN Studio design integration (Stages 3 and 6)
+
+- Confirmed the app entry point mounts `StudioReferenceLayout` and reads projects, clouds and candidates through the local API. Live `health` and `projects` returned HTTP 200; nine projects were listed.
+- Browser QA verified the 1.rcs derived cloud (40,000,000 stored of 297,873,927 source points), paired RGB/height-Z scenes, candidate list, save-view local persistence, and cloud-layer off/on behavior. Unknown RMSE and engineering tolerance remain explicit.
+- Responsive inspection found two issues at 375×812: status text clipped horizontally and the 195px bottom dock covered part of the second scene. The status now wraps to two rows and the mobile dock is 150px; scene bottom is 584px while dock begins at 590px, status width is 375/375px, and document width is 375px. Desktop 1670×956 keeps two 796px scenes, 36px status and no horizontal overflow.
+- Unavailable station, panorama and grid layers now expose `aria-pressed=false`; the test was added red-first to `studioLayers.test.ts`, then passed after the helper was implemented. Full frontend `npm test`, TypeScript build and production Vite build passed (1,979 modules; Three.js chunk 479.86 kB). Browser console reported zero errors and zero warnings; design evidence validator passed.
+- Current app preview is `http://127.0.0.1:5174/`. Rendered desktop/mobile captures: `screenshots/scan-studio-1670x956-integrated.png` and `screenshots/scan-studio-375x812-integrated.png`; copies are in `docs/design-evidence/artifacts/`.
+- No cloud, annotation, or RCS records were changed. Stage 3 remains open pending target-workstation 60 FPS acceptance; Stage 6 remains open pending independent field labels, holdout and engineering tolerance. Overall accepted stages remain 2/12, current focus Stage 6.
+
+# 2026-10-24 — Полноразмерный импорт merged FARO RCS (Stage 2)
+
+- В отдельной базе завершён импорт исходного `1.rcs` через установленный Autodesk ReCap reader: API job `succeeded`, cloud `ready`, ровно 297 873 927 из 297 873 927 точек, без прореживания, RGB сохранён.
+- Выходные массивы открыты повторно: `positions.npy` — `(297873927, 3)` float32, `colors.npy` — `(297873927, 3)` uint8; все координаты конечны. Проверка SHA-256 после импорта совпала с исходным: `315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a`; размер и mtime также неизменны.
+- После завершения изолированный API был выключен и запущен повторно с той же базой; `/health` вернул `ok`, облако снова открылось как `ready` с теми же 297 873 927 точками и SHA-256.
+- Первый запуск остановил временный Windows `WinError 5` при замене stream checkpoint после 87,25 млн точек. Добавлены до пяти повторов для временного `PermissionError`; инъекция двух блокировок проверила успешную третью попытку. Возобновлённый полный импорт завершился.
+- Подробности и пределы вывода: [`FULL_RCS_INGEST_2026-10-24.md`](FULL_RCS_INGEST_2026-10-24.md). Это закрывает только проверку одного merged-RCS маршрута; Stage 2 остаётся открытым для cancellation/resume, измерения полного ресурсного пика, исходных станций FARO и ReCap round-trip.
+- Полный запуск pytest не стартовал из-за `WinError 5` на временной директории pytest; поэтому тесты модуля не считаются пройденными в этой сессии. Прямой smoke checkpoint-retry и полный API импорт завершились успешно.
+
+# 2026-10-24 — Второй исходный FARO RCS и повторное открытие проекта (Stage 2)
+
+- В изолированный проект добавлен исходный `2.rcs` (13 906 332 111 байт) как отдельное облако с собственными ID, путём и SHA-256; исходный `1.rcs` остался отдельным cloud.
+- Полный импорт `2.rcs` завершён: 574 367 742/574 367 742 точек, RGB, без прореживания и пропусков конечных координат. Массивы повторно открыты: позиции `(574367742, 3)` float32, цвета `(574367742, 3)` uint8. Независимый SHA-256 `784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792` совпал с метаданными; размер и mtime совпали.
+- После остановки и повторного запуска изолированного API оба источника вернулись в одном проекте как два `ready` облака со своими именами, путями, хэшами и счётчиками: 297 873 927 и 574 367 742.
+- Общий результат двух импортов — 872 241 669 точек. Детальный протокол: [`FULL_RCS_INGEST_2026-10-24.md`](FULL_RCS_INGEST_2026-10-24.md). Stage 2 остаётся IN PROGRESS: RCS-файлы не подтверждают собственные FARO station IDs/FLS/RCP metadata; непрерывный пик RAM и full-route отмена пользователем не измерены. Отсутствие OOM в двух успешных импортах — полезное свидетельство, но не заменяет измерения.
+
+# 2026-10-24 — Односкановый ReCap RCP import route (Stage 2)
+
+- Реальный `10.rcp` разобран без распаковки: один scan node `10`, declared count 295,836,062, RGB/intensity/normals flags, translation `[-9.4761795, 42.9205067, 5.8991872]`, rotation zero, scale 1, registration flag false. Сохранённый Unicode-путь разрешается в исходный `10.rcs` размером 7,130,808,277 bytes.
+- API TestClient smoke: создать проект — HTTP 200; import real RCP — HTTP 200; ответ указывает `source_format=rcs`, доступный linked RCS и project node metadata. Фоновый импорт в этом route-smoke не запускался. Отдельный full-resolution import linked `10.rcs` уже проверен ранее: 295,591,803 stored points, RGB, no decimation/non-finite drops, positions float32 and colors uint8; source hash unchanged. Manifest-to-reader delta = 244,259 points; cause remains unknown.
+- Code: added bounded ZIP/XML manifest parser, exact support-path resolution, explicit rejection on ambiguous/unresolved links and multiple RCP nodes, sidecar provenance capture in cloud metadata, and RCS-only streaming dispatch. The RCP transform is preserved but deliberately not applied pending independent convention validation.
+- Verification: `py_compile` passed; all three parser regression test functions passed when invoked directly; real RCP resolution and isolated TestClient import route passed. Automated pytest did not pass: its run reported fixture errors and then WinError 5 scanning/cleaning basetemp, so no pytest pass count is claimed.
+- Risks/open work: resolve the declared-vs-read count discrepancy; support multi-node RCP as distinct stations; verify and apply transforms without merging away station identity; collect peak RAM and full-route cancellation/restart evidence. Stage 2 stays IN PROGRESS; accepted stages remain 2/12 and current roadmap focus remains Stage 6.
+
+# 2026-10-24 — Live column vs crane-girder context audit (Stage 6)
+
+- Read-only query to the app's configured SQLite database and live API health (`ok`). `workshop_cloud` is ready with 43,500,000 stored rows; its elements table contains 376 `column`, 846 `beam`, 378 `brace`, 22 `truss`, 58 `wall` and 4 `slab` candidates.
+- 99 beam candidates carry the role proposal `crane_girder`; all 99 are `unreviewed`, `role_status=proposed`, and have `column_support_context=insufficient_context`. Nearby detected-column counts: 0→75 candidates, 1→14, 2→7, 3→2, 4→1. No proposal has distinct detected columns near both endpoints. Vertical profile evidence is ambiguous for 38 and absent for 61.
+- Detailed immutable audit: [`CRANE_GIRDER_CONTEXT_AUDIT_2026-10-24.json`](CRANE_GIRDER_CONTEXT_AUDIT_2026-10-24.json). The Studio already shows these as role hypotheses with evidence badges; no proposal was promoted or changed. Missing detected supports can also result from occlusion or missed/fragmented columns, so the audit is not a false-positive rate.
+- Next: use engineer-entered physical beam/column IDs and visible endpoints to distinguish real members from occluded or split candidates, then evaluate on a separately held out reference set. No user labels were entered; precision/recall and engineering tolerance remain unmeasured. Overall accepted stages remain 2/12; current focus Stage 6.
+
+# 2026-10-24 — RCP asset-bounds consistency check (Stage 2)
+
+- Refactored the RCP/RCS extent comparison into a finite-value-checked helper and added direct regression checks for match, mismatch, non-finite coordinates, and the actual recorded node-10 extents. Seven RCP parser/comparison test functions passed when invoked directly; `py_compile` passed. Pytest was not rerun because Windows denied access to its temp directories.
+- Compared the full linked `10.rcs` extents stored in the isolated validation database with the axis-aligned `AssetBoundingBox` values preserved in the earlier real RCP route report. Maximum face delta is 0.0003724746 raw coordinate units, within a 0.001 metadata-consistency epsilon. For this node only, the application records that it must not reapply the RCP translation.
+- Isolated TestClient route/callback smoke with a synthetic one-node RCP returned HTTP 200, completed the background callback, persisted the bounds comparison, and preserved the declared-minus-imported difference of 244,259 points. The ingestion function was mocked for this route test; the comparison used the full RCS extents already stored in the validation DB.
+- Evidence: [`RCP_COORDINATE_BOUNDS_AUDIT_2026-10-24.json`](RCP_COORDINATE_BOUNDS_AUDIT_2026-10-24.json). This audit did not re-read the original RCP file; its manifest values came from the earlier real route check. The RCP node is unregistered, raw units are not converted, and the epsilon is not an engineering tolerance. Bounding-box agreement does not prove pointwise equivalence or validate other nodes/projects.
+- The RCP manifest still declares 244,259 more points than the RCS reader imported. Its cause, multi-node import, measured resource peak, cancellation/restart and full ReCap round-trip remain open. Stage 2 stays IN PROGRESS; accepted stages remain 2/12, current focus Stage 6.
+
+# 2026-10-24 — Crane-girder candidate span review (Stage 6)
+
+- Read-only live SQLite audit of 99 unreviewed `crane_girder` role proposals in `workshop_cloud` (43.5M stored points) compared measured candidate lengths with the user-confirmed 6 m nominal longitudinal column step: 26 are longer than 6 m, 11 longer than the 9 m review heuristic, and maximum length is 42.664 m. None of the 11 long candidates has distinct detected column support at both endpoints.
+- This is a segmentation-review signal only. The 6 m pitch is not a verified beam span, grid origin, axis definition, or tolerance; long candidates can also reflect occlusion or actual continuous members. No candidate was modified or split. Detailed immutable summary: [`CRANE_GIRDER_SPAN_LENGTH_AUDIT_2026-10-24.json`](CRANE_GIRDER_SPAN_LENGTH_AUDIT_2026-10-24.json).
+- Next software step: preserve long-run geometry as review-only until the editor can split it at engineer-selected physical joints or verified column supports; evaluate split/merge quality on independently labeled physical IDs. Overall accepted stages remain 2/12, current focus Stage 6; field accuracy remains unmeasured.

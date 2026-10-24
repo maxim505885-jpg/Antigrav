@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { cameraViewFromLabel, cloudPointCoverage, scannerModelLabel, progressPercent } from "./studioPresentation.ts";
+import { cameraViewFromLabel, canRenderPointColorMode, cloudPointCoverage, scannerModelLabel, progressPercent, resolvePointColorMode } from "./studioPresentation.ts";
 
 test("cloud coverage distinguishes stored points from the full source scan", () => {
   assert.deepEqual(cloudPointCoverage({
@@ -38,4 +38,21 @@ test("saved camera labels restore a matching view preset and ignore unknown labe
   assert.equal(cameraViewFromLabel("FIT"), "fit");
   assert.equal(cameraViewFromLabel(undefined), null);
   assert.equal(cameraViewFromLabel("unknown"), null);
+});
+
+test("point display falls back to a mode the viewer can actually render", () => {
+  const cloud = { has_color: false, has_intensity: true, metadata: { normals_available: true } };
+  assert.equal(resolvePointColorMode("rgb", cloud), "height");
+  assert.equal(resolvePointColorMode("intensity", cloud), "height");
+  assert.equal(resolvePointColorMode("normals", cloud), "height");
+  assert.equal(resolvePointColorMode("error", cloud), "height");
+  assert.equal(resolvePointColorMode("height", cloud), "height");
+});
+
+test("RGB stays selected only when the source cloud carries color", () => {
+  assert.equal(canRenderPointColorMode("rgb", { has_color: false }), false);
+  assert.equal(canRenderPointColorMode("rgb", { has_color: true }), true);
+  assert.equal(canRenderPointColorMode("height", null), false);
+  assert.equal(canRenderPointColorMode("intensity", { has_color: true }), false);
+  assert.equal(resolvePointColorMode("rgb", { has_color: true }), "rgb");
 });

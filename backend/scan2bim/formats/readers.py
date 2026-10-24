@@ -1,9 +1,10 @@
 """Point-cloud readers.
 
 Supported natively: E57, LAS, LAZ, PLY, PCD, PTS, XYZ/TXT/CSV (whitespace).
-RCS/RCP are Autodesk proprietary containers: they are detected and routed to a
-documented conversion path, never parsed in-process. The original file is only
-ever opened read-only.
+RCS point data is read through the installed Autodesk ReCap library in an
+isolated process. RCP is a ZIP/XML project manifest linking one or more RCS
+files; the API resolves a single linked scan before sending its RCS to the
+licensed reader. The original files are opened read-only.
 """
 from __future__ import annotations
 
@@ -106,15 +107,18 @@ def detect_format(path: str | Path) -> str:
         return "pcd"
     raise UnsupportedFormat(
         f"unsupported extension '.{ext}'. Supported: E57, LAS, LAZ, PLY, PCD, PTS, XYZ. "
-        "RCS/RCP require conversion (see docs/FORMATS_RCS.md)."
+        "RCS points require Autodesk ReCap; RCP projects link separate RCS files."
     )
 
 
 def supported_formats() -> dict[str, Any]:
     return {
         "native": sorted(NATIVE_FORMATS),
-        "proprietary_conversion_required": ["rcs", "rcp"],
+        "proprietary_conversion_required": ["rcs"],
+        "project_containers": ["rcp"],
         "notes": {
+            "rcs": "proprietary point data read via the installed Autodesk ReCap DLL in an isolated process",
+            "rcp": "ZIP/XML project manifest; import-path resolves a single linked RCS and preserves the station transform as metadata",
             "e57": "pye57; all scans in the file are merged in world coordinates",
             "las/laz": "laspy + lazrs",
             "ply": "plyfile; vertex x/y/z and red/green/blue",
@@ -138,8 +142,9 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
 
     return {
         "summary": (
-            "Autodesk RCS/RCP — закрытый (proprietary) формат. Приложение не реализует его "
-            "кодек. На машине с установленным Autodesk ReCap точки читаются через локальную "
+            "RCS — закрытый (proprietary) формат точек. RCP — проектный ZIP/XML-манифест, "
+            "содержащий ссылки и преобразования отдельных станций RCS. Приложение не реализует "
+            "кодек RCS. На машине с установленным Autodesk ReCap точки читаются через локальную "
             "библиотеку Autodesk AdskRcExport.dll в отдельном процессе (только чтение; "
             "исходный файл никогда не изменяется). Без ReCap конвертируйте файл один раз "
             "в E57 (рекомендуется) или LAS лицензированным инструментом Autodesk."
@@ -151,7 +156,7 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
         "recap_path": str(RECAP_EXE),
         "converter_configured": bool(RCS_CONVERTER_CMD),
         "steps": [
-            "Если ReCap установлен: импортируйте .rcs/.rcp напрямую — точки читает локальная библиотека ReCap.",
+            "Если ReCap установлен: импортируйте .rcs напрямую; односкановый .rcp разрешается в связанный .rcs с сохранением метаданных проекта.",
             "Если ReCap нет: откройте проект .rcp в ReCap и экспортируйте в E57 (или LAS) в полном разрешении.",
             "Импортируйте полученный .e57/.las в это приложение.",
             "Либо задайте S2B_RCS_CONVERTER с разрешённой командой конвертации и повторите импорт.",
@@ -159,7 +164,8 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
         "command_template": "S2B_RCS_CONVERTER='tool --in {input} --out {output}'",
         "warning": (
             "Интерфейс DLL — недокументированный внутренний API Autodesk. Формулировка "
-            "должна быть «читается через установленный Autodesk ReCap», а не «нативная поддержка RCS»."
+            "должна быть «читается через установленный Autodesk ReCap», а не «нативная поддержка RCS». "
+            "Трансформации RCP сохраняются отдельно и не применяются до независимой проверки конвенции."
         ),
     }
 

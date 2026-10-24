@@ -23,6 +23,29 @@ def _block_record(xyz: np.ndarray, rgb: np.ndarray) -> dict[str, object]:
     }
 
 
+def test_stream_checkpoint_retries_temporary_windows_replace_lock(tmp_path, monkeypatch):
+    out_dir = tmp_path / "raw"
+    out_dir.mkdir()
+    (out_dir / "stream.json").write_text('{"committed_count": 10}', encoding="utf-8")
+    replace = os.replace
+    calls = 0
+
+    def temporarily_locked(source, destination):
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise PermissionError("temporary Windows file lock")
+        replace(source, destination)
+
+    monkeypatch.setattr(rcs_native.os, "replace", temporarily_locked)
+    rcs_native._write_stream_checkpoint(out_dir, {"sha256": "source"}, 20, [], complete=False)
+
+    assert calls == 3
+    checkpoint = json.loads((out_dir / "stream.json").read_text(encoding="utf-8"))
+    assert checkpoint["committed_count"] == 20
+    assert not (out_dir / "stream.json.tmp").exists()
+
+
 @pytest.mark.parametrize("replace_source_during_read", [False, True])
 def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
     client, tmp_path, monkeypatch, replace_source_during_read

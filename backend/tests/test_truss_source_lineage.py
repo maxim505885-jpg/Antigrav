@@ -728,6 +728,51 @@ def test_truss_node_rejects_projected_crossing_from_separate_planes():
     assert proposals == []
 
 
+def test_truss_node_rejects_consistent_points_from_the_wrong_candidate_plane():
+    members = [
+        ((np.array([0.0, 0.0]), np.array([1.0, 0.0]), 4.0), "horizontal"),
+        ((np.array([0.0, 0.0]), np.array([0.0, 1.0]), 4.0), "vertical"),
+    ]
+    along = np.linspace(-0.15, 0.15, 8)
+    points = np.vstack((
+        np.column_stack((along, np.zeros_like(along))),
+        np.column_stack((np.zeros_like(along), along)),
+    ))
+    source_rows = np.arange(550, 550 + len(points))
+
+    proposals = steel._section_node_evidence(
+        members, points, source_rows,
+        plane_coordinates=np.full(len(points), 0.36),
+        reference_plane_m=0.0,
+    )
+
+    assert proposals == []
+
+
+def test_truss_node_excludes_mixed_plane_points_hidden_by_matching_medians():
+    members = [
+        ((np.array([0.0, 0.0]), np.array([1.0, 0.0]), 4.0), "horizontal"),
+        ((np.array([0.0, 0.0]), np.array([0.0, 1.0]), 4.0), "vertical"),
+    ]
+    along = np.linspace(-0.15, 0.15, 8)
+    points = np.vstack((
+        np.column_stack((along, np.zeros_like(along))),
+        np.column_stack((np.zeros_like(along), along)),
+    ))
+    # Half of the local horizontal evidence is 0.36 m out of plane. Its
+    # median still matches the vertical member's median, masking two layers.
+    planes = np.concatenate((np.repeat((0.0, 0.36), 4), np.zeros(8)))
+    source_rows = np.arange(600, 600 + len(points))
+
+    proposals = steel._section_node_evidence(
+        members, points, source_rows, plane_coordinates=planes,
+    )
+
+    assert len(proposals) == 1
+    assert proposals[0]["candidate_member_proposal_ids"] == {"horizontal", "vertical"}
+    assert proposals[0]["source_point_ids"].isdisjoint(set(range(604, 608)))
+
+
 def test_truss_node_stays_unknown_when_both_member_lines_have_a_scan_gap_at_crossing():
     members = [
         ((np.array([0.0, 0.0]), np.array([1.0, 0.0]), 4.0), "horizontal"),

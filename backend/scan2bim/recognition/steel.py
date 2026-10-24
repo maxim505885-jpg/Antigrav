@@ -1120,6 +1120,7 @@ def _section_node_evidence(
     min_member_axis_points: int = 3,
     min_member_axis_span_m: float = 0.04,
     plane_coordinates: np.ndarray | None = None,
+    reference_plane_m: float | None = None,
     node_plane_tolerance_m: float = 0.15,
     node_merge_distance_m: float = 0.10,
 ) -> list[dict[str, Any]]:
@@ -1133,6 +1134,7 @@ def _section_node_evidence(
     if (points.ndim != 2 or points.shape[1] != 2 or rows.ndim != 1
             or len(points) != len(rows) or not np.issubdtype(rows.dtype, np.integer)
             or plane.shape != (len(points),) or not np.isfinite(plane).all()
+            or (reference_plane_m is not None and not math.isfinite(reference_plane_m))
             or not math.isfinite(node_plane_tolerance_m) or node_plane_tolerance_m <= 0):
         raise ValueError("section node points and source rows must be aligned")
     proposals: list[dict[str, Any]] = []
@@ -1164,7 +1166,7 @@ def _section_node_evidence(
                     & (np.abs(across) <= node_line_half_width_m)
                 )
                 local_support.append((
-                    np.unique(rows[supported].astype(np.int64, copy=False)),
+                    rows[supported].astype(np.int64, copy=False),
                     along[supported],
                     plane[supported],
                 ))
@@ -1176,7 +1178,26 @@ def _section_node_evidence(
             plane_delta = abs(plane_centers[0] - plane_centers[1])
             if plane_delta > node_plane_tolerance_m:
                 continue
-            node_rows = np.unique(np.concatenate([axis_rows for axis_rows, _, _ in local_support]))
+            if (reference_plane_m is not None
+                    and any(abs(center - reference_plane_m) > node_plane_tolerance_m
+                            for center in plane_centers)):
+                continue
+            common_plane_center = (
+                float(reference_plane_m)
+                if reference_plane_m is not None else float(np.median(plane_centers))
+            )
+            plane_supported: list[tuple[np.ndarray, np.ndarray]] = []
+            for axis_rows, axis_along, axis_plane in local_support:
+                in_plane = np.abs(axis_plane - common_plane_center) <= node_plane_tolerance_m
+                supported_rows = np.unique(axis_rows[in_plane])
+                supported_along = axis_along[in_plane]
+                if (len(supported_rows) < min_member_axis_points
+                        or float(np.ptp(supported_along)) < min_member_axis_span_m):
+                    break
+                plane_supported.append((supported_rows, supported_along))
+            if len(plane_supported) != 2:
+                continue
+            node_rows = np.unique(np.concatenate([axis_rows for axis_rows, _ in plane_supported]))
             if len(node_rows) < 5:
                 continue
             existing = next((node for node in proposals
@@ -2070,6 +2091,7 @@ def _detect_trusses(
                 for node in _section_node_evidence(
                     truss_member_lines, vz, plane_source_rows,
                     plane_coordinates=u[slice_mask],
+                    reference_plane_m=float(plane_u),
                 ):
                     world_position = [
                         round(float(value), 4)

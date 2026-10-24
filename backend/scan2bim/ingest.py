@@ -1219,7 +1219,7 @@ def ingest_cloud(
         return _finalize_checkpoint(project_id, cloud_id, paths, stage_dir, manifest, progress)
 
     full_rcs_stream = (
-        source_path.suffix.lower() in {".rcs", ".rcp"}
+        source_path.suffix.lower() == ".rcs"
         and MAX_INGEST_POINTS == 0
         and native_available()["dll_exists"]
     )

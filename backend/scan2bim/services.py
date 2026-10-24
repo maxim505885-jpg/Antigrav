@@ -1,6 +1,7 @@
 """Domain services shared by the REST API and plugins."""
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from shapely.geometry import Polygon, box
@@ -55,6 +56,56 @@ def get_element(element_id: str) -> dict[str, Any]:
 def _assert_reviewable_source(element: dict[str, Any]) -> None:
     if element.get("source") == "invalidated_synthetic_ground_truth":
         raise ValueError("invalidated synthetic ground truth cannot be reviewed or used as project evidence")
+
+
+def split_oriented_box_along_member_axis(
+    geometry: dict[str, Any], offset_m: float,
+) -> list[dict[str, Any]]:
+    """Create two contiguous oriented-box parts at a distance from the member start."""
+    if geometry.get("kind") != "oriented_box":
+        raise ValueError("member-axis split requires oriented_box geometry")
+    try:
+        center = [float(value) for value in geometry["center"]]
+        sizes = geometry["sizes"]
+        length = float(sizes["length"])
+        thickness = float(sizes["thickness"])
+        height = float(sizes["height"])
+        angle = float(geometry.get("rotation_z", 0.0))
+        offset = float(offset_m)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("member-axis split requires a complete oriented_box") from exc
+    values = [*center, length, thickness, height, angle, offset]
+    if len(center) != 3 or not all(math.isfinite(value) for value in values):
+        raise ValueError("member-axis split geometry and offset must be finite")
+    if length <= 0 or thickness <= 0 or height <= 0:
+        raise ValueError("member-axis split sizes must be positive")
+    if not 0.01 < offset < length - 0.01:
+        raise ValueError("split value must lie inside the member")
+
+    direction = (math.cos(angle), math.sin(angle))
+    boundaries = ((0.0, offset), (offset, length))
+    parts = []
+    for start, end in boundaries:
+        part_length = end - start
+        distance_from_center = (start + end) / 2 - length / 2
+        part_center = [
+            round(center[0] + direction[0] * distance_from_center, 4),
+            round(center[1] + direction[1] * distance_from_center, 4),
+            round(center[2], 4),
+        ]
+        part_geometry = {
+            **geometry,
+            "center": part_center,
+            "sizes": {**sizes, "length": round(part_length, 4)},
+            "rotation_z": angle,
+            "note": "split by engineer along oriented member axis; dimensions inferred from parent candidate",
+        }
+        parts.append({
+            "geometry": part_geometry,
+            "bbox": derive_bbox(part_geometry),
+            "length_m": round(part_length, 4),
+        })
+    return parts
 
 
 def _element_state(element: dict[str, Any]) -> dict[str, Any]:
@@ -367,36 +418,76 @@ def split_element(
 ) -> dict[str, Any]:
     element = get_element(element_id)
     _assert_reviewable_source(element)
-    if axis not in {"x", "y", "z"}:
-        raise ValueError("split axis must be x, y or z")
     bbox = element["bbox"]
-    idx = {"x": 0, "y": 1, "z": 2}[axis]
-    lo, hi = float(bbox["min"][idx]), float(bbox["max"][idx])
-    if not (lo + 0.01 < value < hi - 0.01):
-        raise ValueError("split value must lie inside the element bounds")
+    member_parts = None
+    if axis == "member":
+        member_parts = split_oriented_box_along_member_axis(element["geometry"], value)
+    elif axis in {"x", "y", "z"}:
+        idx = {"x": 0, "y": 1, "z": 2}[axis]
+        lo, hi = float(bbox["min"][idx]), float(bbox["max"][idx])
+        if not (lo + 0.01 < value < hi - 0.01):
+            raise ValueError("split value must lie inside the element bounds")
+    else:
+        raise ValueError("split axis must be x, y, z or member")
     before = element
     children = []
-    for part, (a, b) in enumerate(((lo, value), (value, hi))):
-        part_bbox = {
-            "min": list(bbox["min"]),
-            "max": list(bbox["max"]),
-        }
-        part_bbox["min"][idx] = round(a, 4)
-        part_bbox["max"][idx] = round(b, 4)
-        cx = (part_bbox["min"][0] + part_bbox["max"][0]) / 2
-        cy = (part_bbox["min"][1] + part_bbox["max"][1]) / 2
-        cz = (part_bbox["min"][2] + part_bbox["max"][2]) / 2
-        geometry = {
-            "kind": "oriented_box",
-            "center": [round(cx, 4), round(cy, 4), round(cz, 4)],
-            "sizes": {
-                "length": round(part_bbox["max"][0] - part_bbox["min"][0], 3),
-                "thickness": round(part_bbox["max"][1] - part_bbox["min"][1], 3),
-                "height": round(part_bbox["max"][2] - part_bbox["min"][2], 3),
-            },
-            "rotation_z": 0.0,
-            "note": "split by engineer; axis-aligned bounds (inferred)",
-        }
+    for part_index in range(2):
+        if member_parts is not None:
+            geometry = member_parts[part_index]["geometry"]
+            part_bbox = member_parts[part_index]["bbox"]
+            part_dimensions = {
+                **element.get("dimensions", {}),
+                "length_m": member_parts[part_index]["length_m"],
+                "thickness_m": geometry["sizes"]["thickness"],
+                "height_m": geometry["sizes"]["height"],
+            }
+            part_metadata = {
+                key: metadata_value
+                for key, metadata_value in element.get("metadata", {}).items()
+                if key not in {
+                    "source_point_ids", "source_point_ids_sampled", "member_proposal",
+                    "member_proposal_id", "terminal_evidence", "joint_gap_evidence",
+                    "column_support_context", "vertical_profile_evidence",
+                }
+            }
+            part_metadata.update({
+                "source_evidence_status": "requires_requery_after_member_axis_split",
+                "split_from": element_id,
+                "split_axis": "member",
+                "split_value_m_from_start": value,
+            })
+        else:
+            part_bbox = {
+                "min": list(bbox["min"]),
+                "max": list(bbox["max"]),
+            }
+            part_bbox["min"][idx] = round(lo if part_index == 0 else value, 4)
+            part_bbox["max"][idx] = round(value if part_index == 0 else hi, 4)
+            cx = (part_bbox["min"][0] + part_bbox["max"][0]) / 2
+            cy = (part_bbox["min"][1] + part_bbox["max"][1]) / 2
+            cz = (part_bbox["min"][2] + part_bbox["max"][2]) / 2
+            geometry = {
+                "kind": "oriented_box",
+                "center": [round(cx, 4), round(cy, 4), round(cz, 4)],
+                "sizes": {
+                    "length": round(part_bbox["max"][0] - part_bbox["min"][0], 3),
+                    "thickness": round(part_bbox["max"][1] - part_bbox["min"][1], 3),
+                    "height": round(part_bbox["max"][2] - part_bbox["min"][2], 3),
+                },
+                "rotation_z": 0.0,
+                "note": "split by engineer; axis-aligned bounds (inferred)",
+            }
+            part_dimensions = {
+                "length_m": geometry["sizes"]["length"],
+                "thickness_m": geometry["sizes"]["thickness"],
+                "height_m": geometry["sizes"]["height"],
+            }
+            part_metadata = {
+                **element.get("metadata", {}),
+                "split_from": element_id,
+                "split_axis": axis,
+                "split_value": value,
+            }
         child_id = new_id()
         now = utcnow()
         execute(
@@ -421,21 +512,8 @@ def split_element(
                 1,
                 "manual",
                 "corrected",
-                dumps(
-                    {
-                        "length_m": geometry["sizes"]["length"],
-                        "thickness_m": geometry["sizes"]["thickness"],
-                        "height_m": geometry["sizes"]["height"],
-                    }
-                ),
-                dumps(
-                    {
-                        **element.get("metadata", {}),
-                        "split_from": element_id,
-                        "split_axis": axis,
-                        "split_value": value,
-                    }
-                ),
+                dumps(part_dimensions),
+                dumps(part_metadata),
                 now,
                 now,
             ),

@@ -33,6 +33,26 @@ export function progressPercent(progress: number | null | undefined): number | n
   return Math.round(Math.min(1, Math.max(0, progress)) * 100);
 }
 
+export type PointColorMode = "rgb" | "height" | "intensity" | "normals" | "error";
+
+export function canRenderPointColorMode(
+  mode: PointColorMode,
+  cloud: { has_color?: boolean } | null | undefined,
+): boolean {
+  if (mode === "height") return Boolean(cloud);
+  if (mode === "rgb") return cloud?.has_color === true;
+  // The viewer currently receives XYZ/RGB only; other modes would silently
+  // fall back to height colors even if the cloud metadata advertises a field.
+  return false;
+}
+
+export function resolvePointColorMode(
+  mode: PointColorMode,
+  cloud: { has_color?: boolean } | null | undefined,
+): PointColorMode {
+  return canRenderPointColorMode(mode, cloud) ? mode : "height";
+}
+
 export function cameraViewFromLabel(label: string | undefined): "top" | "front" | "right" | "iso" | "fit" | null {
   const normalized = label?.trim().toLowerCase() || "";
   if (normalized.startsWith("top")) return "top";

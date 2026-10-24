@@ -120,7 +120,7 @@ export default function App() {
     cloud?.origin ?? undefined,
   ), [elements, selectedColumnGroup, cloud?.id, cloud?.origin]);
   const [mergeTarget, setMergeTarget] = useState("");
-  const [splitAxis, setSplitAxis] = useState<"x" | "y" | "z">("x");
+  const [splitAxis, setSplitAxis] = useState<"x" | "y" | "z" | "member">("x");
   const [splitValue, setSplitValue] = useState(0);
   const [similar, setSimilar] = useState<any[]>([]);
   const [reviewHistory, setReviewHistory] = useState<any[]>([]);
@@ -638,6 +638,11 @@ export default function App() {
   const selectedBBox = selectedElement?.bbox;
   const splitDefault = useMemo(() => {
     if (!selectedBBox) return 0;
+    if (splitAxis === "member") {
+      return selectedElement?.geometry?.kind === "oriented_box"
+        ? Number(selectedElement.geometry.sizes.length) / 2
+        : 0;
+    }
     const index = splitAxis === "x" ? 0 : splitAxis === "y" ? 1 : 2;
     return (selectedBBox.min[index] + selectedBBox.max[index]) / 2;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1241,10 +1246,15 @@ export default function App() {
                           <option value="x">X</option>
                           <option value="y">Y</option>
                           <option value="z">Z</option>
+                          <option value="member" disabled={selectedElement?.geometry?.kind !== "oriented_box"}>
+                            вдоль оси элемента
+                          </option>
                         </select>
                       </label>
                       <label>
-                        <span className="field-label">разрезать в (м)</span>
+                        <span className="field-label">
+                          {splitAxis === "member" ? "от начала элемента (м)" : "разрезать в (м)"}
+                        </span>
                         <input
                           type="number"
                           step={0.05}

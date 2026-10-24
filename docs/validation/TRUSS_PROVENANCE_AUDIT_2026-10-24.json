@@ -1,0 +1,36 @@
+{
+  "audit_date": "2026-10-24",
+  "mode": "read_only_live_api",
+  "project_name": "Proverka skvoznogo marshruta 1.rcs",
+  "cloud_id": "2621e5a320df49949d04aa1b7399539e",
+  "source_format": "rcs",
+  "source_point_count": 297873927,
+  "stored_derived_sample_point_count": 40000000,
+  "truss_candidate_count": 24,
+  "candidate_complete_count": 5,
+  "partial_count": 19,
+  "unreviewed_count": 24,
+  "referenced_member_proposal_count": 969,
+  "member_role_hypothesis_counts": {
+    "truss_top_chord": 12,
+    "truss_bottom_chord": 34,
+    "unknown": 923
+  },
+  "unknown_role_reason_counts": {
+    "horizontal_fragment_below_minimum_chord_span": 598,
+    "measured_top_and_bottom_chords_required": 245,
+    "member_axis_does_not_reach_both_measured_chords": 79,
+    "member_point_support_is_non_planar": 1
+  },
+  "missing_member_links": 0,
+  "member_proposals_with_fewer_than_5_source_rows": 0,
+  "node_candidates_with_fewer_than_5_source_rows": 0,
+  "member_and_node_source_row_references_including_duplicates": 407841,
+  "unique_member_and_node_source_rows": 327518,
+  "out_of_range_source_row_references": 0,
+  "source_row_valid_range": [0, 39999999],
+  "acceptance_boundary": "This audit verifies candidate-to-member links and point-row traceability inside the 40,000,000-point derived sample only. It does not verify physical member identity, role correctness, assembly topology, geometric accuracy, full-resolution FARO coverage, or engineering acceptance.",
+  "source_file_modified": false,
+  "candidate_records_modified": false,
+  "annotation_records_written": 0
+}

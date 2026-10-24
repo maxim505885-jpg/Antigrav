@@ -3,6 +3,7 @@ import { type Element } from "../types";
 import { ArrowUpDown, CircleHelp } from "lucide-react";
 import { elementTableEvidenceBadges } from "../elementEvidence";
 import { elementPlanDimensionSummary } from "../elementTablePresentation";
+import { elementClassLabels, filterElementCandidates } from "../elementCandidateFilter";
 
 interface ElementTanStackTableProps {
   elements: Element[];
@@ -30,6 +31,8 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
 }) => {
   const [sortField, setSortField] = useState<keyof TableRowItem>("id");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
+  const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
 
   const rows: TableRowItem[] = useMemo(() => {
     return elements.map((el) => {
@@ -46,15 +49,22 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
     });
   }, [elements]);
 
+  const classOptions = useMemo(() => [...new Set(elements.map((element) => element.class_name))].sort(), [elements]);
+  const filteredElements = useMemo(
+    () => filterElementCandidates(elements, search, classFilter),
+    [elements, search, classFilter],
+  );
+  const filteredIds = useMemo(() => new Set(filteredElements.map((element) => element.id)), [filteredElements]);
+
   const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return rows.filter((row) => filteredIds.has(row.id)).sort((a, b) => {
       const valA = a[sortField];
       const valB = b[sortField];
       if (valA < valB) return sortAsc ? -1 : 1;
       if (valA > valB) return sortAsc ? 1 : -1;
       return 0;
     });
-  }, [rows, sortField, sortAsc]);
+  }, [rows, filteredIds, sortField, sortAsc]);
 
   const handleSort = (field: keyof TableRowItem) => {
     if (sortField === field) {
@@ -67,6 +77,26 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
 
   return (
     <div style={{ width: "100%", height: "100%", overflowY: "auto", background: "#161D26" }}>
+      <div className="candidate-table-filters" aria-label="Поиск и фильтр кандидатов">
+        <label>
+          <span>Поиск по ID или роли</span>
+          <input
+            type="search"
+            aria-label="Поиск кандидатов по ID или роли"
+            placeholder="Например, truss или ферма"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>Класс</span>
+          <select aria-label="Фильтр кандидатов по классу" value={classFilter} onChange={(event) => setClassFilter(event.target.value)}>
+            <option value="all">Все классы</option>
+            {classOptions.map((className) => <option key={className} value={className}>{elementClassLabels[className] || className}</option>)}
+          </select>
+        </label>
+        <output aria-live="polite">Показано {sortedRows.length.toLocaleString("ru-RU")} из {elements.length.toLocaleString("ru-RU")}</output>
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left", color: "#FFFFFF" }}>
         <thead>
           <tr style={{ color: "#E2E8F0", borderBottom: "2px solid #334050", position: "sticky", top: 0, background: "#1F2937", zIndex: 5 }}>
@@ -86,6 +116,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
           </tr>
         </thead>
         <tbody>
+          {sortedRows.length === 0 && <tr><td colSpan={7} className="candidate-table-empty">По заданным условиям кандидатов нет.</td></tr>}
           {sortedRows.map((row) => {
             const isSelected = selectedElement?.id === row.id;
             return (

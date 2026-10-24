@@ -1,0 +1,57 @@
+{
+  "audit_date": "2026-10-24",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "source": "read-only query of the live SCAN SQLite database; no rows updated",
+  "cloud": {
+    "status": "ready",
+    "stored_point_count": 43500000
+  },
+  "candidate_role": "crane_girder",
+  "candidate_count": 99,
+  "length_source": "dimensions_json.length_m from review-only geometric candidate",
+  "nominal_column_longitudinal_step_m": 6.0,
+  "thresholds": {
+    "above_nominal_step_m": 6.0,
+    "long_member_review_threshold_m": 9.0,
+    "long_member_threshold_basis": "1.5 times the user-provided nominal column step; review heuristic only, not a beam-span limit or tolerance"
+  },
+  "length_statistics_m": {
+    "minimum": 2.502,
+    "median": 4.646,
+    "p90": 9.866,
+    "maximum": 42.664
+  },
+  "counts": {
+    "longer_than_6m_nominal_step": 26,
+    "longer_than_9m_review_threshold": 11,
+    "within_0_15_multiples_of_6m": 33,
+    "all_99_have_distinct_detected_column_supports_at_both_endpoints": false,
+    "long_over_9m_with_distinct_columns_at_both_endpoints": 0
+  },
+  "long_candidates_over_9m": [
+    {"id": "559d108f59d7430a82ab19665392f0e9", "length_m": 42.664, "nearby_column_count": 1, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "66d3f358da6d4c69b04eb788e3821d00", "length_m": 40.92, "nearby_column_count": 2, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "67d7509b4741443c9049fbe71ade063d", "length_m": 23.872, "nearby_column_count": 1, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "c1c9cec05db2416d89acfe6905061a5d", "length_m": 22.28, "nearby_column_count": 1, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "a3ca2631851c4cfc82957c925692af82", "length_m": 19.745, "nearby_column_count": 0, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "a25658e2008747c7bfb8afdc3448b87c", "length_m": 18.687, "nearby_column_count": 0, "vertical_profile": null},
+    {"id": "e935121e2f33438a8a98d12e17a5444c", "length_m": 16.95, "nearby_column_count": 0, "vertical_profile": null},
+    {"id": "147396767b3c445093d131e5aebbe77f", "length_m": 14.928, "nearby_column_count": 3, "vertical_profile": null},
+    {"id": "9e369d09cab74210adb594ffc60a1a67", "length_m": 11.476, "nearby_column_count": 1, "vertical_profile": "ambiguous_vertical_profile"},
+    {"id": "c51edd3d028f4ff2939a45c20db596f3", "length_m": 10.161, "nearby_column_count": 2, "vertical_profile": null},
+    {"id": "bc2c5453c6ca461cba0fcc7103fb5d87", "length_m": 9.866, "nearby_column_count": 0, "vertical_profile": null}
+  ],
+  "interpretation": {
+    "likely_segmentation_review": "11 candidates exceed the 9 m review heuristic; none has distinct detected column supports at both endpoints. Their status remains proposed and unreviewed.",
+    "accuracy": "not_measured",
+    "physical_span_or_merge_status": "unknown",
+    "engineering_tolerance": "not_defined"
+  },
+  "limits": [
+    "The 6 m value is a user-provided nominal longitudinal column step; no column grid origin, axis direction, beam span convention, or tolerance was provided.",
+    "Long length does not prove a false merge: a candidate can span multiple bays, be clipped, be fragmented, or reflect scan coverage.",
+    "The database contains a 43.5M-point working cloud, not the full 7.2GB source; recall and missed supports are not measured.",
+    "No candidate was split, promoted, or modified by this read-only audit."
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "audit_date": "2026-10-24",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "source": "read-only query of the live SCAN SQLite database; no rows updated",
+  "cloud": {
+    "status": "ready",
+    "stored_point_count": 43500000
+  },
+  "candidate_counts": {
+    "columns": 376,
+    "beams": 846,
+    "crane_girder_role_proposals": 99
+  },
+  "crane_girder_proposals": {
+    "review_status": {
+      "unreviewed": 99
+    },
+    "role_status": {
+      "proposed": 99
+    },
+    "column_support_context": {
+      "supported_hypothesis": 0,
+      "insufficient_context": 99,
+      "nearby_column_count_distribution": {
+        "0": 75,
+        "1": 14,
+        "2": 7,
+        "3": 2,
+        "4": 1
+      },
+      "candidates_with_distinct_columns_at_both_endpoints": 0
+    },
+    "vertical_profile_evidence": {
+      "ambiguous_vertical_profile": 38,
+      "not_present": 61
+    }
+  },
+  "interpretation": {
+    "class_separation": "Database candidates are stored as separate beam and column classes, but the count does not establish physical correctness.",
+    "crane_girder_role": "All 99 crane_girder labels remain unreviewed proposals. Current spatial context does not support any as a beam spanning two distinct detected columns.",
+    "accuracy": "not_measured",
+    "engineering_tolerance": "not_defined"
+  },
+  "limits": [
+    "Nearby detected columns can be missed or fragmented in the point cloud; absence of context is not proof that a beam is absent.",
+    "Column-beam contact, rail profile, bearing and end-plate structure are not independently verified.",
+    "The live cloud contains 43.5M stored rows; this audit does not measure full-source recall."
+  ]
+}

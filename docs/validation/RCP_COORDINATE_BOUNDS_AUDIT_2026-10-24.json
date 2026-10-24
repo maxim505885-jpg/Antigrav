@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-24",
+  "project": "10.rcp / node 10 / linked 10.rcs",
+  "scope": "axis-aligned extent consistency only",
+  "evidence_sources": {
+    "rcp_manifest": "values recorded in docs/validation/FULL_RCS_INGEST_2026-10-24.md during the earlier real RCP route check; the source RCP was not re-read in this audit",
+    "rcs_extents": "full-resolution cloud d2518a92fc77475eb8d044d332223d10 in data/validation/full_rcs_stage2/scan2bim.sqlite3",
+    "application_route": "isolated TestClient smoke with synthetic one-node RCP and mocked ingestion; compared against the recorded full RCS extents"
+  },
+  "unit_type_raw": "0",
+  "rcp_registered": false,
+  "rcp_asset_min": [-50.8636486709028, -28.3974500969408, -3.12890562964454],
+  "rcp_asset_max": [31.9112896687731, 114.23846358912421, 14.927280064738861],
+  "rcs_min": [-50.86330842804833, -28.397686644383462, -3.1290869562622454],
+  "rcs_max": [31.910917194172782, 114.23818402069409, 14.927187217547159],
+  "absolute_min_delta": [0.000340242854471, 0.000236547442662, 0.000180673382295],
+  "absolute_max_delta": [0.000372474600318, 0.00027966537513, 0.000092846836],
+  "max_absolute_delta_raw_coordinate_units": 0.000372474600318,
+  "consistency_epsilon_raw_coordinate_units": 0.001,
+  "consistency_result": "within_epsilon",
+  "translation_reapplication": "do_not_apply_for_this_node_only",
+  "engineering_tolerance": false,
+  "limits": [
+    "RCP source was not re-read during this audit; manifest values are from the recorded earlier real-route check.",
+    "Bounding-box consistency does not prove pointwise coordinate equivalence or validate rotation, scale, or other projects.",
+    "The declared RCP point count exceeds the full RCS reader count by 244259; cause unresolved.",
+    "The comparison epsilon uses raw coordinate units; no unit conversion or survey tolerance is inferred.",
+    "RCP node is marked Registered=0."
+  ]
+}

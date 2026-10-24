@@ -58,7 +58,9 @@ function Root() {
       return 0;
     } catch (err) {
       console.warn("Could not sync with local API, running in standalone mode:", err);
-      return 0;
+      const detail = err instanceof Error ? err.message : String(err);
+      setJobLabel("Не удалось загрузить данные из API: " + detail);
+      return -1;
     }
   };
 
@@ -116,12 +118,16 @@ function Root() {
   };
 
   const handleProjectChange = async (projectId: string) => {
+    const previousProjectId = project?.id;
     window.localStorage.setItem("scan.selectedProjectId", projectId);
-    setSelectedEl(null);
-    setElements([]);
-    setClouds([]);
     setJobLabel("Загрузка проекта");
     const candidateCount = await loadData(undefined, projectId);
+    if (candidateCount < 0) {
+      if (previousProjectId) window.localStorage.setItem("scan.selectedProjectId", previousProjectId);
+      else window.localStorage.removeItem("scan.selectedProjectId");
+      return;
+    }
+    setSelectedEl(null);
     setJobLabel(`Проект загружен · ${candidateCount} кандидатов`);
   };
 

@@ -37,6 +37,7 @@ interface Props {
   measureModeActive?: boolean;
   onToggleMeasureMode?: (active: boolean) => void;
   showBim?: boolean;
+  pointCloudVisible?: boolean;
   cameraPreset?: CameraPreset | null;
 }
 
@@ -84,6 +85,7 @@ export default function Viewer3D({
   measureModeActive,
   onToggleMeasureMode,
   showBim = false,
+  pointCloudVisible,
   cameraPreset,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -620,6 +622,7 @@ export default function Viewer3D({
         material.clippingPlanes = activeClippingPlanesRef.current;
       }
       const points = new THREE.Points(geometry, material);
+      points.visible = pointCloudVisible ?? showCloud;
       points.frustumCulled = false;
       if (pointsRef.current) {
         scene.remove(pointsRef.current);
@@ -915,9 +918,9 @@ export default function Viewer3D({
 
   useEffect(() => {
     if (pointsRef.current) {
-      pointsRef.current.visible = showCloud;
+      pointsRef.current.visible = pointCloudVisible ?? showCloud;
     }
-  }, [showCloud]);
+  }, [showCloud, pointCloudVisible]);
 
   // Structural SPDS Grid Effect (3 Spans, 4 Rows: А, Б, В, Г, 24 Axes: 1..24, step 6000 mm)
   useEffect(() => {
@@ -1027,15 +1030,16 @@ export default function Viewer3D({
     if (!showBim || !elements || elements.length === 0) return;
     const origin = cloud?.origin || [0, 0, 0];
 
+    const externallyManagedVisibility = Boolean(hideInternalHud);
     const layers: { key: string; color: number; visible: boolean; renderOrder: number }[] = [
-      { key: "column", color: 0x38bdf8, visible: showColumns, renderOrder: 10 },
-      { key: "beam", color: 0xf59e0b, visible: showBeams, renderOrder: 9 },
-      { key: "brace", color: 0xa855f7, visible: showBraces, renderOrder: 8 },
-      { key: "truss", color: 0x10b981, visible: showTrusses, renderOrder: 7 },
-      { key: "wall", color: 0x94a3b8, visible: showWalls, renderOrder: 6 },
-      { key: "stair", color: 0xea580c, visible: showStairs, renderOrder: 5 },
-      { key: "opening", color: 0xef4444, visible: showOpenings, renderOrder: 4 },
-      { key: "pipe", color: 0x06b6d4, visible: showPipes, renderOrder: 3 },
+      { key: "column", color: 0x38bdf8, visible: externallyManagedVisibility || showColumns, renderOrder: 10 },
+      { key: "beam", color: 0xf59e0b, visible: externallyManagedVisibility || showBeams, renderOrder: 9 },
+      { key: "brace", color: 0xa855f7, visible: externallyManagedVisibility || showBraces, renderOrder: 8 },
+      { key: "truss", color: 0x10b981, visible: externallyManagedVisibility || showTrusses, renderOrder: 7 },
+      { key: "wall", color: 0x94a3b8, visible: externallyManagedVisibility || showWalls, renderOrder: 6 },
+      { key: "stair", color: 0xea580c, visible: externallyManagedVisibility || showStairs, renderOrder: 5 },
+      { key: "opening", color: 0xef4444, visible: externallyManagedVisibility || showOpenings, renderOrder: 4 },
+      { key: "pipe", color: 0x06b6d4, visible: externallyManagedVisibility || showPipes, renderOrder: 3 },
     ];
 
     for (const layer of layers) {
@@ -1057,7 +1061,7 @@ export default function Viewer3D({
       lines.frustumCulled = false;
       bimGroup.add(lines);
     }
-  }, [elements, cloud?.origin, showColumns, showBeams, showBraces, showTrusses, showWalls, showStairs, showOpenings, showPipes]);
+  }, [elements, cloud?.origin, hideInternalHud, showBim, showColumns, showBeams, showBraces, showTrusses, showWalls, showStairs, showOpenings, showPipes]);
 
   const selectedDims = selectedElement?.dimensions || {};
   const nominalGrid = selectedDims.nominal_grid_hypothesis?.grid_hypothesis;
