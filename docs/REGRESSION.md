@@ -21,10 +21,11 @@ Run backend commands from the repository root through `scripts/run_pytest.ps1`. 
 - Propagation: after changing normalized coordinates, units, row identity, colors, chunk boundaries, or resume semantics, also run `scripts/run_pytest.ps1 backend/tests/test_api_pipeline.py backend/tests/test_column_surface_assignment.py backend/tests/test_registration_api.py`.
 
 ### Recognition, geometry, and structural proposals
+- Source-row/snapshot integrity and API persistence: `scripts/run_pytest.ps1 backend/tests/test_element_point_extraction_frame.py backend/tests/test_recognition_reconcile_api.py backend/tests/test_api_pipeline.py`.
 
 - Downstream consumers: review/annotation APIs, structural model contract, DXF/PDF/SPDS, IFC/Revit JSON, frontend viewer and tables.
 - Dependency evidence: imports/calls under `backend/scan2bim/recognition`, `geometry`, and `structure`; cross-format assertions in `test_api_pipeline.py`.
-- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_steel.py backend/tests/test_frame_detection.py backend/tests/test_beam_source_lineage.py backend/tests/test_truss_source_lineage.py backend/tests/test_column_section_profile.py backend/tests/test_column_section_series.py backend/tests/test_column_surface_assignment.py backend/tests/test_structural_model_contract.py backend/tests/test_member_proposal.py backend/tests/test_assembly_proposal.py`.
+- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_steel.py backend/tests/test_frame_detection.py backend/tests/test_runway_context.py backend/tests/test_beam_source_lineage.py backend/tests/test_truss_source_lineage.py backend/tests/test_column_section_profile.py backend/tests/test_column_section_series.py backend/tests/test_column_surface_assignment.py backend/tests/test_structural_model_contract.py backend/tests/test_member_proposal.py backend/tests/test_assembly_proposal.py`.
 - Propagation: after changing candidate identity, class/role, axes, dimensions, provenance, or review state, also run API/review tests and all structural drawing/export suites: `scripts/run_pytest.ps1 backend/tests/test_api_pipeline.py backend/tests/test_feedback_undo.py backend/tests/test_recognition_reconcile_api.py backend/tests/test_structural_drawings.py backend/tests/test_structural_dxf.py backend/tests/test_structural_ifc.py backend/tests/test_spds_album_api.py backend/tests/test_spds_drawings.py backend/tests/test_spds_endpoints.py backend/tests/test_spds_full_set.py backend/tests/test_spds_full_set_safety.py`.
 
 ### API, persistence, and engineer review/learning
@@ -33,6 +34,8 @@ Run backend commands from the repository root through `scripts/run_pytest.ps1`. 
 - Dependency evidence: routes/services/database imports plus OpenAPI, API-pipeline, persistence, and frontend request tests.
 - Acceptance: `scripts/run_pytest.ps1 backend/tests/test_desktop_api.py backend/tests/test_openapi_schema.py backend/tests/test_api_pipeline.py backend/tests/test_column_type_api.py backend/tests/test_column_type_store.py backend/tests/test_feedback_undo.py backend/tests/test_recognition_reconcile_api.py`.
 - Propagation: after changing request/response shapes, auth/project scoping, persisted review state, or error behavior, also run `cd frontend && npm test && npm run build`; for structural payload changes, run the recognition and export consumers above.
+
+- Source evidence audit: `scripts/run_pytest.ps1 backend/tests/test_source_evidence_audit_api.py backend/tests/test_element_point_extraction_frame.py`; frontend API path: `cd frontend && npm test` (includes the source-evidence-audit request contract). The audit is read-only and its result must keep recognition accuracy explicitly unmeasured without independent physical references.
 
 ### CAD, drawing sets, and BIM interchange
 
@@ -59,8 +62,8 @@ Run backend commands from the repository root through `scripts/run_pytest.ps1`. 
 
 - Downstream consumers: aligned derived point clouds, registration manifest, ReCap package/API/UI.
 - Dependency evidence: registration package imports and API tests; station-level physical acceptance requires individual station sources and independent controls.
-- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_registration_api.py backend/tests/test_stitching.py backend/tests/test_stitching_export.py`. The stitching suite checks station input-row ranges in metadata/manifests, rejects duplicate station IDs and cached row-range drift; `test_pipeline_single_pass.py` verifies contiguous full coverage and propagation into the SPDS release manifest without leaking the local point-file path.
-- Propagation: after changing transform, point identity, control-point, or package manifest semantics, run the registration acceptance set above plus `scripts/run_pytest.ps1 backend/tests/test_pointdata.py backend/tests/test_api_pipeline.py`. Do not read, modify, or upload the protected original `1.rcs` as part of regression checks.
+- Acceptance: `scripts/run_pytest.ps1 backend/tests/test_registration_api.py backend/tests/test_stitching.py backend/tests/test_stitching_export.py backend/tests/test_recap_decap.py backend/tests/test_registration_extended_api.py`. The ReCap adapter tests verify the DeCap invocation, native RCP/Support contents, rejection of empty or failed output, and API error handling. The stitching suite checks station input-row ranges in metadata/manifests, rejects duplicate station IDs and cached row-range drift; `test_pipeline_single_pass.py` verifies contiguous full coverage and propagation into the SPDS release manifest without leaking the local point-file path.
+- Propagation: after changing transform, point identity, control-point, or package manifest semantics, run the registration acceptance set above plus `scripts/run_pytest.ps1 backend/tests/test_pointdata.py backend/tests/test_api_pipeline.py`. Do not read, modify, or upload the protected original `1.rcs` as part of regression checks. An actual RCP opened in ReCap with the user's FARO scans remains a separate host acceptance gate.
 
 ## Audit report template
 

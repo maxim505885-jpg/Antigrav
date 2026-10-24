@@ -9,6 +9,7 @@ Provides:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, asdict
 from typing import Any, List, Optional
 import numpy as np
@@ -59,6 +60,7 @@ def fit_cylinder_ransac(
     min_radius_m: float = 0.015,  # 30 mm diameter min
     max_radius_m: float = 0.60,   # 1200 mm diameter max
     random_seed: int = 42,
+    checkpoint: Callable[[], None] | None = None,
 ) -> Optional[dict[str, Any]]:
     """Fit a 3D cylinder to a point cluster using RANSAC.
 
@@ -83,7 +85,9 @@ def fit_cylinder_ransac(
     best_params = None
 
     # RANSAC on small batches to refine axis and center
-    for _ in range(max_iterations):
+    for iteration in range(max_iterations):
+        if checkpoint is not None and iteration % 10 == 0:
+            checkpoint()
         sample_idx = rng.choice(len(pts), size=min(len(pts), 50), replace=False)
         sub_pts = pts[sample_idx]
 
@@ -170,6 +174,9 @@ def fit_cylinder_ransac(
 def detect_pipe_network(
     points: np.ndarray,
     min_segment_points: int = 30,
+    max_segments: int = 10,
+    max_iterations: int = 120,
+    checkpoint: Callable[[], None] | None = None,
 ) -> list[PipeSegmentHypothesis]:
     """Segment multiple linear pipe runs from point cloud."""
     pts = np.asarray(points, dtype=np.float64)
@@ -179,11 +186,17 @@ def detect_pipe_network(
     remaining = np.copy(pts)
     pipes: list[PipeSegmentHypothesis] = []
 
-    for i in range(10):  # Detect up to 10 pipe runs
+    for i in range(max(0, int(max_segments))):
         if len(remaining) < min_segment_points:
             break
 
-        cyl = fit_cylinder_ransac(remaining, max_iterations=120)
+        if checkpoint is not None:
+            checkpoint()
+        cyl = fit_cylinder_ransac(
+            remaining,
+            max_iterations=max(1, int(max_iterations)),
+            checkpoint=checkpoint,
+        )
         if cyl is None:
             break
 

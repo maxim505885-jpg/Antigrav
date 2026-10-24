@@ -76,6 +76,140 @@ def test_evaluate_recognition_counts_false_positive_and_false_negative_classes()
     assert metrics["per_class"]["pipe"]["false_positives"] == 1
 
 
+def test_degenerate_detection_geometry_counts_as_false_positive_instead_of_aborting_evaluation():
+    detection = record("column-with-flat-box", "column", {
+        "min": [0, 0, 0], "max": [0, 1, 2],
+    })
+    reference = record("physical-column-1", "column", box(0))
+
+    metrics = evaluate_recognition([detection], [reference], reference_kind="field_measurement")
+
+    assert metrics["total_detected_candidates"] == 1
+    assert metrics["unscorable_detection_geometry_count"] == 1
+    assert metrics["unscorable_detection_ids"] == ["column-with-flat-box"]
+    assert "positive volume" in metrics["unscorable_detection_reasons"]["column-with-flat-box"]
+    assert metrics["per_class"]["column"]["true_positives"] == 0
+    assert metrics["per_class"]["column"]["false_positives"] == 1
+    assert metrics["per_class"]["column"]["false_negatives"] == 1
+    assert metrics["overall_precision"] == 0.0
+    assert metrics["overall_recall"] == 0.0
+
+
+def test_unscorable_candidate_does_not_displace_a_valid_one_to_one_match():
+    reference = record("physical-column-1", "column", box(0))
+    detections = [
+        record("column-with-flat-box", "column", {"min": [0, 0, 0], "max": [0, 1, 2]}),
+        record("column-valid", "column", box(0)),
+    ]
+
+    metrics = evaluate_recognition(detections, [reference], reference_kind="field_measurement")
+
+    assert metrics["per_class"]["column"]["true_positives"] == 1
+    assert metrics["per_class"]["column"]["false_positives"] == 1
+    assert metrics["per_class"]["column"]["false_negatives"] == 0
+    assert metrics["overall_precision"] == 0.5
+    assert metrics["overall_recall"] == 1.0
+
+
+def test_member_centerline_extent_matches_independent_physical_bbox_without_claiming_3d_iou():
+    detection = {
+        **record("brace-axis", "brace", {"min": [1, 0.5, 0.2], "max": [3, 0.5, 2.8]}),
+        "geometry": {"kind": "member", "p0": [1, 0.5, 0.2], "p1": [3, 0.5, 2.8]},
+    }
+    reference = record("physical-brace", "brace", {"min": [0, 0, 0], "max": [4, 1, 3]})
+
+    metrics = evaluate_recognition([detection], [reference], reference_kind="field_measurement")
+
+    assert metrics["per_class"]["brace"]["true_positives"] == 1
+    assert metrics["per_class"]["brace"]["false_positives"] == 0
+    assert metrics["per_class"]["brace"]["false_negatives"] == 0
+    assert metrics["unscorable_detection_geometry_count"] == 1
+    assert metrics["centerline_extent_match_count"] == 1
+    assert metrics["mean_matched_centerline_extent_iou"] == 0.5
+    assert metrics["mean_matched_iou"] is None
+
+
+def test_member_centerline_outside_reference_bbox_remains_unmatched():
+    detection = {
+        **record("brace-axis", "brace", {"min": [1, 0.5, 0], "max": [3, 0.5, 3]}),
+        "geometry": {"kind": "member", "p0": [1, 0.5, 0], "p1": [3, 0.5, 3]},
+    }
+    reference = record("physical-brace", "brace", {"min": [0, 0, 0], "max": [4, 1, 1]})
+
+    metrics = evaluate_recognition([detection], [reference], reference_kind="field_measurement")
+
+    assert metrics["per_class"]["brace"]["true_positives"] == 0
+    assert metrics["per_class"]["brace"]["false_positives"] == 1
+    assert metrics["per_class"]["brace"]["false_negatives"] == 1
+    assert metrics["centerline_extent_match_count"] == 0
+
+
+def test_volumetric_iou_match_is_preferred_over_a_centerline_match_to_the_same_reference():
+    reference = record("physical-brace", "brace", box(0))
+    line = {
+        **record("brace-axis", "brace", {"min": [-0.5, 0, 0], "max": [0.5, 0, 0]}),
+        "geometry": {"kind": "member", "p0": [-0.5, 0, 0], "p1": [0.5, 0, 0]},
+    }
+    volumetric = record("brace-volume", "brace", reference["bbox"])
+
+    metrics = evaluate_recognition([line, volumetric], [reference], reference_kind="field_measurement")
+
+    assert metrics["per_class"]["brace"]["true_positives"] == 1
+    assert metrics["per_class"]["brace"]["false_positives"] == 1
+    assert metrics["centerline_extent_match_count"] == 0
+    assert metrics["mean_matched_iou"] == 1.0
+
+
+def test_role_metrics_use_only_geometrically_matched_candidates_and_separate_confusions():
+    reference = {**record("physical-beam", "beam", box(0, size=2)), "role_label": "crane_girder"}
+    detection = {**record("candidate-beam", "beam", box(0, size=2)), "role_name": "purlin"}
+
+    metrics = evaluate_recognition([detection], [reference], reference_kind="field_measurement")
+
+    assert metrics["role_metrics"]["evaluated_reference_count"] == 1
+    assert metrics["role_metrics"]["correct_count"] == 0
+    assert metrics["role_metrics"]["accuracy"] == 0.0
+    assert metrics["role_metrics"]["per_role"]["crane_girder"]["false_negatives"] == 1
+    assert metrics["role_metrics"]["per_role"]["purlin"]["false_positives"] == 1
+
+
+def test_role_metrics_are_undefined_when_physical_references_have_no_role_labels():
+    metrics = evaluate_recognition(
+        [record("candidate-beam", "beam", box(0))],
+        [record("physical-beam", "beam", box(0))],
+        reference_kind="field_measurement",
+    )
+
+    assert metrics["role_metrics"]["evaluated_reference_count"] == 0
+    assert metrics["role_metrics"]["accuracy"] is None
+    assert metrics["role_metrics"]["precision"] is None
+    assert metrics["role_metrics"]["recall"] is None
+
+
+def test_empty_reference_and_detection_sets_report_undefined_metrics():
+    metrics = evaluate_recognition([], [], reference_kind="pending_reference")
+
+    assert metrics["reference_element_count"] == 0
+    assert metrics["total_detected_candidates"] == 0
+    assert metrics["mean_matched_iou"] is None
+    assert metrics["overall_precision"] is None
+    assert metrics["overall_recall"] is None
+    assert metrics["overall_f1"] is None
+
+
+def test_per_class_metrics_are_undefined_when_their_denominator_is_empty():
+    metrics = evaluate_recognition(
+        [record("det-pipe", "pipe", box(0))], [], reference_kind="pending_reference",
+    )
+
+    assert metrics["overall_precision"] == 0.0
+    assert metrics["overall_recall"] is None
+    assert metrics["overall_f1"] is None
+    assert metrics["per_class"]["pipe"]["precision"] == 0.0
+    assert metrics["per_class"]["pipe"]["recall"] is None
+    assert metrics["per_class"]["pipe"]["f1"] is None
+
+
 @pytest.mark.parametrize("threshold", [-0.1, 0.0, 1.1, float("nan"), float("inf"), True])
 def test_evaluator_rejects_invalid_threshold(threshold):
     with pytest.raises(ValueError, match="iou_threshold"):

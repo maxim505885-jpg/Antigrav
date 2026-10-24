@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { StudioReferenceLayout } from "./StudioReferenceLayout";
 import "./styles.css";
 import "./theme.css";
-import { api } from "./api";
+import { api, waitForJob } from "./api";
 import { type Cloud, type Element, type Project } from "./types";
 
 function Root() {
@@ -12,14 +12,14 @@ function Root() {
   const [elements, setElements] = useState<Element[]>([]);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
   const [busy, setBusy] = useState(false);
-  const [jobLabel, setJobLabel] = useState<string | null>("Сшивка цеха (Bundle Adjustment)");
-  const [jobProgress, setJobProgress] = useState(74);
+  const [jobLabel, setJobLabel] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState<number | null>(null);
 
   // Load live data from local API backend
-  const loadData = async () => {
+  const loadData = async (preferredCloudId?: string): Promise<number> => {
     try {
       const projectsList = await api.listProjects();
-      if (!projectsList || projectsList.length === 0) return;
+      if (!projectsList || projectsList.length === 0) return 0;
 
       // Select workshop_project or first
       const prj = projectsList.find((p) => p.id === "workshop_project") || projectsList[0];
@@ -30,13 +30,19 @@ function Root() {
       setClouds(cloudList);
 
       // Load elements for ready clouds
-      const readyCloud = cloudList.find((c) => c.status === "ready" && c.id === "workshop_cloud") || cloudList.find((c) => c.status === "ready");
+      const readyCloud = cloudList.find((c) => c.id === preferredCloudId && c.status === "ready")
+        || cloudList.find((c) => c.status === "ready" && c.id === "workshop_cloud")
+        || cloudList.find((c) => c.status === "ready");
       if (readyCloud) {
         const elList = await api.elements(readyCloud.id);
         setElements(elList);
+        return elList.length;
       }
+      setElements([]);
+      return 0;
     } catch (err) {
       console.warn("Could not sync with local API, running in standalone mode:", err);
+      return 0;
     }
   };
 
@@ -44,20 +50,52 @@ function Root() {
     loadData();
   }, []);
 
-  const handleRunSinglePass = async () => {
-    if (!clouds || clouds.length === 0) return;
+  const handleRunSinglePass = async (cloudId: string | null) => {
+    const target = clouds.find((item) => item.id === cloudId);
+    if (!target) {
+      setJobLabel("Выберите облако проекта для распознавания");
+      return;
+    }
+    if (target.status !== "ready") {
+      setJobLabel(`Облако «${target.name}» ещё не готово к распознаванию`);
+      return;
+    }
     setBusy(true);
-    setJobLabel("ИИ: Автоматическая сшивка и распознавание конструкций...");
-    setJobProgress(15);
-
-    setTimeout(() => setJobProgress(45), 600);
-    setTimeout(() => setJobProgress(80), 1200);
-    setTimeout(() => {
-      setJobProgress(100);
+    setJobLabel("Распознавание конструкций");
+    setJobProgress(0);
+    try {
+      const job = await api.recognize(target.id);
+      const finished = await waitForJob(job.id, (update) => {
+        setJobProgress(update.progress);
+        setJobLabel(update.message || "Распознавание конструкций");
+      });
+      if (finished.status !== "succeeded") {
+        throw new Error(finished.error || finished.message || `Задание завершилось со статусом ${finished.status}`);
+      }
+      const candidateCount = await loadData(target.id);
+      setJobLabel(`Распознавание завершено · ${candidateCount} кандидатов`);
+      setJobProgress(null);
+    } catch (err) {
+      setJobLabel(`Ошибка распознавания: ${err instanceof Error ? err.message : String(err)}`);
+      setJobProgress(null);
+    } finally {
       setBusy(false);
-      setJobLabel("Сшивка завершена (RMSE 2.1 мм, 18 колонн ГОСТ)");
-      loadData();
-    }, 1800);
+    }
+  };
+
+  const handleCloudChange = async (cloudId: string) => {
+    setSelectedEl(null);
+    const selectedCloud = clouds.find((item) => item.id === cloudId);
+    if (!selectedCloud || selectedCloud.status !== "ready") {
+      setElements([]);
+      return;
+    }
+    try {
+      setElements(await api.elements(cloudId));
+    } catch (err) {
+      setElements([]);
+      setJobLabel(`Не удалось загрузить элементы облака: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const primaryCloud = clouds.find((c) => c.id === "workshop_cloud") || clouds[0] || null;
@@ -70,7 +108,8 @@ function Root() {
       elements={elements}
       selectedElement={selectedEl}
       onSelectElement={setSelectedEl}
-      onRunSinglePass={handleRunSinglePass}
+      onRunSinglePass={(cloudId) => void handleRunSinglePass(cloudId)}
+      onCloudChange={(cloudId) => void handleCloudChange(cloudId)}
       busy={busy}
       jobLabel={jobLabel}
       jobProgress={jobProgress}

@@ -44,3 +44,32 @@ test("elementBoxLinePositions filters by class name correctly", () => {
   const allPos = elementBoxLinePositions(elements, "all", [0, 0, 0]);
   assert.equal(allPos.length, 144);
 });
+
+test("legacy local-frame element boxes stay aligned with the cloud preview", () => {
+  const elements = [{
+    id: "legacy-column",
+    class_name: "column",
+    source: "structural_grid",
+    metadata: {},
+    bbox: { min: [1, 2, 0], max: [2, 3, 4] },
+  }];
+
+  const pos = elementBoxLinePositions(elements, "column", [100, 200, 300]);
+  assert.equal(pos.length, 72);
+  assert.equal(Math.min(...pos.filter((_, i) => i % 3 === 0)), 1);
+  assert.equal(Math.max(...pos.filter((_, i) => i % 3 === 0)), 2);
+});
+
+test("explicit world-frame element boxes are translated into cloud-local coordinates", () => {
+  const elements = [{
+    id: "new-column",
+    class_name: "column",
+    source: "geometric",
+    metadata: { bbox_coordinate_frame: "source_cloud_world" },
+    bbox: { min: [101, 202, 300], max: [102, 203, 304] },
+  }];
+
+  const pos = elementBoxLinePositions(elements, "column", [100, 200, 300]);
+  assert.equal(Math.min(...pos.filter((_, i) => i % 3 === 0)), 1);
+  assert.equal(Math.max(...pos.filter((_, i) => i % 3 === 0)), 2);
+});

@@ -4,7 +4,9 @@ from __future__ import annotations
 import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
+
+from .structure.roles import role_matches_class
 
 
 class ProjectCreate(BaseModel):
@@ -196,6 +198,79 @@ class ColumnAnnotationSave(BaseModel):
     note: str = Field(default="", max_length=4000)
 
 
+class ElementAnnotationSave(BaseModel):
+    source_snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    annotator: str = Field(min_length=1, max_length=200)
+    state: Literal["labeled", "unknown", "excluded"]
+    physical_instance_id: str | None = Field(default=None, max_length=200)
+    class_label: str | None = Field(default=None, max_length=40)
+    role_label: str | None = Field(default=None, max_length=40)
+    type_label: str | None = Field(default=None, max_length=120)
+    reason: str = Field(default="", max_length=2000)
+    note: str = Field(default="", max_length=4000)
+
+
+class RecognitionEvaluationBox(BaseModel):
+    min: list[float] = Field(min_length=3, max_length=3)
+    max: list[float] = Field(min_length=3, max_length=3)
+
+    @field_validator("min", "max", mode="before")
+    @classmethod
+    def _finite_numeric_coordinates(cls, value: Any) -> Any:
+        if not isinstance(value, (list, tuple)) or len(value) != 3 or any(
+            isinstance(item, bool) or not isinstance(item, (int, float)) or not math.isfinite(item)
+            for item in value
+        ):
+            raise ValueError("bbox bounds must contain three finite numeric coordinates")
+        return value
+
+
+class RecognitionReferenceElement(BaseModel):
+    physical_instance_id: str = Field(min_length=1, max_length=200)
+    class_name: Literal[
+        "wall", "column", "beam", "girder", "slab", "roof", "truss", "brace",
+        "stair", "opening", "pipe", "duct", "equipment", "other",
+    ]
+    role_label: Literal[
+        "column", "crane_column", "beam", "crane_girder", "roof_beam", "rail",
+        "truss_member", "brace", "pipe", "floor_beam", "purlin", "truss_top_chord",
+        "truss_bottom_chord", "truss_post", "truss_web", "duct", "cable_tray", "other", "unknown",
+    ] | None = None
+    bbox: RecognitionEvaluationBox
+
+    @field_validator("physical_instance_id")
+    @classmethod
+    def _physical_id_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("physical_instance_id must be non-empty")
+        return normalized
+
+    @model_validator(mode="after")
+    def _role_matches_class(self) -> "RecognitionReferenceElement":
+        if self.role_label is not None and not role_matches_class(self.class_name, self.role_label):
+            raise ValueError("role_label is incompatible with class_name")
+        return self
+
+
+class RecognitionEvaluationRequest(BaseModel):
+    source_snapshot_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    reference_set_id: str = Field(min_length=1, max_length=200)
+    reference_origin: Literal["independent_manual"]
+    reference_kind: Literal["manual_cloud", "field_measurement", "mixed"]
+    annotator: str = Field(min_length=1, max_length=200)
+    iou_threshold: float = Field(default=0.5, gt=0, le=1, allow_inf_nan=False)
+    reference_elements: list[RecognitionReferenceElement] = Field(min_length=1, max_length=20000)
+
+    @field_validator("reference_set_id", "annotator")
+    @classmethod
+    def _required_provenance_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reference_set_id and annotator must be non-empty")
+        return normalized
+
+
 class ColumnSectionFitRequest(BaseModel):
     slice_z_m: float | None = Field(default=None, ge=-1e9, le=1e9, allow_inf_nan=False)
     thickness_m: float = Field(default=0.2, gt=0, le=1.0, allow_inf_nan=False)
@@ -282,6 +357,8 @@ class SampleOut(BaseModel):
     cloud_id: str
     element_id: str | None
     class_name: str
+    physical_instance_id: str | None = None
+    source_snapshot_id: str | None = None
     features: dict[str, Any]
     split: str
     source: str

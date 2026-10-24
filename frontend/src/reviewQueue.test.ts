@@ -25,17 +25,17 @@ test("review queue filters pending, conflicts, checked, rejected and all element
   }
 });
 
-test("independent reference queue separates unlabelled, labelled, unknown and excluded columns", () => {
+test("independent reference queue separates unlabelled, labelled, unknown and excluded structural elements", () => {
   const candidates = [
     { id: "a", class_name: "column" }, { id: "b", class_name: "column" },
     { id: "c", class_name: "column" }, { id: "d", class_name: "beam" },
   ];
   const states = { b: "labeled", c: "unknown" };
   const expected: Record<ReferenceFilter, string[]> = {
-    all: ["a", "b", "c", "d"], needs_reference: ["a"], labeled: ["b"], unknown: ["c"], excluded: [],
+    all: ["a", "b", "c", "d"], needs_reference: ["a", "d"], labeled: ["b"], unknown: ["c"], excluded: [],
   };
   for (const [filter, ids] of Object.entries(expected) as [ReferenceFilter, string[]][]) {
     assert.deepEqual(filterReferenceElements(candidates, filter, states).map((item) => item.id), ids);
   }
-  assert.deepEqual(filterReferenceElements([...candidates, { id: "d", class_name: "column" }], "excluded", { d: "excluded" }).map((item) => item.id), ["d"]);
+  assert.deepEqual(filterReferenceElements([...candidates, { id: "beam-2", class_name: "beam" }], "excluded", { "beam-2": "excluded" }).map((item) => item.id), ["beam-2"]);
 });

@@ -133,7 +133,7 @@ def _candidate_record(element: Any) -> dict[str, Any]:
         "inferred": bool(element.inferred),
         "source": element.source,
         "dimensions": element.dimensions,
-        "metadata": element.metadata,
+        "metadata": {**element.metadata, "bbox_coordinate_frame": "source_cloud_world"},
         "review_status": "unreviewed",
     }
 

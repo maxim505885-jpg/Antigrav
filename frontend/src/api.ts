@@ -218,6 +218,20 @@ export interface ColumnAnnotation extends Omit<ColumnAnnotationDraft, "state"> {
   created_at: string | null;
 }
 
+export interface TrainingSample {
+  id: string;
+  project_id: string;
+  cloud_id: string;
+  element_id: string | null;
+  class_name: string;
+  physical_instance_id: string | null;
+  source_snapshot_id: string | null;
+  features: Record<string, number>;
+  split: string;
+  source: string;
+  created_at: string;
+}
+
 export interface ColumnAnnotationDataset {
   schema: "scan.column-type-reference/1";
   dataset_id: string;
@@ -234,6 +248,127 @@ export interface ColumnAnnotationArchiveResponse {
   cloud_id: string;
   project_id: string;
   history: (ColumnAnnotation & { dataset_id: string; source_snapshot_sha256: string })[];
+}
+
+export interface ElementAnnotationDraft {
+  source_snapshot_sha256: string;
+  annotator: string;
+  state: "labeled" | "unknown" | "excluded";
+  physical_instance_id: string | null;
+  class_label: string | null;
+  role_label: string | null;
+  type_label: string | null;
+  reason: string;
+  note: string;
+}
+
+export interface ElementAnnotation extends Omit<ElementAnnotationDraft, "source_snapshot_sha256" | "state"> {
+  state: ElementAnnotationDraft["state"] | "pending";
+  element_id: string;
+  revision: number;
+  created_at: string | null;
+}
+
+export interface ElementAnnotationDataset {
+  schema: "scan.element-role-reference/1";
+  dataset_id: string;
+  project_id: string;
+  cloud_id: string;
+  source_snapshot_sha256: string;
+  annotation_origin: "independent_manual";
+  classification_evaluation: ElementRoleEvaluation;
+  annotations: ElementAnnotation[];
+  history: ElementAnnotation[];
+}
+
+export interface ElementAnnotationArchiveResponse {
+  cloud_id: string;
+  project_id: string;
+  history: (ElementAnnotation & { dataset_id: string; source_snapshot_sha256: string })[];
+}
+
+export interface ElementRoleEvaluation {
+  scope: "reviewed_existing_candidates_only";
+  holdout_status: "not_declared";
+  missed_physical_elements_included: false;
+  reviewed_counts: { labeled: number; unknown: number; excluded: number; pending: number };
+  candidate_validity: {
+    reviewed_candidate_count: number;
+    confirmed_real_candidate_count: number;
+    excluded_false_candidate_count: number;
+    reviewed_candidate_validity_rate: number | null;
+  };
+  class_metrics: { evaluated_count: number; correct_count: number; accuracy: number | null };
+  role_metrics: { evaluated_count: number; correct_count: number; accuracy: number | null };
+}
+
+export interface RecognitionEvaluationRequest {
+  source_snapshot_sha256: string;
+  reference_set_id: string;
+  reference_origin: "independent_manual";
+  reference_kind: "manual_cloud" | "field_measurement" | "mixed";
+  annotator: string;
+  iou_threshold?: number;
+  reference_elements: {
+    physical_instance_id: string;
+    class_name: string;
+    role_label?: string | null;
+    bbox: { min: [number, number, number]; max: [number, number, number] };
+  }[];
+}
+
+export interface RecognitionEvaluationReport {
+  reference_set_id: string;
+  reference_kind: string;
+  reference_element_count: number;
+  total_detected_candidates: number;
+  unscorable_detection_geometry_count: number;
+  unscorable_detection_ids: string[];
+  centerline_extent_match_count: number;
+  mean_matched_centerline_extent_iou: number | null;
+  overall_precision: number | null;
+  overall_recall: number | null;
+  overall_f1: number | null;
+  mean_matched_iou: number | null;
+  holdout_status: "not_verified";
+  missed_reference_elements_counted_as_false_negatives: boolean;
+  role_metrics: {
+    evaluated_reference_count: number;
+    evaluated_detection_count: number;
+    unassigned_detection_count: number;
+    correct_count: number;
+    accuracy: number | null;
+    precision: number | null;
+    recall: number | null;
+    f1: number | null;
+    per_role: Record<string, {
+      reference_count: number; predicted_count: number; true_positives: number;
+      false_positives: number; false_negatives: number;
+      precision: number | null; recall: number | null; f1: number | null;
+    }>;
+  };
+  per_class: Record<string, {
+    reference_count: number; detected_count: number; true_positives: number;
+    centerline_extent_match_count: number;
+    false_positives: number; false_negatives: number;
+    precision: number | null; recall: number | null; f1: number | null;
+  }>;
+}
+
+export interface SourceEvidenceAudit {
+  cloud_id: string;
+  candidate_count: number;
+  status_counts: { consistent: number; mismatch: number; unverifiable: number };
+  status_counts_by_class: Record<string, { consistent: number; mismatch: number; unverifiable: number }>;
+  source_snapshot_counts: { current: number; missing: number; stale: number; unchecked: number };
+  attention_count: number;
+  accuracy_status: "not_measured";
+  candidates: {
+    id: string;
+    class_name: string;
+    review_status: string;
+    evidence: import("./elementPointEvidence").SourcePointEvidence;
+  }[];
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -417,6 +552,20 @@ export const api = {
     }),
   exportColumnAnnotations: (cloudId: string) =>
     request<Record<string, unknown>>(`/clouds/${encodeURIComponent(cloudId)}/column-annotations/export`),
+  elementAnnotations: (cloudId: string) =>
+    request<ElementAnnotationDataset>(`/clouds/${encodeURIComponent(cloudId)}/element-annotations`),
+  elementAnnotationHistory: (cloudId: string) =>
+    request<ElementAnnotationArchiveResponse>(`/clouds/${encodeURIComponent(cloudId)}/element-annotations/history`),
+  saveElementAnnotation: (cloudId: string, elementId: string, payload: ElementAnnotationDraft) =>
+    request<ElementAnnotation>(`/clouds/${encodeURIComponent(cloudId)}/element-annotations/${encodeURIComponent(elementId)}`, {
+      method: "POST", body: JSON.stringify(payload),
+    }),
+  exportElementAnnotations: (cloudId: string) =>
+    request<Record<string, unknown>>(`/clouds/${encodeURIComponent(cloudId)}/element-annotations/export`),
+  evaluateRecognition: (cloudId: string, payload: RecognitionEvaluationRequest) =>
+    request<RecognitionEvaluationReport>(`/clouds/${encodeURIComponent(cloudId)}/recognition-evaluation`, {
+      method: "POST", body: JSON.stringify(payload),
+    }),
   fitColumnSection: (elementId: string, payload: {
     slice_z_m?: number; thickness_m: number; known_sides_m?: [number, number];
     distance_tolerance_m?: number; candidate_margin_m?: number;
@@ -460,7 +609,14 @@ export const api = {
   undoFeedback: (elementId: string, feedbackId: string) =>
     request<any>(`/elements/${elementId}/history/${feedbackId}/undo`, { method: "POST" }),
   elementPoints: (elementId: string, limit = 4000) =>
-    request<{ count: number; points: number[][] }>(`/elements/${elementId}/points?limit=${limit}`),
+    request<{
+      count: number;
+      points: number[][];
+      bbox_coordinate_frame: "cloud_local" | "source_cloud_world";
+      source_point_evidence: import("./elementPointEvidence").SourcePointEvidence;
+    }>(`/elements/${elementId}/points?limit=${limit}`),
+  sourceEvidenceAudit: (cloudId: string) =>
+    request<SourceEvidenceAudit>(`/clouds/${encodeURIComponent(cloudId)}/source-evidence-audit`),
   similar: (elementId: string, k = 5) =>
     request<any[]>(`/elements/${elementId}/similar?k=${k}`),
 
@@ -477,7 +633,7 @@ export const api = {
   exportSpdsAlbumPdf: (cloudId: string) =>
     download(`/clouds/${encodeURIComponent(cloudId)}/spds-album.pdf`, "GET", "ALBUM_RD_KR_KM_SPDS.pdf"),
 
-  samples: (projectId: string) => request<any[]>(`/projects/${projectId}/samples`),
+  samples: (projectId: string) => request<TrainingSample[]>(`/projects/${projectId}/samples`),
   train: (projectId: string, payload: Record<string, unknown>) =>
     request<ModelInfo>(`/projects/${projectId}/train`, {
       method: "POST",
@@ -531,6 +687,20 @@ export const api = {
     }),
   exportRecapProject: (projectName: string, stations: any[]) =>
     request<{ status: string; output_path: string; stations_count: number }>("/registration/export-recap", {
+      method: "POST",
+      body: JSON.stringify({ project_name: projectName, stations }),
+    }),
+  exportNativeRecapProject: (projectName: string, stations: Array<{ name: string; path: string; point_count?: number }>) =>
+    request<{
+      status: "created_by_autodesk_decap";
+      package_verified: boolean;
+      rcp_path: string;
+      support_dir: string;
+      input_scan_count: number;
+      linked_rcs_count: number;
+      rcp_size_bytes: number;
+      linked_rcs_size_bytes: number;
+    }>("/registration/export-rcp-project", {
       method: "POST",
       body: JSON.stringify({ project_name: projectName, stations }),
     }),

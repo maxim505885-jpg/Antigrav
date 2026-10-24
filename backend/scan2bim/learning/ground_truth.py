@@ -1,34 +1,15 @@
-"""Real Industrial Workshop Benchmark Dataset (Ground Truth).
-
-Contains 106 real verified physical structural building elements measured and verified from
-the workshop industrial pilot scan (1.rcs / FARO Focus S350 multi-station scan):
-- 40 Workshop Columns (Steel I-beams 30K1/30K2 along rows A, B and step-columns).
-- 20 Crane Runway Girders (Steel welded I-beams at el. +6.800 along bay axes).
-- 16 Roof Trusses (Lattice triangular trusses from paired L-angles & square tubes at el. +9.200 to +11.800).
-- 12 Vertical/Horizontal Bracings (Cross-braces between columns).
-- 8 Wall Openings (Industrial gates 4.2x4.2m and window bands).
-- 10 MEP Pipe Runs (Heating, compressed air, and water supply lines).
-
-Provides:
-- Independent test/train split with physical element isolation.
-- Automatic seeding into the training/annotation database.
-- Rigorous precision, recall, and Macro-F1 evaluation.
-"""
+"""Synthetic structural fixtures for tests; these records are not workshop ground truth."""
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 import numpy as np
 
-from ..db import execute, new_id, one, utcnow
 from ..learning.features import features_from_element
-from ..learning.training import train_candidate
-from ..learning.registry import activate
 
 
 @dataclass
-class GroundTruthElement:
+class SyntheticWorkshopFixtureElement:
     element_id: str
     class_name: str
     center: list[float]
@@ -61,21 +42,21 @@ class GroundTruthElement:
             "geometry": geom,
             "bbox": bbox,
             "confidence": self.confidence,
-            "confidence_kind": "ground_truth_survey",
-            "measured": True,
-            "inferred": False,
-            "source": "ground_truth",
-            "review_status": "confirmed",
+            "confidence_kind": "synthetic_fixture",
+            "measured": False,
+            "inferred": True,
+            "source": "invalidated_synthetic_ground_truth",
+            "review_status": "invalidated",
             "dimensions": self.dimensions,
-            "metadata": self.metadata,
+            "metadata": {"synthetic_fixture": True, **self.metadata},
         }
         res["features"] = features_from_element(res)
         return res
 
 
-def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
-    """Generate 106 real verified structural elements representing the workshop pilot."""
-    catalog: list[GroundTruthElement] = []
+def generate_synthetic_workshop_fixture_catalog() -> list[SyntheticWorkshopFixtureElement]:
+    """Generate deterministic synthetic geometry fixtures; never use these as labels."""
+    catalog: list[SyntheticWorkshopFixtureElement] = []
 
     # 1. 40 Columns along longitudinal rows A (Y=0.0) and B (Y=18.0), pitch 6.0m (X: 0 to 114m)
     for row_idx, y_coord in enumerate([0.0, 18.0]):
@@ -84,7 +65,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
             x_coord = bay_idx * 6.0
             el_id = f"gt_col_{row_letter}_{bay_idx+1:02d}"
             catalog.append(
-                GroundTruthElement(
+                SyntheticWorkshopFixtureElement(
                     element_id=el_id,
                     class_name="column",
                     center=[x_coord, y_coord, 4.0],
@@ -92,7 +73,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
                     rotation_z=0.0,
                     confidence=1.0,
                     dimensions={"section": "30К1", "height_m": 8.0, "axis": f"{row_letter}-{bay_idx+1}"},
-                    metadata={"verified_by": "Senior Geodetic Engineer", "standard": "СТО АСЧМ 20-93"},
+                    metadata={"fixture_kind": "column", "standard_example": "СТО АСЧМ 20-93"},
                 )
             )
 
@@ -102,7 +83,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
             x_center = span_idx * 12.0 + 6.0
             el_id = f"gt_crane_beam_{row_letter}_{span_idx+1:02d}"
             catalog.append(
-                GroundTruthElement(
+                SyntheticWorkshopFixtureElement(
                     element_id=el_id,
                     class_name="beam",
                     center=[x_center, y_coord, 6.8],
@@ -119,7 +100,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
         x_coord = (truss_idx + 2) * 6.0
         el_id = f"gt_truss_{truss_idx+1:02d}"
         catalog.append(
-            GroundTruthElement(
+            SyntheticWorkshopFixtureElement(
                 element_id=el_id,
                 class_name="truss",
                 center=[x_coord, 9.0, 10.5],
@@ -138,7 +119,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
         y_pos = 0.0 if side == "A" else 18.0
         el_id = f"gt_brace_{side}_{b_idx+1:02d}"
         catalog.append(
-            GroundTruthElement(
+            SyntheticWorkshopFixtureElement(
                 element_id=el_id,
                 class_name="brace",
                 center=[bay_step, y_pos, 4.0],
@@ -155,7 +136,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
         x_gate = gate_idx * 15.0 + 5.0
         el_id = f"gt_opening_{gate_idx+1:02d}"
         catalog.append(
-            GroundTruthElement(
+            SyntheticWorkshopFixtureElement(
                 element_id=el_id,
                 class_name="opening",
                 center=[x_gate, 0.0, 2.1],
@@ -172,7 +153,7 @@ def generate_workshop_ground_truth_catalog() -> list[GroundTruthElement]:
         el_id = f"gt_pipe_{pipe_idx+1:02d}"
         y_pipe = 2.0 + pipe_idx * 1.5
         catalog.append(
-            GroundTruthElement(
+            SyntheticWorkshopFixtureElement(
                 element_id=el_id,
                 class_name="pipe",
                 center=[50.0, y_pipe, 5.5],
@@ -192,92 +173,8 @@ def seed_and_train_ground_truth(
     cloud_id: str,
     model_name: str = "workshop-real-knn",
 ) -> dict[str, Any]:
-    """Seed real ground truth into elements and training_samples, then train and evaluate."""
-    catalog = generate_workshop_ground_truth_catalog()
-    now = utcnow()
-
-    inserted_elements = 0
-    inserted_samples = 0
-
-    for gt in catalog:
-        data = gt.to_dict(project_id, cloud_id)
-        
-        # Check if already exists in elements
-        exists = one("SELECT id FROM elements WHERE id = ?", (gt.element_id,))
-        if not exists:
-            execute(
-                """INSERT INTO elements (
-                    id, project_id, cloud_id, parent_id, class_name,
-                    geometry_json, bbox_json, confidence, confidence_kind,
-                    measured, inferred, source, review_status, dimensions_json,
-                    metadata_json, created_at, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    gt.element_id,
-                    project_id,
-                    cloud_id,
-                    None,
-                    gt.class_name,
-                    json.dumps(data["geometry"]),
-                    json.dumps(data["bbox"]),
-                    gt.confidence,
-                    data["confidence_kind"],
-                    1,
-                    0,
-                    data["source"],
-                    "confirmed",
-                    json.dumps(data["dimensions"]),
-                    json.dumps(data["metadata"]),
-                    now,
-                    now,
-                ),
-            )
-            inserted_elements += 1
-
-        # Check if exists in training_samples
-        sample_exists = one("SELECT id FROM training_samples WHERE element_id = ?", (gt.element_id,))
-        if not sample_exists:
-            sample_id = new_id()
-            execute(
-                """INSERT INTO training_samples (
-                    id, project_id, cloud_id, element_id, class_name, features_json,
-                    split, source, created_at
-                ) VALUES (?,?,?,?,?,?,?,?,?)""",
-                (
-                    sample_id,
-                    project_id,
-                    cloud_id,
-                    gt.element_id,
-                    gt.class_name,
-                    json.dumps(data["features"]),
-                    "train",
-                    "engineer",
-                    now,
-                ),
-            )
-            inserted_samples += 1
-
-    # Train model using real held-out element split
-    train_res = train_candidate(
-        project_id=project_id,
-        name=model_name,
-        test_fraction=0.25,
-        min_test_samples=10,
-        min_macro_f1=0.75,
-        notes="Trained on 106 verified workshop physical elements with element-isolated held-out evaluation",
+    """Compatibility guard for an obsolete synthetic seeding workflow."""
+    raise ValueError(
+        "synthetic workshop fixtures cannot be seeded or used for training; "
+        "collect independent engineer-reviewed physical labels instead"
     )
-
-    # Activate model in registry
-    model_version_id = train_res["id"]
-    activate(model_version_id, force=True)
-
-    return {
-        "status": "success",
-        "ground_truth_catalog_size": len(catalog),
-        "inserted_elements": inserted_elements,
-        "inserted_samples": inserted_samples,
-        "train_metrics": train_res["metrics"],
-        "active_model_version": train_res["version"],
-        "macro_f1": train_res["metrics"]["macro_f1"],
-        "accuracy": train_res["metrics"]["accuracy"],
-    }

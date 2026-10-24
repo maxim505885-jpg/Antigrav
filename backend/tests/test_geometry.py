@@ -112,12 +112,56 @@ def test_pdf_export(tmp_path: Path):
 def test_recognition_classes_and_ifc(tmp_path: Path):
     geom, truth = _geometry(tmp_path, spacing=0.08)
     result = detect_structures(geom)
+    assert not any("Ошибка трассировки MEP" in warning for warning in result.warnings)
     walls = [e for e in result.elements if e.class_name == "wall"]
     columns = [e for e in result.elements if e.class_name == "column"]
     slabs = [e for e in result.elements if e.class_name == "slab"]
     assert len(walls) >= 4, [(e.class_name, e.dimensions) for e in result.elements]
     assert len(columns) >= 1
     assert len(slabs) >= 2
+    positions = np.load(geom.positions_path)
+    for column in columns:
+        metadata = column.metadata
+        row_ids = metadata.get("source_point_ids")
+        assert row_ids, "recognized columns must retain source row IDs"
+        assert len(row_ids) <= 512
+        assert metadata["source_point_support_count"] >= len(row_ids)
+        assert metadata.get("source_point_id_space") == "positions.npy row index"
+        rows = positions[np.asarray(row_ids, dtype=np.int64)] + geom.origin
+        bbox_min = np.asarray(column.bbox["min"], dtype=np.float64) - 0.05
+        bbox_max = np.asarray(column.bbox["max"], dtype=np.float64) + 0.05
+        assert np.all((rows >= bbox_min) & (rows <= bbox_max))
+    from shapely import contains_xy
+    from shapely.geometry import Polygon
+
+    for slab in slabs:
+        row_ids = slab.metadata.get("source_point_ids")
+        assert row_ids, "recognized slabs must retain source row IDs"
+        assert len(row_ids) <= 512
+        assert slab.metadata["source_point_support_count"] >= len(row_ids)
+        assert slab.metadata.get("source_point_id_space") == "positions.npy row index"
+        rows = positions[np.asarray(row_ids, dtype=np.int64)] + geom.origin
+        bbox_min = np.asarray(slab.bbox["min"], dtype=np.float64) - 0.05
+        bbox_max = np.asarray(slab.bbox["max"], dtype=np.float64) + 0.05
+        assert np.all((rows >= bbox_min) & (rows <= bbox_max))
+        polygon = Polygon(np.asarray(slab.geometry["polygon"]) - geom.origin[:2])
+        assert np.all(contains_xy(polygon, rows[:, 0] - geom.origin[0], rows[:, 1] - geom.origin[1]))
+    for wall in walls:
+        row_ids = wall.metadata.get("source_point_ids")
+        assert row_ids, "recognized walls must retain source row IDs"
+        assert len(row_ids) <= 512
+        assert wall.metadata["source_point_support_count"] >= len(row_ids)
+        rows = positions[np.asarray(row_ids, dtype=np.int64)] + geom.origin
+        bbox_min = np.asarray(wall.bbox["min"], dtype=np.float64) - 0.05
+        bbox_max = np.asarray(wall.bbox["max"], dtype=np.float64) + 0.05
+        assert np.all((rows >= bbox_min) & (rows <= bbox_max))
+        center = np.asarray(wall.geometry["center"], dtype=np.float64)
+        angle = float(wall.geometry["rotation_z"])
+        direction = np.array([np.cos(angle), np.sin(angle)])
+        normal = np.array([-direction[1], direction[0]])
+        relative = rows[:, :2] - center[:2]
+        assert np.all(np.abs(relative @ direction) <= wall.dimensions["length_m"] / 2 + 0.05)
+        assert np.all(np.abs(relative @ normal) <= wall.dimensions["thickness_m"] / 2 + 0.05)
     assert len(result.levels) >= 2
     assert abs(result.levels[0]["z"] - 0.0) < 0.1
     assert abs(result.levels[-1]["z"] - truth["height_z"]) < 0.1
@@ -159,6 +203,38 @@ def test_recognition_classes_and_ifc(tmp_path: Path):
     pset = ifc.by_type("IfcPropertySet")[0]
     names = {prop.Name for prop in pset.HasProperties}
     assert {"Confidence", "Measured", "Inferred", "ReviewStatus"} <= names
+
+
+def test_column_source_rows_fall_back_to_bbox_when_grid_has_no_component(tmp_path: Path):
+    from scan2bim.recognition.geometric import DetectedElement, _attach_architectural_source_rows
+
+    local_points = np.array([
+        [1.02, 2.02, 3.5],
+        [1.05, 2.03, 4.0],
+        [1.08, 2.04, 4.5],
+    ], dtype=np.float32)
+    path = tmp_path / "positions.npy"
+    np.save(path, local_points)
+    geom = CloudGeometry(
+        positions_path=path,
+        origin=np.zeros(3),
+        bbox_min=local_points.min(axis=0),
+        bbox_max=local_points.max(axis=0),
+        count=len(local_points),
+    )
+    column = DetectedElement(
+        class_name="column",
+        geometry={"kind": "oriented_box", "center": [1.05, 2.03, 4.0], "rotation_z": 0.0},
+        bbox={"min": [1.04, 2.02, 3.0], "max": [1.06, 2.04, 5.0]},
+        confidence=0.25,
+    )
+    grid = {"res": 0.1, "min": [0.0, 0.0, 0.0], "nu": 50, "nv": 50}
+    labels = np.zeros((50, 50), dtype=np.int32)
+
+    _attach_architectural_source_rows(geom, grid, labels, [column])
+
+    assert column.metadata["source_point_ids"] == [0, 1, 2]
+    assert column.metadata["source_point_support_count"] == 3
 
 
 def test_size_floor_rejects_scan_filaments(tmp_path: Path):

@@ -43,3 +43,35 @@ def test_detect_pipe_network_multiple_runs():
     assert len(pipes) >= 1
     assert pipes[0].diameter_mm > 0
     assert pipes[0].length_m > 0
+
+
+def test_detect_pipe_network_checks_cooperative_cancellation(monkeypatch):
+    checkpoints = []
+
+    def checkpoint():
+        checkpoints.append("checked")
+
+    def stop_before_fitting(points, *, max_iterations, checkpoint=None):
+        assert callable(checkpoint)
+        return None
+
+    monkeypatch.setattr("scan2bim.recognition.mep.fit_cylinder_ransac", stop_before_fitting)
+
+    pipes = detect_pipe_network(
+        np.zeros((30, 3)),
+        min_segment_points=25,
+        max_segments=3,
+        max_iterations=30,
+        checkpoint=checkpoint,
+    )
+
+    assert pipes == []
+    assert checkpoints == ["checked"]
+
+
+def test_fit_cylinder_ransac_propagates_cooperative_cancellation():
+    def cancel():
+        raise RuntimeError("cancel requested")
+
+    with pytest.raises(RuntimeError, match="cancel requested"):
+        fit_cylinder_ransac(np.zeros((30, 3)), checkpoint=cancel)

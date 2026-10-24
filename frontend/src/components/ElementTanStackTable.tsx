@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { type Element } from "../types";
 import { ArrowUpDown, CircleHelp } from "lucide-react";
-import { elementEvidenceBadges } from "../elementEvidence";
+import { elementTableEvidenceBadges } from "../elementEvidence";
+import { elementPlanDimensionSummary } from "../elementTablePresentation";
 
 interface ElementTanStackTableProps {
   elements: Element[];
@@ -32,15 +33,11 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
 
   const rows: TableRowItem[] = useMemo(() => {
     return elements.map((el) => {
-      const min = el.bbox?.min;
-      const max = el.bbox?.max;
-      const w = Math.round(Math.abs((max?.[0] ?? NaN) - (min?.[0] ?? NaN)) * 1000);
-      const d = Math.round(Math.abs((max?.[1] ?? NaN) - (min?.[1] ?? NaN)) * 1000);
       return {
         id: el.id,
         className: el.class_name,
         profile: el.dimensions?.profile || "не определён",
-        dimensions: Number.isFinite(w) && Number.isFinite(d) ? `${w} × ${d} мм (bbox)` : "не определены",
+        dimensions: elementPlanDimensionSummary(el),
         tilt: "не измерен",
         margin: "не определён",
         status: "unverified",
@@ -82,7 +79,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
             <th onClick={() => handleSort("profile")} style={{ padding: "8px 10px", cursor: "pointer", fontWeight: 700 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>ГОСТ Профиль <ArrowUpDown size={11} /></span>
             </th>
-            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Габарит XY</th>
+            <th style={{ padding: "8px 10px", fontWeight: 700 }}>Габариты</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Крен (СП)</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Запас</th>
             <th style={{ padding: "8px 10px", fontWeight: 700 }}>Статус</th>
@@ -94,10 +91,7 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
             return (
               <tr
                 key={row.id}
-                onClick={() => {
-                  onSelectElement(row.raw);
-                  onInspectElement(row.raw);
-                }}
+                onClick={() => onSelectElement(row.raw)}
                 style={{
                   cursor: "pointer",
                   borderBottom: "1px solid #2D3748",
@@ -105,10 +99,17 @@ export const ElementTanStackTable: React.FC<ElementTanStackTableProps> = ({
                   color: "#FFFFFF",
                 }}
               >
-                <td style={{ padding: "8px 10px", fontWeight: 700, color: "#FFA25B" }}>{row.id}</td>
+                <td style={{ padding: "8px 10px", fontWeight: 700, color: "#FFA25B", whiteSpace: "nowrap" }}>
+                  {row.id}
+                  <button type="button" aria-label={`Открыть инспектор элемента ${row.id}`}
+                    onClick={(event) => { event.stopPropagation(); onSelectElement(row.raw); onInspectElement(row.raw); }}
+                    style={{ display: "block", marginTop: 4, padding: "2px 6px", border: "1px solid #475569", borderRadius: 4, background: "#1F2937", color: "#CBD5E1", fontSize: 10, cursor: "pointer" }}>
+                    Инспектор
+                  </button>
+                </td>
                 <td style={{ padding: "8px 10px", fontWeight: 600 }}>
                   {row.raw.dimensions?.role_label || (row.className === "column" ? "Колонна" : row.className === "beam" ? "Балка" : row.className)}
-                  {elementEvidenceBadges(row.raw.metadata).map((badge) => (
+                  {elementTableEvidenceBadges(row.raw).map((badge) => (
                     <div key={badge.text} title={badge.title} style={{fontSize: 11, color: "#FCD34D", marginTop: 4}}>
                       {badge.text}<details><summary>Основание</summary>{badge.title}</details>
                     </div>

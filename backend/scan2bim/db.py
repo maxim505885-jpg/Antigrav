@@ -113,6 +113,8 @@ CREATE TABLE IF NOT EXISTS training_samples (
     cloud_id TEXT NOT NULL,
     element_id TEXT,
     class_name TEXT NOT NULL,
+    physical_instance_id TEXT,
+    source_snapshot_id TEXT,
     features_json TEXT NOT NULL,
     points_path TEXT,
     split TEXT NOT NULL DEFAULT 'train',
@@ -168,6 +170,21 @@ CREATE TABLE IF NOT EXISTS column_type_rejections (
 -- candidate snapshot. They deliberately do not reference element rows, so a
 -- recognition rerun cannot overwrite or delete reviewed measurements.
 CREATE TABLE IF NOT EXISTS column_annotations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    cloud_id TEXT NOT NULL REFERENCES clouds(id) ON DELETE CASCADE,
+    source_snapshot_sha256 TEXT NOT NULL,
+    element_id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(cloud_id, source_snapshot_sha256, element_id, revision)
+);
+
+-- Independent semantic truth for all recognized element candidates. Separate
+-- from reviewer feedback and column dimensions; revisions bind to one exact
+-- cloud/candidate snapshot and survive recognition reruns.
+CREATE TABLE IF NOT EXISTS element_annotations (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     cloud_id TEXT NOT NULL REFERENCES clouds(id) ON DELETE CASCADE,
@@ -239,6 +256,7 @@ CREATE INDEX IF NOT EXISTS idx_column_types_project ON column_types(project_id);
 CREATE INDEX IF NOT EXISTS idx_column_type_assignments_type ON column_type_assignments(type_id);
 CREATE INDEX IF NOT EXISTS idx_column_type_actions_project ON column_type_actions(project_id);
 CREATE INDEX IF NOT EXISTS idx_column_annotations_snapshot ON column_annotations(cloud_id, source_snapshot_sha256, element_id, revision);
+CREATE INDEX IF NOT EXISTS idx_element_annotations_snapshot ON element_annotations(cloud_id, source_snapshot_sha256, element_id, revision);
 CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id);
 
 -- Also supports the initial local catalog schema whose foreign keys used
@@ -289,6 +307,90 @@ def db() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with db() as con:
         con.executescript(SCHEMA)
+        _ensure_training_sample_identity(con)
+        _downgrade_legacy_structural_grid_columns(con)
+
+
+def _ensure_training_sample_identity(con: sqlite3.Connection) -> None:
+    """Add training identity and point-cloud provenance to older databases."""
+    columns = {row["name"] for row in con.execute("PRAGMA table_info(training_samples)")}
+    if "physical_instance_id" not in columns:
+        con.execute("ALTER TABLE training_samples ADD COLUMN physical_instance_id TEXT")
+    if "source_snapshot_id" not in columns:
+        con.execute("ALTER TABLE training_samples ADD COLUMN source_snapshot_id TEXT")
+
+
+def _downgrade_legacy_structural_grid_columns(con: sqlite3.Connection) -> int:
+    """Remove unsupported measurements from legacy grid-generated column rows.
+
+    The old grid script assigned section sizes, axes, marks and a calibrated-looking
+    confidence to points found in a search window. Keep the row and its observed
+    vertical extent for review, but represent it only as an unmeasured axis hypothesis.
+    """
+    candidates = con.execute(
+        """SELECT id, geometry_json, bbox_json, dimensions_json
+           FROM elements
+           WHERE source = 'structural_grid'
+             AND review_status NOT IN ('confirmed', 'corrected')
+             AND (measured != 0 OR inferred != 1 OR confidence_kind != 'not_calibrated'
+                  OR review_status != 'unreviewed')"""
+    ).fetchall()
+    changed = 0
+    for row in candidates:
+        try:
+            geometry = json.loads(row["geometry_json"] or "{}")
+            bbox = json.loads(row["bbox_json"] or "{}")
+            center = geometry.get("center")
+            lower = bbox.get("min")
+            upper = bbox.get("max")
+            if not isinstance(center, list) or len(center) < 2:
+                continue
+            if not isinstance(lower, list) or len(lower) < 3 or not isinstance(upper, list) or len(upper) < 3:
+                continue
+            x, y, z_min, z_max = (float(center[0]), float(center[1]), float(lower[2]), float(upper[2]))
+            if not all(map(lambda value: value == value and abs(value) != float("inf"), (x, y, z_min, z_max))):
+                continue
+            if z_max <= z_min:
+                continue
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+        axis_geometry = {
+            "kind": "member",
+            "p0": [x, y, z_min],
+            "p1": [x, y, z_max],
+            "axis_status": "window_derived_candidate",
+        }
+        axis_bbox = {"min": [x, y, z_min], "max": [x, y, z_max]}
+        dimensions = {
+            "nominal_grid_hypothesis": {
+                "grid_hypothesis": {
+                    "status": "grid_control_not_provided",
+                    "nominal_step_m": 6.0,
+                }
+            },
+            "section_status": "not_measured",
+            "extent_status": "point_extent_in_search_window_not_member_height",
+            "candidate_method": "legacy_search_window",
+            "search_window_half_width_m": 0.9,
+        }
+        metadata = {
+            "method": "legacy_grid_search_window",
+            "structural_status": "candidate_requires_review",
+            "legacy_claims_redacted": True,
+        }
+        con.execute(
+            """UPDATE elements
+               SET geometry_json = ?, bbox_json = ?, confidence = 0,
+                   confidence_kind = 'not_calibrated', measured = 0, inferred = 1,
+                   review_status = 'unreviewed', dimensions_json = ?, metadata_json = ?,
+                   updated_at = ?
+               WHERE id = ?""",
+            (json.dumps(axis_geometry, ensure_ascii=False), json.dumps(axis_bbox, ensure_ascii=False),
+             json.dumps(dimensions, ensure_ascii=False), json.dumps(metadata, ensure_ascii=False), utcnow(), row["id"]),
+        )
+        changed += 1
+    return changed
 
 
 def rows(sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:

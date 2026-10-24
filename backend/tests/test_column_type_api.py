@@ -211,6 +211,93 @@ def test_column_annotation_unknown_requires_reason_and_stale_snapshot_conflicts(
     assert archived["history"][0]["source_snapshot_sha256"] == dataset["source_snapshot_sha256"]
 
 
+def test_element_role_annotations_cover_beams_and_export_independent_labels(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    now = database.utcnow()
+    database.execute(
+        "INSERT INTO elements (id,project_id,cloud_id,class_name,geometry_json,bbox_json,"
+        "dimensions_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("beam-a1", api_data["projects"]["a"], cloud_id, "beam",
+         json.dumps({"kind": "member", "axis_start": [0, 0, 5], "axis_end": [6, 0, 5]}),
+         json.dumps({"min": [0, -0.2, 4.8], "max": [6, 0.2, 5.2]}),
+         json.dumps({"role": "crane_girder"}), now, now),
+    )
+    initial = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations")
+
+    assert initial.status_code == 200, initial.text
+    dataset = initial.json()
+    assert dataset["schema"] == "scan.element-role-reference/1"
+    assert {item["element_id"] for item in dataset["annotations"]} >= {"beam-a1", "column-a1"}
+    assert all(item["state"] == "pending" for item in dataset["annotations"])
+    assert dataset["classification_evaluation"]["class_metrics"]["accuracy"] is None
+    assert dataset["classification_evaluation"]["role_metrics"]["accuracy"] is None
+    payload = {
+        "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+        "annotator": "reviewer-a", "state": "labeled", "physical_instance_id": "B-01",
+        "class_label": "beam", "role_label": "crane_girder", "type_label": "KB-1",
+        "reason": "", "note": "reviewed against points",
+    }
+    saved = client.post(f"/api/v1/clouds/{cloud_id}/element-annotations/beam-a1", json=payload)
+    duplicate_payload = {**payload, "physical_instance_id": "B-01"}
+    duplicate = client.post(f"/api/v1/clouds/{cloud_id}/element-annotations/column-a1", json=duplicate_payload)
+    exported = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations/export")
+
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["revision"] == 1
+    assert duplicate.status_code == 409
+    assert exported.status_code == 200, exported.text
+    beam = next(item for item in exported.json()["annotations"] if item["element_id"] == "beam-a1")
+    assert beam["role_label"] == "crane_girder"
+    assert beam["physical_instance_id"] == "B-01"
+    assert beam["class_label"] == "beam"
+    assert exported.json()["classification_evaluation"]["class_metrics"]["accuracy"] == 1.0
+    assert exported.json()["classification_evaluation"]["role_metrics"]["accuracy"] == 1.0
+    assert exported.json()["classification_evaluation"]["missed_physical_elements_included"] is False
+
+
+def test_element_role_annotation_api_rejects_incompatible_class_and_role(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations").json()
+    payload = {
+        "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+        "annotator": "reviewer-a", "state": "labeled", "physical_instance_id": "C-01",
+        "class_label": "column", "role_label": "crane_girder", "type_label": None,
+        "reason": "", "note": "independent review",
+    }
+
+    response = client.post(f"/api/v1/clouds/{cloud_id}/element-annotations/column-a1", json=payload)
+
+    assert response.status_code == 422
+    assert "incompatible" in response.json()["detail"]
+    current = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations").json()
+    column = next(item for item in current["annotations"] if item["element_id"] == "column-a1")
+    assert column["state"] == "pending"
+
+
+def test_element_role_annotations_exclude_invalidated_rows_and_reject_stale_snapshot(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    now = database.utcnow()
+    database.execute(
+        "INSERT INTO elements (id,project_id,cloud_id,class_name,geometry_json,bbox_json,"
+        "dimensions_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        ("beam-a1", api_data["projects"]["a"], cloud_id, "beam",
+         json.dumps({"kind": "member", "axis_start": [0, 0, 5], "axis_end": [6, 0, 5]}),
+         json.dumps({"min": [0, -0.2, 4.8], "max": [6, 0.2, 5.2]}),
+         json.dumps({"role": "crane_girder"}), now, now),
+    )
+    initial = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations").json()
+    assert "column-invalidated" not in {item["element_id"] for item in initial["annotations"]}
+    payload = {
+        "source_snapshot_sha256": "0" * 64,
+        "annotator": "reviewer-a", "state": "unknown", "reason": "occluded",
+    }
+    stale = client.post(f"/api/v1/clouds/{cloud_id}/element-annotations/beam-a1", json=payload)
+    missing = client.post(f"/api/v1/clouds/{cloud_id}/element-annotations/column-invalidated", json=payload)
+
+    assert stale.status_code == 409
+    assert missing.status_code == 404
+
+
 def test_column_annotation_snapshot_is_project_scoped(client, api_data):
     cloud_a, cloud_b = api_data["clouds"]["a"], api_data["clouds"]["b"]
     first = client.get(f"/api/v1/clouds/{cloud_a}/column-annotations").json()

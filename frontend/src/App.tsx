@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud } from "./api";
+import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud, type ElementAnnotation } from "./api";
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
 import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { ManualRegistrationPanel } from "./components/ManualRegistrationPanel";
 import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
+import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
 import SectionCanvas from "./components/SectionCanvas";
 import Viewer3D from "./components/Viewer3D";
 import { sliceElementPositions, toLocalElementPositions } from "./elementPointGeometry";
@@ -109,7 +110,7 @@ export default function App() {
 
   const [elements, setElements] = useState<Element[]>([]);
   const [derivedClouds, setDerivedClouds] = useState<DerivedCloud[]>([]);
-  const [columnReferenceStates, setColumnReferenceStates] = useState<Record<string, string>>({});
+  const [elementReferenceStates, setElementReferenceStates] = useState<Record<string, string>>({});
   const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
   const [selectedColumnGroup, setSelectedColumnGroup] = useState<{ cloudId: string; ids: string[] } | null>(null);
@@ -263,17 +264,17 @@ export default function App() {
 
   useEffect(() => {
     if (!cloud || cloud.status !== "ready"
-        || !elements.some((element) => element.cloud_id === cloud.id && element.class_name === "column")) {
-      setColumnReferenceStates({});
+        || !elements.some((element) => element.cloud_id === cloud.id)) {
+      setElementReferenceStates({});
       return;
     }
     let active = true;
-    setColumnReferenceStates({});
-    api.columnAnnotations(cloud.id).then((dataset) => {
+    setElementReferenceStates({});
+    api.elementAnnotations(cloud.id).then((dataset) => {
       if (!active) return;
-      setColumnReferenceStates(Object.fromEntries(dataset.annotations.map((annotation) => [annotation.element_id, annotation.state])));
+      setElementReferenceStates(Object.fromEntries(dataset.annotations.map((annotation) => [annotation.element_id, annotation.state])));
     }).catch(() => {
-      if (active) setColumnReferenceStates({});
+      if (active) setElementReferenceStates({});
     });
     return () => { active = false; };
   }, [cloud?.id, cloud?.status, cloud?.updated_at, elements]);
@@ -1135,7 +1136,7 @@ export default function App() {
                 </p>}
                 <ElementTable
                   elements={elements}
-                  referenceStates={columnReferenceStates}
+                  referenceStates={elementReferenceStates}
                   busy={busy}
                   selected={selectedElement}
                   onSelect={(element) => {
@@ -1207,11 +1208,15 @@ export default function App() {
                         )}
                       </div>
                     )}
+                    {cloud && <ElementAnnotationPanel cloudId={cloud.id} element={selectedElement} busy={busy}
+                      onAnnotationSaved={(annotation: ElementAnnotation) => setElementReferenceStates((states) => ({
+                        ...states, [annotation.element_id]: annotation.state,
+                      }))} />}
                     {cloud && selectedElement.class_name === "column" && (
                       <ColumnAnnotationPanel cloudId={cloud.id} element={selectedElement} busy={busy}
                         surfaceAnalysis={columnSurfaceAnalysis?.cloud_id === cloud.id && columnSurfaceAnalysis.candidate_id === selectedElement.id
                           ? columnSurfaceAnalysis : null}
-                        onAnnotationSaved={(annotation) => setColumnReferenceStates((states) => ({ ...states, [annotation.element_id]: annotation.state }))} />
+                        onAnnotationSaved={() => undefined} />
                     )}
                     <div className="editor-grid">
                       <label>

@@ -48,6 +48,10 @@ def test_rerun_preserves_manual_review_and_surfaces_changed_overlap(client, monk
     first = _recognize(client, cloud["id"])
     assert first["status"] == "succeeded", first.get("error")
     original = client.get(f"/api/v1/clouds/{cloud['id']}/elements").json()[0]
+    source_snapshot = original["metadata"]["source_cloud_snapshot"]
+    assert source_snapshot["cloud_id"] == cloud["id"]
+    assert source_snapshot["point_count"] == 4
+    assert len(source_snapshot["positions_sha256"]) == 64
     confirmed = client.post(
         f"/api/v1/elements/{original['id']}/feedback",
         json={"action": "confirm", "engineer": "test", "note": "manual review"},

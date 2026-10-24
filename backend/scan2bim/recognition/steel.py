@@ -43,6 +43,40 @@ from ..geometry.section import CloudGeometry
 from ..structure.proposals import build_assembly_proposal, build_member_proposal
 from .geometric import CHUNK, DetectedElement, _iter_positions
 
+
+def _source_row_evidence_for_bbox(
+    points: np.ndarray,
+    source_rows: np.ndarray,
+    *,
+    origin: np.ndarray,
+    bbox_min: np.ndarray,
+    bbox_max: np.ndarray,
+    max_ids: int = 512,
+) -> dict[str, Any]:
+    """Return bounded, deterministic row evidence for points inside a world bbox."""
+    local = np.asarray(points)
+    rows = np.asarray(source_rows)
+    if local.ndim != 2 or local.shape[1] != 3:
+        raise ValueError("source evidence points must have shape (n, 3)")
+    if rows.ndim != 1 or len(rows) != len(local) or not np.issubdtype(rows.dtype, np.integer):
+        raise ValueError("source evidence rows must be a matching integer vector")
+    if max_ids <= 0:
+        raise ValueError("max_ids must be positive")
+    world = local + np.asarray(origin, dtype=np.float64)
+    lower = np.asarray(bbox_min, dtype=np.float64)
+    upper = np.asarray(bbox_max, dtype=np.float64)
+    inside = np.isfinite(world).all(axis=1) & np.all((world >= lower) & (world <= upper), axis=1)
+    matched = rows[inside]
+    support_count = int(len(matched))
+    if support_count > max_ids:
+        matched = matched[np.linspace(0, support_count - 1, max_ids, dtype=np.int64)]
+    return {
+        "source_point_ids": matched.astype(np.int64, copy=False).tolist(),
+        "source_point_id_space": "positions.npy row index",
+        "source_point_ids_sampled": support_count > len(matched),
+        "source_point_support_count": support_count,
+    }
+
 # Physical thresholds. They encode what a structural engineer recognises as a
 # frame member, not merely "a line of points".
 BEAM_MIN_LENGTH_M = 2.5
@@ -654,6 +688,34 @@ def _axis_from_segments(segments: list[dict[str, Any]], reference: float | None)
     return min(choices, key=lambda a: _angle_diff(a, reference)) if reference is not None else angle
 
 
+def _beam_bbox(
+    geom: CloudGeometry, center: np.ndarray, direction: np.ndarray,
+    length: float, thickness: float, z0_local: float, z1_local: float,
+) -> dict[str, list[float]]:
+    """AABB emitted for one measured oriented beam candidate."""
+    angle = math.atan2(float(direction[1]), float(direction[0]))
+    ca, sa = math.cos(angle), math.sin(angle)
+    corners = [
+        (center[0] + lx * ca - ly * sa, center[1] + lx * sa + ly * ca)
+        for lx, ly in (
+            (-length / 2, -thickness / 2), (length / 2, -thickness / 2),
+            (length / 2, thickness / 2), (-length / 2, thickness / 2),
+        )
+    ]
+    return {
+        "min": [
+            round(min(x for x, _ in corners) + float(geom.origin[0]), 3),
+            round(min(y for _, y in corners) + float(geom.origin[1]), 3),
+            round(float(z0_local + geom.origin[2]), 3),
+        ],
+        "max": [
+            round(max(x for x, _ in corners) + float(geom.origin[0]), 3),
+            round(max(y for _, y in corners) + float(geom.origin[1]), 3),
+            round(float(z1_local + geom.origin[2]), 3),
+        ],
+    }
+
+
 def _beam_element(
     geom: CloudGeometry,
     center: np.ndarray,
@@ -691,8 +753,7 @@ def _beam_element(
         (-length / 2, thickness / 2),
     ):
         corners.append((center[0] + lx * ca - ly * sa, center[1] + lx * sa + ly * ca))
-    xs = [c[0] + float(geom.origin[0]) for c in corners]
-    ys = [c[1] + float(geom.origin[1]) for c in corners]
+    bbox = _beam_bbox(geom, center, direction, length, thickness, z0_local, z1_local)
     label = {
         "crane_girder": "подкрановая балка",
         "purlin": "прогон",
@@ -785,10 +846,7 @@ def _beam_element(
             "rotation_z": round(angle, 5),
             "note": f"horizontal member measured in thin band around level ({band_label})",
         },
-        bbox={
-            "min": [round(min(xs), 3), round(min(ys), 3), round(z0_local + float(geom.origin[2]), 3)],
-            "max": [round(max(xs), 3), round(max(ys), 3), round(z1_local + float(geom.origin[2]), 3)],
-        },
+        bbox=bbox,
         confidence=round(float(max(0.2, min(0.9, confidence))), 3),
         measured=True,
         inferred=False,
@@ -1309,6 +1367,7 @@ def _runway_column_context(
     normal = np.array([-direction[1], direction[0]])
     z = float(z_local + origin[2])
     supports = []
+    endpoint_search_margin_m = 0.6
     for index, column in enumerate(columns):
         if column.class_name != "column":
             continue
@@ -1328,17 +1387,71 @@ def _runway_column_context(
         # The previous fixed 0.8 m offset linked beams to a separate parallel
         # column row, which made the runway context misleading.
         lateral_gap = max(0.15, float(member_thickness_m) / 2 + 0.20)
-        if abs(along) <= length / 2 + 0.6 and across <= half_width + lateral_gap:
+        if abs(along) <= length / 2 + endpoint_search_margin_m and across <= half_width + lateral_gap:
+            half_extent_along = float(np.abs(direction) @ (hi[:2] - lo[:2])) / 2
+            start_gap = max(0.0, abs(along + length / 2) - half_extent_along)
+            end_gap = max(0.0, abs(along - length / 2) - half_extent_along)
             supports.append({"column_index": index, "along_m": round(along, 4),
                              "axis_offset_m": round(across, 4),
-                             "axis_offset_limit_m": round(half_width + lateral_gap, 4)})
+                             "axis_offset_limit_m": round(half_width + lateral_gap, 4),
+                             "start_endpoint_gap_m": round(start_gap, 4),
+                             "end_endpoint_gap_m": round(end_gap, 4)})
     spacing = max((s["along_m"] for s in supports), default=0) - min(
         (s["along_m"] for s in supports), default=0)
-    return {"status": "supported_hypothesis" if spacing >= 2.0 else "insufficient_context",
+    start_choices = [
+        item for item in supports
+        if item["start_endpoint_gap_m"] <= endpoint_search_margin_m
+    ]
+    end_choices = [
+        item for item in supports
+        if item["end_endpoint_gap_m"] <= endpoint_search_margin_m
+    ]
+    endpoint_pairs = [
+        (start, end)
+        for start in start_choices
+        for end in end_choices
+        if start["column_index"] != end["column_index"]
+    ]
+    best_pair = min(
+        endpoint_pairs,
+        key=lambda pair: (
+            pair[0]["start_endpoint_gap_m"] + pair[1]["end_endpoint_gap_m"],
+            pair[0]["column_index"],
+            pair[1]["column_index"],
+        ),
+        default=None,
+    )
+    end_supports = {
+        "start": ({"column_index": best_pair[0]["column_index"],
+                   "gap_m": best_pair[0]["start_endpoint_gap_m"]} if best_pair else None),
+        "end": ({"column_index": best_pair[1]["column_index"],
+                 "gap_m": best_pair[1]["end_endpoint_gap_m"]} if best_pair else None),
+    }
+    if best_pair is None:
+        best_start = min(
+            start_choices,
+            key=lambda item: (item["start_endpoint_gap_m"], item["column_index"]),
+            default=None,
+        )
+        best_end = min(
+            end_choices,
+            key=lambda item: (item["end_endpoint_gap_m"], item["column_index"]),
+            default=None,
+        )
+        end_supports = {
+            "start": ({"column_index": best_start["column_index"],
+                       "gap_m": best_start["start_endpoint_gap_m"]} if best_start else None),
+            "end": ({"column_index": best_end["column_index"],
+                     "gap_m": best_end["end_endpoint_gap_m"]} if best_end else None),
+        }
+    supported = spacing >= 2.0 and best_pair is not None
+    return {"status": "supported_hypothesis" if supported else "insufficient_context",
             "supports": supports, "support_spacing_m": round(spacing, 4),
             "support_count": len(supports),
+            "end_supports": end_supports,
+            "endpoint_search_margin_m": endpoint_search_margin_m,
             "requires_review": True,
-            "basis": "column height, span and overlap with the measured beam strip; rail/corbel not verified"}
+            "basis": "column height, beam-strip overlap, and distinct footprint proximity to both beam endpoints; rail/corbel not verified"}
 
 
 def _horizontal_members(
@@ -1449,16 +1562,31 @@ def _horizontal_members(
                     confidence = 0.40
             if role is None:
                 continue
+            candidate_thickness = max(thickness, 0.08)
+            candidate_bbox = _beam_bbox(
+                geom, center, direction, length, candidate_thickness, bz0, bz1,
+            )
+            bbox_min_local = np.asarray(candidate_bbox["min"], dtype=np.float64) - geom.origin
+            bbox_max_local = np.asarray(candidate_bbox["max"], dtype=np.float64) - geom.origin
+            support_points = points[support_indices]
+            evidence_mask = np.all(
+                (support_points >= bbox_min_local - 0.04)
+                & (support_points <= bbox_max_local + 0.04),
+                axis=1,
+            )
+            evidence_indices = support_indices[evidence_mask]
+            evidence_points = points[evidence_indices]
+            evidence_rows = source_rows[evidence_indices]
             elements.append(
                 _beam_element(
                     geom, center, direction, length,
-                    max(thickness, 0.08), bz0, bz1,
+                    candidate_thickness, bz0, bz1,
                     role=role,
                     role_note=note,
                     confidence=confidence,
                     band_label=label,
                     support=support,
-                    source_point_ids=source_rows[support_indices],
+                    source_point_ids=evidence_rows if len(evidence_rows) else None,
                     source_band_point_count=source_band_count,
                     source_band_points_used=len(points),
                     vertical_profile_evidence=_vertical_layer_evidence(
@@ -1468,7 +1596,7 @@ def _horizontal_members(
                         points[support_indices, :2], center, direction, length,
                     ),
                     joint_gap_evidence=_beam_internal_gap_evidence(
-                        points[support_indices, :2], source_rows[support_indices],
+                        evidence_points[:, :2], evidence_rows,
                         center, direction, length,
                     ),
                 )
@@ -1878,6 +2006,17 @@ def _detect_trusses(
                     "missing_evidence": missing_evidence,
                 },
             )
+            truss_envelope.metadata.update(_source_row_evidence_for_bbox(
+                points[slice_mask],
+                plane_source_rows,
+                origin=geom.origin,
+                bbox_min=np.asarray(truss_envelope.bbox["min"], dtype=np.float64),
+                bbox_max=np.asarray(truss_envelope.bbox["max"], dtype=np.float64),
+            ))
+            truss_envelope.metadata["source_point_ids_sampled"] = bool(
+                zone_sampled or truss_envelope.metadata["source_point_ids_sampled"]
+            )
+            truss_envelope.metadata["source_point_ids_from_processing_sample"] = bool(zone_sampled)
             elements.append(truss_envelope)
             truss_member_start = len(elements)
             truss_member_lines: list[tuple[tuple[np.ndarray, np.ndarray, float], str]] = []
@@ -2486,30 +2625,50 @@ def _cluster_sections(
     sizes: list[tuple[float, float]],
     tolerance: float,
 ) -> list[list[tuple[float, float]]]:
-    """Group measured sections whose two dimensions agree within tolerance."""
+    """Group measured sections with pairwise agreement on both dimensions.
+
+    Complete-link membership prevents a sequence of noisy measurements from
+    bridging two genuinely different sizes. Sorting first also makes the
+    resulting partition independent of recognition/input order.
+    """
+    ordered = sorted((float(length), float(thickness)) for length, thickness in sizes)
     clusters: list[list[tuple[float, float]]] = []
-    for size in sizes:
-        for cluster in clusters:
-            rep_l = float(np.median([s[0] for s in cluster]))
-            rep_t = float(np.median([s[1] for s in cluster]))
-            if abs(size[0] - rep_l) <= tolerance and abs(size[1] - rep_t) <= tolerance:
-                cluster.append(size)
-                break
-        else:
+    epsilon = max(1e-12, abs(tolerance) * 1e-12)
+
+    def compatible(left: tuple[float, float], right: tuple[float, float]) -> bool:
+        return all(abs(a - b) <= tolerance + epsilon for a, b in zip(left, right))
+
+    for size in ordered:
+        matches = [
+            (index, cluster)
+            for index, cluster in enumerate(clusters)
+            if all(compatible(size, member) for member in cluster)
+        ]
+        if not matches:
             clusters.append([size])
-    # A later member moves a cluster's median towards its neighbour; merge
-    # clusters until the set is stable, othwerwise one physical size splits in two.
+            continue
+        # If several groups are compatible, attach to the closest median, with
+        # the stable cluster index breaking exact ties deterministically.
+        def distance(item: tuple[int, list[tuple[float, float]]]) -> tuple[float, int]:
+            index, cluster = item
+            representative = np.median(np.asarray(cluster, dtype=np.float64), axis=0)
+            scale = max(tolerance, 1e-12)
+            residual = sum(abs(size[axis] - representative[axis]) / scale for axis in (0, 1))
+            return float(residual), index
+
+        _, best = min(matches, key=distance)
+        best.append(size)
+
+    # Merge only if every cross-pair remains within tolerance; never merge by
+    # representative distance alone, which can recreate a transitive bridge.
     merged = True
     while merged and len(clusters) > 1:
         merged = False
         for i in range(len(clusters)):
             for j in range(i + 1, len(clusters)):
-                li = float(np.median([s[0] for s in clusters[i]]))
-                ti = float(np.median([s[1] for s in clusters[i]]))
-                lj = float(np.median([s[0] for s in clusters[j]]))
-                tj = float(np.median([s[1] for s in clusters[j]]))
-                if abs(li - lj) <= tolerance and abs(ti - tj) <= tolerance:
+                if all(compatible(left, right) for left in clusters[i] for right in clusters[j]):
                     clusters[i].extend(clusters.pop(j))
+                    clusters[i].sort()
                     merged = True
                     break
             if merged:
@@ -2678,7 +2837,8 @@ def typify_column_sections(
             )
             if best_residual is None or residual < best_residual:
                 best, best_residual = column_type, residual
-        if best is not None and best_residual is not None and best_residual <= COLUMN_SECTION_MAX_RESIDUAL_M:
+        assignment_limit = min(COLUMN_SECTION_TOLERANCE_M, COLUMN_SECTION_MAX_RESIDUAL_M)
+        if best is not None and best_residual is not None and best_residual <= assignment_limit:
             element.dimensions["section_type_proposal_id"] = best["id"]
             element.dimensions["section_residual_mm"] = int(round(best_residual * 1000))
         else:

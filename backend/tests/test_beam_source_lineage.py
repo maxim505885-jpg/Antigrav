@@ -236,6 +236,11 @@ def test_crane_girder_detection_traces_measured_points_back_to_cloud_rows(monkey
     assert len(ids) == 512
     assert len(set(ids)) == len(ids)
     assert set(ids).issubset(set(range(len(xyz))))
+    bbox_min = np.asarray(girder.bbox["min"], dtype=float)
+    bbox_max = np.asarray(girder.bbox["max"], dtype=float)
+    linked_points = xyz[np.asarray(ids, dtype=np.int64)]
+    assert np.all(linked_points >= bbox_min - 0.05)
+    assert np.all(linked_points <= bbox_max + 0.05)
     proposal = girder.metadata["member_proposal"]
     assert proposal["id"] == girder.metadata["member_proposal_id"]
     assert proposal["role"] == {"value": "crane_girder", "status": "proposed"}
@@ -292,3 +297,38 @@ def test_crane_girder_with_multiple_height_layers_stays_an_ambiguous_review_cand
     assert evidence["layer_centers_m"] == pytest.approx([4.96, 5.20], abs=0.02)
     assert evidence["role_assignment"] == "unresolved"
     assert "автоматически не разделены" in girder.metadata["notes"]
+
+
+def test_cylindrical_duct_lookalike_remains_an_unconfirmed_geometric_candidate(monkeypatch):
+    rng = np.random.default_rng(913)
+    count = 2400
+    along = rng.uniform(-3.0, 3.0, count)
+    angle = rng.uniform(0.0, 2.0 * np.pi, count)
+    radius = 0.10
+    xyz = np.column_stack((along, radius * np.cos(angle), 5.0 + radius * np.sin(angle)))
+    monkeypatch.setattr(steel, "_iter_positions", lambda _path: iter([xyz]))
+    direction = np.array([1.0, 0.0])
+    segment = {
+        "p0": np.array([-3.0, 0.0]), "p1": np.array([3.0, 0.0]),
+        "mid": np.zeros(2), "dir": direction, "angle": 0.0, "length": 6.0,
+    }
+    monkeypatch.setattr(steel, "_plan_segments", lambda xy, **_kwargs: [segment])
+    monkeypatch.setattr(steel, "_axis_from_segments", lambda *_args: 0.0)
+    monkeypatch.setattr(steel, "_wall_continued", lambda *_args: False)
+    cloud = CloudGeometry(
+        Path("derived.npy"), np.zeros(3), np.array([-4.0, -1.0, 0.0]),
+        np.array([4.0, 1.0, 10.0]), len(xyz),
+    )
+    levels = [{"z": z, "z_local": z} for z in (0.0, 3.0, 5.0, 7.0, 10.0)]
+    grid = {"res": 0.1, "min": [-4.0, -1.0, 0.0], "band_occ": np.zeros((2, 2, 2), dtype=bool)}
+
+    elements, *_ = steel._horizontal_members(cloud, levels, grid)
+
+    candidate = next(item for item in elements if item.dimensions.get("role") == "crane_girder")
+    proposal = candidate.metadata["member_proposal"]
+    assert candidate.dimensions["role_status"] == "proposed"
+    assert candidate.dimensions["profile_status"] == "not_fitted"
+    assert candidate.metadata["column_support_context"]["status"] == "insufficient_context"
+    assert proposal["role"] == {"value": "crane_girder", "status": "proposed"}
+    assert "physical_role_review" in proposal["unresolved_fields"]
+    assert proposal["review_state"] == "proposed"

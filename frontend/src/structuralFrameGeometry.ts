@@ -1,8 +1,17 @@
 export interface BoxCandidate {
   id: string;
   class_name: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
   geometry?: Record<string, any>;
   bbox?: { min: number[]; max: number[] };
+}
+
+export function elementUsesCloudLocalCoordinates(element: Pick<BoxCandidate, "source" | "metadata">): boolean {
+  const frame = element.metadata?.bbox_coordinate_frame;
+  if (frame === "cloud_local") return true;
+  if (frame === "source_cloud_world") return false;
+  return element.source === "geometric" || element.source === "structural_grid";
 }
 
 /**
@@ -21,6 +30,10 @@ export function elementBoxLinePositions(
 
   for (const el of elements) {
     if (className !== "all" && el.class_name !== className) continue;
+    const elementIsLocal = elementUsesCloudLocalCoordinates(el);
+    const oxForElement = elementIsLocal ? 0 : ox;
+    const oyForElement = elementIsLocal ? 0 : oy;
+    const ozForElement = elementIsLocal ? 0 : oz;
 
     let cx = 0, cy = 0, cz = 0;
     let lx = 0, ly = 0, lz = 0;
@@ -33,9 +46,9 @@ export function elementBoxLinePositions(
       geom.sizes &&
       typeof geom.rotation_z === "number"
     ) {
-      cx = geom.center[0] - ox;
-      cy = geom.center[1] - oy;
-      cz = geom.center[2] - oz;
+      cx = geom.center[0] - oxForElement;
+      cy = geom.center[1] - oyForElement;
+      cz = geom.center[2] - ozForElement;
       lx = geom.sizes.length || 0.5;
       ly = geom.sizes.thickness || 0.5;
       lz = geom.sizes.height || 1.0;
@@ -43,9 +56,9 @@ export function elementBoxLinePositions(
     } else if (el.bbox && Array.isArray(el.bbox.min) && Array.isArray(el.bbox.max)) {
       const bmin = el.bbox.min;
       const bmax = el.bbox.max;
-      cx = (bmin[0] + bmax[0]) / 2 - ox;
-      cy = (bmin[1] + bmax[1]) / 2 - oy;
-      cz = (bmin[2] + bmax[2]) / 2 - oz;
+      cx = (bmin[0] + bmax[0]) / 2 - oxForElement;
+      cy = (bmin[1] + bmax[1]) / 2 - oyForElement;
+      cz = (bmin[2] + bmax[2]) / 2 - ozForElement;
       lx = Math.max(0.05, bmax[0] - bmin[0]);
       ly = Math.max(0.05, bmax[1] - bmin[1]);
       lz = Math.max(0.05, bmax[2] - bmin[2]);

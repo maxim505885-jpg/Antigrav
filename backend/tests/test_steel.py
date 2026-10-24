@@ -28,10 +28,36 @@ from scan2bim.recognition.steel import (
     _group_line,
     _group_segments,
     _line_concentration,
+    _source_row_evidence_for_bbox,
     classify_column_sections,
     measure_column_sections,
     typify_column_sections,
 )
+
+
+def test_bbox_source_evidence_is_bounded_and_uses_world_coordinates():
+    local_points = np.array([
+        [0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0],
+        [2.0, 2.0, 2.0],
+        [3.0, 3.0, 3.0],
+        [np.nan, 1.0, 1.0],
+    ])
+    source_rows = np.array([11, 22, 33, 44, 55])
+    evidence = _source_row_evidence_for_bbox(
+        local_points,
+        source_rows,
+        origin=np.array([100.0, 200.0, 10.0]),
+        bbox_min=np.array([99.9, 199.9, 9.9]),
+        bbox_max=np.array([102.1, 202.1, 12.1]),
+        max_ids=2,
+    )
+    assert evidence == {
+        "source_point_ids": [11, 33],
+        "source_point_id_space": "positions.npy row index",
+        "source_point_ids_sampled": True,
+        "source_point_support_count": 3,
+    }
 
 
 # ---------------------------------------------------------------- concentration
@@ -577,6 +603,40 @@ def test_column_sections_propose_repeated_types_without_replacing_measurements()
     assert all(c.dimensions["section_source"] == "measured" for c in columns)
     assert all("section_type" not in c.dimensions for c in columns)
     assert all(item["status"] == "proposed" for item in stats["column_section_types"])
+
+
+def test_column_section_types_do_not_merge_a_chain_beyond_pairwise_tolerance():
+    specs = [
+        (1.0, 1.0, 0.40, 0.30, "all"),
+        (3.0, 1.0, 0.49, 0.39, "all"),
+        (5.0, 1.0, 0.54, 0.44, "all"),
+        (7.0, 1.0, 0.63, 0.53, "all"),
+    ]
+    results = []
+    for ordered_specs in (specs, list(reversed(specs))):
+        grid = _section_grid([spec[:5] for spec in ordered_specs])
+        columns = [_section_column(*spec[:4]) for spec in ordered_specs]
+        measured = {
+            index: _measured_section_record(*spec[:4], faces=spec[4])
+            for index, spec in enumerate(ordered_specs)
+        }
+
+        typify_column_sections(grid, columns, np.zeros(3), measured)
+        proposal_ids = {
+            tuple(sorted((column.geometry["sizes"]["length"], column.geometry["sizes"]["thickness"])))
+            : column.dimensions.get("section_type_proposal_id")
+            for column in columns
+        }
+        results.append(proposal_ids)
+        assert [
+            (column.geometry["sizes"]["length"], column.geometry["sizes"]["thickness"])
+            for column in columns
+        ] == [(spec[2], spec[3]) for spec in ordered_specs]
+
+    assert results[0] == results[1]
+    assert results[0][(0.3, 0.4)] == results[0][(0.39, 0.49)]
+    assert results[0][(0.44, 0.54)] == results[0][(0.53, 0.63)]
+    assert results[0][(0.44, 0.54)] != results[0][(0.3, 0.4)]
 
 
 def test_off_type_column_keeps_its_measured_size():

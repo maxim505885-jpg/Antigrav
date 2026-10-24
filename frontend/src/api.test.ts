@@ -22,6 +22,29 @@ test("canceling an import uses the cloud processing job endpoint", async () => {
   }
 });
 
+test("source evidence audit requests the project cloud endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return { ok: true, json: async () => ({
+      cloud_id: "cloud / 1", candidate_count: 0,
+      status_counts: { consistent: 0, mismatch: 0, unverifiable: 0 },
+      status_counts_by_class: {},
+      source_snapshot_counts: { current: 0, missing: 1, stale: 0, unchecked: 0 },
+      attention_count: 0, accuracy_status: "not_measured", candidates: [],
+    }) } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.sourceEvidenceAudit("cloud / 1");
+    assert.equal(requestedUrl, "/api/v1/clouds/cloud%20%2F%201/source-evidence-audit");
+    assert.equal(result.accuracy_status, "not_measured");
+    assert.equal(result.source_snapshot_counts.missing, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("resuming an interrupted import calls the cloud resume endpoint", async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
@@ -50,6 +73,33 @@ test("cloud polling returns when an import was cancelled", async () => {
   try {
     const cloud = await waitForCloud("cloud-1");
     assert.equal(cloud.status, "cancelled");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("native ReCap export sends only the selected source scans to DeCap", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let payload: any;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    payload = JSON.parse(String(init?.body));
+    return {
+      ok: true,
+      json: async () => ({ status: "created_by_autodesk_decap", package_verified: true, rcp_path: "Hall/Hall.rcp" }),
+    } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.exportNativeRecapProject("Hall", [
+      { name: "Station 01", path: "C:/scans/station-01.rcs", point_count: 1200 },
+    ]);
+    assert.equal(requestedUrl, "/api/v1/registration/export-rcp-project");
+    assert.deepEqual(payload, {
+      project_name: "Hall",
+      stations: [{ name: "Station 01", path: "C:/scans/station-01.rcs", point_count: 1200 }],
+    });
+    assert.equal(result.package_verified, true);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -143,6 +193,59 @@ test("independent column annotations load and save against the frozen source sna
   assert.equal(calls[2].method, "POST");
   assert.equal(calls[2].body.source_snapshot_sha256, "a".repeat(64));
   assert.equal(calls[2].body.reason_unknown, "occluded");
+});
+
+test("independent element role annotations use versioned cloud-scoped endpoints", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: { url: string; method: string; body: any }[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), method: init?.method || "GET",
+      body: init?.body ? JSON.parse(String(init.body)) : null });
+    return { ok: true, json: async () => ({ annotations: [], revision: 1 }) } as Response;
+  }) as typeof fetch;
+  try {
+    await api.elementAnnotations("cloud / 1");
+    await api.elementAnnotationHistory("cloud / 1");
+    await api.saveElementAnnotation("cloud / 1", "beam #1", {
+      source_snapshot_sha256: "b".repeat(64), annotator: "reviewer", state: "labeled",
+      physical_instance_id: "B-01", class_label: "beam", role_label: "crane_girder",
+      type_label: "KB-1", reason: "", note: "checked",
+    });
+    await api.exportElementAnnotations("cloud / 1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(calls[0].url, "/api/v1/clouds/cloud%20%2F%201/element-annotations");
+  assert.equal(calls[1].url, "/api/v1/clouds/cloud%20%2F%201/element-annotations/history");
+  assert.equal(calls[2].url, "/api/v1/clouds/cloud%20%2F%201/element-annotations/beam%20%231");
+  assert.equal(calls[2].method, "POST");
+  assert.equal(calls[2].body.role_label, "crane_girder");
+  assert.equal(calls[3].url, "/api/v1/clouds/cloud%20%2F%201/element-annotations/export");
+});
+
+test("recognition evaluation submits independent physical references to the cloud-scoped endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl = "";
+  let requestBody: any = null;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestUrl = String(input);
+    requestBody = JSON.parse(String(init?.body));
+    return { ok: true, json: async () => ({ overall_precision: 0.5, overall_recall: 0.4, holdout_status: "not_verified" }) } as Response;
+  }) as typeof fetch;
+  try {
+    const report = await api.evaluateRecognition("cloud / 1", {
+      source_snapshot_sha256: "c".repeat(64), reference_set_id: "pilot-ref-1",
+      reference_origin: "independent_manual", reference_kind: "field_measurement", annotator: "engineer",
+      reference_elements: [{ physical_instance_id: "C-01", class_name: "column",
+        bbox: { min: [0, 0, 0], max: [1, 1, 5] } }],
+    });
+    assert.equal(report.holdout_status, "not_verified");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestUrl, "/api/v1/clouds/cloud%20%2F%201/recognition-evaluation");
+  assert.equal(requestBody.reference_elements[0].physical_instance_id, "C-01");
+  assert.equal(requestBody.reference_origin, "independent_manual");
 });
 
 test("structural plan PDF download includes scale and issue mode", async () => {

@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import tempfile
+from functools import lru_cache
 from pathlib import Path
 from typing import BinaryIO
 
@@ -74,6 +75,24 @@ def sha256_file(path: Path, chunk: int = 8 * 1024 * 1024) -> str:
                 break
             digest.update(block)
     return digest.hexdigest()
+
+
+@lru_cache(maxsize=16)
+def _sha256_file_for_stat(path_text: str, size: int, mtime_ns: int) -> str:
+    # The stat values are part of the cache key so replacing an imported point
+    # array invalidates its cached content hash.
+    return sha256_file(Path(path_text))
+
+
+def cached_sha256_file(path: Path) -> str:
+    """Hash an artifact once per stable size/mtime signature, without loading it in RAM."""
+    path = Path(path)
+    before = path.stat()
+    digest = _sha256_file_for_stat(str(path.resolve()), before.st_size, before.st_mtime_ns)
+    after = path.stat()
+    if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+        raise RuntimeError(f"file changed while hashing: {path.name}")
+    return digest
 
 
 def copy_stream(src: BinaryIO, dest: Path, chunk: int = 8 * 1024 * 1024) -> int:

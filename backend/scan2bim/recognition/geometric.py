@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 from scipy.signal import find_peaks
+from shapely import contains_xy
 from shapely.geometry import Polygon
 
 from ..config import MAX_RASTER_CELLS
@@ -212,6 +213,7 @@ def _vertical_elements(geom: CloudGeometry, grid: dict[str, Any]) -> list[Detect
     min_extent = 1.2 * min(1.15, scale)
     vertical = occupied & (band_count * BAND_HEIGHT >= min_extent) & (counts >= 5 * (1 if scale < 1.2 else 2))
     labelled, ncomp = ndimage.label(vertical, structure=np.ones((3, 3), dtype=bool))
+    grid["vertical_component_labels"] = labelled
     elements: list[DetectedElement] = []
     for comp in range(1, ncomp + 1):
         mask = labelled == comp
@@ -338,6 +340,162 @@ def _vertical_elements(geom: CloudGeometry, grid: dict[str, Any]) -> list[Detect
     return elements
 
 
+def _attach_architectural_source_rows(
+    geom: CloudGeometry,
+    grid: dict[str, Any],
+    component_labels: np.ndarray,
+    elements: list[DetectedElement],
+    *,
+    max_ids: int = 512,
+    bbox_margin_m: float = 0.05,
+) -> None:
+    """Attach bounded source-row evidence to columns and detected walls.
+
+    The occupancy grid locates candidate footprints but does not retain which
+    input rows contributed to them. Revisit the stored array once, assigning
+    rows through their connected-component cell and keeping a deterministic
+    bounded sample inside each candidate bbox.
+    """
+    path = Path(geom.positions_path)
+    if not path.is_file() or max_ids <= 0:
+        for element in elements:
+            element.metadata.pop("_occupancy_component_id", None)
+        return
+
+    res = float(grid["res"])
+    minx, miny = float(grid["min"][0]), float(grid["min"][1])
+    nu, nv = int(grid["nu"]), int(grid["nv"])
+    columns = [element for element in elements if element.class_name == "column"]
+    walls = [element for element in elements if element.class_name == "wall"]
+
+    bounds: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+    by_component: dict[int, list[DetectedElement]] = {}
+    for element in columns:
+        lower = np.asarray(element.bbox["min"], dtype=np.float64) - geom.origin
+        upper = np.asarray(element.bbox["max"], dtype=np.float64) - geom.origin
+        lower -= bbox_margin_m
+        upper += bbox_margin_m
+        bounds[id(element)] = (lower, upper)
+        ix0 = max(0, int(math.floor((lower[0] - minx) / res)))
+        iy0 = max(0, int(math.floor((lower[1] - miny) / res)))
+        ix1 = min(nu, int(math.floor((upper[0] - minx) / res)) + 1)
+        iy1 = min(nv, int(math.floor((upper[1] - miny) / res)) + 1)
+        if ix0 >= ix1 or iy0 >= iy1:
+            continue
+        component_ids = np.unique(component_labels[iy0:iy1, ix0:ix1])
+        for component in component_ids[component_ids > 0]:
+            by_component.setdefault(int(component), []).append(element)
+    component_bound_columns = {
+        id(element)
+        for component_elements in by_component.values()
+        for element in component_elements
+    }
+    # Consolidation can retain small one-storey occupancy candidates whose
+    # footprint overlaps no labelled vertical component. Their points still
+    # need provenance: use the same bounded bbox corridor as the audit below.
+    fallback_columns = [
+        element for element in columns if id(element) not in component_bound_columns
+    ]
+    if not by_component and not walls and not fallback_columns:
+        return
+
+    sampled: dict[int, list[int]] = {id(element): [] for element in columns + walls}
+    support: dict[int, int] = {id(element): 0 for element in columns + walls}
+    wall_geometry: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, float, float, np.ndarray, np.ndarray]] = {}
+    for element in walls:
+        lower = np.asarray(element.bbox["min"], dtype=np.float64) - geom.origin - bbox_margin_m
+        upper = np.asarray(element.bbox["max"], dtype=np.float64) - geom.origin + bbox_margin_m
+        center = np.asarray(element.geometry["center"], dtype=np.float64)[:2] - geom.origin[:2]
+        angle = float(element.geometry.get("rotation_z") or 0.0)
+        direction = np.array([math.cos(angle), math.sin(angle)])
+        normal = np.array([-direction[1], direction[0]])
+        half_length = float(element.dimensions["length_m"]) / 2.0 + bbox_margin_m
+        half_thickness = float(element.dimensions["thickness_m"]) / 2.0 + bbox_margin_m
+        wall_geometry[id(element)] = (lower, upper, center, half_length, half_thickness, direction, normal)
+
+    positions = np.load(path, mmap_mode="r")
+    chunk_size = CHUNK
+    for start in range(0, len(positions), chunk_size):
+        chunk = np.asarray(positions[start : start + chunk_size])
+        ix = np.floor((chunk[:, 0] - minx) / res).astype(np.int64)
+        iy = np.floor((chunk[:, 1] - miny) / res).astype(np.int64)
+        valid = (
+            np.isfinite(chunk).all(axis=1)
+            & (ix >= 0) & (ix < nu)
+            & (iy >= 0) & (iy < nv)
+        )
+        if not valid.any():
+            continue
+        labels = np.zeros(len(chunk), dtype=np.int32)
+        labels[valid] = component_labels[iy[valid], ix[valid]]
+        if by_component:
+            for component in np.intersect1d(np.unique(labels), list(by_component), assume_unique=False):
+                point_indices = np.flatnonzero(labels == component)
+                if not len(point_indices):
+                    continue
+                points = chunk[point_indices]
+                for element in by_component[int(component)]:
+                    lower, upper = bounds[id(element)]
+                    inside = np.all((points >= lower) & (points <= upper), axis=1)
+                    if not inside.any():
+                        continue
+                    key = id(element)
+                    row_ids = (start + point_indices[inside]).tolist()
+                    support[key] += len(row_ids)
+                    combined = sampled[key] + row_ids
+                    if len(combined) > max_ids:
+                        selection = np.linspace(0, len(combined) - 1, max_ids, dtype=np.int64)
+                        combined = [combined[int(index)] for index in selection]
+                    sampled[key] = combined
+
+        for element in fallback_columns:
+            key = id(element)
+            lower, upper = bounds[key]
+            inside = np.all((chunk >= lower) & (chunk <= upper), axis=1)
+            point_indices = np.flatnonzero(inside)
+            if not len(point_indices):
+                continue
+            row_ids = (start + point_indices).tolist()
+            support[key] += len(row_ids)
+            combined = sampled[key] + row_ids
+            if len(combined) > max_ids:
+                selection = np.linspace(0, len(combined) - 1, max_ids, dtype=np.int64)
+                combined = [combined[int(index)] for index in selection]
+            sampled[key] = combined
+
+        for element in walls:
+            key = id(element)
+            lower, upper, center, half_length, half_thickness, direction, normal = wall_geometry[key]
+            in_bbox = np.all((chunk >= lower) & (chunk <= upper), axis=1)
+            point_indices = np.flatnonzero(in_bbox)
+            if not len(point_indices):
+                continue
+            points = chunk[point_indices]
+            relative = points[:, :2] - center
+            inside = (
+                (np.abs(relative @ direction) <= half_length)
+                & (np.abs(relative @ normal) <= half_thickness)
+            )
+            if not inside.any():
+                continue
+            row_ids = (start + point_indices[inside]).tolist()
+            support[key] += len(row_ids)
+            combined = sampled[key] + row_ids
+            if len(combined) > max_ids:
+                selection = np.linspace(0, len(combined) - 1, max_ids, dtype=np.int64)
+                combined = [combined[int(index)] for index in selection]
+            sampled[key] = combined
+
+    for element in columns + walls:
+        key = id(element)
+        element.metadata.update({
+                "source_point_ids": sampled[key],
+                "source_point_id_space": "positions.npy row index",
+                "source_point_ids_sampled": support[key] > max_ids,
+                "source_point_support_count": support[key],
+        })
+
+
 def _slab_elements(
     geom: CloudGeometry,
     levels: list[dict[str, Any]],
@@ -352,16 +510,19 @@ def _slab_elements(
         half = 0.10
         u_parts: list[np.ndarray] = []
         v_parts: list[np.ndarray] = []
+        row_parts: list[np.ndarray] = []
         for start in range(0, arr.shape[0], CHUNK):
             chunk = np.asarray(arr[start : start + CHUNK])
             mask = np.abs(chunk[:, 2] - z_local) <= half
             if np.any(mask):
                 u_parts.append(chunk[mask, 0])
                 v_parts.append(chunk[mask, 1])
+                row_parts.append(start + np.flatnonzero(mask))
         if not u_parts:
             continue
         u = np.concatenate(u_parts)
         v = np.concatenate(v_parts)
+        source_rows = np.concatenate(row_parts)
         if len(u) < 100:
             continue
         result = vectorize_2d(
@@ -376,6 +537,34 @@ def _slab_elements(
         for poly in result.get("polygons", []):
             if poly.get("is_hole") or poly["area"] < 1.0:
                 continue
+            local_polygon = Polygon(poly["points"])
+            polygon_x = np.asarray(poly["points"], dtype=np.float64)[:, 0]
+            polygon_y = np.asarray(poly["points"], dtype=np.float64)[:, 1]
+            polygon_min = np.array([polygon_x.min(), polygon_y.min()])
+            polygon_max = np.array([polygon_x.max(), polygon_y.max()])
+            sampled_rows: list[int] = []
+            support_count = 0
+            for point_start in range(0, len(u), 250_000):
+                point_stop = min(len(u), point_start + 250_000)
+                xs = u[point_start:point_stop]
+                ys = v[point_start:point_stop]
+                in_polygon_bounds = (
+                    (xs >= polygon_min[0]) & (xs <= polygon_max[0])
+                    & (ys >= polygon_min[1]) & (ys <= polygon_max[1])
+                )
+                if not in_polygon_bounds.any():
+                    continue
+                offsets = np.flatnonzero(in_polygon_bounds)
+                inside = contains_xy(local_polygon, xs[offsets], ys[offsets])
+                matched = source_rows[point_start + offsets[inside]]
+                if not len(matched):
+                    continue
+                support_count += len(matched)
+                merged_rows = sampled_rows + matched.tolist()
+                if len(merged_rows) > 512:
+                    selection = np.linspace(0, len(merged_rows) - 1, 512, dtype=np.int64)
+                    merged_rows = [merged_rows[int(index)] for index in selection]
+                sampled_rows = merged_rows
             world_points = [
                 [round(x + float(geom.origin[0]), 4), round(y + float(geom.origin[1]), 4)]
                 for x, y in poly["points"]
@@ -416,6 +605,10 @@ def _slab_elements(
                         "confidence_kind": "heuristic",
                         "material": None,
                         "load_bearing": None,
+                        "source_point_ids": sampled_rows,
+                        "source_point_id_space": "positions.npy row index",
+                        "source_point_ids_sampled": support_count > 512,
+                        "source_point_support_count": support_count,
                     },
                 )
             )
@@ -501,6 +694,9 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     )
     elements = elements + steel_elements
     warnings.extend(steel_warnings)
+    _attach_architectural_source_rows(
+        geom, grid, grid["vertical_component_labels"], elements,
+    )
 
     # Openings and stairs: both are review hypotheses, not measured products.
     # Openings are gaps in the consolidated wall faces; stairs are inclined
@@ -535,11 +731,39 @@ def detect_structures(geom: CloudGeometry, progress=None) -> RecognitionResult:
     if progress:
         progress(0.96, "поиск трасс трубопроводов и сетей (MEP)")
     try:
-        sample_pts = geom.positions
-        if len(sample_pts) > 50000:
-            step = len(sample_pts) // 50000
-            sample_pts = sample_pts[::step]
-        detected_pipes = detect_pipe_network(sample_pts, min_segment_points=25)
+        stored_positions = np.load(geom.positions_path, mmap_mode="r")
+        # CloudGeometry intentionally stores a path rather than a resident
+        # point array. Give the experimental MEP recognizer a bounded,
+        # deterministic sample without materializing a large FARO cloud.
+        # The current MEP detector uses a CPU RANSAC loop. Cap its input and
+        # iteration count so an experimental subsystem cannot dominate a
+        # large structural recognition run.
+        sample_size = min(len(stored_positions), 10000)
+        if sample_size == len(stored_positions):
+            sample_pts = np.array(stored_positions, copy=True)
+        elif sample_size:
+            sample_rows = np.linspace(
+                0, len(stored_positions) - 1, sample_size, dtype=np.int64
+            )
+            sample_pts = np.asarray(stored_positions[sample_rows])
+        else:
+            sample_pts = np.empty((0, 3), dtype=np.float32)
+        mapping = getattr(stored_positions, "_mmap", None)
+        if mapping is not None:
+            mapping.close()
+        del stored_positions
+
+        def mep_checkpoint() -> None:
+            if progress is not None:
+                progress(0.96, "проверка MEP гипотез")
+
+        detected_pipes = detect_pipe_network(
+            sample_pts,
+            min_segment_points=25,
+            max_segments=3,
+            max_iterations=30,
+            checkpoint=mep_checkpoint if progress is not None else None,
+        )
         mep_elements = []
         for p in detected_pipes:
             sp = p.start_point

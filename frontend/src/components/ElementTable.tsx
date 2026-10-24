@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CLASSES, classLabel, REVIEW_LABELS, type Element } from "../types";
 import { filterReferenceElements, filterReviewElements, type ReferenceFilter, type ReviewFilter } from "../reviewQueue";
-import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothesisBadges } from "../elementEvidence";
+import { columnCandidateStatusBadges, elementEvidenceBadges, nominalGridHypothesisBadges, structuralRoleStatusBadge } from "../elementEvidence";
 import { columnSectionObservationSummary } from "../columnSectionPresentation";
 import { trussCompletenessBadge, trussDimensionSummary } from "../trussPresentation";
 
@@ -91,6 +91,7 @@ function extraBadges(element: Element) {
   const dims = element.dimensions || {};
   const badges: { text: string; title: string; cls: string }[] = [];
   badges.push(...elementEvidenceBadges(element.metadata));
+  badges.push(...structuralRoleStatusBadge(dims.role_label, dims.role_status));
   badges.push(...columnCandidateStatusBadges(dims));
   badges.push(...nominalGridHypothesisBadges(dims));
   if (Array.isArray(dims.review_conflict_with) && dims.review_conflict_with.length > 0) {
@@ -333,7 +334,7 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
           </button>
         ))}
       </div>
-      <div className="segmented review-filters reference-filters" aria-label="Фильтр независимой эталонной разметки колонн">
+      <div className="segmented review-filters reference-filters" aria-label="Фильтр независимой эталонной разметки элементов">
         {referenceFilters.map(({ id, label }) => <button key={id} type="button"
           className={referenceFilter === id ? "active" : ""} aria-pressed={referenceFilter === id}
           onClick={() => setReferenceFilter(id)}>
@@ -435,17 +436,21 @@ export default function ElementTable({ elements, busy, onFeedback, onSelect, sel
                 </td>
                 <td>
                   <div className="conf">
-                    <div className="conf-bar" style={{ width: `${Math.round(element.confidence * 100)}%` }} />
-                    <span>{(element.confidence * 100).toFixed(0)}%</span>
+                    {element.confidence_kind === "not_calibrated"
+                      ? <span>не калибрована</span>
+                      : <>
+                        <div className="conf-bar" style={{ width: `${Math.round(element.confidence * 100)}%` }} />
+                        <span>{(element.confidence * 100).toFixed(0)}%</span>
+                      </>}
                   </div>
                 </td>
                 <td>{dimensionSummary(element)}</td>
                 <td className="flags">
-                  {element.class_name === "column" && <span className={`badge ${referenceStates[element.id] === "labeled" ? "measured" : "inferred"}`}>
+                  <span className={`badge ${referenceStates[element.id] === "labeled" ? "measured" : "inferred"}`}>
                     {referenceStates[element.id] === "labeled" ? "эталон размечен"
                       : referenceStates[element.id] === "unknown" ? "эталон: неизвестно"
                       : referenceStates[element.id] === "excluded" ? "эталон: исключён" : "нет эталона"}
-                  </span>}
+                  </span>
                   {element.measured && <span className="badge measured">измерено</span>}
                   {element.inferred && <span className="badge inferred">восстановлено</span>}
                   {extraBadges(element).map((badge) => (

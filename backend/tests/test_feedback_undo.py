@@ -15,6 +15,55 @@ def _recognized_demo(client):
     return cloud, client.get(f"/api/v1/clouds/{cloud['id']}/elements").json()
 
 
+def test_confirmed_training_sample_keeps_independent_physical_instance_id(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if not item["inferred"])
+    dataset = client.get(f"/api/v1/clouds/{cloud['id']}/element-annotations").json()
+    annotation = client.post(
+        f"/api/v1/clouds/{cloud['id']}/element-annotations/{element['id']}",
+        json={
+            "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+            "annotator": "engineer-a", "state": "labeled", "physical_instance_id": "PHYS-17",
+            "class_label": element["class_name"], "role_label": None, "type_label": None,
+            "reason": "", "note": "independently identified physical element",
+        },
+    )
+    assert annotation.status_code == 200, annotation.text
+
+    confirmed = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["sample"]["physical_instance_id"] == "PHYS-17"
+    assert len(confirmed.json()["sample"]["source_snapshot_id"]) == 64
+    sample = next(item for item in client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+                  if item["id"] == confirmed.json()["sample"]["id"])
+    assert sample["physical_instance_id"] == "PHYS-17"
+
+
+def test_later_independent_label_backfills_confirmed_sample_identity(client):
+    cloud, elements = _recognized_demo(client)
+    element = next(item for item in elements if not item["inferred"])
+    confirmed = client.post(f"/api/v1/elements/{element['id']}/feedback", json={"action": "confirm"})
+    assert confirmed.status_code == 200, confirmed.text
+    sample_id = confirmed.json()["sample"]["id"]
+    dataset = client.get(f"/api/v1/clouds/{cloud['id']}/element-annotations").json()
+
+    annotation = client.post(
+        f"/api/v1/clouds/{cloud['id']}/element-annotations/{element['id']}",
+        json={
+            "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+            "annotator": "engineer-a", "state": "labeled", "physical_instance_id": "PHYS-18",
+            "class_label": element["class_name"], "role_label": None, "type_label": None,
+            "reason": "", "note": "independently identified after candidate confirmation",
+        },
+    )
+
+    assert annotation.status_code == 200, annotation.text
+    samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples").json()
+    sample = next(item for item in samples if item["id"] == sample_id)
+    assert sample["physical_instance_id"] == "PHYS-18"
+
+
 def test_undo_confirm_restores_review_state_and_is_recorded(client):
     cloud, elements = _recognized_demo(client)
     element = elements[0]
@@ -84,6 +133,17 @@ def test_invalidated_synthetic_element_cannot_be_reviewed_or_sampled(client):
     assert review.status_code == 400
     assert "invalidated synthetic ground truth" in review.json()["detail"]
     assert sample.status_code == 409
+    visible = client.get(f"/api/v1/clouds/{cloud['id']}/elements")
+    assert visible.status_code == 200
+    assert all(item["source"] != "invalidated_synthetic_ground_truth" for item in visible.json())
+    model_export = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=json")
+    assert model_export.status_code == 200, model_export.text
+    assert all(item["source"] != "invalidated_synthetic_ground_truth"
+               for item in model_export.json()["elements"])
+    training_samples = client.get(f"/api/v1/projects/{cloud['project_id']}/samples")
+    assert training_samples.status_code == 200
+    assert all(item["source"] != "invalidated_synthetic_ground_truth"
+               for item in training_samples.json())
     model_status = client.get(f"/api/v1/projects/{cloud['project_id']}/model-status")
     assert model_status.status_code == 200
     assert model_status.json()["samples"] == 0

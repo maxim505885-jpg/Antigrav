@@ -23,6 +23,13 @@ def test_two_columns_along_beam_supply_context_but_not_confirmation():
     assert result['requires_review'] is True
 
 
+def test_two_interior_columns_do_not_stand_in_for_end_supports():
+    result = context([column(1), column(5)])
+    assert result['status'] == 'insufficient_context'
+    assert result['end_supports']['start'] is None
+    assert result['end_supports']['end'] is None
+
+
 @pytest.mark.parametrize('columns', [[], [column(0)], [column(0), column(0)],
     [column(0), column(6, y=3)], [column(0), column(6, top=3)],
     [column(0), column(6, bottom=6)]])

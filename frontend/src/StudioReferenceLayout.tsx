@@ -783,11 +783,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             )}
             {selectedElement?.class_name === "column" && (
               <ColumnAnnotationPanel
-                key={`column-reference:${selectedElement.cloud_id}:${selectedElement.id}`}
+                key={`column-reference:${selectedElement.cloud_id}`}
                 cloudId={selectedElement.cloud_id}
                 element={selectedElement}
                 busy={busy}
                 surfaceAnalysis={null}
+                columns={elements.filter((item) => item.cloud_id === selectedElement.cloud_id && item.class_name === "column")}
+                onSelectColumn={onSelectElement}
                 onAnnotationSaved={() => showToast("Эталонная разметка колонны сохранена.", "success")}
               />
             )}

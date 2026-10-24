@@ -1112,8 +1112,17 @@ input[type="checkbox"] {
 .annotation-height-row { display: grid; grid-template-columns: .8fr 1fr 1fr 1.4fr auto; gap: 6px; margin: 6px 0; }
 .annotation-height-row input { min-width: 0; width: 100%; }
 .annotation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.annotation-reference-upload { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.annotation-reference-upload input { max-width: 100%; }
+.physical-reference-card { min-width: 0; }
+.physical-reference-coordinates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.physical-reference-coordinates > div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-width: 0; }
+.physical-reference-coordinates > div > span { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.physical-reference-coordinates input { box-sizing: border-box; min-width: 0; width: 100%; }
 .annotation-wide-field { display: block; margin: 8px 0; }
 .annotation-suggestion { margin: 8px 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.column-annotation-queue { display: grid; gap: 6px; }
+.column-annotation-queue > span:first-child { font-weight: 600; }
 .annotation-confirmation { display: flex; align-items: flex-start; gap: 8px; }
 .annotation-confirmation input { flex: 0 0 auto; margin-top: 3px; }
 @media (max-width: 600px) {

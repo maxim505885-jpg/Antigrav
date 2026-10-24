@@ -205,7 +205,8 @@ The available user direction is to proceed without pauses. Therefore do all engi
 
 **Interfaces:** `propose_crane_girders(point_batches, column_supports, levels, grid) -> MemberProposal[]`; each proposal includes one physical span, axis endpoints, support evidence, observed profile attributes, joints/gaps, source rows and unresolved fields.
 
-- [ ] Build independent labels for beam, rail, runway girder, roof beam, duct/tray and unrelated long objects.
+- [ ] Enter independent labels for beam, rail, runway girder, roof beam, duct/tray and unrelated long objects from the reviewed source cloud.
+- [x] Add a versioned independent element-role annotation path in the API and UI; labels are separate from recognition feedback and exportable against a frozen cloud/candidate snapshot. This supplies the tool for labels, not the labels themselves.
 - [ ] Infer member axes from full-resolution points and plane/surface evidence; do not merge separate spans across joints or a long row into one member.
 - [ ] Detect each physical support at columns and preserve unsupported ends as unknown; keep rail and girder as distinct roles.
 - [ ] Fit only supported profile properties; label hidden flange/web/seat attributes unknown.
@@ -215,7 +216,12 @@ The available user direction is to proceed without pauses. Therefore do all engi
 - [x] Emit each horizontal beam candidate as a validated `MemberProposal` with a repeatable geometry/evidence ID, source-row index space, proposed role, and explicit unknown supports, profile, joint locations and physical span boundary. End-to-end synthetic 6 m crane-girder coverage is in `backend/tests/test_beam_source_lineage.py`; this does not confirm real beam roles or supports.
 - [x] Add synthetic rotation and partial-occlusion cases; preserve the measured axis and selected source-row evidence through both.
 - [x] Keep distinct close parallel spans separate: RED/GREEN test covers 6 m axes 0.30 m apart; merge lateral tolerance is limited to 0.20 m. This is an algorithm threshold, not an engineering tolerance.
-- [ ] Test overlaid rail, connected end plates, repeated spans and non-structural lookalikes.
+- [x] Require separate column candidates near both beam-axis endpoints before reporting support context; interior columns alone remain insufficient. `test_two_interior_columns_do_not_stand_in_for_end_supports` failed before the fix and passes with endpoint evidence exposed to the review UI. The 0.60 m endpoint search margin is a proposal heuristic, not an approved engineering tolerance.
+- [x] Test an overlaid rail/girder height profile and keep its role ambiguous rather than splitting or assigning a rail automatically (`test_crane_girder_with_multiple_height_layers_stays_an_ambiguous_review_candidate`).
+- [x] Flag a connected end plate as ambiguous terminal evidence without moving the measured axis (`test_horizontal_beam_candidate_flags_end_detail_without_moving_its_axis`).
+- [x] Preserve collinear physical spans that only touch at a support as separate proposals (`test_collinear_segments_touching_at_a_support_remain_separate_spans`).
+- [x] Add a synthetic cylindrical-duct lookalike guard: the geometric crane-girder candidate remains proposed, profile-unfitted, and support-unknown (`test_cylindrical_duct_lookalike_remains_an_unconfirmed_geometric_candidate`). This does not prove role discrimination.
+- [ ] Compare ducts/trays and other non-structural long objects against independently reviewed labels and measure false-positive rate.
 - [ ] Report span/level/support residuals and precision/recall against independent labels.
 
 **Gate:** the engineer can review separate spans and supports, and held-out role/profile metrics meet agreed limits.

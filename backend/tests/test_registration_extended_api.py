@@ -95,6 +95,8 @@ def test_export_recap_project_api(client, monkeypatch):
     monkeypatch.setattr(recap_decap, "create_recap_project", lambda *_args: {
         "status": "created_by_autodesk_decap", "rcp_path": "test.rcp",
         "support_dir": "test Support", "linked_rcs_count": 1,
+        "package_verified": True, "rcp_size_bytes": 256,
+        "linked_rcs_size_bytes": 1024,
     })
     req_payload = {
         "project_name": "API_ReCap_Test",
@@ -112,6 +114,8 @@ def test_export_recap_project_api(client, monkeypatch):
     resp = client.post("/api/v1/registration/export-rcp-project", json=req_payload)
     assert resp.status_code == 200
     assert resp.json()["status"] == "created_by_autodesk_decap"
+    assert resp.json()["package_verified"] is True
+    assert resp.json()["linked_rcs_size_bytes"] == 1024
 
 
 def test_export_recap_project_api_does_not_fallback_to_xml_draft(client, monkeypatch):

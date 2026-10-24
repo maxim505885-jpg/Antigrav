@@ -27,29 +27,81 @@ def _bucket(sample_id: str) -> int:
 def _split_samples_by_element(
     samples: list[dict[str, Any]], test_fraction: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Keep revisions of one stable element ID together in train or holdout."""
+    """Keep revisions and cross-cloud aliases of one physical element together."""
     threshold = int(round(test_fraction * 10000))
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for sample in samples:
-        element_id = str(sample.get("element_id") or sample["id"])
-        groups.setdefault(element_id, []).append(sample)
+    parents = list(range(len(samples)))
 
-    test_elements = {element_id for element_id in groups if _bucket(element_id) < threshold}
-    if len(groups) <= 1:
-        test_elements.clear()
-    elif not test_elements:
-        test_elements.add(min(groups, key=lambda element_id: (_bucket(element_id), element_id)))
-    train_elements = set(groups) - test_elements
-    if len(groups) > 1 and not train_elements:
-        element_id = max(test_elements, key=lambda value: (_bucket(value), value))
-        test_elements.remove(element_id)
-        train_elements.add(element_id)
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
 
-    train = [sample for sample in samples
-        if str(sample.get("element_id") or sample["id"]) in train_elements]
-    test = [sample for sample in samples
-        if str(sample.get("element_id") or sample["id"]) in test_elements]
+    def union(left: int, right: int) -> None:
+        root_left, root_right = find(left), find(right)
+        if root_left != root_right:
+            parents[max(root_left, root_right)] = min(root_left, root_right)
+
+    owners: dict[tuple[str, str], int] = {}
+    for index, sample in enumerate(samples):
+        element_id = str(sample.get("element_id") or sample["id"]).strip()
+        physical_id = str(sample.get("physical_instance_id") or "").strip()
+        identities = [("element", element_id)]
+        if physical_id:
+            identities.append(("physical", physical_id))
+        for identity in identities:
+            previous = owners.setdefault(identity, index)
+            union(index, previous)
+
+    components: dict[int, list[int]] = {}
+    for index in range(len(samples)):
+        components.setdefault(find(index), []).append(index)
+
+    group_keys = {}
+    for root, indices in components.items():
+        physical_ids = sorted({str(samples[index].get("physical_instance_id") or "").strip()
+                               for index in indices if str(samples[index].get("physical_instance_id") or "").strip()})
+        element_ids = sorted({str(samples[index].get("element_id") or samples[index]["id"]).strip()
+                              for index in indices})
+        group_keys[root] = "physical:" + "|".join(physical_ids) if physical_ids else "element:" + "|".join(element_ids)
+
+    test_roots = {root for root in components if _bucket(group_keys[root]) < threshold}
+    if len(components) <= 1:
+        test_roots.clear()
+    elif not test_roots:
+        test_roots.add(min(components, key=lambda root: (_bucket(group_keys[root]), group_keys[root])))
+    train_roots = set(components) - test_roots
+    if len(components) > 1 and not train_roots:
+        root = max(test_roots, key=lambda item: (_bucket(group_keys[item]), group_keys[item]))
+        test_roots.remove(root)
+        train_roots.add(root)
+
+    train = [sample for index, sample in enumerate(samples) if find(index) in train_roots]
+    test = [sample for index, sample in enumerate(samples) if find(index) in test_roots]
     return train, test
+
+
+def _validate_physical_instance_labels(samples: list[dict[str, Any]]) -> None:
+    """Reject contradictory engineer classes attached to one physical ID."""
+    labels_by_physical_id: dict[str, set[str]] = {}
+    for sample in samples:
+        physical_id = str(sample.get("physical_instance_id") or "").strip()
+        if not physical_id:
+            continue
+        label = str(sample.get("class_name") or "").strip()
+        if label:
+            labels_by_physical_id.setdefault(physical_id, set()).add(label)
+    conflicts = {
+        physical_id: sorted(labels)
+        for physical_id, labels in labels_by_physical_id.items()
+        if len(labels) > 1
+    }
+    if conflicts:
+        physical_id, labels = sorted(conflicts.items())[0]
+        raise ValueError(
+            f"physical instance {physical_id!r} has conflicting engineer classes: "
+            + ", ".join(labels)
+        )
 
 
 def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
@@ -90,6 +142,7 @@ def train_candidate(
     notes: str = "",
 ) -> dict[str, Any]:
     samples = samples_for_training(project_id)
+    _validate_physical_instance_labels(samples)
     if len(samples) < 4:
         raise ValueError(
             "at least 4 engineer-reviewed samples are required for a train/test split"

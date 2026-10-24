@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ColumnAnnotation, type ColumnAnnotationArchiveResponse, type ColumnAnnotationDataset, type ColumnAnnotationDraft, type ColumnSurfaceTrackAnalysisResponse } from "../api";
 import { restoreAnnotationAsDraft } from "../annotationRecovery";
 import { buildColumnAnnotationHeightSuggestions } from "../columnAnnotationSuggestions";
+import { columnAnnotationQueueStats, nextPendingColumn } from "../columnAnnotationQueue";
 import type { Element } from "../types";
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
   element: Element;
   busy: boolean;
   surfaceAnalysis: ColumnSurfaceTrackAnalysisResponse | null;
+  columns?: Element[];
+  onSelectColumn?: (element: Element) => void;
   onAnnotationSaved: (annotation: ColumnAnnotation) => void;
 }
 
@@ -42,7 +45,7 @@ function initial(annotation?: ColumnAnnotation): Omit<ColumnAnnotationDraft, "so
 
 const mm = (value: number) => (value * 1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 
-export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceAnalysis, onAnnotationSaved }: Props) {
+export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceAnalysis, columns = [], onSelectColumn, onAnnotationSaved }: Props) {
   const [dataset, setDataset] = useState<ColumnAnnotationDataset | null>(null);
   const [archivedHistory, setArchivedHistory] = useState<ColumnAnnotationArchiveResponse["history"]>([]);
   const [draft, setDraft] = useState(initial());
@@ -89,6 +92,8 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
   }, [dataset?.source_snapshot_sha256, element.id]);
 
   const history = useMemo(() => dataset?.history.filter((item) => item.element_id === element.id) || [], [dataset, element.id]);
+  const queueStats = useMemo(() => columnAnnotationQueueStats(columns, dataset?.annotations || []), [columns, dataset?.annotations]);
+  const nextColumn = useMemo(() => nextPendingColumn(columns, dataset?.annotations || [], element.id), [columns, dataset?.annotations, element.id]);
 
   function updateHeights(update: (previous: HeightDraft[]) => HeightDraft[]) {
     const next = update(heights);
@@ -230,6 +235,14 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
   return <section className="editor-box column-annotation-panel" aria-label="Независимая разметка колонны">
     <div className="panel-title"><span>Эталонная разметка</span><small>{current?.revision ? `ревизия ${current.revision}` : "ещё не размечено"}</small></div>
     <p className="hint">Заполняй по выбранным исходным точкам/сечениям или полевому обмеру. Поля пустые, распознанные размеры не копируются. Снимок: {dataset?.source_snapshot_sha256.slice(0, 12) || "…"}.</p>
+    {columns.length > 0 && <div className="annotation-suggestion column-annotation-queue" aria-live="polite">
+      <span>Проверено колонн: {queueStats.reviewed}/{queueStats.total} · осталось: {queueStats.pending}</span>
+      <span className="hint">Размечено {queueStats.labeled} · неизвестно {queueStats.unknown} · исключено {queueStats.excluded}</span>
+      <button type="button" disabled={!dataset || !onSelectColumn || !nextColumn || loading || saving || busy}
+        onClick={() => nextColumn && onSelectColumn?.(nextColumn)}>
+        {nextColumn ? `Следующая ожидающая колонна · ${nextColumn.id.slice(0, 8)}` : "Ожидающих колонн больше нет"}
+      </button>
+    </div>}
     {loading && <p role="status">Загружаю набор эталонов…</p>}
     {error && <p role="alert" className="column-type-error">{error}</p>}
     {notice && <p role="status" className="column-fit-status">{notice}</p>}

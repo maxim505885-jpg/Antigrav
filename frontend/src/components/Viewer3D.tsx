@@ -6,7 +6,7 @@ import type { Cloud, Element, LodManifest } from "../types";
 import { groupCameraDistance } from "../columnGroupGeometry";
 import { selectLodLevel } from "../lodLevel";
 import { RenderFpsSampler } from "../renderFps";
-import { elementBoxLinePositions } from "../structuralFrameGeometry";
+import { elementBoxLinePositions, elementUsesCloudLocalCoordinates } from "../structuralFrameGeometry";
 import { computeStructuralGridGeometry } from "../structuralGrid3D";
 import { classLabel } from "../types";
 import { LimitBoxDock, type LimitBoxRange } from "./LimitBoxDock";
@@ -818,6 +818,7 @@ export default function Viewer3D({
     });
 
     const origin = cloud?.origin ?? [0, 0, 0];
+    const elementOrigin = elementUsesCloudLocalCoordinates(selectedElement) ? [0, 0, 0] : origin;
     const min = selectedElement.bbox.min;
     const max = selectedElement.bbox.max;
     const size = new THREE.Vector3(
@@ -832,9 +833,9 @@ export default function Viewer3D({
     );
     boxGeometry.dispose();
     outline.position.set(
-      (min[0] + max[0]) / 2 - origin[0],
-      (min[1] + max[1]) / 2 - origin[1],
-      (min[2] + max[2]) / 2 - origin[2],
+      (min[0] + max[0]) / 2 - elementOrigin[0],
+      (min[1] + max[1]) / 2 - elementOrigin[1],
+      (min[2] + max[2]) / 2 - elementOrigin[2],
     );
     outline.renderOrder = 3;
     scene.add(outline);

@@ -5,80 +5,46 @@ import { type Cloud } from "../types";
 interface SplitScreenRegistrationViewProps {
   sourceCloud: Cloud | null;
   targetCloud: Cloud | null;
-  onDetectTargets?: (cloudId: string) => Promise<void>;
-  onAlignPairwise?: (pairs: Array<{ source: [number, number, number]; target: [number, number, number] }>) => Promise<void>;
-  onBundleAdjustment?: () => Promise<void>;
 }
 
 export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewProps> = ({
   sourceCloud,
   targetCloud,
-  onDetectTargets,
-  onAlignPairwise,
-  onBundleAdjustment,
 }) => {
-  const [sourcePairs, setSourcePairs] = useState<Array<[number, number, number]>>([]);
-  const [targetPairs, setTargetPairs] = useState<Array<[number, number, number]>>([]);
-  const [detectedSpheres, setDetectedSpheres] = useState<Array<{ id: string; center: number[]; rmse_mm: number }>>([]);
+  const [detectedTargets, setDetectedTargets] = useState(0);
+  const [targetDiameterMm, setTargetDiameterMm] = useState("");
   const [isDetecting, setIsDetecting] = useState(false);
   const [alignStatus, setAlignStatus] = useState<string | null>(null);
-  const [rmse, setRmse] = useState<number | null>(null);
   const emptySections: [Float32Array, Float32Array, Float32Array] = [
     new Float32Array(0),
     new Float32Array(0),
     new Float32Array(0),
   ];
 
-  const handleSimulateSphereDetect = async (cloudId: string) => {
+  const handleDetectTargets = async (cloudId: string) => {
+    const diameterMm = Number(targetDiameterMm.replace(",", "."));
+    if (!Number.isFinite(diameterMm) || diameterMm <= 0) {
+      setAlignStatus("Введите фактический диаметр установленной сферы в миллиметрах.");
+      return;
+    }
     setIsDetecting(true);
     try {
       const resp = await fetch("/api/v1/registration/detect-targets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cloud_id: cloudId, expected_radius_m: 0.0725, sample_points: 50000 }),
+        body: JSON.stringify({ cloud_id: cloudId, expected_radius_m: diameterMm / 2000, sample_points: 50000 }),
       });
       const data = await resp.json();
       if (data.status === "ok" && data.targets) {
-        setDetectedSpheres(data.targets);
-        setAlignStatus(`Обнаружено геодезических сфер: ${data.targets_found}`);
+        setDetectedTargets(data.targets_found || data.targets.length);
+        setAlignStatus(`Найдено кандидатов-сфер: ${data.targets_found || data.targets.length}. Это не подтверждает общие цели или регистрацию станций.`);
+      } else {
+        throw new Error(data.detail || data.message || `HTTP ${resp.status}`);
       }
     } catch (e: any) {
-      setAlignStatus(`Поиск сфер: ${e.message || "готово"}`);
+      setAlignStatus(`Поиск целей не выполнен: ${e.message || String(e)}`);
     } finally {
       setIsDetecting(false);
-    }
-  };
-
-  const handleBundleOptimization = async () => {
-    try {
-      setAlignStatus("Запуск глобального уравнивания Bundle Adjustment...");
-      const resp = await fetch("/api/v1/registration/bundle-adjustment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          station_ids: [sourceCloud?.name || "Scan_01", targetCloud?.name || "Scan_02"],
-          constraints: [
-            {
-              from_id: sourceCloud?.name || "Scan_01",
-              to_id: targetCloud?.name || "Scan_02",
-              matrix_4x4: [
-                [1, 0, 0, 6.0],
-                [0, 1, 0, 0.0],
-                [0, 0, 1, 0.0],
-                [0, 0, 0, 1.0],
-              ],
-              weight: 1.0,
-            },
-          ],
-        }),
-      });
-      const data = await resp.json();
-      if (data.status === "ok") {
-        setRmse(data.final_rmse_mm || 1.8);
-        setAlignStatus(`Уравнивание завершено. Финальная невязка: ${(data.final_rmse_mm || 1.8).toFixed(2)} мм`);
-      }
-    } catch (err: any) {
-      setAlignStatus(`Ошибка: ${err.message}`);
     }
   };
 
@@ -97,17 +63,21 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ color: "#FF812E", fontWeight: 700, fontSize: 13, textTransform: "uppercase" }}>
-            Двухоконная сшивка станций (ReCap Split-Screen)
+            Сравнение исходных облаков
           </span>
           <span style={{ color: "#97A3AE", fontSize: 12 }}>
-            Выделите 3 общие точки/сферы на обоих экранах для мгновенной точной взаимной ориентации
+            Положение и невязка не считаются проверенными без общих контрольных точек.
           </span>
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, color: "#CBD5E1", fontSize: 11 }}>
+            Ø сферы, мм
+            <input aria-label="Диаметр сферы в миллиметрах" type="number" min="0.1" step="0.1" value={targetDiameterMm} onChange={(event) => setTargetDiameterMm(event.target.value)} style={{ width: 82, background: "#0E1318", color: "#FFFFFF", border: "1px solid #475569", borderRadius: 4, padding: "5px 7px" }} />
+          </label>
           <button
-            onClick={() => sourceCloud && handleSimulateSphereDetect(sourceCloud.id)}
-            disabled={isDetecting || !sourceCloud}
+            onClick={() => sourceCloud && handleDetectTargets(sourceCloud.id)}
+            disabled={isDetecting || !sourceCloud || !targetDiameterMm}
             style={{
               background: "#1E252D",
               color: "#F2F4F6",
@@ -118,11 +88,12 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               fontSize: 12,
             }}
           >
-            {isDetecting ? "Поиск сфер..." : "🎯 Автопоиск сфер (145мм)"}
+            {isDetecting ? "Поиск целей…" : "Найти сферы в первом облаке"}
           </button>
 
           <button
-            onClick={handleBundleOptimization}
+            disabled
+            title="Сшивка станет доступна после ввода и проверки соответствующих контрольных точек обоих облаков. Автоматические смещения не подставляются."
             style={{
               background: "#FF812E",
               color: "#10151B",
@@ -130,11 +101,12 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               border: "none",
               borderRadius: 6,
               padding: "6px 14px",
-              cursor: "pointer",
+              cursor: "not-allowed",
+              opacity: 0.55,
               fontSize: 12,
             }}
           >
-            ⚖ Глобальное уравнивание (Bundle Adj)
+            Уравнивание недоступно · нет пар контрольных точек
           </button>
         </div>
       </div>
@@ -146,13 +118,13 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
             padding: "6px 16px",
             borderBottom: "1px solid #303943",
             fontSize: 12,
-            color: "#49C980",
+            color: alignStatus.startsWith("Ошибка") || alignStatus.includes("не выполнен") ? "#F2B84B" : "#CBD5E1",
             display: "flex",
             justifyContent: "space-between",
           }}
         >
           <span>{alignStatus}</span>
-          {rmse !== null && <span>Точность сшивки: {rmse.toFixed(2)} мм (Отлично, СП 70.13330)</span>}
+          {detectedTargets > 0 && <span>Кандидатов-сфер: {detectedTargets} · регистрации не выполнена</span>}
         </div>
       )}
 
@@ -175,7 +147,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               fontSize: 12,
             }}
           >
-            Станция А (Базовая): {sourceCloud?.name || "1.rcs"}
+            Исходное облако: {sourceCloud?.name || "не выбрано"}
           </div>
           <Viewer3D
             cloud={sourceCloud}
@@ -208,7 +180,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               fontSize: 12,
             }}
           >
-            Станция Б (Присоединяемая): {targetCloud?.name || "2.rcs"}
+            Сравниваемое облако: {targetCloud?.name || "не выбрано"}
           </div>
           <Viewer3D
             cloud={targetCloud || sourceCloud}

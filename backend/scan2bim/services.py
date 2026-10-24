@@ -9,7 +9,7 @@ from shapely.ops import unary_union
 from .db import dumps, execute, loads, new_id, one, rows, utcnow
 from .geometry.bounds import derive_bbox
 from .learning.features import features_from_element
-from .learning.store import create_sample
+from .learning.store import create_sample, validate_training_sample_source
 
 
 def element_from_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -80,11 +80,20 @@ def _restore_element_state(element_id: str, state: dict[str, Any]) -> dict[str, 
 
 
 def list_elements(cloud_id: str) -> list[dict[str, Any]]:
-    els = [element_from_row(r) for r in rows("SELECT * FROM elements WHERE cloud_id = ? ORDER BY class_name, id", (cloud_id,))]
+    # Invalidated synthetic catalog rows remain in SQLite for audit, but must
+    # never appear as live candidates or leak into downstream model exports.
+    invalidated_source = "invalidated_synthetic_ground_truth"
+    els = [element_from_row(r) for r in rows(
+        "SELECT * FROM elements WHERE cloud_id = ? AND source != ? ORDER BY class_name, id",
+        (cloud_id, invalidated_source),
+    )]
     if not els:
         c_row = one("SELECT project_id FROM clouds WHERE id = ?", (cloud_id,))
         if c_row:
-            els = [element_from_row(r) for r in rows("SELECT * FROM elements WHERE project_id = ? ORDER BY class_name, id", (c_row["project_id"],))]
+            els = [element_from_row(r) for r in rows(
+                "SELECT * FROM elements WHERE project_id = ? AND source != ? ORDER BY class_name, id",
+                (c_row["project_id"], invalidated_source),
+            )]
     return els
 
 
@@ -137,7 +146,12 @@ def _feedback(
     return feedback_id
 
 
-def _ensure_sample(element: dict[str, Any], class_name: str, source: str = "engineer") -> dict[str, Any] | None:
+def _ensure_sample(
+    element: dict[str, Any],
+    class_name: str,
+    source: str = "engineer",
+    physical_instance_id: str | None = None,
+) -> dict[str, Any] | None:
     if (element.get("review_status") not in {"confirmed", "corrected"}
         or element.get("inferred")):
         return None
@@ -156,6 +170,7 @@ def _ensure_sample(element: dict[str, Any], class_name: str, source: str = "engi
             class_name=class_name,
             source=source,
             element_id=element["id"],
+            physical_instance_id=physical_instance_id,
         )
     except Exception:
         return None
@@ -178,6 +193,7 @@ def review_element(
     geometry: dict[str, Any] | None = None,
     engineer: str = "",
     note: str = "",
+    physical_instance_id: str | None = None,
 ) -> dict[str, Any]:
     element = get_element(element_id)
     _assert_reviewable_source(element)
@@ -208,11 +224,18 @@ def review_element(
         element, action, before, {**updates, "id": element_id}, engineer, note
     )
     sample = None
+    training_sample_warning = None
     superseded_samples = []
     if action == "reclassify" and updated["class_name"] != element["class_name"]:
         superseded_samples = _supersede_training_samples(element_id)
     if action in {"confirm", "reclassify"}:
-        sample = _ensure_sample(updated, updated["class_name"])
+        if updated.get("review_status") in {"confirmed", "corrected"} and not updated.get("inferred"):
+            try:
+                validate_training_sample_source(updated["cloud_id"], updated)
+            except ValueError as exc:
+                training_sample_warning = str(exc)
+        if training_sample_warning is None:
+            sample = _ensure_sample(updated, updated["class_name"], physical_instance_id=physical_instance_id)
         if sample or superseded_samples:
             execute(
                 "UPDATE feedback SET after_json = ? WHERE id = ?",
@@ -220,7 +243,10 @@ def review_element(
                     **({"sample_id": sample["id"]} if sample else {}),
                     **({"superseded_samples": superseded_samples} if superseded_samples else {})}), feedback_id),
             )
-    return {"element": updated, "feedback_id": feedback_id, "sample": sample}
+    result = {"element": updated, "feedback_id": feedback_id, "sample": sample}
+    if training_sample_warning:
+        result["training_sample_warning"] = training_sample_warning
+    return result
 
 
 def merge_elements(

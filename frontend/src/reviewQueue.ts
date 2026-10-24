@@ -33,7 +33,6 @@ export function filterReferenceElements<T extends ReferenceElement>(
 ): T[] {
   return elements.filter((element) => {
     if (filter === "all") return true;
-    if (element.class_name !== "column") return false;
     const state = states[element.id] || "pending";
     if (filter === "needs_reference") return state === "pending";
     return state === filter;

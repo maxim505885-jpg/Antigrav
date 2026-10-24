@@ -1,3 +1,5 @@
+import type { Element } from "./types";
+
 export interface EvidenceBadge {
   text: string;
   title: string;
@@ -5,6 +7,16 @@ export interface EvidenceBadge {
 }
 
 type EvidenceMetadata = Record<string, unknown>;
+
+/** Makes proposed structural classes visibly provisional in the element table. */
+export function structuralRoleStatusBadge(roleLabel: unknown, roleStatus: unknown): EvidenceBadge[] {
+  if (roleStatus !== "proposed" || typeof roleLabel !== "string" || !roleLabel.trim()) return [];
+  return [{
+    text: "роль — гипотеза",
+    title: `Распознаватель предложил роль «${roleLabel.trim()}» по геометрии. Инженерная проверка не выполнена; не использовать её как подтверждённую классификацию.`,
+    cls: "inferred",
+  }];
+}
 
 /** Keeps geometric filtering outcomes visibly provisional in the review table. */
 export function columnCandidateStatusBadges(dimensions: EvidenceMetadata | null | undefined): EvidenceBadge[] {
@@ -84,6 +96,27 @@ export function elementEvidenceBadges(metadata: EvidenceMetadata | null | undefi
   const context = metadata.column_support_context;
   if (context && typeof context === "object") {
     const value = context as Record<string, unknown>;
+    const endpointValue = value.end_supports && typeof value.end_supports === "object"
+      ? value.end_supports as Record<string, unknown>
+      : null;
+    const startEndpoint = endpointValue?.start && typeof endpointValue.start === "object"
+      ? endpointValue.start as Record<string, unknown>
+      : null;
+    const endEndpoint = endpointValue?.end && typeof endpointValue.end === "object"
+      ? endpointValue.end as Record<string, unknown>
+      : null;
+    const startGap = typeof startEndpoint?.gap_m === "number" ? startEndpoint.gap_m : null;
+    const endGap = typeof endEndpoint?.gap_m === "number" ? endEndpoint.gap_m : null;
+    const distinctEndpointSupports = startEndpoint && endEndpoint
+      && typeof startEndpoint.column_index === "number"
+      && Number.isFinite(startEndpoint.column_index)
+      && typeof endEndpoint.column_index === "number"
+      && Number.isFinite(endEndpoint.column_index)
+      && startEndpoint.column_index !== endEndpoint.column_index
+      && startGap !== null
+      && Number.isFinite(startGap)
+      && endGap !== null
+      && Number.isFinite(endGap);
     if (value.status === "supported_hypothesis") {
       const spacing = value.support_spacing_m;
       const supports = Array.isArray(value.supports) ? value.supports : [];
@@ -95,14 +128,42 @@ export function elementEvidenceBadges(metadata: EvidenceMetadata | null | undefi
       const offsetText = offsets.length
         ? ` Макс. смещение оси балки от найденных колонн: ${Math.max(...offsets).toFixed(2)} м.`
         : "";
-      badges.push({
-        text: "рядом колонны · роль балки проверить",
-        title: `Найдены ${supports.length || "разнесённые"} колонны подходящей высоты.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Крайние найденные колонны разнесены на ${spacing} м.` : ""}${offsetText} Опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
-        cls: "inferred",
-      });
+      if (distinctEndpointSupports) {
+        const margin = typeof value.endpoint_search_margin_m === "number"
+          && Number.isFinite(value.endpoint_search_margin_m)
+          ? value.endpoint_search_margin_m.toFixed(2)
+          : "не задан";
+        badges.push({
+          text: "колонны у обоих концов · проверить опирание",
+          title: `У концов оси балки найдены разные колонны: начало: ${startGap?.toFixed(2)} м, конец: ${endGap?.toFixed(2)} м до пятна колонны; предел поиска ${margin} м — геометрическая эвристика.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Крайние найденные колонны разнесены на ${spacing} м.` : ""}${offsetText} Физическое опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
+          cls: "inferred",
+        });
+      } else {
+        badges.push({
+          text: "рядом колонны · роль балки проверить",
+          title: `Найдены ${supports.length || "разнесённые"} колонны подходящей высоты.${typeof spacing === "number" && Number.isFinite(spacing) && spacing > 0 ? ` Крайние найденные колонны разнесены на ${spacing} м.` : ""}${offsetText} Опирание, консоли и крановый путь не подтверждены; возможна балка перекрытия.`,
+          cls: "inferred",
+        });
+      }
     } else if (value.status === "insufficient_context") {
-      badges.push({text: "связь с колоннами не установлена",
-        title: "Недостаточно геометрических данных о двух колоннах. Это не доказывает отсутствие опор; назначение балки требует проверки.", cls: "inferred"});
+      if (endpointValue && Array.isArray(value.supports) && value.supports.length > 0) {
+        const endpointGapText = (name: string, endpoint: Record<string, unknown> | null, gap: number | null) =>
+          endpoint && gap !== null && Number.isFinite(gap)
+            ? `${name} (${gap.toFixed(2)} м)`
+            : `${name} не подтверждено`;
+        const found = [
+          endpointGapText("начало", startEndpoint, startGap),
+          endpointGapText("конец", endEndpoint, endGap),
+        ].join(", ");
+        badges.push({
+          text: "опоры у обоих концов не найдены",
+          title: `В полосе балки найдено колонн: ${value.supports.length}; по концам оси: ${found}. Для статуса гипотезы нужны разные колонны у обоих концов. Отсутствие точек не доказывает отсутствие физической опоры; проверьте вручную.`,
+          cls: "inferred",
+        });
+      } else {
+        badges.push({text: "связь с колоннами не установлена",
+          title: "Недостаточно геометрических данных о двух колоннах. Это не доказывает отсутствие опор; назначение балки требует проверки.", cls: "inferred"});
+      }
     }
   }
   if (vertical && typeof vertical === "object"
@@ -123,4 +184,15 @@ export function elementEvidenceBadges(metadata: EvidenceMetadata | null | undefi
     });
   }
   return badges;
+}
+
+/** Combines every recognition warning that applies to one row in the active candidate table. */
+export function elementTableEvidenceBadges(element: Element): EvidenceBadge[] {
+  const dimensions = element.dimensions || {};
+  return [
+    ...elementEvidenceBadges(element.metadata),
+    ...structuralRoleStatusBadge(dimensions.role_label, dimensions.role_status),
+    ...columnCandidateStatusBadges(dimensions),
+    ...nominalGridHypothesisBadges(dimensions),
+  ];
 }
