@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { api } from "./api";
 import "./theme.css";
-import Viewer3D from "./components/Viewer3D";
+import Viewer3D, { type CameraPreset } from "./components/Viewer3D";
 import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
 import { RegistrationQualityCharts } from "./components/RegistrationQualityCharts";
 import { ElementTanStackTable } from "./components/ElementTanStackTable";
+import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
 import { type Cloud, type Element, type Project } from "./types";
 
 import {
@@ -58,46 +59,51 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 }) => {
   const [activeNav, setActiveNav] = useState("pointcloud");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(null);
+  const [activeViewLabel, setActiveViewLabel] = useState<string>("3D ISO");
+  const [toast, setToast] = useState<{ type: "success" | "info" | "warning" | "error"; message: string } | null>(null);
+
+  const showToast = (message: string, type: "success" | "info" | "warning" | "error" = "info", duration = 5000) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), duration);
+  };
   const [assistantMode, setAssistantMode] = useState<"manual" | "ai" | "hybrid">("hybrid");
   const [recapNotice, setRecapNotice] = useState<string | null>(null);
-  const [bundleNotice, setBundleNotice] = useState<string | null>(null);
+  const [recapProjectPath, setRecapProjectPath] = useState<string | null>(null);
+  const [selectedRecapCloudIds, setSelectedRecapCloudIds] = useState<string[]>([]);
+  const [recapExporting, setRecapExporting] = useState(false);
+  const recapEligibleClouds = clouds.filter((item) =>
+    item.status === "ready" &&
+    ["rcs", "e57", "fls", "fws", "las", "laz", "pts", "ptx", "ply", "xyz"]
+      .includes(item.source_format.toLowerCase().replace(/^\./, "")),
+  );
 
   const handleExportRecap = async () => {
+    const selectedScans = recapEligibleClouds.filter((item) => selectedRecapCloudIds.includes(item.id));
+    if (selectedScans.length === 0) {
+      showToast("Отметьте исходные сканы для проекта ReCap.", "warning");
+      return;
+    }
     try {
-      const res = await api.exportRecapProject(project?.name || "Workshop_Project", [
-        { id: "scan_01", name: "1.rcs", path: clouds.find((c) => c.name?.includes("1.rcs"))?.source_path || "1.rcs", point_count: 297873927, matrix_4x4: [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]], rmse_mm: 0.0 },
-        { id: "scan_02", name: "2.rcs", path: clouds.find((c) => c.name?.includes("2.rcs"))?.source_path || "2.rcs", point_count: 576820490, matrix_4x4: [[0.9998,-0.015,0.005,12.45],[0.015,0.9998,-0.002,-3.12],[-0.005,0.002,0.9999,0.045],[0,0,0,1]], rmse_mm: 2.14 },
-      ]);
-      setRecapNotice(`Проект Autodesk ReCap (.rcp) успешно сгенерирован: ${res.output_path}. Готов к открытию в Autodesk ReCap Pro и AutoCAD!`);
-      setTimeout(() => setRecapNotice(null), 10000);
+      setRecapExporting(true);
+      const projectName = (project?.name || "SCAN_ReCap_Project")
+        .replace(/[^\p{L}\p{N} .()_-]/gu, "_")
+        .trim()
+        .slice(0, 80) || "SCAN_ReCap_Project";
+      const res = await api.exportNativeRecapProject(projectName, selectedScans.map((scan) => ({
+        name: scan.name,
+        path: scan.source_path,
+        point_count: scan.point_count,
+      })));
+      setRecapProjectPath(res.rcp_path);
+      setRecapNotice(`DeCap собрал RCP. SCAN проверил состав файлов: ${res.input_scan_count} исходных, ${res.linked_rcs_count} непустых связанных RCS. Откройте пакет в ReCap для приёмки.`);
     } catch (err: any) {
-      alert("Ошибка экспорта ReCap: " + (err.message || String(err)));
+      showToast("Ошибка экспорта ReCap: " + (err.message || String(err)), "error");
+    } finally {
+      setRecapExporting(false);
     }
   };
 
-  const handleRunBundleAdjustment = async () => {
-    try {
-      const res = await api.bundleAdjustment({
-        station_ids: ["ST_01", "ST_02"],
-        constraints: [
-          {
-            from_id: "ST_01",
-            to_id: "ST_02",
-            matrix_4x4: [[1,0,0,12.45],[0,1,0,-3.12],[0,0,1,0.04],[0,0,0,1]],
-            weight: 1.0,
-            rmse_mm: 2.1,
-          }
-        ],
-        fixed_station_id: "ST_01",
-      });
-      if (res.status === "ok") {
-        setBundleNotice(`Bundle Adjustment успешно оптимизировал сеть станций! Итераций: ${res.iterations}, невязка: ${res.final_error.toFixed(4)}`);
-        setTimeout(() => setBundleNotice(null), 10000);
-      }
-    } catch (err: any) {
-      alert("Ошибка Bundle Adjustment: " + (err.message || String(err)));
-    }
-  };
   const [activeStationIndex, setActiveStationIndex] = useState(0);
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
@@ -402,13 +408,133 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             </div>
           </div>
 
-          {/* Navigation Cube Widget */}
+          {/* Interactive 3D ViewCube & Camera Orientations */}
           <div
             className="nav-cube-widget"
-            title="Ориентация камеры: Сверху (ТОР)"
-            onClick={() => alert("Камера переключена в ортографический вид: ПЛАН (СВЕРХУ)")}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 18,
+              zIndex: 35,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              padding: 6,
+              width: "auto",
+              height: "auto",
+              background: "rgba(15, 23, 42, 0.92)",
+              border: "1px solid #334050",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
+            }}
           >
-            TOP
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <Compass size={13} color="#FF812E" />
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: "#FFA25B" }}>{activeViewLabel}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+              <button
+                onClick={() => {
+                  setCameraPreset({ view: "top", seq: Date.now() });
+                  setActiveViewLabel("TOP (ПЛАН)");
+                  showToast("Вид переключён: ПЛАН (СВЕРХУ)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontSize: 10,
+                  fontWeight: activeViewLabel.includes("TOP") ? 800 : 600,
+                  background: activeViewLabel.includes("TOP") ? "#FF812E" : "#1C2430",
+                  color: activeViewLabel.includes("TOP") ? "#0A0D11" : "#E2E8F0",
+                  border: "1px solid #334050",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Вид сверху (Ортографический план цеха)"
+              >
+                TOP
+              </button>
+              <button
+                onClick={() => {
+                  setCameraPreset({ view: "front", seq: Date.now() });
+                  setActiveViewLabel("FRONT (ФАСАД)");
+                  showToast("Вид переключён: ФАСАД (СПЕРЕДИ)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontSize: 10,
+                  fontWeight: activeViewLabel.includes("FRONT") ? 800 : 600,
+                  background: activeViewLabel.includes("FRONT") ? "#FF812E" : "#1C2430",
+                  color: activeViewLabel.includes("FRONT") ? "#0A0D11" : "#E2E8F0",
+                  border: "1px solid #334050",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Вид спереди (Продольный фасад)"
+              >
+                FRONT
+              </button>
+              <button
+                onClick={() => {
+                  setCameraPreset({ view: "right", seq: Date.now() });
+                  setActiveViewLabel("RIGHT (СБОКУ)");
+                  showToast("Вид переключён: ВИД СПРАВА (ТОРЕЦ)", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontSize: 10,
+                  fontWeight: activeViewLabel.includes("RIGHT") ? 800 : 600,
+                  background: activeViewLabel.includes("RIGHT") ? "#FF812E" : "#1C2430",
+                  color: activeViewLabel.includes("RIGHT") ? "#0A0D11" : "#E2E8F0",
+                  border: "1px solid #334050",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Вид сбоку (Поперечный торец)"
+              >
+                RIGHT
+              </button>
+              <button
+                onClick={() => {
+                  setCameraPreset({ view: "iso", seq: Date.now() });
+                  setActiveViewLabel("3D ISO");
+                  showToast("Вид переключён: 3D ИЗОМЕТРИЯ", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontSize: 10,
+                  fontWeight: activeViewLabel.includes("ISO") ? 800 : 600,
+                  background: activeViewLabel.includes("ISO") ? "#FF812E" : "#1C2430",
+                  color: activeViewLabel.includes("ISO") ? "#0A0D11" : "#E2E8F0",
+                  border: "1px solid #334050",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  gridColumn: "span 2",
+                }}
+                title="Аксонометрическая 3D перспектива"
+              >
+                3D ISO
+              </button>
+              <button
+                onClick={() => {
+                  setCameraPreset({ view: "fit", seq: Date.now() });
+                  setActiveViewLabel("FIT");
+                  showToast("Камера центрирована по габаритам цеха", "info", 2000);
+                }}
+                style={{
+                  padding: "3px 6px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  background: "#1C2430",
+                  color: "#38BDF8",
+                  border: "1px solid #334050",
+                  borderRadius: 3,
+                  cursor: "pointer",
+                }}
+                title="Центрировать сцену"
+              >
+                FIT
+              </button>
+            </div>
           </div>
 
           {/* Floating Layers Card */}
@@ -469,6 +595,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 measureModeActive={measureMode}
                 onToggleMeasureMode={setMeasureMode}
                 showBim={layers.aiStructures || layers.bimModel}
+                cameraPreset={cameraPreset}
               />
             ) : (
               <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>
@@ -546,14 +673,18 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+            {selectedElement && currentCloud && (
+              <ElementAnnotationPanel
+                key={`${currentCloud.id}:${selectedElement.id}`}
+                cloudId={currentCloud.id}
+                element={selectedElement}
+                busy={busy}
+                onAnnotationSaved={() => showToast("Независимая разметка сохранена отдельно от гипотезы распознавателя.", "success")}
+              />
+            )}
             {recapNotice && (
               <div style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22C55E", borderRadius: 6, padding: "10px 12px", marginBottom: 12, color: "#86EFAC", fontSize: 12 }}>
                 ✓ {recapNotice}
-              </div>
-            )}
-            {bundleNotice && (
-              <div style={{ background: "rgba(56, 189, 248, 0.15)", border: "1px solid #38BDF8", borderRadius: 6, padding: "10px 12px", marginBottom: 12, color: "#7DD3FC", fontSize: 12 }}>
-                ✓ {bundleNotice}
               </div>
             )}
             <div style={{ background: "#1C2430", border: "1px solid #334050", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
@@ -564,8 +695,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 </span>
               </div>
               <p style={{ fontSize: 12.5, color: "#E2E8F0", lineHeight: 1.6 }}>
-                Выполнен глобальный уравнитель связей Bundle Adjustment для 1.rcs + 2.rcs.
-                Среднеквадратическая ошибка сшивки: <strong style={{ color: "#4ADE80" }}>не проверена</strong>. Конструкции требуют проверки по исходным точкам.
+                Подтверждённой регистрации исходных FARO-станций пока нет. SCAN может собрать нативный RCP-пакет через Autodesk DeCap; положения сканов проверяются отдельно по связям и контрольным точкам.
               </p>
             </div>
 
@@ -589,24 +719,60 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               </button>
               <button
                 className="action-dark-btn"
-                onClick={() => alert("Ведомость отклонений колонн по СП 70.13330 в PDF сформирована!")}
+                onClick={() => { window.open(`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`, "_blank"); showToast("Ведомость отклонений колонн по СП 70.13330 открыта в PDF!", "success"); }}
                 style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
               </button>
               <button
                 className="action-dark-btn"
-                onClick={handleRunBundleAdjustment}
+                onClick={() => setActiveNav("stitching")}
                 style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
-                <Sparkles size={16} color="#FFA25B" /> Глобальный уравнитель Bundle Adjustment
+                Перейти к регистрации сканов
               </button>
               <button
                 onClick={handleExportRecap}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700, background: "rgba(255, 129, 46, 0.15)", border: "1px solid #FF812E" }}
+                disabled={busy || recapExporting || selectedRecapCloudIds.length === 0}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700, background: "rgba(255, 129, 46, 0.15)", border: "1px solid #FF812E", opacity: busy || recapExporting || selectedRecapCloudIds.length === 0 ? 0.55 : 1 }}
               >
-                <FileDown size={16} color="#FF812E" /> Экспорт проекта Autodesk ReCap (.RCP)
+                <FileDown size={16} color="#FF812E" /> {recapExporting ? "ReCap собирает проект…" : "Собрать настоящий проект ReCap (.RCP)"}
               </button>
+              <div style={{ padding: "10px 12px", border: "1px solid #334050", borderRadius: 6, color: "#CBD5E1", fontSize: 12 }}>
+                <strong style={{ display: "block", marginBottom: 6 }}>Исходные сканы для RCP</strong>
+                {recapEligibleClouds.length === 0 ? (
+                  <span>Нет готовых исходных файлов, поддерживаемых DeCap.</span>
+                ) : recapEligibleClouds.map((item) => (
+                  <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 6, wordBreak: "break-word" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRecapCloudIds.includes(item.id)}
+                      onChange={(event) => setSelectedRecapCloudIds((current) => event.target.checked
+                        ? [...current, item.id]
+                        : current.filter((id) => id !== item.id))}
+                    />
+                    <span>{item.name} <small style={{ color: "#94A3B8" }}>({item.source_format.toUpperCase()})</small></span>
+                  </label>
+                ))}
+                <p style={{ margin: "8px 0 0", color: "#94A3B8", lineHeight: 1.45 }}>
+                  DeCap создаёт нативные RCP и Support/RCS. Исходные станции импортируются в исходных координатах; эта операция не выполняет регистрацию и не меняет исходные файлы.
+                </p>
+                {recapProjectPath && (
+                  <button
+                    className="action-dark-btn"
+                    onClick={async () => {
+                      try {
+                        await api.openInReCap(recapProjectPath);
+                      } catch (err: any) {
+                        showToast("Не удалось открыть проект в ReCap: " + (err.message || String(err)), "error");
+                      }
+                    }}
+                    style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
+                  >
+                    Открыть созданный RCP в ReCap
+                  </button>
+                )}
+              </div>
               <a
                 href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`}
                 target="_blank"
@@ -700,6 +866,38 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
         </div>
       </footer>
+
+            {/* TOAST NOTIFICATION */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            top: 56,
+            right: 20,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 18px",
+            borderRadius: 6,
+            background: toast.type === "error" ? "rgba(220, 38, 38, 0.95)" : toast.type === "success" ? "rgba(22, 163, 74, 0.95)" : toast.type === "warning" ? "rgba(234, 88, 12, 0.95)" : "rgba(30, 41, 59, 0.95)",
+            border: `1px solid ${toast.type === "error" ? "#EF4444" : toast.type === "success" ? "#4ADE80" : toast.type === "warning" ? "#FB923C" : "#38BDF8"}`,
+            color: "#FFFFFF",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          <span>{toast.type === "error" ? "✕" : toast.type === "success" ? "✓" : "ℹ"}</span>
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            style={{ background: "transparent", border: "none", color: "#FFFFFF", cursor: "pointer", marginLeft: 8, fontSize: 16 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* GOST Profile Inspector Modal */}
       {inspectingElement && (

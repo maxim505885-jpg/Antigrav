@@ -12,6 +12,13 @@ import { classLabel } from "../types";
 import { LimitBoxDock, type LimitBoxRange } from "./LimitBoxDock";
 import { Measure3DDock, type MeasureResult } from "./Measure3DDock";
 
+export type CameraViewDirection = "top" | "front" | "back" | "left" | "right" | "iso" | "fit";
+
+export interface CameraPreset {
+  view: CameraViewDirection;
+  seq: number;
+}
+
 interface Props {
   cloud: Cloud | null;
   elements?: Element[];
@@ -30,6 +37,7 @@ interface Props {
   measureModeActive?: boolean;
   onToggleMeasureMode?: (active: boolean) => void;
   showBim?: boolean;
+  cameraPreset?: CameraPreset | null;
 }
 
 interface RawGeometry {
@@ -76,6 +84,7 @@ export default function Viewer3D({
   measureModeActive,
   onToggleMeasureMode,
   showBim = false,
+  cameraPreset,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -446,6 +455,50 @@ export default function Viewer3D({
       });
     }
   }, [cloud?.id]);
+
+  useEffect(() => {
+    if (!cameraPreset) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+    if (!camera || !controls) return;
+
+    const sphere = groupSphereRef.current || (rawRef.current ? new THREE.Sphere(new THREE.Vector3(), Math.max(1, rawRef.current.radius)) : null);
+    const center = sphere ? sphere.center.clone() : controls.target.clone();
+    const radius = Math.max(5, sphere ? sphere.radius : 25);
+    const aspect = Math.max(0.1, camera.aspect || 1);
+    const dist = groupCameraDistance(radius, camera.fov, aspect);
+
+    controls.target.copy(center);
+
+    if (cameraPreset.view === "top") {
+      camera.up.set(0, 1, 0);
+      camera.position.set(center.x, center.y + 0.001, center.z + dist);
+    } else if (cameraPreset.view === "front") {
+      camera.up.set(0, 0, 1);
+      camera.position.set(center.x, center.y - dist, center.z);
+    } else if (cameraPreset.view === "back") {
+      camera.up.set(0, 0, 1);
+      camera.position.set(center.x, center.y + dist, center.z);
+    } else if (cameraPreset.view === "left") {
+      camera.up.set(0, 0, 1);
+      camera.position.set(center.x - dist, center.y, center.z);
+    } else if (cameraPreset.view === "right") {
+      camera.up.set(0, 0, 1);
+      camera.position.set(center.x + dist, center.y, center.z);
+    } else if (cameraPreset.view === "iso") {
+      camera.up.set(0, 0, 1);
+      camera.position.set(center.x + dist * 0.7, center.y - dist * 0.7, center.z + dist * 0.5);
+    } else if (cameraPreset.view === "fit") {
+      if (sphere) fitSphere(sphere);
+      return;
+    }
+
+    camera.near = Math.max(0.01, radius / 500);
+    camera.far = Math.max(radius * 50, (rawRef.current?.radius ?? 0) * 50, dist + radius * 2);
+    camera.lookAt(controls.target);
+    camera.updateProjectionMatrix();
+    controls.update();
+  }, [cameraPreset]);
 
   useEffect(() => {
     const scene = sceneRef.current;
