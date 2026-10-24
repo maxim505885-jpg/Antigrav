@@ -8,6 +8,19 @@ import numpy as np
 
 from conftest import wait_cloud
 from scan2bim import db as database
+from scan2bim.pointdata import NpyPointProvider
+from scan2bim.pointdata.index import build_index
+from scan2bim.storage import cloud_paths
+
+
+def _build_cloud_spatial_index(cloud):
+    paths = cloud_paths(cloud["project_id"], cloud["id"])
+    source = NpyPointProvider(
+        paths["positions"],
+        origin=cloud["origin"] or (0.0, 0.0, 0.0),
+        colors_path=paths["colors"] if paths["colors"].exists() else None,
+    )
+    build_index(source, paths["dir"] / "spatial-index-v1", cell_size=0.25)
 
 
 def test_two_known_column_sides_complete_a_contour_without_saving_geometry(client):
@@ -25,6 +38,7 @@ def test_two_known_column_sides_complete_a_contour_without_saving_geometry(clien
     assert imported.status_code == 200, imported.text
     cloud = wait_cloud(client, imported.json()["id"])
     assert cloud["status"] == "ready", cloud
+    _build_cloud_spatial_index(cloud)
 
     element_id = "manual-column-candidate"
     geometry = {
@@ -49,6 +63,11 @@ def test_two_known_column_sides_complete_a_contour_without_saving_geometry(clien
     assert response.status_code == 200, response.text
     result = response.json()
 
+    # This fixture contains only the two candidate faces, so the requested
+    # slice touches most stored rows. The production selector should avoid
+    # random index reads for such a broad query.
+    assert result["point_query"]["strategy"] == "linear_broad_query"
+    assert result["point_query"]["candidate_rows_estimate"] > cloud["ingested_count"] * 0.2
     assert result["status"] == "proposed"
     hypothesis = result["hypotheses"][0]
     assert sorted(hypothesis["side_lengths_m"]) == [0.4, 0.5]
@@ -117,6 +136,7 @@ def test_column_surface_track_analysis_returns_source_linked_review_evidence(cli
     assert imported.status_code == 200, imported.text
     cloud = wait_cloud(client, imported.json()["id"])
     assert cloud["status"] == "ready", cloud
+    _build_cloud_spatial_index(cloud)
 
     element_id = "surface-track-column-candidate"
     geometry = {
@@ -137,6 +157,10 @@ def test_column_surface_track_analysis_returns_source_linked_review_evidence(cli
     response = client.post(f"/api/v1/elements/{element_id}/surface-track-analysis")
     assert response.status_code == 200, response.text
     report = response.json()
+    # This fixture contains only the candidate column, making its local crop a
+    # broad query. Sparse indexed-query behavior is covered by test_pointdata_query.
+    assert report["point_query"]["strategy"] == "linear_broad_query"
+    assert report["point_query"]["candidate_rows_estimate"] == cloud["ingested_count"]
     assert report["candidate_id"] == element_id
     assert report["cloud_id"] == cloud["id"]
     assert report["confirmed"] is False

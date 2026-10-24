@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { columnSectionObservationSummary } from "./columnSectionPresentation.ts";
+import { columnSectionObservationSummary, parallelFaceObservationSummary } from "./columnSectionPresentation.ts";
 
 test("shows only the point-measured side of a partial section", () => {
   assert.equal(columnSectionObservationSummary({
@@ -23,4 +23,19 @@ test("does not show invalid side values as measurements", () => {
     section_status: "partial_one_axis",
     measured_section_axes_m: { length: Infinity, thickness: -0.2 },
   }), "сечение частичное: размерность не определена");
+});
+
+test("distinguishes several parallel surface traces from a rectangular section", () => {
+  assert.equal(parallelFaceObservationSummary([
+    { start_world_m: [0, 0], end_world_m: [0.1, 0.5] },
+    { start_world_m: [1, 1], end_world_m: [1.1, 1.5] },
+    { start_world_m: [2, 0], end_world_m: [2.1, 0.5] },
+  ]), "Обнаружено параллельных поверхностей: 3. Они не подтверждают замкнутый прямоугольный контур колонны.");
+});
+
+test("does not mark perpendicular section edges as parallel", () => {
+  assert.equal(parallelFaceObservationSummary([
+    { start_world_m: [0, 0], end_world_m: [1, 0] },
+    { start_world_m: [0, 0], end_world_m: [0, 1] },
+  ]), null);
 });

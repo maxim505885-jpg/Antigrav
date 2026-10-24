@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { api } from "./api";
-import { cloudPointCoverage, progressPercent, scannerModelLabel } from "./studioPresentation";
+import React, { useEffect, useRef, useState } from "react";
+import { api, type ColumnSurfaceTrackAnalysisResponse } from "./api";
+import { cameraViewFromLabel, cloudPointCoverage, progressPercent, scannerModelLabel } from "./studioPresentation";
 import Viewer3D, { type CameraPreset } from "./components/Viewer3D";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
-import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
-import { RegistrationQualityCharts } from "./components/RegistrationQualityCharts";
 import { ElementTanStackTable } from "./components/ElementTanStackTable";
 import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
 import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
+import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
+import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import { type Cloud, type Element, type Project } from "./types";
 
 import {
@@ -22,6 +22,9 @@ import {
   Building,
   FileSpreadsheet,
   FileDown,
+  FilePlus2,
+  FileUp,
+  Save,
   Settings,
   Eye,
   Crosshair,
@@ -30,6 +33,8 @@ import {
   Layers,
   Sparkles,
   Zap,
+  Ruler,
+  Building2,
 } from "lucide-react";
 
 interface StudioLayoutProps {
@@ -43,6 +48,8 @@ interface StudioLayoutProps {
   onRunSinglePass: (cloudId: string | null) => void;
   onCloudChange: (cloudId: string) => void;
   onProjectChange: (projectId: string) => void;
+  onCreateProject: (name: string) => Promise<void>;
+  onUploadScan: (file: File) => Promise<void>;
   onTabChange?: (tab: string) => void;
   busy: boolean;
   jobLabel: string | null;
@@ -60,21 +67,30 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   onRunSinglePass,
   onCloudChange,
   onProjectChange,
+  onCreateProject,
+  onUploadScan,
   busy,
   jobLabel,
   jobProgress,
 }) => {
+  const [savedWorkspaceView] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("scan.studioView");
+      return raw ? JSON.parse(raw) as Record<string, string> : {};
+    } catch {
+      return {};
+    }
+  });
   const [activeNav, setActiveNav] = useState("pointcloud");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(null);
-  const [activeViewLabel, setActiveViewLabel] = useState<string>("3D ISO");
-  const workshopStations = [
-    { id: "st-01", name: "Стоянка 01 — Пролёт 1 (Оси А–Б, 6)", position: [-13.25, -20.0, 1.6] as [number, number, number] },
-    { id: "st-02", name: "Стоянка 02 — Пролёт 2 (Оси Б–В, 12 — Центр цеха)", position: [0.0, 0.0, 1.6] as [number, number, number] },
-    { id: "st-03", name: "Стоянка 03 — Пролёт 3 (Оси В–Г, 18)", position: [13.25, 20.0, 1.6] as [number, number, number] },
-  ];
-  const [selectedStation, setSelectedStation] = useState(workshopStations[1]);
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(() => {
+    const view = cameraViewFromLabel(savedWorkspaceView.activeViewLabel);
+    return view ? { view, seq: Date.now() } : null;
+  });
+  const [activeViewLabel, setActiveViewLabel] = useState<string>(savedWorkspaceView.activeViewLabel || "3D ISO");
   const [toast, setToast] = useState<{ type: "success" | "info" | "warning" | "error"; message: string } | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const showToast = (message: string, type: "success" | "info" | "warning" | "error" = "info", duration = 5000) => {
     setToast({ type, message });
@@ -117,11 +133,15 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
     }
   };
 
-  const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
-  const [comparisonMode, setComparisonMode] = useState<"height" | "rgb">("height");
+  const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">(
+    ["rgb", "height", "intensity", "normals", "error"].includes(savedWorkspaceView.colorMode)
+      ? savedWorkspaceView.colorMode as "rgb" | "height" | "intensity" | "normals" | "error"
+      : "rgb",
+  );
+  const [comparisonMode, setComparisonMode] = useState<"height" | "rgb">(savedWorkspaceView.comparisonMode === "rgb" ? "rgb" : "height");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
-  const [selectedCloudId, setSelectedCloudId] = useState<string>("workshop_cloud");
-  const [selectedSpan, setSelectedSpan] = useState<"all" | "span1" | "span2" | "span3">("all");
+  const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
+  const [selectedCloudId, setSelectedCloudId] = useState<string>(savedWorkspaceView.cloudId || "workshop_cloud");
   const [showLimitBox, setShowLimitBox] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
 
@@ -172,10 +192,91 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
   const currentCloud = clouds.find((item) => item.id === selectedCloudId) || clouds.find((c) => c.id === "workshop_cloud") || cloud || clouds[0] || null;
   const progress = progressPercent(jobProgress);
+  const cloudCoverage = currentCloud ? cloudPointCoverage(currentCloud) : null;
+
+  const createProject = async () => {
+    const name = window.prompt("Название проекта");
+    if (!name?.trim()) return;
+    try {
+      await onCreateProject(name.trim());
+      showToast(`Проект «${name.trim()}» создан.`, "success");
+    } catch (err) {
+      showToast(`Не удалось создать проект: ${err instanceof Error ? err.message : String(err)}`, "error");
+    }
+  };
+
+  const uploadScan = async (file?: File) => {
+    if (!file) return;
+    setUploadingFile(true);
+    try {
+      await onUploadScan(file);
+      showToast(`Скан «${file.name}» обработан и добавлен в проект.`, "success");
+    } catch (err) {
+      showToast(`Не удалось импортировать скан: ${err instanceof Error ? err.message : String(err)}`, "error");
+    } finally {
+      setUploadingFile(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+    }
+  };
+
+  const exportPlan = async (type: "columns" | "crane_girders", format: "dxf" | "pdf") => {
+    if (!currentCloud || currentCloud.status !== "ready") {
+      showToast("Выберите готовое облако для экспорта.", "warning");
+      return;
+    }
+    try {
+      if (format === "dxf") await api.exportStructuralPlanDxf(currentCloud.id, type, "draft");
+      else await api.exportStructuralPlanPdf(currentCloud.id, type, 100, "draft");
+      showToast(`Черновой ${format.toUpperCase()}-план ${type === "columns" ? "колонн" : "подкрановых балок"} сохранён.`, "success");
+    } catch (err) {
+      showToast(`Экспорт не выполнен: ${err instanceof Error ? err.message : String(err)}`, "error");
+    }
+  };
+
+  const handleWorkspaceAction = (id: string) => {
+    setActiveNav(id);
+    if (id === "stitching") { setActiveSecondaryTab("stitching"); return; }
+    if (id === "pointcloud" || id === "overview") { setActiveNav("pointcloud"); setActiveSecondaryTab(id); return; }
+    if (id === "panoramas") { setActiveSecondaryTab("panoramas"); return; }
+    if (id === "import") { uploadInputRef.current?.click(); return; }
+    if (id === "recognition") {
+      setActiveSecondaryTab("recognition");
+      onRunSinglePass(currentCloud?.id || null);
+      return;
+    }
+    if (id === "cad" || id === "export") {
+      setActiveSecondaryTab("cad");
+      void exportPlan("columns", "dxf");
+      return;
+    }
+    if (id === "bim") {
+      setActiveSecondaryTab("bim");
+      if (currentCloud?.status === "ready") window.open(`/api/v1/clouds/${encodeURIComponent(currentCloud.id)}/bim?format=ifc`, "_blank", "noopener,noreferrer");
+      else showToast("Для экспорта BIM выберите готовое облако.", "warning");
+      return;
+    }
+    if (id === "reports") {
+      setActiveSecondaryTab("reports");
+      void exportPlan("columns", "pdf");
+      return;
+    }
+    if (id === "projects") {
+      showToast("Выберите проект в верхней строке или создайте его командой «Новый проект». ", "info");
+      return;
+    }
+    if (id === "settings") showToast("Справочные настройки появятся после фиксации единиц и инженерных допусков.", "warning");
+  };
+
+  const saveWorkspaceView = () => {
+    const view = { projectId: project?.id ?? null, cloudId: currentCloud?.id ?? null, colorMode, comparisonMode, activeViewLabel };
+    window.localStorage.setItem("scan.studioView", JSON.stringify(view));
+    if (project?.id) window.localStorage.setItem("scan.selectedProjectId", project.id);
+    showToast("Параметры текущего рабочего вида сохранены на этом компьютере.", "success");
+  };
 
   useEffect(() => {
-    if (cloud && !clouds.some((item) => item.id === selectedCloudId)) setSelectedCloudId(cloud.id);
-  }, [cloud, clouds, selectedCloudId]);
+    if (cloud && cloud.id !== selectedCloudId) setSelectedCloudId(cloud.id);
+  }, [cloud?.id]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-deep)", color: "#FFFFFF" }}>
@@ -186,7 +287,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             <Sparkles size={16} color="#ff6b00" />
           </div>
           <div className="app-title">
-            SCAN AI <span className="sub">STUDIO</span>
+            SCAN <span className="sub">STUDIO</span>
           </div>
 
           <div className="project-title-badge">
@@ -235,7 +336,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           <div className="system-status-indicator">
             <span className="status-pulse"></span>
-            <span>FPS — в окне 3D-просмотра</span>
+            <span>3D просмотр</span>
           </div>
 
           <button
@@ -249,21 +350,69 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         </div>
       </header>
 
+      <section className="studio-command-ribbon" aria-label="Основные команды Scan Studio">
+        <input
+          ref={uploadInputRef}
+          type="file"
+          accept=".rcs,.rcp,.e57,.fls,.fws,.las,.laz,.pts,.ptx,.ply,.xyz,.xyzn,.txt"
+          hidden
+          onChange={(event) => void uploadScan(event.target.files?.[0])}
+        />
+        <div className="command-group">
+          <button type="button" className="command-button" onClick={() => void createProject()} disabled={busy}>
+            <FilePlus2 size={18} /><span>Новый<br />проект</span>
+          </button>
+          <button type="button" className="command-button" onClick={() => uploadInputRef.current?.click()} disabled={busy || uploadingFile || !project}>
+            <FileUp size={18} /><span>{uploadingFile ? "Импорт…" : <>Импорт<br />скана</>}</span>
+          </button>
+          <button type="button" className="command-button" onClick={saveWorkspaceView}>
+            <Save size={18} /><span>Сохранить<br />вид</span>
+          </button>
+          <small>Проект</small>
+        </div>
+        <div className="command-group">
+          <button type="button" className="command-button" onClick={() => { setCameraPreset({ view: "fit", seq: Date.now() }); setActiveViewLabel("FIT"); }} disabled={!currentCloud}>
+            <Maximize2 size={18} /><span>Показать<br />всё</span>
+          </button>
+          <button type="button" className="command-button" onClick={() => { setCameraPreset({ view: "top", seq: Date.now() }); setActiveViewLabel("TOP"); }} disabled={!currentCloud}>
+            <Crosshair size={18} /><span>План<br />сверху</span>
+          </button>
+          <button type="button" className={`command-button ${measureMode ? "selected" : ""}`} onClick={() => setMeasureMode((value) => !value)} disabled={!currentCloud}>
+            <Ruler size={18} /><span>{measureMode ? "Завершить" : "3D замер"}</span>
+          </button>
+          <button type="button" className={`command-button ${showLimitBox ? "selected" : ""}`} onClick={() => setShowLimitBox((value) => !value)} disabled={!currentCloud}>
+            <Layers size={18} /><span>Limit box</span>
+          </button>
+          <small>Вид и измерения</small>
+        </div>
+        <div className="command-group">
+          <button type="button" className="command-button command-primary" onClick={() => onRunSinglePass(currentCloud?.id || null)} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
+            <Zap size={18} /><span>{busy ? "Обработка…" : <>Распознать<br />конструкции</>}</span>
+          </button>
+          <button type="button" className="command-button" onClick={() => void exportPlan("columns", "dxf")} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
+            <Building2 size={18} /><span>План колонн<br />DXF</span>
+          </button>
+          <button type="button" className="command-button" onClick={() => void exportPlan("crane_girders", "dxf")} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
+            <FileDown size={18} /><span>План балок<br />DXF</span>
+          </button>
+          <button type="button" className="command-button" onClick={() => window.open(`/api/v1/clouds/${encodeURIComponent(currentCloud?.id || "")}/bim?format=ifc`, "_blank", "noopener,noreferrer")} disabled={!currentCloud || currentCloud.status !== "ready"}>
+            <Building size={18} /><span>Модель<br />IFC</span>
+          </button>
+          <small>Анализ и выдача</small>
+        </div>
+      </section>
+
       {/* 2. SECONDARY WORKSPACE TABS */}
       <nav className="secondary-tab-bar">
         {secondaryTabs.map((tab) => (
-          <div
+          <button
+            type="button"
             key={tab.id}
             className={`secondary-tab ${activeSecondaryTab === tab.id ? "active" : ""}`}
-            onClick={() => {
-              setActiveSecondaryTab(tab.id);
-              if (tab.id === "stitching") setActiveNav("stitching");
-              if (tab.id === "pointcloud") setActiveNav("pointcloud");
-              if (tab.id === "panoramas") setActiveNav("panoramas");
-            }}
+            onClick={() => handleWorkspaceAction(tab.id)}
           >
             {tab.label}
-          </div>
+          </button>
         ))}
       </nav>
 
@@ -273,19 +422,15 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
         <aside className="sidebar-left">
           <div className="nav-item-list">
             {navItems.map((item) => (
-              <div
+              <button
+                type="button"
                 key={item.id}
                 className={`nav-item ${activeNav === item.id ? "active" : ""}`}
-                onClick={() => {
-                  setActiveNav(item.id);
-                  if (item.id === "stitching") setActiveSecondaryTab("stitching");
-                  if (item.id === "pointcloud") setActiveSecondaryTab("pointcloud");
-                  if (item.id === "panoramas") setActiveSecondaryTab("panoramas");
-                }}
+                onClick={() => handleWorkspaceAction(item.id)}
               >
                 <span className="nav-icon" style={{ color: activeNav === item.id ? "#FF812E" : "#94A3B8" }}>{item.icon}</span>
                 <span style={{ color: activeNav === item.id ? "#FFA25B" : "#E2E8F0" }}>{item.label}</span>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -298,24 +443,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             {clouds.map((c) => {
               const isSelected = currentCloud?.id === c.id;
               const coverage = cloudPointCoverage(c);
-              
-              let title = c.name || c.id;
-              let subtitle = `${c.source_format.toUpperCase()} · готово`;
-              let badge = coverage.label;
-              
-              if (c.id === "workshop_cloud") {
-                title = "🏢 Сводный цех: 3 пролёта";
-                subtitle = "Оси 1–24 (138м) · 1.rcs + 2.rcs";
-                badge = "43.5M";
-              } else if (c.id === "workshop_cloud_01" || c.name?.includes("1.rcs")) {
-                title = "📡 Скан 1: Пролёты 1–2 (А–Б, Б–В)";
-                subtitle = "Ширина 25 м · Faro Focus S350";
-                badge = "297.8M";
-              } else if (c.id === "workshop_cloud_02" || c.name?.includes("2.rcs")) {
-                title = "📡 Скан 2: Пролёт 3 (В–Г)";
-                subtitle = "Ширина 13.25 м · Faro Focus S350";
-                badge = "576.8M";
-              }
+              const title = c.name || c.id;
+              const subtitle = `${c.source_format.toUpperCase()} · ${c.status === "ready" ? "готово" : c.status}`;
+              const badge = `${coverage.storedPointCount.toLocaleString("ru-RU")} ${coverage.sampled ? "выбр." : "точек"}`;
 
               return (
                 <div
@@ -338,29 +468,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                     {title}<br />
                     <span style={{ color: "#94A3B8", fontSize: 9.5 }}>{subtitle}</span>
                   </span>
-                  <span title="Загружено точек / точек в источнике" style={{ fontSize: 9.5, background: "#202122", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
+                  <span title={`${coverage.storedPointCount.toLocaleString("ru-RU")} точек загружено из ${coverage.sourcePointCount.toLocaleString("ru-RU")}`} style={{ fontSize: 9.5, background: "#202122", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
                     {badge}
                   </span>
                 </div>
               );
             })}
 
-            {/* Transverse Spans Guide Card */}
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed #3b3c3d", fontSize: 10.5, color: "#CBD5E1" }}>
-              <div style={{ fontWeight: 800, color: "#FFA25B", marginBottom: 5 }}>ПРОЛЁТЫ ЦЕХА (СП 16.13330):</div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span>• Пролёт 1 (Оси А–Б):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span>• Пролёт 2 (Оси Б–В):</span> <strong style={{ color: "#FFFFFF" }}>11.70 м</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                <span>• Пролёт 3 (Оси В–Г):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #3b3c3d", color: "#4ADE80", fontWeight: 700 }}>
-                <span>Всего (3 пролёта):</span> <span>38.20 м</span>
-              </div>
-            </div>
           </div>
 
           <div style={{ padding: "10px 12px", background: "#252627", borderRadius: 6, border: "1px solid #3b3c3d", fontSize: 11.5 }}>
@@ -420,87 +534,6 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             >
               <Building size={14} /> ГОСТ Сортамент
             </button>
-            {/* Span Focus Toolbar */}
-            <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#252627", padding: "2px 6px", borderRadius: 6, border: "1px solid #3b3c3d" }}>
-              <span style={{ fontSize: 10.5, fontWeight: 800, color: "#FFA25B", marginRight: 3 }}>ПРОЛЁТЫ:</span>
-              <button
-                onClick={() => {
-                  setSelectedSpan("all");
-                  showToast("Отображаются все 3 пролёта цеха (Оси А–Б–В–Г, 38.2 м)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 7px",
-                  fontSize: 10.5,
-                  fontWeight: selectedSpan === "all" ? 800 : 500,
-                  background: selectedSpan === "all" ? "#FF812E" : "transparent",
-                  color: selectedSpan === "all" ? "#0A0D11" : "#E2E8F0",
-                  border: "none",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Все 3 пролёта цеха объединены (1.rcs + 2.rcs, 138м × 38.2м)"
-              >
-                Все 3 пролёта
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedSpan("span1");
-                  showToast("Фокус: Пролёт 1 (Оси А–Б, ширина 13.25 м, 1.rcs)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 7px",
-                  fontSize: 10.5,
-                  fontWeight: selectedSpan === "span1" ? 800 : 500,
-                  background: selectedSpan === "span1" ? "#ff812e" : "transparent",
-                  color: selectedSpan === "span1" ? "#0A0D11" : "#E2E8F0",
-                  border: "none",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Пролёт 1 (Оси А–Б, 13.25 м, Скан 1.rcs)"
-              >
-                Пролёт 1
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedSpan("span2");
-                  showToast("Фокус: Пролёт 2 (Оси Б–В, ширина 11.70 м, 1.rcs)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 7px",
-                  fontSize: 10.5,
-                  fontWeight: selectedSpan === "span2" ? 800 : 500,
-                  background: selectedSpan === "span2" ? "#ff812e" : "transparent",
-                  color: selectedSpan === "span2" ? "#0A0D11" : "#E2E8F0",
-                  border: "none",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Пролёт 2 (Оси Б–В, 11.70 м, Скан 1.rcs)"
-              >
-                Пролёт 2
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedSpan("span3");
-                  showToast("Фокус: Пролёт 3 (Оси В–Г, ширина 13.25 м, 2.rcs)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 7px",
-                  fontSize: 10.5,
-                  fontWeight: selectedSpan === "span3" ? 800 : 500,
-                  background: selectedSpan === "span3" ? "#ff812e" : "transparent",
-                  color: selectedSpan === "span3" ? "#0A0D11" : "#E2E8F0",
-                  border: "none",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Пролёт 3 (Оси В–Г, 13.25 м, Скан 2.rcs)"
-              >
-                Пролёт 3
-              </button>
-            </div>
-
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#252627", padding: "2px 8px", borderRadius: 6, border: "1px solid #3b3c3d" }}>
               <CloudIcon size={14} color="#FFA25B" />
               <span style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B" }}>ОБЛАКО:</span>
@@ -677,19 +710,23 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             </div>
             <div style={{ padding: "6px 0" }}>
               {[
-                { key: "pointCloud", label: "Облако точек (LOD)", color: "#ff812e" },
-                { key: "stations", label: "Положения станций (не заданы)", color: "#FF812E", available: false },
+                { key: "pointCloud", label: "Облако точек (LOD)", color: "#ff812e", available: Boolean(currentCloud) },
+                { key: "stations", label: "Положения станций (нет данных)", color: "#FF812E", available: false },
                 { key: "panoramas", label: "Панорамы (не загружены)", color: "#3DD68C", available: false },
-                { key: "aiStructures", label: "Кандидаты конструкций", color: "#A855F7", available: true },
+                { key: "aiStructures", label: `Кандидаты конструкций (${elements.length})`, color: "#A855F7", available: elements.length > 0 },
                 { key: "axes", label: "Оси (контрольная сетка не задана)", color: "#F5B041", available: false },
-                { key: "bimModel", label: "BIM Модель (IFC4)", color: "#EC4899" },
+                { key: "bimModel", label: "BIM Модель (IFC4)", color: "#EC4899", available: elements.length > 0 },
               ].map((item) => (
                 <div
                   key={item.key}
                   className="layer-item-row"
-                  onClick={() => { if ((item as any).available) toggleLayer(item.key as any); }}
-                  aria-disabled={!(item as any).available}
-                  style={{ opacity: (item as any).available ? ((layers as any)[item.key] ? 1 : 0.4) : 0.45, cursor: (item as any).available ? "pointer" : "default" }}
+                  onClick={() => { if (item.available) toggleLayer(item.key as keyof typeof layers); }}
+                  role="button"
+                  tabIndex={item.available ? 0 : -1}
+                  aria-disabled={!item.available}
+                  aria-pressed={(layers as any)[item.key]}
+                  onKeyDown={(event) => { if (item.available && (event.key === "Enter" || event.key === " ")) toggleLayer(item.key as keyof typeof layers); }}
+                  style={{ opacity: item.available ? ((layers as any)[item.key] ? 1 : 0.4) : 0.45, cursor: item.available ? "pointer" : "default" }}
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span className="layer-color-dot" style={{ background: item.color }}></span>
@@ -709,50 +746,11 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 targetCloud={clouds[1] || clouds[0] || cloud}
               />
             ) : activeNav === "panoramas" ? (
-              <div style={{ flex: 1, position: "relative", height: "100%", width: "100%", background: "#0A0D11", display: "flex", flexDirection: "column" }}>
-                <div style={{ padding: "8px 16px", background: "#1C2430", borderBottom: "1px solid #334050", display: "flex", gap: 10, alignItems: "center", zIndex: 10 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#FFA25B" }}>📷 BUBBLE VIEW 360° — ВЫБОР СТОЯНКИ:</span>
-                  {workshopStations.map((st) => (
-                    <button
-                      key={st.id}
-                      onClick={() => setSelectedStation(st)}
-                      style={{
-                        background: selectedStation.id === st.id ? "#FF812E" : "#252627",
-                        color: selectedStation.id === st.id ? "#0A0D11" : "#E2E8F0",
-                        border: "1px solid #3b3c3d",
-                        padding: "4px 10px",
-                        borderRadius: 4,
-                        fontWeight: selectedStation.id === st.id ? 800 : 500,
-                        cursor: "pointer",
-                        fontSize: 11,
-                      }}
-                    >
-                      {st.name}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setActiveNav("pointcloud")}
-                    style={{
-                      marginLeft: "auto",
-                      background: "#252627",
-                      color: "#94A3B8",
-                      border: "1px solid #3b3c3d",
-                      padding: "4px 10px",
-                      borderRadius: 4,
-                      cursor: "pointer",
-                      fontSize: 11,
-                    }}
-                  >
-                    ✕ Вернуться в 3D Облако
-                  </button>
-                </div>
-                <div style={{ flex: 1, position: "relative" }}>
-                  <BubblePanoramaViewer
-                    stationName={selectedStation.name}
-                    stationPosition={selectedStation.position}
-                    onClose={() => setActiveNav("pointcloud")}
-                  />
-                </div>
+              <div className="studio-empty-feature" role="status">
+                <Camera size={28} />
+                <strong>Панорамы не загружены</strong>
+                <span>В проекте нет изображений 360° с привязкой к позициям сканирования.</span>
+                <button type="button" onClick={() => { setActiveNav("pointcloud"); setActiveSecondaryTab("pointcloud"); }}>Вернуться к облаку точек</button>
               </div>
             ) : currentCloud ? (
               <div className="comparison-scenes">
@@ -811,61 +809,17 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           {/* BOTTOM DOCK DRAWER */}
           <section className="bottom-dock-container">
-            {/* Card 1: Interactive Recharts Statistics */}
-            <div className="dock-card" style={{ width: 440, minWidth: 440 }}>
-              <RegistrationQualityCharts
-                rmseData={[]}
-                heightDistribution={[]}
-              />
+            <div className="dock-card studio-data-card">
+              <strong>ДАННЫЕ СКАНА</strong>
+              <span>{currentCloud?.source_format.toUpperCase() || "Формат не указан"} · {scannerModelLabel(currentCloud)}</span>
+              <span>Загружено: {cloudCoverage?.storedPointCount.toLocaleString("ru-RU") ?? "—"}</span>
+              <span>В источнике: {cloudCoverage?.sourcePointCount.toLocaleString("ru-RU") ?? "—"}{cloudCoverage?.sampled ? " · производная выборка" : ""}</span>
             </div>
-
-            {/* Card 2: Interactive 360 Panorama Preview */}
-            <div className="dock-card" style={{ width: 290, minWidth: 290, position: "relative" }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
-                <span>ПАНОРАМЫ 360° (BUBBLE VIEW)</span>
-                <span style={{ color: "#4ADE80", fontWeight: 800 }}>3 СТОЯНКИ</span>
-              </div>
-              <div style={{ flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6, fontSize: 11 }}>
-                {workshopStations.map((st) => (
-                  <div
-                    key={st.id}
-                    onClick={() => {
-                      setSelectedStation(st);
-                      setActiveNav("panoramas");
-                    }}
-                    style={{
-                      padding: "5px 8px",
-                      background: selectedStation.id === st.id ? "rgba(255, 129, 46, 0.22)" : "#1C2430",
-                      border: selectedStation.id === st.id ? "1px solid #FF812E" : "1px solid #334050",
-                      borderRadius: 4,
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      color: "#E2E8F0",
-                    }}
-                  >
-                    <span>📷 {st.name}</span>
-                    <span style={{ fontSize: 9.5, color: "#94A3B8" }}>[Z=+1.60]</span>
-                  </div>
-                ))}
-                <button
-                  onClick={() => setActiveNav("panoramas")}
-                  style={{
-                    marginTop: "auto",
-                    padding: "6px 10px",
-                    background: "#FF812E",
-                    color: "#0A0D11",
-                    border: "none",
-                    borderRadius: 4,
-                    fontWeight: 700,
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                >
-                  Открыть Bubble View 360°
-                </button>
-              </div>
+            <div className="dock-card studio-data-card">
+              <strong>РЕГИСТРАЦИЯ И ДОПУСКИ</strong>
+              <span>RMSE регистрации: не измерена</span>
+              <span>Инженерный допуск: не задан</span>
+              <span>Кандидаты конструкций: {elements.length.toLocaleString("ru-RU")}</span>
             </div>
 
             {/* Card 3: TanStack Table of Classified Elements */}
@@ -897,13 +851,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               >
                 {mode === "manual" && "Ручной"}
                 {mode === "hybrid" && "Гибрид"}
-                {mode === "ai" && "Авто ИИ"}
+                {mode === "ai" && "ИИ анализ"}
               </button>
             ))}
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-            {selectedElement && (
+            {selectedElement && assistantMode !== "ai" && (
               <ElementAnnotationPanel
                 key={`${selectedElement.cloud_id}:${selectedElement.id}`}
                 cloudId={selectedElement.cloud_id}
@@ -912,16 +866,41 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 onAnnotationSaved={() => showToast("Независимая разметка сохранена отдельно от гипотезы распознавателя.", "success")}
               />
             )}
-            {selectedElement?.class_name === "column" && (
+            {selectedElement?.class_name === "column" && assistantMode !== "ai" && (
               <ColumnAnnotationPanel
                 key={`column-reference:${selectedElement.cloud_id}`}
                 cloudId={selectedElement.cloud_id}
                 element={selectedElement}
                 busy={busy}
-                surfaceAnalysis={null}
+                surfaceAnalysis={columnSurfaceAnalysis?.candidate_id === selectedElement.id ? columnSurfaceAnalysis : null}
                 columns={elements.filter((item) => item.cloud_id === selectedElement.cloud_id && item.class_name === "column")}
                 onSelectColumn={onSelectElement}
                 onAnnotationSaved={() => showToast("Эталонная разметка колонны сохранена.", "success")}
+              />
+            )}
+            {selectedElement?.class_name === "column" && assistantMode !== "manual" && (
+              <ColumnSectionFitPanel
+                key={`column-section:${selectedElement.cloud_id}:${selectedElement.id}`}
+                element={selectedElement}
+                candidateConflicts={elements.filter((item) => item.id !== selectedElement.id
+                  && item.review_status === "unreviewed"
+                  && item.bbox.min.length === 3 && item.bbox.max.length === 3
+                  && selectedElement.bbox.min.length === 3 && selectedElement.bbox.max.length === 3
+                  && item.bbox.min.every((value, axis) => value <= selectedElement.bbox.max[axis]
+                    && item.bbox.max[axis] >= selectedElement.bbox.min[axis]))}
+                priorDecisions={[]}
+                busy={busy}
+                onSurfaceAnalysis={setColumnSurfaceAnalysis}
+              />
+            )}
+            {currentCloud && assistantMode !== "manual" && (
+              <ColumnTypesPanel
+                key={`column-types:${currentCloud.id}`}
+                cloudId={currentCloud.id}
+                elements={elements.filter((item) => item.cloud_id === currentCloud.id)}
+                selected={selectedElement}
+                busy={busy}
+                onSelect={onSelectElement}
               />
             )}
             {recapNotice && (
@@ -1089,9 +1068,11 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
       {/* 4. BOTTOM STATUS STRIP */}
       <footer className="bottom-status-strip">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: busy ? "#FF812E" : "#64748B" }}></span>
-          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || "Нет выполняемого задания"}</span>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: busy ? "#FF812E" : currentCloud?.status === "ready" ? "#22C55E" : "#64748B" }}></span>
+          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || (currentCloud?.status === "ready" ? "Готово" : "Нет готового облака")}</span>
           <span style={{ color: "#94A3B8" }}>{currentCloud?.name || "облако не выбрано"}</span>
+          {cloudCoverage && <span>Точек: <strong>{cloudCoverage.storedPointCount.toLocaleString("ru-RU")}</strong>{cloudCoverage.sampled ? " · выборка" : ""}</span>}
+          <span>Кандидатов: <strong>{elements.length.toLocaleString("ru-RU")}</strong></span>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>

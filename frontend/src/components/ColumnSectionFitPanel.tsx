@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type ColumnSectionFitResponse, type ColumnSurfaceTrackAnalysisResponse } from "../api";
+import { parallelFaceObservationSummary } from "../columnSectionPresentation";
 import { buildColumnSurfaceCoverage, type SurfaceCoverageRow, type ColumnSurfaceSide } from "../columnSurfaceCoverage";
 import type { Element } from "../types";
 
@@ -8,7 +9,7 @@ interface Props {
   candidateConflicts: Element[];
   priorDecisions: { id: string; action: string; engineer?: string; note?: string; created_at?: string; after?: { review_status?: string } | null }[];
   busy: boolean;
-  onApplyHypothesis: (hypothesis: ColumnSectionFitResponse["hypotheses"][number]) => void;
+  onApplyHypothesis?: (hypothesis: ColumnSectionFitResponse["hypotheses"][number]) => void;
   onSurfaceAnalysis: (analysis: ColumnSurfaceTrackAnalysisResponse | null) => void;
 }
 
@@ -60,6 +61,7 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
   }, [element.id, center[2], onSurfaceAnalysis]);
 
   const hypothesis = result?.hypotheses[hypothesisIndex] || null;
+  const parallelFaceSummary = result ? parallelFaceObservationSummary(result.observed_faces) : null;
   const display = useMemo(() => {
     if (!result) return null;
     const toLocal = (point: [number, number]): [number, number] => [point[0] - center[0], point[1] - center[1]];
@@ -195,6 +197,7 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
     </div>}
     {coverageRows.length > 0 && <div className="column-surface-coverage" aria-label="Наблюдаемость четырёх граней на пяти высотах">
       <p className="hint">Срезы через равные интервалы по высоте. Зелёный — весь пролёт стороны поддержан найденными точками; охра — частичная опора. «Точки не найдены» не означает, что грань отсутствует: причина может быть в затенении или неполном сканировании.</p>
+      {surfaceAnalysis && <p className="hint">Поиск точек: {surfaceAnalysis.point_query.strategy === "spatial_index" ? "пространственный индекс" : "линейное чтение"}; верхняя оценка выборки {surfaceAnalysis.point_query.candidate_rows_estimate.toLocaleString("ru-RU")} строк.</p>}
       <div className="coverage-table-wrap"><table>
         <thead><tr><th scope="col">Z, м</th>{(["u+", "u-", "v+", "v-"] as ColumnSurfaceSide[]).map((side) => <th scope="col" key={side}>{side.toUpperCase()}</th>)}</tr></thead>
         <tbody>{coverageRows.map((row) => <tr key={row.slice_z_m}>
@@ -213,9 +216,11 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
       <p className={result.status === "proposed" ? "column-fit-status" : "column-type-error"} role="status">
         {STATUS[result.status]} · {result.point_count.toLocaleString("ru-RU")} точек
       </p>
+      {parallelFaceSummary && <p className="column-type-error" role="status">{parallelFaceSummary}</p>}
       <details className="column-fit-evidence">
         <summary>Основание расчёта и исходные строки</summary>
         <p>Алгоритм {result.algorithm.name} v{result.algorithm.version}. Срез Z={mm(result.parameters.slice_z_m)} мм, толщина {mm(result.parameters.thickness_m)} мм, допуск подгонки {mm(result.parameters.distance_tolerance_m)} мм, запас области {mm(result.parameters.candidate_margin_m)} мм.</p>
+        <p>Поиск точек: {result.point_query.strategy === "spatial_index" ? "пространственный индекс" : "линейное чтение"}; верхняя оценка выборки {result.point_query.candidate_rows_estimate.toLocaleString("ru-RU")} строк.</p>
         <p>{result.source_rows.count.toLocaleString("ru-RU")} строк производной выборки. {result.source_rows.description}</p>
         <p>Опора граней: {result.point_support.unique_observed_face_point_count.toLocaleString("ru-RU")} из {result.point_support.selected_point_count.toLocaleString("ru-RU")} точек среза ({result.point_support.observed_face_point_fraction == null ? "нет данных" : `${(result.point_support.observed_face_point_fraction * 100).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`}); без назначенной грани {result.point_support.unassigned_point_count.toLocaleString("ru-RU")}.</p>
         <p className="hint">{result.point_support.scope}</p>
@@ -258,7 +263,7 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
             Грань {edge.edge_index + 1}: {(edge.coverage_fraction * 100).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}% наблюдаемого пролёта ({mm(edge.observed_span_m)} из {mm(edge.length_m)} мм); не наблюдается {mm(edge.unobserved_m)} мм; источник: {edge.source_face_ids.join(", ") || "отсутствует"}.
           </p>)}
         </details>
-        <button type="button" disabled={busy} onClick={() => onApplyHypothesis(hypothesis)}>Перенести контур в поля границ</button>
+        {onApplyHypothesis && <button type="button" disabled={busy} onClick={() => onApplyHypothesis(hypothesis)}>Перенести контур в поля границ</button>}
       </>}
       {result.observed_faces.map((face) => <div key={face.face_id} className="hint">
         {face.face_id}: {face.span_kind === "observed_span_lower_bound" ? "нижняя граница наблюдаемого пролёта" : "наблюдаемый пролёт"} {mm(face.observed_span_m)} мм, точек {face.support_count}, остаток RMS {mm(face.rmse_m)} мм, P95 {mm(face.p95_residual_m)} мм; строк источника {face.ingested_point_row_id_count.toLocaleString("ru-RU")}.

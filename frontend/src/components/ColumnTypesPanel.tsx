@@ -9,7 +9,7 @@ interface Props {
   selected: Element | null;
   busy: boolean;
   onSelect: (element: Element) => void;
-  onSelectGroup: (ids: string[]) => void;
+  onSelectGroup?: (ids: string[]) => void;
 }
 
 const mm = (metres: number) => (metres * 1000).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
@@ -55,9 +55,20 @@ export default function ColumnTypesPanel({ cloudId, elements, selected, busy, on
 
   const disabled = busy || saving || loading;
   const selectedColumn = selected?.class_name === "column" ? selected : null;
+  const activeColumns = elements.filter((element) => element.class_name === "column"
+    && element.review_status !== "rejected" && element.review_status !== "invalidated");
+  const pointMeasuredSectionStatuses = new Set([
+    "measured_2_axes", "measured_3_sides", "measured_4_sides", "unique_section",
+  ]);
+  const storedMeasuredSectionColumns = activeColumns.filter((element) =>
+    pointMeasuredSectionStatuses.has(String(element.dimensions.section_status || "")));
+  const repeatedProposals = data?.proposals.filter((proposal) => proposal.member_element_ids.length > 1) || [];
+  const repeatedProposalMembers = repeatedProposals.reduce(
+    (count, proposal) => count + proposal.member_element_ids.length, 0,
+  );
 
   function members(ids: string[], proposal: ColumnTypeProposal) {
-    return <><button type="button" disabled={disabled} onClick={() => onSelectGroup(ids)}>Выделить группу в 3D</button>
+    return <>{onSelectGroup && <button type="button" disabled={disabled} onClick={() => onSelectGroup(ids)}>Выделить группу в 3D</button>}
       <ul className="column-type-members">{ids.map((id) => {
       const element = elements.find((item) => item.id === id);
       const sides = measuredColumnTypeSides(element);
@@ -85,6 +96,12 @@ export default function ColumnTypesPanel({ cloudId, elements, selected, busy, on
     {data && <>
       <p className="hint">Предварительный порог сравнения: {mm(data.linear_tolerance_m)} мм / {data.relative_tolerance * 100}%.
         Это настройка поиска совпадений; точность обмеров ещё не подтверждена.</p>
+      <p className="column-type-summary" role="status">
+        В сохранённых данных статус измеренного по точкам сечения указан у {storedMeasuredSectionColumns.length} из {activeColumns.length} активных колонн.
+        Этот статус не является повторной проверкой текущего среза.
+        Новых повторяющихся групп: {repeatedProposals.length} ({repeatedProposalMembers} колонн);
+        одиночные предложения не считаются повторяющимся типом. Выберите колонну и повторно измерьте её на нескольких отметках.
+      </p>
       {data.catalog_reuse && <>
         <h4>Память проекта · совпадения с подтверждёнными типами</h4>
         <p className="hint">Сравниваем новые колонны с каталогом этого проекта, в том числе из других облаков.

@@ -32,3 +32,13 @@ export function progressPercent(progress: number | null | undefined): number | n
   if (typeof progress !== "number" || !Number.isFinite(progress)) return null;
   return Math.round(Math.min(1, Math.max(0, progress)) * 100);
 }
+
+export function cameraViewFromLabel(label: string | undefined): "top" | "front" | "right" | "iso" | "fit" | null {
+  const normalized = label?.trim().toLowerCase() || "";
+  if (normalized.startsWith("top")) return "top";
+  if (normalized.startsWith("front")) return "front";
+  if (normalized.startsWith("right")) return "right";
+  if (normalized.includes("iso")) return "iso";
+  if (normalized === "fit") return "fit";
+  return null;
+}

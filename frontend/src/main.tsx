@@ -3,15 +3,25 @@ import ReactDOM from "react-dom/client";
 import { StudioReferenceLayout } from "./StudioReferenceLayout";
 import "./styles.css";
 import "./theme.css";
-import { api, waitForJob } from "./api";
+import { api, waitForCloud, waitForJob } from "./api";
 import { type Cloud, type Element, type Project } from "./types";
 
 function Root() {
   const [preferredProjectId] = useState(() => window.localStorage.getItem("scan.selectedProjectId") || undefined);
+  const [preferredCloudId] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem("scan.studioView");
+      const cloudId = stored ? JSON.parse(stored)?.cloudId : undefined;
+      return typeof cloudId === "string" ? cloudId : undefined;
+    } catch {
+      return undefined;
+    }
+  });
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [clouds, setClouds] = useState<Cloud[]>([]);
   const [elements, setElements] = useState<Element[]>([]);
+  const [activeCloudId, setActiveCloudId] = useState<string | undefined>();
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
   const [busy, setBusy] = useState(false);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
@@ -39,6 +49,7 @@ function Root() {
         || cloudList.find((c) => c.status === "ready" && c.id === "workshop_cloud")
         || cloudList.find((c) => c.status === "ready");
       if (readyCloud) {
+        setActiveCloudId(readyCloud.id);
         const elList = await api.elements(readyCloud.id);
         setElements(elList);
         return elList.length;
@@ -52,7 +63,7 @@ function Root() {
   };
 
   useEffect(() => {
-    void loadData(undefined, preferredProjectId);
+    void loadData(preferredCloudId, preferredProjectId);
   }, []);
 
   const handleRunSinglePass = async (cloudId: string | null) => {
@@ -89,6 +100,7 @@ function Root() {
   };
 
   const handleCloudChange = async (cloudId: string) => {
+    setActiveCloudId(cloudId);
     setSelectedEl(null);
     const selectedCloud = clouds.find((item) => item.id === cloudId);
     if (!selectedCloud || selectedCloud.status !== "ready") {
@@ -113,7 +125,42 @@ function Root() {
     setJobLabel(`Проект загружен · ${candidateCount} кандидатов`);
   };
 
-  const primaryCloud = clouds.find((c) => c.id === "workshop_cloud") || clouds[0] || null;
+  const handleCreateProject = async (name: string) => {
+    const created = await api.createProject(name);
+    setActiveCloudId(undefined);
+    await loadData(undefined, created.id);
+    setJobLabel(`Проект «${created.name}» создан`);
+  };
+
+  const handleUploadScan = async (file: File) => {
+    if (!project) throw new Error("Сначала выберите проект.");
+    setBusy(true);
+    setJobLabel(`Загрузка «${file.name}»`);
+    setJobProgress(0);
+    try {
+      const incoming = await api.uploadCloud(project.id, file);
+      setActiveCloudId(incoming.id);
+      setJobLabel("Обработка облака точек");
+      setJobProgress(0.05);
+      const ready = await waitForCloud(incoming.id, (update) => {
+        setJobProgress(update.status === "processing" ? 0.5 : 0.9);
+        setJobLabel(update.status === "processing" ? "Обработка облака точек" : update.status);
+      });
+      if (ready.status !== "ready") throw new Error(ready.error || `Импорт завершился со статусом ${ready.status}`);
+      await loadData(ready.id, project.id);
+      setActiveCloudId(ready.id);
+      setJobLabel(`Скан готов · ${ready.name}`);
+      setJobProgress(null);
+    } finally {
+      setBusy(false);
+      setJobProgress(null);
+    }
+  };
+
+  const primaryCloud = clouds.find((c) => c.id === activeCloudId)
+    || clouds.find((c) => c.id === "workshop_cloud")
+    || clouds[0]
+    || null;
 
   return (
     <StudioReferenceLayout
@@ -127,6 +174,8 @@ function Root() {
       onRunSinglePass={(cloudId) => void handleRunSinglePass(cloudId)}
       onCloudChange={(cloudId) => void handleCloudChange(cloudId)}
       onProjectChange={(projectId) => void handleProjectChange(projectId)}
+      onCreateProject={handleCreateProject}
+      onUploadScan={handleUploadScan}
       busy={busy}
       jobLabel={jobLabel}
       jobProgress={jobProgress}

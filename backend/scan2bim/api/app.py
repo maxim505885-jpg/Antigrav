@@ -126,7 +126,7 @@ from ..structure.element_annotations import (
     validate_element_annotation,
 )
 from ..structure.section_fitting import fit_rectangular_section
-from ..pointdata import NpyPointProvider, PointQuery
+from ..pointdata import NpyPointProvider, PointQuery, select_query_provider
 
 # ---------------------------------------------------------------- helpers
 
@@ -1417,11 +1417,16 @@ def create_app() -> FastAPI:
         point_source = NpyPointProvider(
             paths["positions"],
             origin=np.array([cloud["origin_x"], cloud["origin_y"], cloud["origin_z"]], dtype=np.float64),
+            colors_path=paths["colors"] if paths["colors"].exists() else None,
+        )
+        point_query = PointQuery(tuple(np.r_[lower, upper]))
+        point_source, query_strategy = select_query_provider(
+            point_source, paths["dir"] / "spatial-index-v1", point_query,
         )
         xyz_parts, row_parts = [], []
         selected_count = 0
         hard_limit = 250_000
-        for batch in point_source.iter_points(PointQuery(tuple(np.r_[lower, upper]))):
+        for batch in point_source.iter_points(point_query):
             local_xy = (batch.xyz[:, :2] - center[:2]) @ rotation
             inside = (np.abs(local_xy) <= padded).all(axis=1)
             if not inside.any():
@@ -1474,6 +1479,7 @@ def create_app() -> FastAPI:
                 "sample_limit_per_face": 100,
                 "description": "Строки в производном массиве координат облака; это не номера точек FARO.",
             },
+            "point_query": query_strategy,
             "point_support": {
                 "selected_point_count": int(len(points)),
                 "unique_observed_face_point_count": observed_point_count,
@@ -1566,12 +1572,17 @@ def create_app() -> FastAPI:
         point_source = NpyPointProvider(
             paths["positions"],
             origin=np.array([cloud["origin_x"], cloud["origin_y"], cloud["origin_z"]], dtype=np.float64),
+            colors_path=paths["colors"] if paths["colors"].exists() else None,
+        )
+        point_query = PointQuery(tuple(np.r_[lower, upper]))
+        point_source, query_strategy = select_query_provider(
+            point_source, paths["dir"] / "spatial-index-v1", point_query,
         )
         xyz_parts: list[np.ndarray] = []
         row_parts: list[np.ndarray] = []
         selected_count = 0
         hard_limit = 250_000
-        for batch in point_source.iter_points(PointQuery(tuple(np.r_[lower, upper]))):
+        for batch in point_source.iter_points(point_query):
             local_xy = (batch.xyz[:, :2] - center[:2]) @ rotation
             in_crop = (
                 (np.abs(local_xy) <= padded).all(axis=1)
@@ -1668,6 +1679,7 @@ def create_app() -> FastAPI:
                 "vertical_bin_m": 0.25,
                 "maximum_crop_points": hard_limit,
             },
+            "point_query": query_strategy,
             "input_points": {
                 "count": int(len(points)),
                 "source_row_kind": "derived_cloud_zero_based_row_index",

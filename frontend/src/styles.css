@@ -1099,6 +1099,7 @@ input[type="checkbox"] {
 .column-type-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .column-type-error { color: #a94136; overflow-wrap: anywhere; }
 .column-type-card.rejected { border-color: #d9a19a; }
+.column-type-summary { margin: 10px 0; padding: 9px; border: 1px solid #8d7950; border-radius: 6px; font-size: 12px; line-height: 1.5; }
 .column-types-panel label { display: block; margin: 10px 0 6px; }
 .column-types-panel input { max-width: 100%; box-sizing: border-box; }
 .column-type-card p { overflow-wrap: anywhere; }

@@ -73,6 +73,7 @@ export interface ColumnSectionFitResponse {
     sample_limit_per_face: number;
     description: string;
   };
+  point_query: { strategy: string; candidate_rows_estimate: number };
   point_support: {
     selected_point_count: number;
     unique_observed_face_point_count: number;
@@ -141,6 +142,7 @@ export interface ColumnSurfaceTrackAnalysisResponse {
   cloud_id: string;
   algorithm: { surface_extraction: string; section_series: string };
   parameters: { candidate_margin_m: number; vertical_context_margin_m: number; distance_tolerance_m: number; voxel_m: number; vertical_bin_m: number; maximum_crop_points: number };
+  point_query: { strategy: string; candidate_rows_estimate: number };
   input_points: { count: number; source_row_kind: string; description: string };
   surface_result: { surfaces: { plane_id: string; source_point_row_id_count: number; source_point_row_id_sample: number[] }[] };
   surface_association: { association_status: string; candidate_edge_count: number; candidate_edges: string[]; surface_associations: { plane_id: string; candidate_edge_id: string | null; association_status: string }[] };
