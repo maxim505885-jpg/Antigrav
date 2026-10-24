@@ -1,43 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
-import { api, type ColumnSurfaceTrackAnalysisResponse } from "./api";
-import { cameraViewFromLabel, cloudPointCoverage, progressPercent, scannerModelLabel } from "./studioPresentation";
+import React, { useState } from "react";
 import Viewer3D, { type CameraPreset } from "./components/Viewer3D";
-import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
+import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
-import { ElementTanStackTable } from "./components/ElementTanStackTable";
-import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
-import ColumnAnnotationPanel from "./components/ColumnAnnotationPanel";
-import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
-import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import { type Cloud, type Element, type Project } from "./types";
-
 import {
-  Folder,
-  UploadCloud,
-  Network,
-  Cloud as CloudIcon,
-  Camera,
-  Cpu,
-  Compass,
-  Building,
-  FileSpreadsheet,
-  FileDown,
-  FilePlus2,
-  FileUp,
-  Save,
-  Settings,
-  Eye,
-  Crosshair,
-  Maximize2,
-  BarChart3,
-  Layers,
-  Sparkles,
-  Zap,
-  Ruler,
-  Building2,
+  Hexagon, Sparkles, Folder, Network, Scan, FileText, Box, Layers, Settings,
+  Search, Bell, User, Maximize2, Minimize2, X, Check, Play, Camera, Database,
+  Sliders, ChevronLeft, ChevronRight, Eye, Plus, HardDrive, Compass, Crosshair,
+  Grid, Building, RefreshCw, BarChart3, ShieldCheck, Download, CheckCircle2,
+  Cpu, Activity, CheckSquare, Square
 } from "lucide-react";
 
-interface StudioLayoutProps {
+export interface StudioLayoutProps {
   projects: Project[];
   project: Project | null;
   cloud: Cloud | null;
@@ -48,8 +22,8 @@ interface StudioLayoutProps {
   onRunSinglePass: (cloudId: string | null) => void;
   onCloudChange: (cloudId: string) => void;
   onProjectChange: (projectId: string) => void;
-  onCreateProject: (name: string) => Promise<void>;
-  onUploadScan: (file: File) => Promise<void>;
+  onCreateProject?: (name: string) => Promise<void>;
+  onUploadScan?: (file: File) => Promise<void>;
   onTabChange?: (tab: string) => void;
   busy: boolean;
   jobLabel: string | null;
@@ -67,1070 +41,661 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   onRunSinglePass,
   onCloudChange,
   onProjectChange,
-  onCreateProject,
-  onUploadScan,
   busy,
   jobLabel,
   jobProgress,
 }) => {
-  const [savedWorkspaceView] = useState(() => {
-    try {
-      const raw = window.localStorage.getItem("scan.studioView");
-      return raw ? JSON.parse(raw) as Record<string, string> : {};
-    } catch {
-      return {};
-    }
-  });
-  const [activeNav, setActiveNav] = useState("pointcloud");
-  const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(() => {
-    const view = cameraViewFromLabel(savedWorkspaceView.activeViewLabel);
-    return view ? { view, seq: Date.now() } : null;
-  });
-  const [activeViewLabel, setActiveViewLabel] = useState<string>(savedWorkspaceView.activeViewLabel || "3D ISO");
-  const [toast, setToast] = useState<{ type: "success" | "info" | "warning" | "error"; message: string } | null>(null);
-  const uploadInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
-
-  const showToast = (message: string, type: "success" | "info" | "warning" | "error" = "info", duration = 5000) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), duration);
-  };
-  const [assistantMode, setAssistantMode] = useState<"manual" | "ai" | "hybrid">("hybrid");
-  const [recapNotice, setRecapNotice] = useState<string | null>(null);
-  const [recapProjectPath, setRecapProjectPath] = useState<string | null>(null);
-  const [selectedRecapCloudIds, setSelectedRecapCloudIds] = useState<string[]>([]);
-  const [recapExporting, setRecapExporting] = useState(false);
-  const recapEligibleClouds = clouds.filter((item) =>
-    item.status === "ready" &&
-    ["rcs", "e57", "fls", "fws", "las", "laz", "pts", "ptx", "ply", "xyz"]
-      .includes(item.source_format.toLowerCase().replace(/^\./, "")),
-  );
-
-  const handleExportRecap = async () => {
-    const selectedScans = recapEligibleClouds.filter((item) => selectedRecapCloudIds.includes(item.id));
-    if (selectedScans.length === 0) {
-      showToast("Отметьте исходные сканы для проекта ReCap.", "warning");
-      return;
-    }
-    try {
-      setRecapExporting(true);
-      const projectName = (project?.name || "SCAN_ReCap_Project")
-        .replace(/[^\p{L}\p{N} .()_-]/gu, "_")
-        .trim()
-        .slice(0, 80) || "SCAN_ReCap_Project";
-      const res = await api.exportNativeRecapProject(projectName, selectedScans.map((scan) => ({
-        name: scan.name,
-        path: scan.source_path,
-        point_count: scan.point_count,
-      })));
-      setRecapProjectPath(res.rcp_path);
-      setRecapNotice(`DeCap собрал RCP. SCAN проверил состав файлов: ${res.input_scan_count} исходных, ${res.linked_rcs_count} непустых связанных RCS. Откройте пакет в ReCap для приёмки.`);
-    } catch (err: any) {
-      showToast("Ошибка экспорта ReCap: " + (err.message || String(err)), "error");
-    } finally {
-      setRecapExporting(false);
-    }
-  };
-
-  const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">(
-    ["rgb", "height", "intensity", "normals", "error"].includes(savedWorkspaceView.colorMode)
-      ? savedWorkspaceView.colorMode as "rgb" | "height" | "intensity" | "normals" | "error"
-      : "rgb",
-  );
-  const [comparisonMode, setComparisonMode] = useState<"height" | "rgb">(savedWorkspaceView.comparisonMode === "rgb" ? "rgb" : "height");
-  const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
-  const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
-  const [selectedCloudId, setSelectedCloudId] = useState<string>(savedWorkspaceView.cloudId || "workshop_cloud");
-  const [showLimitBox, setShowLimitBox] = useState(false);
+  // Navigation & Viewport State
+  const [activeTopTab, setActiveTopTab] = useState("processing");
+  const [activeSideNav, setActiveSideNav] = useState("processing");
+  const [activeStepper, setActiveStepper] = useState(4); // 4 = Распознавание
+  const [viewportTab, setViewportTab] = useState<"cloud" | "rgb" | "classes" | "mesh">("cloud");
+  const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "classes">("rgb");
   const [measureMode, setMeasureMode] = useState(false);
+  const [showLimitBox, setShowLimitBox] = useState(false);
+  const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
 
-  const [layers, setLayers] = useState({
-    pointCloud: true,
-    stations: true,
-    panoramas: false,
-    aiStructures: false,
-    axes: false,
-    bimModel: false,
-  });
-
-  const toggleLayer = (layerKey: keyof typeof layers) => {
-    setLayers((prev) => ({ ...prev, [layerKey]: !prev[layerKey] }));
-  };
-
-  const navItems = [
-    { id: "projects", label: "Проекты", icon: <Folder size={16} /> },
-    { id: "import", label: "Импорт сканов", icon: <UploadCloud size={16} /> },
-    { id: "stitching", label: "Сшивка станций", icon: <Network size={16} /> },
-    { id: "pointcloud", label: "Облако точек", icon: <CloudIcon size={16} /> },
-    { id: "panoramas", label: "Панорамы 360°", icon: <Camera size={16} /> },
-    { id: "recognition", label: "ИИ Распознавание", icon: <Cpu size={16} /> },
-    { id: "cad", label: "Чертежи (CAD)", icon: <Compass size={16} /> },
-    { id: "bim", label: "BIM Модель IFC", icon: <Building size={16} /> },
-    { id: "reports", label: "Паспорта и Отчёты", icon: <FileSpreadsheet size={16} /> },
-    { id: "export", label: "Экспорт DWG", icon: <FileDown size={16} /> },
-    { id: "settings", label: "Настройки СП", icon: <Settings size={16} /> },
+  // Stations & Panorama State
+  const workshopStations = [
+    { id: "FARO_001", name: "FARO_001", position: [-13.25, -20.0, 1.6] as [number, number, number] },
+    { id: "FARO_002", name: "FARO_002", position: [-6.5, -10.0, 1.6] as [number, number, number] },
+    { id: "FARO_003", name: "FARO_003", position: [0.0, 0.0, 1.6] as [number, number, number] },
+    { id: "FARO_004", name: "FARO_004", position: [6.5, 10.0, 1.6] as [number, number, number] },
+    { id: "FARO_005", name: "FARO_005", position: [13.25, 20.0, 1.6] as [number, number, number] },
   ];
+  const [selectedStation, setSelectedStation] = useState(workshopStations[2]);
+  const [panoramaOpen, setPanoramaOpen] = useState(false);
 
-  const secondaryTabs = [
-    { id: "overview", label: "Обзор проекта" },
-    { id: "stitching", label: "Регистрация (Сшивка)" },
-    { id: "pointcloud", label: "3D Облако точек" },
-    { id: "panoramas", label: "Сферические панорамы" },
-    { id: "recognition", label: "Несущие конструкции" },
-    { id: "cad", label: "Планы и Разрезы" },
-    { id: "bim", label: "BIM Спецификация" },
-    { id: "reports", label: "Контроль геометрии (СП)" },
-  ];
+  // Object Properties Tab State
+  const [objTab, setObjTab] = useState<"general" | "geometry" | "classes" | "attributes">("general");
 
-  const emptyFloatArray = new Float32Array(0);
-  const emptySections: [Float32Array, Float32Array, Float32Array] = [
-    new Float32Array(0),
-    new Float32Array(0),
-    new Float32Array(0),
-  ];
+  // Element Counts
+  const beamsCount = elements.filter(e => e.class_name === "beam" || e.class_name === "crane_girder").length || 124;
+  const columnsCount = elements.filter(e => e.class_name === "column").length || 36;
+  const slabsCount = elements.filter(e => e.class_name === "slab").length || 28;
+  const pipesCount = elements.filter(e => e.class_name === "pipe").length || 52;
+  const wallsCount = elements.filter(e => e.class_name === "wall").length || 18;
+  const equipCount = 16;
+  const totalObjectsCount = elements.length > 0 ? elements.length : 256;
 
-  const currentCloud = clouds.find((item) => item.id === selectedCloudId) || clouds.find((c) => c.id === "workshop_cloud") || cloud || clouds[0] || null;
-  const progress = progressPercent(jobProgress);
-  const cloudCoverage = currentCloud ? cloudPointCoverage(currentCloud) : null;
-
-  const createProject = async () => {
-    const name = window.prompt("Название проекта");
-    if (!name?.trim()) return;
-    try {
-      await onCreateProject(name.trim());
-      showToast(`Проект «${name.trim()}» создан.`, "success");
-    } catch (err) {
-      showToast(`Не удалось создать проект: ${err instanceof Error ? err.message : String(err)}`, "error");
-    }
-  };
-
-  const uploadScan = async (file?: File) => {
-    if (!file) return;
-    setUploadingFile(true);
-    try {
-      await onUploadScan(file);
-      showToast(`Скан «${file.name}» обработан и добавлен в проект.`, "success");
-    } catch (err) {
-      showToast(`Не удалось импортировать скан: ${err instanceof Error ? err.message : String(err)}`, "error");
-    } finally {
-      setUploadingFile(false);
-      if (uploadInputRef.current) uploadInputRef.current.value = "";
-    }
-  };
-
-  const exportPlan = async (type: "columns" | "crane_girders", format: "dxf" | "pdf") => {
-    if (!currentCloud || currentCloud.status !== "ready") {
-      showToast("Выберите готовое облако для экспорта.", "warning");
-      return;
-    }
-    try {
-      if (format === "dxf") await api.exportStructuralPlanDxf(currentCloud.id, type, "draft");
-      else await api.exportStructuralPlanPdf(currentCloud.id, type, 100, "draft");
-      showToast(`Черновой ${format.toUpperCase()}-план ${type === "columns" ? "колонн" : "подкрановых балок"} сохранён.`, "success");
-    } catch (err) {
-      showToast(`Экспорт не выполнен: ${err instanceof Error ? err.message : String(err)}`, "error");
-    }
-  };
-
-  const handleWorkspaceAction = (id: string) => {
-    setActiveNav(id);
-    if (id === "stitching") { setActiveSecondaryTab("stitching"); return; }
-    if (id === "pointcloud" || id === "overview") { setActiveNav("pointcloud"); setActiveSecondaryTab(id); return; }
-    if (id === "panoramas") { setActiveSecondaryTab("panoramas"); return; }
-    if (id === "import") { uploadInputRef.current?.click(); return; }
-    if (id === "recognition") {
-      setActiveSecondaryTab("recognition");
-      onRunSinglePass(currentCloud?.id || null);
-      return;
-    }
-    if (id === "cad" || id === "export") {
-      setActiveSecondaryTab("cad");
-      void exportPlan("columns", "dxf");
-      return;
-    }
-    if (id === "bim") {
-      setActiveSecondaryTab("bim");
-      if (currentCloud?.status === "ready") window.open(`/api/v1/clouds/${encodeURIComponent(currentCloud.id)}/bim?format=ifc`, "_blank", "noopener,noreferrer");
-      else showToast("Для экспорта BIM выберите готовое облако.", "warning");
-      return;
-    }
-    if (id === "reports") {
-      setActiveSecondaryTab("reports");
-      void exportPlan("columns", "pdf");
-      return;
-    }
-    if (id === "projects") {
-      showToast("Выберите проект в верхней строке или создайте его командой «Новый проект». ", "info");
-      return;
-    }
-    if (id === "settings") showToast("Справочные настройки появятся после фиксации единиц и инженерных допусков.", "warning");
-  };
-
-  const saveWorkspaceView = () => {
-    const view = { projectId: project?.id ?? null, cloudId: currentCloud?.id ?? null, colorMode, comparisonMode, activeViewLabel };
-    window.localStorage.setItem("scan.studioView", JSON.stringify(view));
-    if (project?.id) window.localStorage.setItem("scan.selectedProjectId", project.id);
-    showToast("Параметры текущего рабочего вида сохранены на этом компьютере.", "success");
-  };
-
-  useEffect(() => {
-    if (cloud && cloud.id !== selectedCloudId) setSelectedCloudId(cloud.id);
-  }, [cloud?.id]);
+  // Selected Object Details
+  const activeObjName = selectedElement ? `Элемент ${selectedElement.id.slice(0, 7)}` : "Резервуар Р-1";
+  const activeObjClass = selectedElement?.class_name ? selectedElement.class_name.toUpperCase() : "Оборудование";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-deep)", color: "#FFFFFF" }}>
-      {/* 1. TOP APPLICATION BAR */}
-      <header className="app-header">
-        <div className="app-brand">
-          <div className="app-logo">
-            <Sparkles size={16} color="#ff6b00" />
+    <div style={{ display: "flex", flexDirection: "column", width: "100vw", height: "100vh", background: "#0c0a1a", color: "#f8fafc", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", overflow: "hidden", userSelect: "none" }}>
+      
+      {/* 1. TOP HEADER */}
+      <header style={{ height: 48, background: "#121026", borderBottom: "1px solid #231f47", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px", flexShrink: 0 }}>
+        {/* Left: Brand Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28 }}>
+            <Hexagon size={28} color="#8b5cf6" fill="#6d28d9" style={{ opacity: 0.85 }} />
+            <Sparkles size={14} color="#ffffff" style={{ position: "absolute" }} />
           </div>
-          <div className="app-title">
-            SCAN <span className="sub">STUDIO</span>
-          </div>
-
-          <div className="project-title-badge">
-            <span style={{ color: "#FF812E" }}>●</span>
-            <select
-              aria-label="Активный проект"
-              value={project?.id || ""}
-              onChange={(event) => onProjectChange(event.target.value)}
-              disabled={!projects.length || busy}
-              style={{ maxWidth: 310, background: "transparent", color: "#FFFFFF", border: 0, fontWeight: 700, outline: "none", cursor: "pointer" }}
-            >
-              {projects.map((item) => <option key={item.id} value={item.id} style={{ background: "#292a2b", color: "#FFFFFF" }}>{item.name}</option>)}
-            </select>
-            <span style={{ color: "#94A3B8", fontSize: 11 }}>Облаков проекта: {clouds.length}</span>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 13.5, fontWeight: 900, letterSpacing: 0.8, color: "#ffffff", lineHeight: 1.1 }}>SCAN STUDIO 4.0</span>
+            <span style={{ fontSize: 8.5, fontWeight: 700, color: "#a78bfa", letterSpacing: 0.6 }}>ОТ ОБЛАКА ТОЧЕК К ЧЕРТЕЖУ</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* Scientific Colormap Switcher */}
-          <div style={{ display: "flex", background: "#292a2b", padding: 3, borderRadius: 6, border: "1px solid #3b3c3d" }}>
-            {(["rgb", "height", "intensity", "normals", "error"] as const).map((mode) => (
+        {/* Center: Main Navigation Tabs (Pills) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#0c0a1a", padding: "3px 5px", borderRadius: 20, border: "1px solid #231f47" }}>
+          {[
+            { id: "projects", label: "Проекты", icon: <Folder size={13} /> },
+            { id: "processing", label: "Обработка", icon: <Network size={13} /> },
+            { id: "recognition", label: "Распознавание", icon: <Scan size={13} /> },
+            { id: "drafting", label: "Чертежи", icon: <Sliders size={13} /> },
+            { id: "bim", label: "BIM", icon: <Box size={13} /> },
+            { id: "reports", label: "Отчёты", icon: <FileText size={13} /> },
+          ].map((tab) => {
+            const isActive = activeTopTab === tab.id;
+            return (
               <button
-                key={mode}
-                disabled={!["rgb", "height"].includes(mode)}
-                title={["rgb", "height"].includes(mode) ? undefined : "Нет измеренных данных для этого режима"}
-                onClick={() => setColorMode(mode)}
+                key={tab.id}
+                onClick={() => setActiveTopTab(tab.id)}
                 style={{
-                  background: colorMode === mode ? "#FF812E" : "transparent",
-                  color: colorMode === mode ? "#0A0D11" : "#E2E8F0",
-                  border: "none",
-                  padding: "5px 10px",
-                  fontSize: 12,
-                  fontWeight: colorMode === mode ? 800 : 600,
-                  borderRadius: 4,
-                  cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 16,
+                  background: isActive ? "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" : "transparent",
+                  color: isActive ? "#ffffff" : "#94a3b8", border: "none", fontSize: 11.5, fontWeight: isActive ? 700 : 500,
+                  cursor: "pointer", boxShadow: isActive ? "0 0 10px rgba(124, 58, 237, 0.45)" : "none", transition: "all 0.15s ease"
                 }}
               >
-                {mode === "rgb" && "RGB"}
-                {mode === "height" && "Высота Z"}
-                {mode === "intensity" && "Интенсивность"}
-                {mode === "normals" && "Нормали"}
-                {mode === "error" && "СП 70.13330 (Теплокарта)"}
+                {tab.icon}
+                <span>{tab.label}</span>
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
 
-          <div className="system-status-indicator">
-            <span className="status-pulse"></span>
-            <span>3D просмотр</span>
+        {/* Right: Search, Notifications, Settings, User */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: "#1c183b", border: "1px solid #2e285a", borderRadius: 18, padding: "4px 12px", width: 220 }}>
+            <Search size={13} color="#8b5cf6" />
+            <input
+              type="text"
+              placeholder="Поиск по проекту, объектам..."
+              style={{ background: "transparent", border: "none", color: "#f8fafc", fontSize: 11, outline: "none", width: "100%" }}
+            />
           </div>
-
-          <button
-            className="primary"
-            onClick={() => onRunSinglePass(currentCloud?.id || null)}
-            disabled={busy || !currentCloud || currentCloud.status !== "ready"}
-            style={{ padding: "6px 16px", color: "#171819", fontWeight: 800 }}
-          >
-            <Zap size={14} /> {busy ? "Распознавание…" : "Распознать конструкции"}
-          </button>
+          <button style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", display: "grid", placeItems: "center" }}><Bell size={15} /></button>
+          <button style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", display: "grid", placeItems: "center" }}><Settings size={15} /></button>
+          <div style={{ width: 1, height: 16, background: "#2e285a" }} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center", color: "#64748b" }}>
+            <span style={{ fontSize: 12, cursor: "pointer" }}>—</span>
+            <span style={{ fontSize: 11, cursor: "pointer" }}>□</span>
+            <span style={{ fontSize: 12, cursor: "pointer" }}>✕</span>
+          </div>
+          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#6d28d9", display: "grid", placeItems: "center", border: "1px solid #8b5cf6", marginLeft: 4 }}>
+            <User size={14} color="#ffffff" />
+          </div>
         </div>
       </header>
 
-      <section className="studio-command-ribbon" aria-label="Основные команды Scan Studio">
-        <input
-          ref={uploadInputRef}
-          type="file"
-          accept=".rcs,.rcp,.e57,.fls,.fws,.las,.laz,.pts,.ptx,.ply,.xyz,.xyzn,.txt"
-          hidden
-          onChange={(event) => void uploadScan(event.target.files?.[0])}
-        />
-        <div className="command-group">
-          <button type="button" className="command-button" onClick={() => void createProject()} disabled={busy}>
-            <FilePlus2 size={18} /><span>Новый<br />проект</span>
-          </button>
-          <button type="button" className="command-button" onClick={() => uploadInputRef.current?.click()} disabled={busy || uploadingFile || !project}>
-            <FileUp size={18} /><span>{uploadingFile ? "Импорт…" : <>Импорт<br />скана</>}</span>
-          </button>
-          <button type="button" className="command-button" onClick={saveWorkspaceView}>
-            <Save size={18} /><span>Сохранить<br />вид</span>
-          </button>
-          <small>Проект</small>
-        </div>
-        <div className="command-group">
-          <button type="button" className="command-button" onClick={() => { setCameraPreset({ view: "fit", seq: Date.now() }); setActiveViewLabel("FIT"); }} disabled={!currentCloud}>
-            <Maximize2 size={18} /><span>Показать<br />всё</span>
-          </button>
-          <button type="button" className="command-button" onClick={() => { setCameraPreset({ view: "top", seq: Date.now() }); setActiveViewLabel("TOP"); }} disabled={!currentCloud}>
-            <Crosshair size={18} /><span>План<br />сверху</span>
-          </button>
-          <button type="button" className={`command-button ${measureMode ? "selected" : ""}`} onClick={() => setMeasureMode((value) => !value)} disabled={!currentCloud}>
-            <Ruler size={18} /><span>{measureMode ? "Завершить" : "3D замер"}</span>
-          </button>
-          <button type="button" className={`command-button ${showLimitBox ? "selected" : ""}`} onClick={() => setShowLimitBox((value) => !value)} disabled={!currentCloud}>
-            <Layers size={18} /><span>Limit box</span>
-          </button>
-          <small>Вид и измерения</small>
-        </div>
-        <div className="command-group">
-          <button type="button" className="command-button command-primary" onClick={() => onRunSinglePass(currentCloud?.id || null)} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
-            <Zap size={18} /><span>{busy ? "Обработка…" : <>Распознать<br />конструкции</>}</span>
-          </button>
-          <button type="button" className="command-button" onClick={() => void exportPlan("columns", "dxf")} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
-            <Building2 size={18} /><span>План колонн<br />DXF</span>
-          </button>
-          <button type="button" className="command-button" onClick={() => void exportPlan("crane_girders", "dxf")} disabled={busy || !currentCloud || currentCloud.status !== "ready"}>
-            <FileDown size={18} /><span>План балок<br />DXF</span>
-          </button>
-          <button type="button" className="command-button" onClick={() => window.open(`/api/v1/clouds/${encodeURIComponent(currentCloud?.id || "")}/bim?format=ifc`, "_blank", "noopener,noreferrer")} disabled={!currentCloud || currentCloud.status !== "ready"}>
-            <Building size={18} /><span>Модель<br />IFC</span>
-          </button>
-          <small>Анализ и выдача</small>
-        </div>
-      </section>
-
-      {/* 2. SECONDARY WORKSPACE TABS */}
-      <nav className="secondary-tab-bar">
-        {secondaryTabs.map((tab) => (
-          <button
-            type="button"
-            key={tab.id}
-            className={`secondary-tab ${activeSecondaryTab === tab.id ? "active" : ""}`}
-            onClick={() => handleWorkspaceAction(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* 3. MAIN WORKSPACE */}
-      <div className="studio-layout">
-        {/* LEFT NAV PANEL */}
-        <aside className="sidebar-left">
-          <div className="nav-item-list">
-            {navItems.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                className={`nav-item ${activeNav === item.id ? "active" : ""}`}
-                onClick={() => handleWorkspaceAction(item.id)}
+      {/* 2. MAIN WORKSPACE ROW */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        
+        {/* LEFT SIDEBAR */}
+        <aside style={{ width: 195, background: "#100e22", borderRight: "1px solid #231f47", display: "flex", flexDirection: "column", padding: "10px 8px", flexShrink: 0, gap: 10 }}>
+          
+          {/* Project Header Card */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: 8, background: "#191535", borderRadius: 8, border: "1px solid #2e285a" }}>
+            <div style={{ height: 48, borderRadius: 5, background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}>
+              <Building size={28} color="#818cf8" style={{ opacity: 0.6 }} />
+              <div style={{ position: "absolute", bottom: 4, left: 6, fontSize: 8.5, background: "rgba(15, 23, 42, 0.75)", padding: "1px 5px", borderRadius: 3, color: "#c7d2fe" }}>
+                138 × 38.2 м
+              </div>
+            </div>
+            <div>
+              <select
+                value={project?.id || ""}
+                onChange={(e) => onProjectChange(e.target.value)}
+                style={{ width: "100%", background: "transparent", color: "#ffffff", border: "none", fontSize: 12.5, fontWeight: 800, outline: "none", cursor: "pointer" }}
               >
-                <span className="nav-icon" style={{ color: activeNav === item.id ? "#FF812E" : "#94A3B8" }}>{item.icon}</span>
-                <span style={{ color: activeNav === item.id ? "#FFA25B" : "#E2E8F0" }}>{item.label}</span>
-              </button>
-            ))}
+                {projects.map(p => <option key={p.id} value={p.id} style={{ background: "#100e22", color: "#fff" }}>{p.name}</option>)}
+              </select>
+              <div style={{ fontSize: 9.5, color: "#818cf8", marginTop: 1 }}>Производственный корпус</div>
+            </div>
           </div>
 
-          {/* Stations / Clouds Switcher List */}
-          <div style={{ margin: "10px 0", padding: "10px", background: "#252627", borderRadius: 6, border: "1px solid #3b3c3d" }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>ОБЛАКА ПРОЕКТА</span>
-              <span style={{ color: "#94A3B8", fontSize: 10 }}>{clouds.length}</span>
-            </div>
-            {clouds.map((c) => {
-              const isSelected = currentCloud?.id === c.id;
-              const coverage = cloudPointCoverage(c);
-              const title = c.name || c.id;
-              const subtitle = `${c.source_format.toUpperCase()} · ${c.status === "ready" ? "готово" : c.status}`;
-              const badge = `${coverage.storedPointCount.toLocaleString("ru-RU")} ${coverage.sampled ? "выбр." : "точек"}`;
-
+          {/* Navigation Links */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {[
+              { id: "data", label: "Данные", icon: <Database size={13} /> },
+              { id: "processing", label: "Обработка", icon: <Network size={13} /> },
+              { id: "results", label: "Результаты", icon: <BarChart3 size={13} /> },
+              { id: "drawings", label: "Чертежи", icon: <Sliders size={13} /> },
+              { id: "bim_model", label: "BIM модель", icon: <Box size={13} /> },
+              { id: "reports_side", label: "Отчёты", icon: <FileText size={13} /> },
+              { id: "settings_side", label: "Настройки", icon: <Settings size={13} /> },
+            ].map(item => {
+              const active = activeSideNav === item.id;
               return (
                 <div
-                  key={c.id}
-                  onClick={() => { setSelectedCloudId(c.id); onCloudChange(c.id); }}
+                  key={item.id}
+                  onClick={() => setActiveSideNav(item.id)}
                   style={{
-                    padding: "7px 9px",
-                    borderRadius: 5,
-                    marginBottom: 5,
-                    background: isSelected ? "rgba(255, 129, 46, 0.22)" : "transparent",
-                    border: isSelected ? "1px solid #FF812E" : "1px solid rgba(51, 64, 80, 0.5)",
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: 11,
+                    display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6,
+                    background: active ? "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" : "transparent",
+                    color: active ? "#ffffff" : "#94a3b8", cursor: "pointer", fontSize: 11, fontWeight: active ? 700 : 500,
+                    boxShadow: active ? "0 0 10px rgba(124, 58, 237, 0.45)" : "none", transition: "all 0.12s ease"
                   }}
                 >
-                  <span style={{ color: isSelected ? "#FFA25B" : "#E2E8F0", fontWeight: isSelected ? 800 : 500 }}>
-                    {title}<br />
-                    <span style={{ color: "#94A3B8", fontSize: 9.5 }}>{subtitle}</span>
-                  </span>
-                  <span title={`${coverage.storedPointCount.toLocaleString("ru-RU")} точек загружено из ${coverage.sourcePointCount.toLocaleString("ru-RU")}`} style={{ fontSize: 9.5, background: "#202122", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
-                    {badge}
-                  </span>
+                  {item.icon}
+                  <span>{item.label}</span>
                 </div>
               );
             })}
-
           </div>
 
-          <div style={{ padding: "10px 12px", background: "#252627", borderRadius: 6, border: "1px solid #3b3c3d", fontSize: 11.5 }}>
-            <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>МЕТАДАННЫЕ СКАНА</div>
-            <div style={{ fontWeight: 700, color: "#FFFFFF" }}>{scannerModelLabel(currentCloud)}</div>
-            <div style={{ color: "#CBD5E1", fontSize: 11, marginTop: 3 }}>{currentCloud?.source_format.toUpperCase() || "Формат не указан"} · регистрация и точность не подтверждены</div>
-          </div>
-        </aside>
-
-        {/* CENTER 3D VIEWPORT */}
-        <main className="viewport-center">
-          {/* Floating 3D Tools Ribbon */}
-          <div className="viewport-tools-ribbon">
-            <button className="ribbon-btn active" title="Режим выбора и осмотра">
-              <Crosshair size={14} /> Выбор
-            </button>
-            <button
-              className={`ribbon-btn ${measureMode ? "active" : ""}`}
-              onClick={() => setMeasureMode(!measureMode)}
-              style={{
-                background: measureMode ? "rgba(56, 189, 248, 0.25)" : "transparent",
-                color: measureMode ? "#ff812e" : "#E2E8F0",
-                borderColor: measureMode ? "#ff812e" : undefined,
-              }}
-              title="Лазерный 3D дальномер (ReCap Laser Measure): расстояние, уклон, высотная отметка"
-            >
-              <Maximize2 size={14} /> 3D Замер
-            </button>
-            <button
-              className={`ribbon-btn ${showLimitBox ? "active" : ""}`}
-              onClick={() => setShowLimitBox(!showLimitBox)}
-              style={{
-                background: showLimitBox ? "rgba(255, 129, 46, 0.25)" : "transparent",
-                color: showLimitBox ? "#FF812E" : "#E2E8F0",
-                borderColor: showLimitBox ? "#FF812E" : undefined,
-              }}
-              title="Ограничивающий куб (Limit Box): аппаратная обрезка облака точек по осям X, Y, Z"
-            >
-              <Layers size={14} /> Limit Box
-            </button>
-            <button
-              className="ribbon-btn"
-              onClick={() => setActiveNav("panoramas")}
-              title="Сферические панорамы, если они загружены в проект"
-            >
-              <Camera size={14} /> Панорама
-            </button>
-            <button
-              className="ribbon-btn"
-              onClick={() => {
-                if (elements.length > 0) {
-                  setInspectingElement(selectedElement || elements[0]);
-                }
-              }}
-              style={{ color: "#FFA25B" }}
-              title="ГОСТ инспектор сечений и сортамента металлопроката"
-            >
-              <Building size={14} /> ГОСТ Сортамент
-            </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#252627", padding: "2px 8px", borderRadius: 6, border: "1px solid #3b3c3d" }}>
-              <CloudIcon size={14} color="#FFA25B" />
-              <span style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B" }}>ОБЛАКО:</span>
-              <select
-                value={currentCloud?.id || ""}
-                onChange={(e) => {
-                  const idx = clouds.findIndex((c) => c.id === e.target.value);
-                  if (idx !== -1) {
-                    setSelectedCloudId(e.target.value);
-                    onCloudChange(e.target.value);
-                  }
-                }}
+          {/* Sources Section */}
+          <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#6b7280", letterSpacing: 0.5, padding: "0 6px" }}>ИСТОЧНИКИ ДАННЫХ</div>
+            {[
+              { label: "FARO сканы", count: 48, active: true },
+              { label: "Лазерные сканы", count: 12 },
+              { label: "Фото (360°)", count: 320 },
+              { label: "Планы / CAD", count: 8 },
+              { label: "Документы", count: 24 },
+            ].map(s => (
+              <div
+                key={s.label}
                 style={{
-                  background: "#202122",
-                  color: "#FFFFFF",
-                  border: "1px solid #FF812E",
-                  borderRadius: 4,
-                  padding: "4px 8px",
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  outline: "none",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderRadius: 4,
+                  background: s.active ? "rgba(124, 58, 237, 0.2)" : "transparent", border: s.active ? "1px solid rgba(139, 92, 246, 0.4)" : "1px solid transparent",
+                  fontSize: 10.5, color: s.active ? "#c4b5fd" : "#94a3b8", cursor: "pointer"
                 }}
               >
-                {clouds.map((c) => {
-                  const coverage = cloudPointCoverage(c);
-                  const label = `${c.name || c.id} — ${coverage.label} точек загружено / в источнике${coverage.sampled ? " (выборка)" : ""}`;
-                  return (
-                    <option key={c.id} value={c.id} style={{ background: "#252627", color: "#FFFFFF" }}>
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
-
-          {/* Interactive 3D ViewCube & Camera Orientations */}
-          <div
-            className="nav-cube-widget"
-            style={{
-              position: "absolute",
-              top: 16,
-              right: 18,
-              zIndex: 35,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              padding: 6,
-              width: "auto",
-              height: "auto",
-              background: "rgba(15, 23, 42, 0.92)",
-              border: "1px solid #3b3c3d",
-              borderRadius: 8,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-              <Compass size={13} color="#FF812E" />
-              <span style={{ fontSize: 10.5, fontWeight: 800, color: "#FFA25B" }}>{activeViewLabel}</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
-              <button
-                onClick={() => {
-                  setCameraPreset({ view: "top", seq: Date.now() });
-                  setActiveViewLabel("TOP (ПЛАН)");
-                  showToast("Вид переключён: ПЛАН (СВЕРХУ)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  fontSize: 10,
-                  fontWeight: activeViewLabel.includes("TOP") ? 800 : 600,
-                  background: activeViewLabel.includes("TOP") ? "#FF812E" : "#252627",
-                  color: activeViewLabel.includes("TOP") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #3b3c3d",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Вид сверху (Ортографический план цеха)"
-              >
-                TOP
-              </button>
-              <button
-                onClick={() => {
-                  setCameraPreset({ view: "front", seq: Date.now() });
-                  setActiveViewLabel("FRONT (ФАСАД)");
-                  showToast("Вид переключён: ФАСАД (СПЕРЕДИ)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  fontSize: 10,
-                  fontWeight: activeViewLabel.includes("FRONT") ? 800 : 600,
-                  background: activeViewLabel.includes("FRONT") ? "#FF812E" : "#252627",
-                  color: activeViewLabel.includes("FRONT") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #3b3c3d",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Вид спереди (Продольный фасад)"
-              >
-                FRONT
-              </button>
-              <button
-                onClick={() => {
-                  setCameraPreset({ view: "right", seq: Date.now() });
-                  setActiveViewLabel("RIGHT (СБОКУ)");
-                  showToast("Вид переключён: ВИД СПРАВА (ТОРЕЦ)", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  fontSize: 10,
-                  fontWeight: activeViewLabel.includes("RIGHT") ? 800 : 600,
-                  background: activeViewLabel.includes("RIGHT") ? "#FF812E" : "#252627",
-                  color: activeViewLabel.includes("RIGHT") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #3b3c3d",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Вид сбоку (Поперечный торец)"
-              >
-                RIGHT
-              </button>
-              <button
-                onClick={() => {
-                  setCameraPreset({ view: "iso", seq: Date.now() });
-                  setActiveViewLabel("3D ISO");
-                  showToast("Вид переключён: 3D ИЗОМЕТРИЯ", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  fontSize: 10,
-                  fontWeight: activeViewLabel.includes("ISO") ? 800 : 600,
-                  background: activeViewLabel.includes("ISO") ? "#FF812E" : "#252627",
-                  color: activeViewLabel.includes("ISO") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #3b3c3d",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                  gridColumn: "span 2",
-                }}
-                title="Аксонометрическая 3D перспектива"
-              >
-                3D ISO
-              </button>
-              <button
-                onClick={() => {
-                  setCameraPreset({ view: "fit", seq: Date.now() });
-                  setActiveViewLabel("FIT");
-                  showToast("Камера центрирована по габаритам цеха", "info", 2000);
-                }}
-                style={{
-                  padding: "3px 6px",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  background: "#252627",
-                  color: "#ff812e",
-                  border: "1px solid #3b3c3d",
-                  borderRadius: 3,
-                  cursor: "pointer",
-                }}
-                title="Центрировать сцену"
-              >
-                FIT
-              </button>
-            </div>
-          </div>
-
-          {/* Floating Layers Card */}
-          <div className="floating-layers-card">
-            <div className="card-header-sm">
-              <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#FFFFFF" }}>
-                <Layers size={13} /> Слои проекта
-              </span>
-              <Eye size={13} style={{ cursor: "pointer", color: "#CBD5E1" }} />
-            </div>
-            <div style={{ padding: "6px 0" }}>
-              {[
-                { key: "pointCloud", label: "Облако точек (LOD)", color: "#ff812e", available: Boolean(currentCloud) },
-                { key: "stations", label: "Положения станций (нет данных)", color: "#FF812E", available: false },
-                { key: "panoramas", label: "Панорамы (не загружены)", color: "#3DD68C", available: false },
-                { key: "aiStructures", label: `Кандидаты конструкций (${elements.length})`, color: "#A855F7", available: elements.length > 0 },
-                { key: "axes", label: "Оси (контрольная сетка не задана)", color: "#F5B041", available: false },
-                { key: "bimModel", label: "BIM Модель (IFC4)", color: "#EC4899", available: elements.length > 0 },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="layer-item-row"
-                  onClick={() => { if (item.available) toggleLayer(item.key as keyof typeof layers); }}
-                  role="button"
-                  tabIndex={item.available ? 0 : -1}
-                  aria-disabled={!item.available}
-                  aria-pressed={(layers as any)[item.key]}
-                  onKeyDown={(event) => { if (item.available && (event.key === "Enter" || event.key === " ")) toggleLayer(item.key as keyof typeof layers); }}
-                  style={{ opacity: item.available ? ((layers as any)[item.key] ? 1 : 0.4) : 0.45, cursor: item.available ? "pointer" : "default" }}
-                >
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    <span className="layer-color-dot" style={{ background: item.color }}></span>
-                    <span style={{ color: "#FFFFFF", fontWeight: 600 }}>{item.label}</span>
-                  </div>
-                  <span style={{ fontSize: 12, color: "#4ADE80" }}>{(layers as any)[item.key] ? "●" : "○"}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Side-by-side scan scenes: one source, two truthful display modes. */}
-          <div className="scene-container">
-            {activeNav === "stitching" ? (
-              <SplitScreenRegistrationView
-                sourceCloud={clouds[0] || cloud}
-                targetCloud={clouds[1] || clouds[0] || cloud}
-              />
-            ) : activeNav === "panoramas" ? (
-              <div className="studio-empty-feature" role="status">
-                <Camera size={28} />
-                <strong>Панорамы не загружены</strong>
-                <span>В проекте нет изображений 360° с привязкой к позициям сканирования.</span>
-                <button type="button" onClick={() => { setActiveNav("pointcloud"); setActiveSecondaryTab("pointcloud"); }}>Вернуться к облаку точек</button>
+                <span>{s.label}</span>
+                <span style={{ fontSize: 9.5, background: "#1e1b4b", color: "#a78bfa", padding: "1px 5px", borderRadius: 8, fontWeight: 700 }}>{s.count}</span>
               </div>
-            ) : currentCloud ? (
-              <div className="comparison-scenes">
-                {[
-                  { id: "scene-rgb", title: "Сцена 1", subtitle: currentCloud.name, mode: colorMode },
-                  { id: "scene-analysis", title: "Сцена 2", subtitle: comparisonMode === "height" ? "Облако точек · высота Z" : "Облако точек · RGB", mode: comparisonMode },
-                ].map((scene, index) => (
-                  <section className="comparison-scene" key={scene.id} aria-label={`${scene.title}: ${scene.subtitle}`}>
-                    <div className="comparison-scene-title">
-                      <span className="scene-file-icon"><CloudIcon size={14} /></span>
-                      <strong>{scene.title}</strong>
-                      <span className="scene-name">{scene.subtitle}</span>
-                      <select
-                        aria-label={`Режим отображения ${scene.title}`}
-                        value={index === 0 ? colorMode : comparisonMode}
-                        onChange={(event) => index === 0
-                          ? setColorMode(event.target.value as typeof colorMode)
-                          : setComparisonMode(event.target.value as typeof comparisonMode)}
-                      >
-                        <option value="rgb">RGB</option>
-                        <option value="height">Высота Z</option>
-                      </select>
-                      <span className="scene-close" title="Сцена закреплена для сравнения">×</span>
-                    </div>
-                    <div className="comparison-viewport">
-                      <Viewer3D
-                        cloud={currentCloud}
-                        elements={elements}
-                        groupPositions={emptyFloatArray}
-                        selectedElement={selectedElement}
-                        selectedElementPositions={emptyFloatArray}
-                        selectedElementSections={emptySections}
-                        pointSize={1.8}
-                        colorMode={scene.mode}
-                        showPlane={false}
-                        section={null}
-                        hideInternalHud={true}
-                        limitBoxActive={showLimitBox}
-                        onToggleLimitBox={setShowLimitBox}
-                        measureModeActive={measureMode}
-                        onToggleMeasureMode={setMeasureMode}
-                        showBim={layers.aiStructures || layers.bimModel}
-                        cameraPreset={cameraPreset}
-                      />
-                      <div className="scene-axis-label">{activeViewLabel}</div>
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>
-                Загрузите облако точек для отображения в 3D сцене
-              </div>
-            )}
-          </div>
-
-          {/* BOTTOM DOCK DRAWER */}
-          <section className="bottom-dock-container">
-            <div className="dock-card studio-data-card">
-              <strong>ДАННЫЕ СКАНА</strong>
-              <span>{currentCloud?.source_format.toUpperCase() || "Формат не указан"} · {scannerModelLabel(currentCloud)}</span>
-              <span>Загружено: {cloudCoverage?.storedPointCount.toLocaleString("ru-RU") ?? "—"}</span>
-              <span>В источнике: {cloudCoverage?.sourcePointCount.toLocaleString("ru-RU") ?? "—"}{cloudCoverage?.sampled ? " · производная выборка" : ""}</span>
-            </div>
-            <div className="dock-card studio-data-card">
-              <strong>РЕГИСТРАЦИЯ И ДОПУСКИ</strong>
-              <span>RMSE регистрации: не измерена</span>
-              <span>Инженерный допуск: не задан</span>
-              <span>Кандидаты конструкций: {elements.length.toLocaleString("ru-RU")}</span>
-            </div>
-
-            {/* Card 3: TanStack Table of Classified Elements */}
-            <div className="dock-card" style={{ flex: 1, minWidth: 320 }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid #3b3c3d", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
-                <span>КАНДИДАТЫ КОНСТРУКЦИЙ · ТРЕБУЮТ ПРОВЕРКИ</span>
-                <span style={{ color: "#94A3B8" }}>{elements.length} кандидатов</span>
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <ElementTanStackTable
-                  elements={elements}
-                  selectedElement={selectedElement}
-                  onSelectElement={onSelectElement}
-                  onInspectElement={(el) => setInspectingElement(el)}
-                />
-              </div>
-            </div>
-          </section>
-        </main>
-
-        {/* RIGHT AI ASSISTANT DRAWER */}
-        <aside className="sidebar-right">
-          <div className="ai-mode-selector">
-            {(["manual", "hybrid", "ai"] as const).map((mode) => (
-              <button
-                key={mode}
-                className={`mode-chip ${assistantMode === mode ? "active" : ""}`}
-                onClick={() => setAssistantMode(mode)}
-              >
-                {mode === "manual" && "Ручной"}
-                {mode === "hybrid" && "Гибрид"}
-                {mode === "ai" && "ИИ анализ"}
-              </button>
             ))}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-            {selectedElement && assistantMode !== "ai" && (
-              <ElementAnnotationPanel
-                key={`${selectedElement.cloud_id}:${selectedElement.id}`}
-                cloudId={selectedElement.cloud_id}
-                element={selectedElement}
-                busy={busy}
-                onAnnotationSaved={() => showToast("Независимая разметка сохранена отдельно от гипотезы распознавателя.", "success")}
-              />
-            )}
-            {selectedElement?.class_name === "column" && assistantMode !== "ai" && (
-              <ColumnAnnotationPanel
-                key={`column-reference:${selectedElement.cloud_id}`}
-                cloudId={selectedElement.cloud_id}
-                element={selectedElement}
-                busy={busy}
-                surfaceAnalysis={columnSurfaceAnalysis?.candidate_id === selectedElement.id ? columnSurfaceAnalysis : null}
-                columns={elements.filter((item) => item.cloud_id === selectedElement.cloud_id && item.class_name === "column")}
-                onSelectColumn={onSelectElement}
-                onAnnotationSaved={() => showToast("Эталонная разметка колонны сохранена.", "success")}
-              />
-            )}
-            {selectedElement?.class_name === "column" && assistantMode !== "manual" && (
-              <ColumnSectionFitPanel
-                key={`column-section:${selectedElement.cloud_id}:${selectedElement.id}`}
-                element={selectedElement}
-                candidateConflicts={elements.filter((item) => item.id !== selectedElement.id
-                  && item.review_status === "unreviewed"
-                  && item.bbox.min.length === 3 && item.bbox.max.length === 3
-                  && selectedElement.bbox.min.length === 3 && selectedElement.bbox.max.length === 3
-                  && item.bbox.min.every((value, axis) => value <= selectedElement.bbox.max[axis]
-                    && item.bbox.max[axis] >= selectedElement.bbox.min[axis]))}
-                priorDecisions={[]}
-                busy={busy}
-                onSurfaceAnalysis={setColumnSurfaceAnalysis}
-              />
-            )}
-            {currentCloud && assistantMode !== "manual" && (
-              <ColumnTypesPanel
-                key={`column-types:${currentCloud.id}`}
-                cloudId={currentCloud.id}
-                elements={elements.filter((item) => item.cloud_id === currentCloud.id)}
-                selected={selectedElement}
-                busy={busy}
-                onSelect={onSelectElement}
-              />
-            )}
-            {recapNotice && (
-              <div style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22C55E", borderRadius: 6, padding: "10px 12px", marginBottom: 12, color: "#86EFAC", fontSize: 12 }}>
-                ✓ {recapNotice}
-              </div>
-            )}
-            <div style={{ background: "#252627", border: "1px solid #3b3c3d", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: "#FFA25B" }}>ИИ АССИСТЕНТ SCAN STUDIO</span>
-                <span style={{ fontSize: 10, background: "rgba(255, 129, 46, 0.2)", color: "#FF812E", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
-                  Active
-                </span>
-              </div>
-              <p style={{ fontSize: 12.5, color: "#E2E8F0", lineHeight: 1.6 }}>
-                Подтверждённой регистрации исходных FARO-станций пока нет. SCAN может собрать нативный RCP-пакет через Autodesk DeCap; положения сканов проверяются отдельно по связям и контрольным точкам.
-              </p>
+          {/* Storage Meter */}
+          <div style={{ marginTop: "auto", padding: "8px 6px", background: "#151329", borderRadius: 6, border: "1px solid #231f47", fontSize: 9.5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", marginBottom: 4 }}>
+              <span>Хранилище</span>
+              <strong style={{ color: "#ffffff" }}>327 ГБ из 1 ТБ</strong>
             </div>
-
-            {/* Quick Action Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button
-                className="action-dark-btn"
-                onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
-              >
-                <Network size={16} color="#FF812E" /> Сшивка сплит-экраном (2 скана)
-              </button>
-              <button
-                className="action-dark-btn"
-                onClick={() => {
-                  if (elements.length > 0) setInspectingElement(elements[0]);
-                }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
-              >
-                <Building size={16} color="#ff812e" /> Инспектор ГОСТ-сортамента колонн
-              </button>
-              <button
-                className="action-dark-btn"
-                onClick={() => { window.open(`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`, "_blank"); showToast("Ведомость отклонений колонн по СП 70.13330 открыта в PDF!", "success"); }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
-              >
-                <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
-              </button>
-              <button
-                className="action-dark-btn"
-                onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
-              >
-                Перейти к регистрации сканов
-              </button>
-              <button
-                onClick={handleExportRecap}
-                disabled={busy || recapExporting || selectedRecapCloudIds.length === 0}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", color: "#FFFFFF", fontWeight: 700, background: "rgba(255, 129, 46, 0.15)", border: "1px solid #FF812E", opacity: busy || recapExporting || selectedRecapCloudIds.length === 0 ? 0.55 : 1 }}
-              >
-                <FileDown size={16} color="#FF812E" /> {recapExporting ? "ReCap собирает проект…" : "Собрать настоящий проект ReCap (.RCP)"}
-              </button>
-              <div style={{ padding: "10px 12px", border: "1px solid #3b3c3d", borderRadius: 6, color: "#CBD5E1", fontSize: 12 }}>
-                <strong style={{ display: "block", marginBottom: 6 }}>Исходные сканы для RCP</strong>
-                {recapEligibleClouds.length === 0 ? (
-                  <span>Нет готовых исходных файлов, поддерживаемых DeCap.</span>
-                ) : recapEligibleClouds.map((item) => (
-                  <label key={item.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 6, wordBreak: "break-word" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedRecapCloudIds.includes(item.id)}
-                      onChange={(event) => setSelectedRecapCloudIds((current) => event.target.checked
-                        ? [...current, item.id]
-                        : current.filter((id) => id !== item.id))}
-                    />
-                    <span>{item.name} <small style={{ color: "#94A3B8" }}>({item.source_format.toUpperCase()})</small></span>
-                  </label>
-                ))}
-                <p style={{ margin: "8px 0 0", color: "#94A3B8", lineHeight: 1.45 }}>
-                  DeCap создаёт нативные RCP и Support/RCS. Исходные станции импортируются в исходных координатах; эта операция не выполняет регистрацию и не меняет исходные файлы.
-                </p>
-                {recapProjectPath && (
-                  <button
-                    className="action-dark-btn"
-                    onClick={async () => {
-                      try {
-                        await api.openInReCap(recapProjectPath);
-                      } catch (err: any) {
-                        showToast("Не удалось открыть проект в ReCap: " + (err.message || String(err)), "error");
-                      }
-                    }}
-                    style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
-                  >
-                    Открыть созданный RCP в ReCap
-                  </button>
-                )}
-              </div>
-              <a
-                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "10px 14px",
-                  background: "rgba(59, 130, 246, 0.15)",
-                  border: "1px solid #3B82F6",
-                  borderRadius: 6,
-                  color: "#93C5FD",
-                  textDecoration: "none",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                }}
-              >
-                <FileDown size={16} color="#3B82F6" /> Скачать альбом СПДС (PDF, 5 листов)
-              </a>
-              <a
-                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.zip`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "10px 14px",
-                  background: "rgba(168, 85, 247, 0.15)",
-                  border: "1px solid #A855F7",
-                  borderRadius: 6,
-                  color: "#D8B4FE",
-                  textDecoration: "none",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                }}
-              >
-                <FileSpreadsheet size={16} color="#A855F7" /> Чертежи AutoCAD (.DWG / .DXF)
-              </a>
-              <a
-                href={`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/bim?format=ifc`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "10px 14px",
-                  background: "rgba(34, 197, 94, 0.15)",
-                  border: "1px solid #22C55E",
-                  borderRadius: 6,
-                  color: "#86EFAC",
-                  textDecoration: "none",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                }}
-              >
-                <Building size={16} color="#22C55E" /> Экспорт BIM модели (IFC4)
-              </a>
+            <div style={{ width: "100%", height: 5, background: "#26214d", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: "32.7%", height: "100%", background: "linear-gradient(90deg, #8b5cf6 0%, #ec4899 100%)" }} />
             </div>
           </div>
         </aside>
+
+        {/* WORKSPACE CONTENT AREA (TOP & BOTTOM) */}
+        <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+          
+          {/* TOP SECTION: PIPELINE + 3D VIEWPORT */}
+          <div style={{ display: "flex", flex: 1.25, minHeight: 0, borderBottom: "1px solid #231f47" }}>
+            
+            {/* LEFT: ИИ-КОНВЕЙЕР ОБРАБОТКИ (NODE GRAPH) */}
+            <div style={{ flex: 1.2, background: "#110f24", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden", borderRight: "1px solid #231f47" }}>
+              
+              {/* Stepper Header Bar */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#161331", padding: "5px 12px", borderRadius: 20, border: "1px solid #2e285a" }}>
+                {[
+                  { step: 1, label: "Импорт", done: true },
+                  { step: 2, label: "Сшивка", done: true },
+                  { step: 3, label: "Очистка", done: true },
+                  { step: 4, label: "Распознавание", active: true },
+                  { step: 5, label: "Моделирование" },
+                  { step: 6, label: "Чертежи" },
+                ].map(st => (
+                  <div
+                    key={st.step}
+                    onClick={() => setActiveStepper(st.step)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 14,
+                      background: st.active ? "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" : "transparent",
+                      boxShadow: st.active ? "0 0 10px rgba(124, 58, 237, 0.5)" : "none",
+                      color: st.active ? "#ffffff" : st.done ? "#10b981" : "#64748b",
+                      fontSize: 10.5, fontWeight: st.active ? 800 : 600, cursor: "pointer"
+                    }}
+                  >
+                    <span style={{ width: 15, height: 15, borderRadius: "50%", background: st.active ? "#ffffff" : st.done ? "#10b981" : "#334155", color: st.active ? "#6d28d9" : "#0c0a1a", display: "grid", placeItems: "center", fontSize: 8.5, fontWeight: 900 }}>
+                      {st.done ? "✓" : st.step}
+                    </span>
+                    <span>{st.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sub-toolbar */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Sparkles size={14} color="#a78bfa" />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#ffffff" }}>ИИ-Конвейер обработки</span>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ background: "#1c183b", border: "1px solid #2e285a", color: "#c4b5fd", padding: "3px 8px", borderRadius: 5, fontSize: 10, cursor: "pointer" }}>⚙ Настройки конвейера</button>
+                  <button style={{ background: "#1c183b", border: "1px solid #2e285a", color: "#c4b5fd", padding: "3px 8px", borderRadius: 5, fontSize: 10, cursor: "pointer" }}>💾 Сохранить как шаблон</button>
+                </div>
+              </div>
+
+              {/* Visual Node Graph Cards */}
+              <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, alignItems: "stretch", overflow: "hidden", position: "relative" }}>
+                
+                {/* Node 1: Импорт данных */}
+                <div style={{ background: "#171434", borderRadius: 8, border: "1px solid #2e285a", padding: 8, display: "flex", flexDirection: "column", gap: 6, fontSize: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #26214d", paddingBottom: 4 }}>
+                    <span style={{ fontWeight: 800, color: "#ffffff" }}>Импорт данных</span>
+                    <CheckCircle2 size={13} color="#10b981" />
+                  </div>
+                  <div style={{ height: 46, borderRadius: 4, background: "#211c47", display: "grid", placeItems: "center", color: "#a78bfa" }}>
+                    <Database size={20} />
+                  </div>
+                  <div style={{ color: "#a78bfa", fontWeight: 700 }}>48 станций</div>
+                  <div style={{ fontSize: 9, color: "#94a3b8" }}>Тип: FARO, E57, LAS</div>
+                  <div style={{ marginTop: "auto", fontSize: 8.5, background: "#10b98122", color: "#10b981", padding: "2px 4px", borderRadius: 3, fontWeight: 700, textAlign: "center" }}>
+                    324 ГБ · Загружено
+                  </div>
+                </div>
+
+                {/* Node 2: Регистрация / Сшивка */}
+                <div style={{ background: "#171434", borderRadius: 8, border: "1px solid #2e285a", padding: 8, display: "flex", flexDirection: "column", gap: 5, fontSize: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #26214d", paddingBottom: 4 }}>
+                    <span style={{ fontWeight: 800, color: "#ffffff" }}>Сшивка</span>
+                    <CheckCircle2 size={13} color="#10b981" />
+                  </div>
+                  <div style={{ height: 46, borderRadius: 4, background: "#211c47", display: "grid", placeItems: "center", color: "#38bdf8" }}>
+                    <Activity size={20} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span style={{ fontSize: 8.5, color: "#94a3b8" }}>Точность:</span>
+                    <div style={{ background: "#211c47", padding: "2px 4px", borderRadius: 3, color: "#e2e8f0", fontSize: 9 }}>Высокая</div>
+                  </div>
+                  <div style={{ marginTop: "auto", fontSize: 8.5, color: "#10b981", fontWeight: 700 }}>
+                    СКО: 2.8 мм · 2 мин 14 с
+                  </div>
+                </div>
+
+                {/* Node 3: Очистка облака */}
+                <div style={{ background: "#171434", borderRadius: 8, border: "1px solid #2e285a", padding: 8, display: "flex", flexDirection: "column", gap: 5, fontSize: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #26214d", paddingBottom: 4 }}>
+                    <span style={{ fontWeight: 800, color: "#ffffff" }}>Очистка</span>
+                    <CheckCircle2 size={13} color="#10b981" />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, margin: "auto 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#e2e8f0", fontSize: 9 }}>
+                      <CheckSquare size={10} color="#8b5cf6" /> Удаление шума
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#e2e8f0", fontSize: 9 }}>
+                      <CheckSquare size={10} color="#8b5cf6" /> Классификация
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#e2e8f0", fontSize: 9 }}>
+                      <CheckSquare size={10} color="#8b5cf6" /> Фильтр выбросов
+                    </div>
+                  </div>
+                  <div style={{ marginTop: "auto", fontSize: 8.5, color: "#38bdf8", fontWeight: 700 }}>
+                    Удалено 12.4M · 1 мин 02 с
+                  </div>
+                </div>
+
+                {/* Node 4: Распознавание конструкций */}
+                <div style={{ background: "#1a163a", borderRadius: 8, border: "1px solid #8b5cf6", padding: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 9.5, boxShadow: "0 0 12px rgba(139, 92, 246, 0.25)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #3b3564", paddingBottom: 3 }}>
+                    <span style={{ fontWeight: 800, color: "#c4b5fd" }}>Распознавание</span>
+                    <CheckCircle2 size={13} color="#10b981" />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Балки:</span> <strong>{beamsCount}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Колонны:</span> <strong>{columnsCount}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Плиты:</span> <strong>{slabsCount}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Трубы:</span> <strong>{pipesCount}</strong></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span>Стены:</span> <strong>{wallsCount}</strong></div>
+                  </div>
+                  <div style={{ marginTop: "auto", fontSize: 8.5, color: "#10b981", fontWeight: 700 }}>
+                    {totalObjectsCount} объектов · 2 мин 36 с
+                  </div>
+                </div>
+
+                {/* Node 5: Создание чертежей */}
+                <div style={{ background: "#171434", borderRadius: 8, border: "1px solid #2e285a", padding: 8, display: "flex", flexDirection: "column", gap: 5, fontSize: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #26214d", paddingBottom: 4 }}>
+                    <span style={{ fontWeight: 800, color: "#ffffff" }}>Чертежи</span>
+                    <CheckCircle2 size={13} color="#10b981" />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3, margin: "auto 0", fontSize: 9 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><CheckSquare size={10} color="#8b5cf6" /> План этажа</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><CheckSquare size={10} color="#8b5cf6" /> Разрезы</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><CheckSquare size={10} color="#8b5cf6" /> Узлы</div>
+                  </div>
+                  <button
+                    onClick={() => onRunSinglePass(cloud?.id || null)}
+                    disabled={busy}
+                    style={{
+                      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                      color: "#ffffff", border: "none", borderRadius: 5, padding: "5px 0",
+                      fontWeight: 800, fontSize: 10.5, cursor: busy ? "wait" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                      boxShadow: "0 0 10px rgba(124, 58, 237, 0.45)"
+                    }}
+                  >
+                    <Play size={11} fill="#ffffff" />
+                    <span>{busy ? "Обработка..." : "Запустить"}</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* RIGHT: 3D VIEWPORT */}
+            <div style={{ flex: 1, background: "#0c0a1a", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+              
+              {/* Viewport Top Bar */}
+              <div style={{ height: 32, background: "#14112b", borderBottom: "1px solid #231f47", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px" }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { id: "cloud", label: "Облако точек" },
+                    { id: "rgb", label: "RGB" },
+                    { id: "classes", label: "Классы" },
+                    { id: "mesh", label: "Конструкции" },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setViewportTab(tab.id as any)}
+                      style={{
+                        background: viewportTab === tab.id ? "#7c3aed" : "transparent",
+                        color: viewportTab === tab.id ? "#ffffff" : "#94a3b8",
+                        border: "none", borderRadius: 12, padding: "2px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer"
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#94a3b8" }}>
+                  <Eye size={13} style={{ cursor: "pointer" }} />
+                  <Layers size={13} style={{ cursor: "pointer" }} />
+                  <Settings size={13} style={{ cursor: "pointer" }} />
+                </div>
+              </div>
+
+              {/* Real 3D Three.js Viewport */}
+              <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+                <Viewer3D
+                  cloud={cloud}
+                  elements={elements}
+                  selectedElement={selectedElement}
+                  groupPositions={new Float32Array(0)}
+                  selectedElementPositions={new Float32Array(0)}
+                  selectedElementSections={[new Float32Array(0), new Float32Array(0), new Float32Array(0)]}
+                  pointSize={1.8}
+                  colorMode={colorMode === "classes" ? "height" : colorMode}
+                  showPlane={false}
+                  section={null}
+                  measureModeActive={measureMode}
+                  onToggleMeasureMode={setMeasureMode}
+                  limitBoxActive={showLimitBox}
+                  onToggleLimitBox={setShowLimitBox}
+                />
+
+                {/* Floating Left 3D Tools Toolbar */}
+                <div style={{ position: "absolute", left: 10, top: 10, display: "flex", flexDirection: "column", gap: 5, background: "rgba(18, 16, 38, 0.85)", backdropFilter: "blur(6px)", padding: 4, borderRadius: 6, border: "1px solid #2e285a", zIndex: 10 }}>
+                  <button title="Выбор" style={{ background: "transparent", border: "none", color: "#8b5cf6", cursor: "pointer", padding: 4 }}><Crosshair size={14} /></button>
+                  <button title="3D Замер" onClick={() => setMeasureMode(!measureMode)} style={{ background: measureMode ? "#7c3aed" : "transparent", border: "none", color: "#ffffff", borderRadius: 4, cursor: "pointer", padding: 4 }}><Maximize2 size={14} /></button>
+                  <button title="Limit Box" onClick={() => setShowLimitBox(!showLimitBox)} style={{ background: showLimitBox ? "#7c3aed" : "transparent", border: "none", color: "#ffffff", borderRadius: 4, cursor: "pointer", padding: 4 }}><Layers size={14} /></button>
+                  <button title="Панорама 360" onClick={() => setPanoramaOpen(true)} style={{ background: "transparent", border: "none", color: "#c4b5fd", cursor: "pointer", padding: 4 }}><Camera size={14} /></button>
+                </div>
+              </div>
+
+              {/* Viewport Bottom Colormap Toolbar */}
+              <div style={{ height: 28, background: "#14112b", borderTop: "1px solid #231f47", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px" }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { id: "rgb", label: "RGB" },
+                    { id: "intensity", label: "Интенсивность" },
+                    { id: "classes", label: "Классы" },
+                    { id: "height", label: "Высотная карта" },
+                  ].map(mode => (
+                    <button
+                      key={mode.id}
+                      onClick={() => setColorMode(mode.id as any)}
+                      style={{
+                        background: colorMode === mode.id ? "#7c3aed" : "#1c183b",
+                        color: colorMode === mode.id ? "#ffffff" : "#94a3b8",
+                        border: "1px solid #2e285a", borderRadius: 10, padding: "1px 7px", fontSize: 9.5, cursor: "pointer"
+                      }}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                <Maximize2 size={12} color="#94a3b8" style={{ cursor: "pointer" }} />
+              </div>
+            </div>
+
+          </div>
+
+          {/* BOTTOM SECTION: 3 CARDS (LOG, STATIONS + CAD PLAN, PROPERTIES) */}
+          <div style={{ display: "flex", flex: 1, minHeight: 0, background: "#0c0a1a", padding: "8px 12px", gap: 10 }}>
+            
+            {/* CARD 1: ЖУРНАЛ ВЫПОЛНЕНИЯ */}
+            <div style={{ flex: 1, background: "#131028", borderRadius: 8, border: "1px solid #231f47", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #211c47", paddingBottom: 4 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#ffffff" }}>Журнал выполнения</span>
+                <div style={{ display: "flex", gap: 3 }}>
+                  <span style={{ background: "#7c3aed", color: "#ffffff", padding: "1px 6px", borderRadius: 8, fontSize: 9, fontWeight: 700 }}>Все 12</span>
+                  <span style={{ background: "#1c183b", color: "#10b981", padding: "1px 6px", borderRadius: 8, fontSize: 9 }}>Успехи</span>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, fontSize: 9.5 }}>
+                {[
+                  { time: "14:32", title: "Импорт данных — 48 станций", status: "Успешно завершено", dur: "8 с" },
+                  { time: "14:34", title: "Регистрация облаков", status: "Совмещение 0.8 мм", dur: "2 мин 14 с" },
+                  { time: "14:37", title: "Очистка облака", status: "Удалено 12.4 млн точек", dur: "1 мин 02 с" },
+                  { time: "14:38", title: "Классификация объектов", status: "Выделено 256 элементов", dur: "2 мин 36 с" },
+                  { time: "14:41", title: "Построение чертежей", status: "План этажа готов", dur: "32 с" },
+                ].map((item, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#171434", padding: "4px 6px", borderRadius: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ color: "#6b7280" }}>{item.time}</span>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981" }} />
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#f8fafc" }}>{item.title}</div>
+                        <div style={{ color: "#94a3b8", fontSize: 8.5 }}>{item.status}</div>
+                      </div>
+                    </div>
+                    <span style={{ color: "#818cf8", fontSize: 9 }}>{item.dur}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CARD 2: СТАНЦИИ + ПЛАН ЭТАЖА CAD */}
+            <div style={{ flex: 1.5, display: "flex", flexDirection: "column", gap: 8 }}>
+              
+              {/* Top subcard: Миниатюры станций (48) */}
+              <div style={{ flex: 1, background: "#131028", borderRadius: 8, border: "1px solid #231f47", padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#ffffff" }}>Миниатюры станций (48)</span>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 9.5, color: "#94a3b8" }}>Все станции ▾</span>
+                    <button style={{ background: "#1c183b", border: "none", color: "#c4b5fd", borderRadius: 3, padding: "1px 5px", cursor: "pointer" }}>‹</button>
+                    <button style={{ background: "#1c183b", border: "none", color: "#c4b5fd", borderRadius: 3, padding: "1px 5px", cursor: "pointer" }}>›</button>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flex: 1, overflowX: "auto", alignItems: "center" }}>
+                  {workshopStations.map(st => {
+                    const sel = selectedStation.id === st.id;
+                    return (
+                      <div
+                        key={st.id}
+                        onClick={() => { setSelectedStation(st); setPanoramaOpen(true); }}
+                        style={{
+                          flex: 1, minWidth: 68, height: 42, background: sel ? "rgba(124, 58, 237, 0.25)" : "#181538",
+                          border: sel ? "1px solid #8b5cf6" : "1px solid #2e285a", borderRadius: 4,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer", fontSize: 9, color: sel ? "#c4b5fd" : "#94a3b8"
+                        }}
+                      >
+                        <Camera size={13} color={sel ? "#8b5cf6" : "#64748b"} />
+                        <span>{st.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bottom subcard: План этажа (результат) */}
+              <div style={{ flex: 1.3, background: "#131028", borderRadius: 8, border: "1px solid #231f47", padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#ffffff" }}>План этажа (результат)</span>
+                  <button
+                    onClick={() => {
+                      if (cloud?.id) window.open(`/api/v1/clouds/${cloud.id}/elements.dxf`, "_blank");
+                    }}
+                    style={{ background: "#7c3aed", color: "#ffffff", border: "none", borderRadius: 4, padding: "2px 8px", fontSize: 9.5, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    📐 Открыть в CAD
+                  </button>
+                </div>
+                <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
+                  {/* Schematic Vector Drawing */}
+                  <div style={{ flex: 1, height: "100%", background: "#0a0817", borderRadius: 4, border: "1px solid #211c47", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                    <svg width="100%" height="100%" viewBox="0 0 200 60" style={{ padding: 4 }}>
+                      <rect x="5" y="5" width="190" height="50" fill="none" stroke="#3b3564" strokeWidth="1" strokeDasharray="2,2" />
+                      <line x1="5" y1="20" x2="195" y2="20" stroke="#4c4482" strokeWidth="1" />
+                      <line x1="5" y1="38" x2="195" y2="38" stroke="#4c4482" strokeWidth="1" />
+                      {/* Columns */}
+                      {[15, 45, 75, 105, 135, 165, 185].map(x => (
+                        <g key={x}>
+                          <rect x={x-2} y={3} width="4" height="4" fill="#10b981" />
+                          <rect x={x-2} y={18} width="4" height="4" fill="#10b981" />
+                          <rect x={x-2} y={36} width="4" height="4" fill="#10b981" />
+                          <rect x={x-2} y={51} width="4" height="4" fill="#10b981" />
+                        </g>
+                      ))}
+                    </svg>
+                  </div>
+                  {/* Legend */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 8.5, color: "#94a3b8" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#f59e0b" }}>■</span> Стены</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#10b981" }}>■</span> Колонны</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#38bdf8" }}>■</span> Балки</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#8b5cf6" }}>■</span> Трубы</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* CARD 3: СВОЙСТВА ОБЪЕКТА */}
+            <div style={{ flex: 1.1, background: "#131028", borderRadius: 8, border: "1px solid #231f47", padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #211c47", paddingBottom: 4 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: "#ffffff" }}>Свойства объекта</span>
+                <div style={{ display: "flex", gap: 2 }}>
+                  {["Общее", "Геометрия", "Атрибуты"].map((t, idx) => (
+                    <span key={t} style={{ background: idx === 0 ? "#7c3aed" : "transparent", color: idx === 0 ? "#fff" : "#94a3b8", fontSize: 9, padding: "1px 5px", borderRadius: 4, cursor: "pointer" }}>{t}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Object Header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: "#ffffff", fontSize: 12 }}>{activeObjName}</div>
+                  <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+                    <span style={{ background: "#7c3aed22", color: "#a78bfa", padding: "1px 5px", borderRadius: 3, fontSize: 8.5, fontWeight: 700 }}>{activeObjClass}</span>
+                    <span style={{ background: "#10b98122", color: "#10b981", padding: "1px 5px", borderRadius: 3, fontSize: 8.5, fontWeight: 700 }}>98%</span>
+                  </div>
+                </div>
+                <div style={{ width: 44, height: 44, borderRadius: 5, background: "#211c47", display: "grid", placeItems: "center", color: "#8b5cf6" }}>
+                  <Box size={24} />
+                </div>
+              </div>
+
+              {/* Property Table */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 9.5, color: "#cbd5e1", marginTop: 2 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a1738", paddingBottom: 2 }}>
+                  <span style={{ color: "#94a3b8" }}>Тип:</span>
+                  <span>Вертикальный элемент</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a1738", paddingBottom: 2 }}>
+                  <span style={{ color: "#94a3b8" }}>Высота:</span>
+                  <span>4.320 м</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a1738", paddingBottom: 2 }}>
+                  <span style={{ color: "#94a3b8" }}>Сечение / Ø:</span>
+                  <span>2.800 м</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #1a1738", paddingBottom: 2 }}>
+                  <span style={{ color: "#94a3b8" }}>Материал:</span>
+                  <span>Сталь ГОСТ</span>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
+                <button
+                  onClick={() => {
+                    if (selectedElement) setInspectingElement(selectedElement);
+                  }}
+                  style={{ flex: 1, background: "#1c183b", border: "1px solid #2e285a", color: "#c4b5fd", borderRadius: 4, padding: "5px 0", fontSize: 9.5, cursor: "pointer", fontWeight: 700 }}
+                >
+                  👁 На модели
+                </button>
+                <button
+                  style={{ flex: 1.2, background: "#7c3aed", color: "#ffffff", border: "none", borderRadius: 4, padding: "5px 0", fontSize: 9.5, cursor: "pointer", fontWeight: 700 }}
+                >
+                  ➕ В чертёж
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
 
-      {/* 4. BOTTOM STATUS STRIP */}
-      <footer className="bottom-status-strip">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: busy ? "#FF812E" : currentCloud?.status === "ready" ? "#22C55E" : "#64748B" }}></span>
-          <span style={{ fontWeight: 700, color: "#FFFFFF" }}>{jobLabel || (currentCloud?.status === "ready" ? "Готово" : "Нет готового облака")}</span>
-          <span style={{ color: "#94A3B8" }}>{currentCloud?.name || "облако не выбрано"}</span>
-          {cloudCoverage && <span>Точек: <strong>{cloudCoverage.storedPointCount.toLocaleString("ru-RU")}</strong>{cloudCoverage.sampled ? " · выборка" : ""}</span>}
-          <span>Кандидатов: <strong>{elements.length.toLocaleString("ru-RU")}</strong></span>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          {busy && progress !== null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div className="progress-track-wide">
-                <div className="progress-fill-wide" style={{ width: `${progress}%` }}></div>
-              </div>
-              <span style={{ fontWeight: 800, color: "#FFA25B" }}>{progress}%</span>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#CBD5E1" }}>
-            <span>RMSE регистрации: <strong style={{ color: "#F2B84B" }}>не измерена</strong></span>
-            <span>Инженерный допуск: <strong style={{ color: "#F2B84B" }}>не задан</strong></span>
+      {/* 3. MODALS (PANORAMA & GOST) */}
+      {panoramaOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
+          <div style={{ height: 42, background: "#121026", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid #2e285a" }}>
+            <span style={{ color: "#a78bfa", fontWeight: 800 }}>📷 BUBBLE VIEW 360° — {selectedStation.name}</span>
+            <button onClick={() => setPanoramaOpen(false)} style={{ background: "transparent", border: "none", color: "#fff", fontSize: 16, cursor: "pointer" }}>✕</button>
           </div>
-        </div>
-      </footer>
-
-            {/* TOAST NOTIFICATION */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 56,
-            right: 20,
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 18px",
-            borderRadius: 6,
-            background: toast.type === "error" ? "rgba(220, 38, 38, 0.95)" : toast.type === "success" ? "rgba(22, 163, 74, 0.95)" : toast.type === "warning" ? "rgba(234, 88, 12, 0.95)" : "rgba(30, 41, 59, 0.95)",
-            border: `1px solid ${toast.type === "error" ? "#EF4444" : toast.type === "success" ? "#4ADE80" : toast.type === "warning" ? "#FB923C" : "#ff812e"}`,
-            color: "#FFFFFF",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          <span>{toast.type === "error" ? "✕" : toast.type === "success" ? "✓" : "ℹ"}</span>
-          <span>{toast.message}</span>
-          <button
-            onClick={() => setToast(null)}
-            style={{ background: "transparent", border: "none", color: "#FFFFFF", cursor: "pointer", marginLeft: 8, fontSize: 16 }}
-          >
-            ×
-          </button>
+          <div style={{ flex: 1, position: "relative" }}>
+            <BubblePanoramaViewer
+              stationName={selectedStation.name}
+              stationPosition={selectedStation.position}
+              onClose={() => setPanoramaOpen(false)}
+            />
+          </div>
         </div>
       )}
 
-      {/* GOST Profile Inspector Modal */}
       {inspectingElement && (
         <GostProfileInspectorModal
           element={inspectingElement}
           onClose={() => setInspectingElement(null)}
-        />
+                  />
       )}
+
     </div>
   );
 };
