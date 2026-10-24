@@ -25,7 +25,7 @@ This document defines the 12 core development phases of SCAN according to the pr
 | **Stage 11** | Enterprise, GPU & Big Data | **IN PROGRESS** | 34 focused tests | Chunked CPU/GPU paths exist; CUDA-device run and representative 100M/billion-point performance acceptance remain open |
 | **Stage 12** | Release Engineering & Acceptance | **IN PROGRESS** | 15 focused tests | Installer and checks exist; full regression, supported-workstation installation and user acceptance remain open |
 
-Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing.
+Test counts above are focused test evidence, not proof that a whole stage meets acceptance. Mark a stage DONE only after its listed acceptance criteria have passed. Stages 1 and 5 are closed (2/12); all other stages remain open, partial, or under testing. Current Stage 6 labeling target: registered FARO RCS `2621e5a320df49949d04aa1b7399539e` has 267 pending live columns. The 16-column pilot JSON references the same source cloud, but its candidate IDs are from a separate recognition snapshot and are not automatically mapped.
 
 ---
 
@@ -60,6 +60,7 @@ Test counts above are focused test evidence, not proof that a whole stage meets 
   - Viewer selects and streams a LOD level from camera distance, debounces camera changes, cancels stale requests, and retains the visible cloud while a new level loads. Browser smoke on a generated 1M-point cloud loaded levels 0 and 2 successfully.
   - Warm light-theme styles now load after the dark token sheet so application surfaces and text retain readable contrast.
   - Viewer shows FPS from completed WebGL render-loop frames in rolling one-second windows, so the target workstation can report its own navigation performance.
+  - SCAN Studio now opens synchronized, side-by-side RGB and height-Z views of the selected live cloud; changing projects reloads their cloud and candidate list and persists the project selection in the browser. Visual QA confirmed the registered FARO 1.rcs project and its 685 live candidates.
 - **Open**: Large-cloud level-of-detail and measured frame-time acceptance have not been demonstrated for the workshop pilot.
 - **Criteria**: 60 FPS viewport navigation with 1M+ preview points, verified on the target workstation and representative cloud.
 - **Status**: **IN PROGRESS**

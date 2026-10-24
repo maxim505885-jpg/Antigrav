@@ -7,6 +7,8 @@ import { api, waitForJob } from "./api";
 import { type Cloud, type Element, type Project } from "./types";
 
 function Root() {
+  const [preferredProjectId] = useState(() => window.localStorage.getItem("scan.selectedProjectId") || undefined);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [clouds, setClouds] = useState<Cloud[]>([]);
   const [elements, setElements] = useState<Element[]>([]);
@@ -16,13 +18,16 @@ function Root() {
   const [jobProgress, setJobProgress] = useState<number | null>(null);
 
   // Load live data from local API backend
-  const loadData = async (preferredCloudId?: string): Promise<number> => {
+  const loadData = async (preferredCloudId?: string, preferredProjectId?: string): Promise<number> => {
     try {
       const projectsList = await api.listProjects();
       if (!projectsList || projectsList.length === 0) return 0;
 
-      // Select workshop_project or first
-      const prj = projectsList.find((p) => p.id === "workshop_project") || projectsList[0];
+      setProjects(projectsList);
+      // Keep the requested/current project; use the workshop as the initial default.
+      const prj = projectsList.find((p) => p.id === (preferredProjectId || project?.id))
+        || projectsList.find((p) => p.id === "workshop_project")
+        || projectsList[0];
       setProject(prj);
 
       // Load clouds for project
@@ -47,7 +52,7 @@ function Root() {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData(undefined, preferredProjectId);
   }, []);
 
   const handleRunSinglePass = async (cloudId: string | null) => {
@@ -98,10 +103,21 @@ function Root() {
     }
   };
 
+  const handleProjectChange = async (projectId: string) => {
+    window.localStorage.setItem("scan.selectedProjectId", projectId);
+    setSelectedEl(null);
+    setElements([]);
+    setClouds([]);
+    setJobLabel("Загрузка проекта");
+    const candidateCount = await loadData(undefined, projectId);
+    setJobLabel(`Проект загружен · ${candidateCount} кандидатов`);
+  };
+
   const primaryCloud = clouds.find((c) => c.id === "workshop_cloud") || clouds[0] || null;
 
   return (
     <StudioReferenceLayout
+      projects={projects}
       project={project}
       cloud={primaryCloud}
       clouds={clouds}
@@ -110,6 +126,7 @@ function Root() {
       onSelectElement={setSelectedEl}
       onRunSinglePass={(cloudId) => void handleRunSinglePass(cloudId)}
       onCloudChange={(cloudId) => void handleCloudChange(cloudId)}
+      onProjectChange={(projectId) => void handleProjectChange(projectId)}
       busy={busy}
       jobLabel={jobLabel}
       jobProgress={jobProgress}

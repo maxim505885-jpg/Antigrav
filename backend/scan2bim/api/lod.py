@@ -91,15 +91,31 @@ def get_cloud_lod_manifest(cloud_id: str) -> dict[str, Any]:
 
 
 @router.get("/clouds/{cloud_id}/lod/{level}")
-def get_cloud_lod_binary(cloud_id: str, level: int):
-    """Stream binary point slice for the requested LOD level (stride 15: float32 x,y,z + uint8 r,g,b)."""
+def get_cloud_lod_binary(cloud_id: str, level: str):
+    """Stream binary point slice for the requested LOD level (stride 15: float32 x,y,z + uint8 r,g,b).
+    Accepts integer level (e.g. 0, 1, 2) or filename (e.g. lod_0.bin).
+    """
     lod_dir, manifest = _get_or_build_lod_for_cloud(cloud_id)
     
     valid_levels = {item["level"]: item["file"] for item in manifest.get("levels", [])}
-    if level not in valid_levels:
-        raise HTTPException(status_code=404, detail=f"Уровень LOD {level} не найден (доступны: {sorted(valid_levels.keys())})")
+    
+    # Try parsing as integer level or filename
+    target_file = None
+    if level.isdigit() and int(level) in valid_levels:
+        target_file = valid_levels[int(level)]
+    else:
+        for lvl_num, f_name in valid_levels.items():
+            if level == f_name or level == str(lvl_num):
+                target_file = f_name
+                break
+                
+    if not target_file:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Уровень LOD {level} не найден (доступны: {sorted(valid_levels.keys())} или {[item['file'] for item in manifest.get('levels', [])]})",
+        )
 
-    bin_path = lod_dir / valid_levels[level]
+    bin_path = lod_dir / target_file
     if not bin_path.is_file():
         raise HTTPException(status_code=404, detail=f"Файл бинарного среза {bin_path.name} не найден")
 

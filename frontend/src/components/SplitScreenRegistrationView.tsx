@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Viewer3D from "./Viewer3D";
 import { type Cloud } from "../types";
+import { api } from "../api";
 
 interface SplitScreenRegistrationViewProps {
   sourceCloud: Cloud | null;
@@ -14,7 +15,23 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
   const [detectedTargets, setDetectedTargets] = useState(0);
   const [targetDiameterMm, setTargetDiameterMm] = useState("");
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
   const [alignStatus, setAlignStatus] = useState<string | null>(null);
+
+  const handleAutoMatchICP = async () => {
+    if (!sourceCloud || !targetCloud) return;
+    setIsMatching(true);
+    setAlignStatus("Выполняется глобальное и локальное Point-to-Plane ICP уравнивание...");
+    try {
+      const res = await api.matchCloudsIcp(sourceCloud.id, targetCloud.id);
+      const rmseStr = res.rmse_mm != null ? `${res.rmse_mm.toFixed(2)} мм` : "расчёт выполнен";
+      setAlignStatus(`Уравнивание ICP успешно завершено: RMSE = ${rmseStr}, итераций: ${res.iterations}, сошлось: ${res.converged ? "Да" : "Нет"}. Матрица жесткой трансформации 4x4 вычислена.`);
+    } catch (e: any) {
+      setAlignStatus(`Ошибка автосшивки: ${e.message || String(e)}`);
+    } finally {
+      setIsMatching(false);
+    }
+  };
   const emptySections: [Float32Array, Float32Array, Float32Array] = [
     new Float32Array(0),
     new Float32Array(0),
@@ -92,8 +109,9 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
           </button>
 
           <button
-            disabled
-            title="Сшивка станет доступна после ввода и проверки соответствующих контрольных точек обоих облаков. Автоматические смещения не подставляются."
+            onClick={handleAutoMatchICP}
+            disabled={isMatching || !sourceCloud || !targetCloud}
+            title="Автоматическое Point-to-Plane ICP уравнивание двух облаков точек без использования марок"
             style={{
               background: "#FF812E",
               color: "#10151B",
@@ -101,12 +119,12 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               border: "none",
               borderRadius: 6,
               padding: "6px 14px",
-              cursor: "not-allowed",
-              opacity: 0.55,
+              cursor: isMatching || !sourceCloud || !targetCloud ? "not-allowed" : "pointer",
+              opacity: isMatching || !sourceCloud || !targetCloud ? 0.6 : 1,
               fontSize: 12,
             }}
           >
-            Уравнивание недоступно · нет пар контрольных точек
+            {isMatching ? "Расчёт автосшивки (ICP)..." : "⚡ Автосшивка (ICP)"}
           </button>
         </div>
       </div>

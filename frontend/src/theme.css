@@ -450,6 +450,212 @@ button.primary:hover:not(:disabled) {
   flex-direction: column;
 }
 
+/* SCAN Studio reference workspace: a restrained CAD console with paired scenes. */
+:root {
+  --bg-deep: #202122;
+  --bg-main: #242526;
+  --bg-sidebar: #1c1d1e;
+  --bg-surface: #292a2b;
+  --bg-surface-hover: #343536;
+  --bg-card: #252627;
+  --bg-card-border: #3b3c3d;
+  --bg-card-hover: #2e2f30;
+  --bg-viewport: #090a0a;
+  --glass-bg: rgba(28, 29, 30, 0.96);
+  --glass-border: #3a3b3c;
+  --border: #3a3b3c;
+  --border-muted: #2d2e2f;
+  --text-secondary: #c1c1c1;
+  --text-muted: #8f9091;
+  --accent: #ff6b00;
+  --accent-hover: #ff812e;
+  --accent-active: #e65f00;
+  --accent-glow: rgba(255, 107, 0, 0.24);
+  --accent-subtle: rgba(255, 107, 0, 0.12);
+}
+
+.app-header {
+  height: 48px;
+  padding: 0 16px;
+  background: #202122;
+}
+
+.app-logo {
+  background: transparent;
+  color: var(--accent);
+  position: relative;
+}
+
+.app-title { letter-spacing: 1.1px; }
+.app-title span.sub { color: #fff; font-size: inherit; font-weight: 800; }
+.project-title-badge { background: transparent; border: 0; border-left: 1px solid #444; border-radius: 0; margin-left: 18px; padding: 4px 12px 4px 20px; }
+.project-title-badge select { max-width: min(32vw, 360px); font-size: 12px; }
+
+.secondary-tab-bar {
+  height: 38px;
+  padding: 0 14px;
+  gap: 2px;
+  background: #191a1b;
+  border-bottom-color: #444;
+}
+
+.secondary-tab { border-radius: 0; padding: 8px 14px; font-size: 12px; }
+.secondary-tab.active { color: #fff; border: 0; border-bottom: 2px solid var(--accent); background: #292a2b; }
+
+.studio-layout { height: calc(100vh - 48px - 38px - 36px); }
+
+.sidebar-left {
+  width: 58px;
+  min-width: 58px;
+  padding: 8px 5px;
+  background: #191a1b;
+}
+
+.nav-item-list { gap: 4px; }
+.nav-item { justify-content: center; padding: 9px 4px; min-height: 38px; }
+.nav-item > span:not(.nav-icon) { display: none; }
+.nav-item .nav-icon { width: 22px; }
+.sidebar-left > div:nth-child(2),
+.sidebar-left > div:nth-child(3) { display: none !important; }
+
+.viewport-center { background: #0b0c0c; }
+.viewport-tools-ribbon {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  z-index: 30;
+  width: 100%;
+  min-height: 104px;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #202122;
+  border: 0;
+  border-bottom: 1px solid #414243;
+  border-radius: 0;
+  padding: 9px 12px;
+  gap: 6px;
+  box-shadow: none;
+}
+
+.ribbon-btn {
+  min-width: 68px;
+  min-height: 60px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 9px;
+  color: #dedede;
+  font-size: 10px;
+}
+
+.ribbon-btn:hover { color: #fff; background: #303132; border-color: #555; }
+.ribbon-btn.active { background: rgba(255,107,0,.16); color: #ff812e; border-color: #ff6b00; }
+.viewport-tools-ribbon > div { min-height: 60px; }
+.viewport-tools-ribbon > div button { min-height: 30px; }
+
+.nav-cube-widget { top: 14px !important; right: 14px !important; }
+.floating-layers-card { top: 14px; left: 14px; background: rgba(24,25,26,.90); }
+
+.scene-container {
+  display: flex;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 220px;
+  margin: 0 0 195px;
+  background: #0a0b0b;
+}
+
+.comparison-scenes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; width: 100%; height: 100%; min-height: 0; padding: 6px; }
+.comparison-scene { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #414243; border-radius: 7px; background: #101112; }
+.comparison-scene-title { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; color: #ededed; background: #222324; border-bottom: 1px solid #424344; font-size: 11px; }
+.comparison-scene-title strong { flex: 0 0 auto; font-size: 12px; }
+.comparison-scene-title .scene-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9b9b9; }
+.scene-file-icon { display: inline-flex; color: var(--accent); }
+.comparison-scene-title select { margin-left: auto; width: auto; min-width: 78px; padding: 3px 6px; color: #eee; background: #171819; border: 1px solid #494a4b; border-radius: 4px; font-size: 10px; }
+.scene-close { color: #aaa; font-size: 17px; line-height: 1; }
+.comparison-viewport { position: relative; flex: 1; min-height: 0; }
+.comparison-viewport .viewer { position: absolute; inset: 0; }
+.scene-axis-label { position: absolute; z-index: 12; left: 9px; bottom: 8px; padding: 4px 8px; color: #ddd; background: rgba(20,21,22,.88); border: 1px solid #444; border-radius: 4px; font-size: 10px; pointer-events: none; }
+
+.bottom-dock-container { background: #1e1f20; border-top-color: #414243; gap: 8px; padding: 8px; }
+.dock-card { border-radius: 5px; background: #232425; border-color: #3a3b3c; }
+.sidebar-right { width: 310px; min-width: 270px; background: #1c1d1e; border-left-color: #414243; }
+.ai-mode-selector { background: #202122; border-bottom-color: #414243; }
+.bottom-status-strip { height: 36px; background: #191a1b; border-top-color: #414243; padding: 0 14px; }
+
+button:focus-visible, select:focus-visible, input:focus-visible, [role="button"]:focus-visible { outline: 2px solid #ff812e; outline-offset: 2px; }
+
+/* Keep the full workspace on the neutral graphite and orange palette of the
+   SCAN Studio reference, including legacy inline-styled controls and forms. */
+:root {
+  --bg-deep: #202122;
+  --bg-main: #242526;
+  --bg-sidebar: #1d1e1f;
+  --bg-surface: #292a2b;
+  --bg-surface-hover: #343536;
+  --bg-card: #252627;
+  --bg-card-border: #3b3c3d;
+  --bg-card-hover: #2e2f30;
+  --bg-viewport: #101112;
+  --glass-bg: rgba(28, 29, 30, .96);
+  --glass-border: #3a3b3c;
+  --border: #3a3b3c;
+  --border-muted: #2d2e2f;
+  --text-secondary: #c1c1c1;
+  --text-muted: #8f9091;
+  --accent: #ff6b00;
+  --accent-hover: #ff812e;
+  --accent-active: #e65f00;
+  --accent-glow: rgba(255, 107, 0, .2);
+  --accent-subtle: rgba(255, 107, 0, .12);
+  color-scheme: dark;
+}
+
+html, body, #root, .studio-layout { background: #202122 !important; }
+.app-header, .secondary-tab-bar, .sidebar-left, .sidebar-right,
+.bottom-dock-container, .bottom-status-strip, .viewport-tools-ribbon {
+  background-color: #202122 !important;
+  border-color: #414243 !important;
+}
+.viewport-center, .scene-container { background: #101112 !important; }
+.dock-card, .floating-layers-card, .project-title-badge,
+.mode-chip, .layer-item-row, .action-dark-btn {
+  background-color: #252627 !important;
+  border-color: #3b3c3d !important;
+}
+.project-title-badge select, .scene-select, .sidebar-right select,
+.sidebar-right input, .sidebar-right textarea,
+input, select, textarea {
+  color: #e6e6e6;
+  background-color: #262728;
+  border-color: #494a4b;
+}
+input::placeholder, textarea::placeholder { color: #929394; }
+button.primary { color: #171819; box-shadow: none; }
+.system-status-indicator { color: #bdbdbd; background: #252627; border-color: #414243; }
+.system-status-indicator .status-pulse { background: #ff6b00; box-shadow: none; }
+.sidebar-right button, .action-dark-btn { background: #292a2b !important; border-color: #494a4b !important; }
+.sidebar-right button:hover, .action-dark-btn:hover { background: #343536 !important; border-color: #ff6b00 !important; color: #fff !important; }
+.scene-close { display: none; }
+
+@media (max-width: 1100px) {
+  .sidebar-right { width: 280px; min-width: 250px; }
+  .viewport-tools-ribbon { min-height: 88px; }
+  .ribbon-btn { min-width: 58px; min-height: 52px; padding: 5px 6px; }
+}
+
+@media (max-width: 820px) {
+  .sidebar-left { display: none; }
+  .sidebar-right { display: none; }
+  .comparison-scenes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .bottom-dock-container { height: 150px; }
+  .scene-container { margin-bottom: 150px; }
+  .secondary-tab-bar { overflow-x: auto; }
+}
+
 .viewer {
   position: relative;
   flex: 1;
@@ -586,3 +792,15 @@ button.primary:hover:not(:disabled) {
   background: #FF812E;
   border-radius: 99px;
 }
+
+/* Final product palette overrides come last because legacy layout rules above
+   still contain the earlier navy palette. */
+.sidebar-right button, .action-dark-btn { background: #292a2b !important; border-color: #494a4b !important; color: #eee !important; }
+.sidebar-right button:hover, .action-dark-btn:hover { background: #343536 !important; border-color: #ff6b00 !important; color: #fff !important; }
+.sidebar-right button.primary, .sidebar-right .primary { background: #ff6b00 !important; border-color: #ff812e !important; color: #171819 !important; }
+.sidebar-right input, .sidebar-right select, .sidebar-right textarea { color: #e6e6e6 !important; background: #262728 !important; border-color: #494a4b !important; }
+.sidebar-right [style*="#1C2430"], .sidebar-right [style*="#1C2430"] * { background-color: #252627 !important; }
+.sidebar-left [style*="#1C2430"], .sidebar-left [style*="#1C2430"] * { background-color: #252627 !important; }
+.viewport-tools-ribbon button { background: #252627; border-color: #414243; color: #dedede; }
+.viewport-tools-ribbon button:hover { background: #343536; border-color: #ff6b00; }
+.mode-chip.active { background: #ff6b00; border-color: #ff812e; color: #171819; }

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { api } from "./api";
 import { cloudPointCoverage, progressPercent, scannerModelLabel } from "./studioPresentation";
-import "./theme.css";
 import Viewer3D, { type CameraPreset } from "./components/Viewer3D";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { GostProfileInspectorModal } from "./components/GostProfileInspectorModal";
+import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { RegistrationQualityCharts } from "./components/RegistrationQualityCharts";
 import { ElementTanStackTable } from "./components/ElementTanStackTable";
 import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 
 interface StudioLayoutProps {
+  projects: Project[];
   project: Project | null;
   cloud: Cloud | null;
   clouds: Cloud[];
@@ -41,6 +42,7 @@ interface StudioLayoutProps {
   onSelectElement: (el: Element | null) => void;
   onRunSinglePass: (cloudId: string | null) => void;
   onCloudChange: (cloudId: string) => void;
+  onProjectChange: (projectId: string) => void;
   onTabChange?: (tab: string) => void;
   busy: boolean;
   jobLabel: string | null;
@@ -48,6 +50,7 @@ interface StudioLayoutProps {
 }
 
 export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
+  projects,
   project,
   cloud,
   clouds,
@@ -56,6 +59,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   onSelectElement,
   onRunSinglePass,
   onCloudChange,
+  onProjectChange,
   busy,
   jobLabel,
   jobProgress,
@@ -64,6 +68,12 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("pointcloud");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(null);
   const [activeViewLabel, setActiveViewLabel] = useState<string>("3D ISO");
+  const workshopStations = [
+    { id: "st-01", name: "Стоянка 01 — Пролёт 1 (Оси А–Б, 6)", position: [-13.25, -20.0, 1.6] as [number, number, number] },
+    { id: "st-02", name: "Стоянка 02 — Пролёт 2 (Оси Б–В, 12 — Центр цеха)", position: [0.0, 0.0, 1.6] as [number, number, number] },
+    { id: "st-03", name: "Стоянка 03 — Пролёт 3 (Оси В–Г, 18)", position: [13.25, 20.0, 1.6] as [number, number, number] },
+  ];
+  const [selectedStation, setSelectedStation] = useState(workshopStations[1]);
   const [toast, setToast] = useState<{ type: "success" | "info" | "warning" | "error"; message: string } | null>(null);
 
   const showToast = (message: string, type: "success" | "info" | "warning" | "error" = "info", duration = 5000) => {
@@ -108,6 +118,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   };
 
   const [colorMode, setColorMode] = useState<"rgb" | "height" | "intensity" | "normals" | "error">("rgb");
+  const [comparisonMode, setComparisonMode] = useState<"height" | "rgb">("height");
   const [inspectingElement, setInspectingElement] = useState<Element | null>(null);
   const [selectedCloudId, setSelectedCloudId] = useState<string>("workshop_cloud");
   const [selectedSpan, setSelectedSpan] = useState<"all" | "span1" | "span2" | "span3">("all");
@@ -172,7 +183,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
       <header className="app-header">
         <div className="app-brand">
           <div className="app-logo">
-            <Sparkles size={16} color="#0A0E13" />
+            <Sparkles size={16} color="#ff6b00" />
           </div>
           <div className="app-title">
             SCAN AI <span className="sub">STUDIO</span>
@@ -180,14 +191,22 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
 
           <div className="project-title-badge">
             <span style={{ color: "#FF812E" }}>●</span>
-            <span style={{ color: "#FFFFFF", fontWeight: 700 }}>{project?.name || "Проект SCAN"}</span>
+            <select
+              aria-label="Активный проект"
+              value={project?.id || ""}
+              onChange={(event) => onProjectChange(event.target.value)}
+              disabled={!projects.length || busy}
+              style={{ maxWidth: 310, background: "transparent", color: "#FFFFFF", border: 0, fontWeight: 700, outline: "none", cursor: "pointer" }}
+            >
+              {projects.map((item) => <option key={item.id} value={item.id} style={{ background: "#292a2b", color: "#FFFFFF" }}>{item.name}</option>)}
+            </select>
             <span style={{ color: "#94A3B8", fontSize: 11 }}>Облаков проекта: {clouds.length}</span>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Scientific Colormap Switcher */}
-          <div style={{ display: "flex", background: "#1C2430", padding: 3, borderRadius: 6, border: "1px solid #334050" }}>
+          <div style={{ display: "flex", background: "#292a2b", padding: 3, borderRadius: 6, border: "1px solid #3b3c3d" }}>
             {(["rgb", "height", "intensity", "normals", "error"] as const).map((mode) => (
               <button
                 key={mode}
@@ -223,7 +242,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             className="primary"
             onClick={() => onRunSinglePass(currentCloud?.id || null)}
             disabled={busy || !currentCloud || currentCloud.status !== "ready"}
-            style={{ padding: "6px 16px", color: "#0A0D12", fontWeight: 800 }}
+            style={{ padding: "6px 16px", color: "#171819", fontWeight: 800 }}
           >
             <Zap size={14} /> {busy ? "Распознавание…" : "Распознать конструкции"}
           </button>
@@ -271,7 +290,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
 
           {/* Stations / Clouds Switcher List */}
-          <div style={{ margin: "10px 0", padding: "10px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050" }}>
+          <div style={{ margin: "10px 0", padding: "10px", background: "#252627", borderRadius: 6, border: "1px solid #3b3c3d" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>ОБЛАКА ПРОЕКТА</span>
               <span style={{ color: "#94A3B8", fontSize: 10 }}>{clouds.length}</span>
@@ -319,7 +338,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                     {title}<br />
                     <span style={{ color: "#94A3B8", fontSize: 9.5 }}>{subtitle}</span>
                   </span>
-                  <span title="Загружено точек / точек в источнике" style={{ fontSize: 9.5, background: "#0E1318", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
+                  <span title="Загружено точек / точек в источнике" style={{ fontSize: 9.5, background: "#202122", color: isSelected ? "#4ADE80" : "#94A3B8", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
                     {badge}
                   </span>
                 </div>
@@ -327,7 +346,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             })}
 
             {/* Transverse Spans Guide Card */}
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed #334050", fontSize: 10.5, color: "#CBD5E1" }}>
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed #3b3c3d", fontSize: 10.5, color: "#CBD5E1" }}>
               <div style={{ fontWeight: 800, color: "#FFA25B", marginBottom: 5 }}>ПРОЛЁТЫ ЦЕХА (СП 16.13330):</div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                 <span>• Пролёт 1 (Оси А–Б):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
@@ -338,13 +357,13 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                 <span>• Пролёт 3 (Оси В–Г):</span> <strong style={{ color: "#FFFFFF" }}>13.25 м</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #334050", color: "#4ADE80", fontWeight: 700 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, paddingTop: 4, borderTop: "1px solid #3b3c3d", color: "#4ADE80", fontWeight: 700 }}>
                 <span>Всего (3 пролёта):</span> <span>38.20 м</span>
               </div>
             </div>
           </div>
 
-          <div style={{ padding: "10px 12px", background: "#1C2430", borderRadius: 6, border: "1px solid #334050", fontSize: 11.5 }}>
+          <div style={{ padding: "10px 12px", background: "#252627", borderRadius: 6, border: "1px solid #3b3c3d", fontSize: 11.5 }}>
             <div style={{ color: "#94A3B8", marginBottom: 4, fontWeight: 700 }}>МЕТАДАННЫЕ СКАНА</div>
             <div style={{ fontWeight: 700, color: "#FFFFFF" }}>{scannerModelLabel(currentCloud)}</div>
             <div style={{ color: "#CBD5E1", fontSize: 11, marginTop: 3 }}>{currentCloud?.source_format.toUpperCase() || "Формат не указан"} · регистрация и точность не подтверждены</div>
@@ -363,8 +382,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               onClick={() => setMeasureMode(!measureMode)}
               style={{
                 background: measureMode ? "rgba(56, 189, 248, 0.25)" : "transparent",
-                color: measureMode ? "#38BDF8" : "#E2E8F0",
-                borderColor: measureMode ? "#38BDF8" : undefined,
+                color: measureMode ? "#ff812e" : "#E2E8F0",
+                borderColor: measureMode ? "#ff812e" : undefined,
               }}
               title="Лазерный 3D дальномер (ReCap Laser Measure): расстояние, уклон, высотная отметка"
             >
@@ -402,7 +421,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               <Building size={14} /> ГОСТ Сортамент
             </button>
             {/* Span Focus Toolbar */}
-            <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#1C2430", padding: "2px 6px", borderRadius: 6, border: "1px solid #334050" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 3, background: "#252627", padding: "2px 6px", borderRadius: 6, border: "1px solid #3b3c3d" }}>
               <span style={{ fontSize: 10.5, fontWeight: 800, color: "#FFA25B", marginRight: 3 }}>ПРОЛЁТЫ:</span>
               <button
                 onClick={() => {
@@ -432,7 +451,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 7px",
                   fontSize: 10.5,
                   fontWeight: selectedSpan === "span1" ? 800 : 500,
-                  background: selectedSpan === "span1" ? "#38BDF8" : "transparent",
+                  background: selectedSpan === "span1" ? "#ff812e" : "transparent",
                   color: selectedSpan === "span1" ? "#0A0D11" : "#E2E8F0",
                   border: "none",
                   borderRadius: 3,
@@ -451,7 +470,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 7px",
                   fontSize: 10.5,
                   fontWeight: selectedSpan === "span2" ? 800 : 500,
-                  background: selectedSpan === "span2" ? "#38BDF8" : "transparent",
+                  background: selectedSpan === "span2" ? "#ff812e" : "transparent",
                   color: selectedSpan === "span2" ? "#0A0D11" : "#E2E8F0",
                   border: "none",
                   borderRadius: 3,
@@ -470,7 +489,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 7px",
                   fontSize: 10.5,
                   fontWeight: selectedSpan === "span3" ? 800 : 500,
-                  background: selectedSpan === "span3" ? "#38BDF8" : "transparent",
+                  background: selectedSpan === "span3" ? "#ff812e" : "transparent",
                   color: selectedSpan === "span3" ? "#0A0D11" : "#E2E8F0",
                   border: "none",
                   borderRadius: 3,
@@ -482,7 +501,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               </button>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1C2430", padding: "2px 8px", borderRadius: 6, border: "1px solid #334050" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#252627", padding: "2px 8px", borderRadius: 6, border: "1px solid #3b3c3d" }}>
               <CloudIcon size={14} color="#FFA25B" />
               <span style={{ fontSize: 11, fontWeight: 800, color: "#FFA25B" }}>ОБЛАКО:</span>
               <select
@@ -495,7 +514,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   }
                 }}
                 style={{
-                  background: "#0E1318",
+                  background: "#202122",
                   color: "#FFFFFF",
                   border: "1px solid #FF812E",
                   borderRadius: 4,
@@ -510,7 +529,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   const coverage = cloudPointCoverage(c);
                   const label = `${c.name || c.id} — ${coverage.label} точек загружено / в источнике${coverage.sampled ? " (выборка)" : ""}`;
                   return (
-                    <option key={c.id} value={c.id} style={{ background: "#1C2430", color: "#FFFFFF" }}>
+                    <option key={c.id} value={c.id} style={{ background: "#252627", color: "#FFFFFF" }}>
                       {label}
                     </option>
                   );
@@ -534,7 +553,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               width: "auto",
               height: "auto",
               background: "rgba(15, 23, 42, 0.92)",
-              border: "1px solid #334050",
+              border: "1px solid #3b3c3d",
               borderRadius: 8,
               boxShadow: "0 4px 16px rgba(0,0,0,0.6)",
             }}
@@ -554,9 +573,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 6px",
                   fontSize: 10,
                   fontWeight: activeViewLabel.includes("TOP") ? 800 : 600,
-                  background: activeViewLabel.includes("TOP") ? "#FF812E" : "#1C2430",
+                  background: activeViewLabel.includes("TOP") ? "#FF812E" : "#252627",
                   color: activeViewLabel.includes("TOP") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #334050",
+                  border: "1px solid #3b3c3d",
                   borderRadius: 3,
                   cursor: "pointer",
                 }}
@@ -574,9 +593,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 6px",
                   fontSize: 10,
                   fontWeight: activeViewLabel.includes("FRONT") ? 800 : 600,
-                  background: activeViewLabel.includes("FRONT") ? "#FF812E" : "#1C2430",
+                  background: activeViewLabel.includes("FRONT") ? "#FF812E" : "#252627",
                   color: activeViewLabel.includes("FRONT") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #334050",
+                  border: "1px solid #3b3c3d",
                   borderRadius: 3,
                   cursor: "pointer",
                 }}
@@ -594,9 +613,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 6px",
                   fontSize: 10,
                   fontWeight: activeViewLabel.includes("RIGHT") ? 800 : 600,
-                  background: activeViewLabel.includes("RIGHT") ? "#FF812E" : "#1C2430",
+                  background: activeViewLabel.includes("RIGHT") ? "#FF812E" : "#252627",
                   color: activeViewLabel.includes("RIGHT") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #334050",
+                  border: "1px solid #3b3c3d",
                   borderRadius: 3,
                   cursor: "pointer",
                 }}
@@ -614,9 +633,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 6px",
                   fontSize: 10,
                   fontWeight: activeViewLabel.includes("ISO") ? 800 : 600,
-                  background: activeViewLabel.includes("ISO") ? "#FF812E" : "#1C2430",
+                  background: activeViewLabel.includes("ISO") ? "#FF812E" : "#252627",
                   color: activeViewLabel.includes("ISO") ? "#0A0D11" : "#E2E8F0",
-                  border: "1px solid #334050",
+                  border: "1px solid #3b3c3d",
                   borderRadius: 3,
                   cursor: "pointer",
                   gridColumn: "span 2",
@@ -635,9 +654,9 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   padding: "3px 6px",
                   fontSize: 10,
                   fontWeight: 600,
-                  background: "#1C2430",
-                  color: "#38BDF8",
-                  border: "1px solid #334050",
+                  background: "#252627",
+                  color: "#ff812e",
+                  border: "1px solid #3b3c3d",
                   borderRadius: 3,
                   cursor: "pointer",
                 }}
@@ -658,7 +677,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             </div>
             <div style={{ padding: "6px 0" }}>
               {[
-                { key: "pointCloud", label: "Облако точек (LOD)", color: "#38BDF8" },
+                { key: "pointCloud", label: "Облако точек (LOD)", color: "#ff812e" },
                 { key: "stations", label: "Положения станций (не заданы)", color: "#FF812E", available: false },
                 { key: "panoramas", label: "Панорамы (не загружены)", color: "#3DD68C", available: false },
                 { key: "aiStructures", label: "Кандидаты конструкций", color: "#A855F7", available: true },
@@ -682,33 +701,107 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             </div>
           </div>
 
-          {/* Core 3D Viewport Scene or Split-Screen Registration */}
+          {/* Side-by-side scan scenes: one source, two truthful display modes. */}
           <div className="scene-container">
             {activeNav === "stitching" ? (
               <SplitScreenRegistrationView
                 sourceCloud={clouds[0] || cloud}
                 targetCloud={clouds[1] || clouds[0] || cloud}
               />
+            ) : activeNav === "panoramas" ? (
+              <div style={{ flex: 1, position: "relative", height: "100%", width: "100%", background: "#0A0D11", display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "8px 16px", background: "#1C2430", borderBottom: "1px solid #334050", display: "flex", gap: 10, alignItems: "center", zIndex: 10 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#FFA25B" }}>📷 BUBBLE VIEW 360° — ВЫБОР СТОЯНКИ:</span>
+                  {workshopStations.map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => setSelectedStation(st)}
+                      style={{
+                        background: selectedStation.id === st.id ? "#FF812E" : "#252627",
+                        color: selectedStation.id === st.id ? "#0A0D11" : "#E2E8F0",
+                        border: "1px solid #3b3c3d",
+                        padding: "4px 10px",
+                        borderRadius: 4,
+                        fontWeight: selectedStation.id === st.id ? 800 : 500,
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      {st.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setActiveNav("pointcloud")}
+                    style={{
+                      marginLeft: "auto",
+                      background: "#252627",
+                      color: "#94A3B8",
+                      border: "1px solid #3b3c3d",
+                      padding: "4px 10px",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 11,
+                    }}
+                  >
+                    ✕ Вернуться в 3D Облако
+                  </button>
+                </div>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <BubblePanoramaViewer
+                    stationName={selectedStation.name}
+                    stationPosition={selectedStation.position}
+                    onClose={() => setActiveNav("pointcloud")}
+                  />
+                </div>
+              </div>
             ) : currentCloud ? (
-              <Viewer3D
-                cloud={currentCloud}
-                elements={elements}
-                groupPositions={emptyFloatArray}
-                selectedElement={selectedElement}
-                selectedElementPositions={emptyFloatArray}
-                selectedElementSections={emptySections}
-                pointSize={2.0}
-                colorMode={colorMode}
-                showPlane={false}
-                section={null}
-                hideInternalHud={true}
-                limitBoxActive={showLimitBox}
-                onToggleLimitBox={setShowLimitBox}
-                measureModeActive={measureMode}
-                onToggleMeasureMode={setMeasureMode}
-                showBim={layers.aiStructures || layers.bimModel}
-                cameraPreset={cameraPreset}
-              />
+              <div className="comparison-scenes">
+                {[
+                  { id: "scene-rgb", title: "Сцена 1", subtitle: currentCloud.name, mode: colorMode },
+                  { id: "scene-analysis", title: "Сцена 2", subtitle: comparisonMode === "height" ? "Облако точек · высота Z" : "Облако точек · RGB", mode: comparisonMode },
+                ].map((scene, index) => (
+                  <section className="comparison-scene" key={scene.id} aria-label={`${scene.title}: ${scene.subtitle}`}>
+                    <div className="comparison-scene-title">
+                      <span className="scene-file-icon"><CloudIcon size={14} /></span>
+                      <strong>{scene.title}</strong>
+                      <span className="scene-name">{scene.subtitle}</span>
+                      <select
+                        aria-label={`Режим отображения ${scene.title}`}
+                        value={index === 0 ? colorMode : comparisonMode}
+                        onChange={(event) => index === 0
+                          ? setColorMode(event.target.value as typeof colorMode)
+                          : setComparisonMode(event.target.value as typeof comparisonMode)}
+                      >
+                        <option value="rgb">RGB</option>
+                        <option value="height">Высота Z</option>
+                      </select>
+                      <span className="scene-close" title="Сцена закреплена для сравнения">×</span>
+                    </div>
+                    <div className="comparison-viewport">
+                      <Viewer3D
+                        cloud={currentCloud}
+                        elements={elements}
+                        groupPositions={emptyFloatArray}
+                        selectedElement={selectedElement}
+                        selectedElementPositions={emptyFloatArray}
+                        selectedElementSections={emptySections}
+                        pointSize={1.8}
+                        colorMode={scene.mode}
+                        showPlane={false}
+                        section={null}
+                        hideInternalHud={true}
+                        limitBoxActive={showLimitBox}
+                        onToggleLimitBox={setShowLimitBox}
+                        measureModeActive={measureMode}
+                        onToggleMeasureMode={setMeasureMode}
+                        showBim={layers.aiStructures || layers.bimModel}
+                        cameraPreset={cameraPreset}
+                      />
+                      <div className="scene-axis-label">{activeViewLabel}</div>
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : (
               <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#CBD5E1" }}>
                 Загрузите облако точек для отображения в 3D сцене
@@ -727,19 +820,57 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             </div>
 
             {/* Card 2: Interactive 360 Panorama Preview */}
-            <div className="dock-card" style={{ width: 280, minWidth: 280, position: "relative" }}>
+            <div className="dock-card" style={{ width: 290, minWidth: 290, position: "relative" }}>
               <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
-                <span>ПАНОРАМЫ 360°</span>
-                <span style={{ color: "#F2B84B", fontWeight: 800 }}>НЕ ЗАГРУЖЕНЫ</span>
+                <span>ПАНОРАМЫ 360° (BUBBLE VIEW)</span>
+                <span style={{ color: "#4ADE80", fontWeight: 800 }}>3 СТОЯНКИ</span>
               </div>
-              <div style={{ flex: 1, display: "grid", placeItems: "center", padding: 16, color: "#94A3B8", fontSize: 12, textAlign: "center" }}>
-                Панорамы и координаты стоянок не найдены в данных проекта.
+              <div style={{ flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column", gap: 6, fontSize: 11 }}>
+                {workshopStations.map((st) => (
+                  <div
+                    key={st.id}
+                    onClick={() => {
+                      setSelectedStation(st);
+                      setActiveNav("panoramas");
+                    }}
+                    style={{
+                      padding: "5px 8px",
+                      background: selectedStation.id === st.id ? "rgba(255, 129, 46, 0.22)" : "#1C2430",
+                      border: selectedStation.id === st.id ? "1px solid #FF812E" : "1px solid #334050",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      color: "#E2E8F0",
+                    }}
+                  >
+                    <span>📷 {st.name}</span>
+                    <span style={{ fontSize: 9.5, color: "#94A3B8" }}>[Z=+1.60]</span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setActiveNav("panoramas")}
+                  style={{
+                    marginTop: "auto",
+                    padding: "6px 10px",
+                    background: "#FF812E",
+                    color: "#0A0D11",
+                    border: "none",
+                    borderRadius: 4,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Открыть Bubble View 360°
+                </button>
               </div>
             </div>
 
             {/* Card 3: TanStack Table of Classified Elements */}
             <div className="dock-card" style={{ flex: 1, minWidth: 320 }}>
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid #334050", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #3b3c3d", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11.5, fontWeight: 700, color: "#FFFFFF" }}>
                 <span>КАНДИДАТЫ КОНСТРУКЦИЙ · ТРЕБУЮТ ПРОВЕРКИ</span>
                 <span style={{ color: "#94A3B8" }}>{elements.length} кандидатов</span>
               </div>
@@ -798,7 +929,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 ✓ {recapNotice}
               </div>
             )}
-            <div style={{ background: "#1C2430", border: "1px solid #334050", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
+            <div style={{ background: "#252627", border: "1px solid #3b3c3d", borderRadius: 6, padding: "14px", marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontWeight: 800, fontSize: 13, color: "#FFA25B" }}>ИИ АССИСТЕНТ SCAN STUDIO</span>
                 <span style={{ fontSize: 10, background: "rgba(255, 129, 46, 0.2)", color: "#FF812E", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>
@@ -815,7 +946,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               <button
                 className="action-dark-btn"
                 onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 <Network size={16} color="#FF812E" /> Сшивка сплит-экраном (2 скана)
               </button>
@@ -824,21 +955,21 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                 onClick={() => {
                   if (elements.length > 0) setInspectingElement(elements[0]);
                 }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
-                <Building size={16} color="#38BDF8" /> Инспектор ГОСТ-сортамента колонн
+                <Building size={16} color="#ff812e" /> Инспектор ГОСТ-сортамента колонн
               </button>
               <button
                 className="action-dark-btn"
                 onClick={() => { window.open(`http://127.0.0.1:8000/api/v1/clouds/${currentCloud?.id || "workshop_cloud"}/spds-album.pdf`, "_blank"); showToast("Ведомость отклонений колонн по СП 70.13330 открыта в PDF!", "success"); }}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 <BarChart3 size={16} color="#4ADE80" /> Сформировать ведомость отклонений PDF
               </button>
               <button
                 className="action-dark-btn"
                 onClick={() => setActiveNav("stitching")}
-                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#1C2430", border: "1px solid #334050", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
+                style={{ width: "100%", justifyContent: "flex-start", padding: "10px 14px", background: "#252627", border: "1px solid #3b3c3d", color: "#FFFFFF", fontWeight: 700, borderRadius: 6 }}
               >
                 Перейти к регистрации сканов
               </button>
@@ -849,7 +980,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
               >
                 <FileDown size={16} color="#FF812E" /> {recapExporting ? "ReCap собирает проект…" : "Собрать настоящий проект ReCap (.RCP)"}
               </button>
-              <div style={{ padding: "10px 12px", border: "1px solid #334050", borderRadius: 6, color: "#CBD5E1", fontSize: 12 }}>
+              <div style={{ padding: "10px 12px", border: "1px solid #3b3c3d", borderRadius: 6, color: "#CBD5E1", fontSize: 12 }}>
                 <strong style={{ display: "block", marginBottom: 6 }}>Исходные сканы для RCP</strong>
                 {recapEligibleClouds.length === 0 ? (
                   <span>Нет готовых исходных файлов, поддерживаемых DeCap.</span>
@@ -994,7 +1125,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
             padding: "10px 18px",
             borderRadius: 6,
             background: toast.type === "error" ? "rgba(220, 38, 38, 0.95)" : toast.type === "success" ? "rgba(22, 163, 74, 0.95)" : toast.type === "warning" ? "rgba(234, 88, 12, 0.95)" : "rgba(30, 41, 59, 0.95)",
-            border: `1px solid ${toast.type === "error" ? "#EF4444" : toast.type === "success" ? "#4ADE80" : toast.type === "warning" ? "#FB923C" : "#38BDF8"}`,
+            border: `1px solid ${toast.type === "error" ? "#EF4444" : toast.type === "success" ? "#4ADE80" : toast.type === "warning" ? "#FB923C" : "#ff812e"}`,
             color: "#FFFFFF",
             boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
             fontSize: 13,
