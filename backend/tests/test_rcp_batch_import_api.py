@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import zipfile
 import importlib
+from types import SimpleNamespace
 from pathlib import Path
 
 from scan2bim.db import one
-from scan2bim.job_tasks import execute_ingest_task
+from scan2bim.job_tasks import _run_rcp_batch, execute_ingest_task
 
 api_module = importlib.import_module("scan2bim.api.app")
 
@@ -297,3 +298,28 @@ def test_rcp_declared_count_is_compared_to_source_count_not_decimated_sample(
     assert recap['actual_source_point_count'] == 1000
     assert recap['actual_ingested_point_count'] == 25
     assert recap['declared_point_count_difference'] == -5
+
+
+def test_batch_resume_skips_stations_already_ready(monkeypatch):
+    processed: list[str] = []
+    updates: list[tuple[float, str]] = []
+    api = SimpleNamespace(
+        _ingest_work=lambda _project_id, cloud_id: lambda _progress: processed.append(cloud_id)
+    )
+    monkeypatch.setattr(
+        "scan2bim.job_tasks.one", lambda _sql, _params: {"status": "ready"}
+    )
+
+    result = _run_rcp_batch(
+        api,
+        {"project_id": "project", "stations": [
+            {"cloud_id": "ready-cloud", "node_name": "Station 001"},
+        ]},
+        lambda fraction, message: updates.append((fraction, message)),
+    )
+
+    assert processed == []
+    assert result["ready_count"] == 1
+    assert result["failed_count"] == 0
+    assert updates[-1][0] == 1.0
+    assert "уже готова, пропуск" in updates[-1][1]

@@ -156,8 +156,16 @@ def _run_rcp_batch(api_module, payload: dict[str, Any], progress) -> dict[str, A
         if not isinstance(station, dict) or not station.get("cloud_id"):
             raise ValueError(f"invalid station payload at index {index}")
         label = str(station.get("node_name") or station.get("node_id") or "станция")
+        cloud_id = str(station["cloud_id"])
+        current = one("SELECT status FROM clouds WHERE id = ?", (cloud_id,)) or {}
+        if current.get("status") == "ready":
+            progress(
+                (index + 1) / total,
+                f"Станция {index + 1}/{total}: {label} — уже готова, пропуск",
+            )
+            continue
         try:
-            node_work = api_module._ingest_work(project_id, str(station["cloud_id"]))
+            node_work = api_module._ingest_work(project_id, cloud_id)
             node_work(lambda fraction, message="": progress(
                 (index + max(0.0, min(1.0, float(fraction)))) / total,
                 f"Станция {index + 1}/{total}: {label}" + (f" — {message}" if message else ""),

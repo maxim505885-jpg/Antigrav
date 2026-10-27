@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-27",
+  "scope": "Durable RCP batch worker recovery",
+  "change": "Skip stations whose cloud status is already ready when replaying a persisted RCP batch task.",
+  "focused_test": {
+    "command": "pytest backend/tests/test_rcp_batch_import_api.py -k skips_stations_already_ready -q",
+    "result": "1 passed"
+  },
+  "live_recovery": {
+    "project": "Симферополь — Лёгкое",
+    "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "station_total": 810,
+    "ready_preserved_before_resume": 66,
+    "processing_after_resume": 744,
+    "failed": 0,
+    "restarted_at": "Станция 4/810; first three ready stations were skipped and the interrupted station checkpoint was resumed."
+  },
+  "acceptance": "RCP batch import remains in progress; no roadmap stage is closed by this record."
+}
