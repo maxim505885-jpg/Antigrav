@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-27",
+  "stage": 4,
+  "scope": "read-only registration diagnostics for two adjacent stations from the active FARO RCP batch",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "batch_job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+  "batch_status_at_check": {"status": "running", "progress": 0.112222222222222, "message": "Станция 91/810: scans__kr_761036 — writing full-resolution RCS points"},
+  "source_project": {"path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp", "sha256": "67dc9b04cd97eed5a86712ff89fe1f480c08b67576de30588f8cf0d05b84b5f8", "node_count": 810, "transform_policy": "RCP node transforms were read as provenance only; registered=false and no matrix was applied or persisted."},
+  "station_pair": [
+    {"name": "scans__kr_761015", "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d", "status": "ready", "source_points": 2337103, "declared_points": 3086011, "declared_minus_actual": 748908, "rcp_registered": false},
+    {"name": "scans__kr_761016", "cloud_id": "147356c474b84ae88809b877ccbc0b6e", "status": "ready", "source_points": 2466414, "declared_points": 3028653, "declared_minus_actual": 562239, "rcp_registered": false}
+  ],
+  "method": {"api": "POST /api/v1/registration/match", "sample_points_per_station": 20000, "icp_sample_size": 10000, "max_iterations": 30, "tolerance_m": 0.001, "random_seed": 0, "writes": false},
+  "baseline": {"rmse_mm": 189.849, "inlier_fraction": 0.6706, "inlier_count": 6706, "sample_count": 10000, "iterations": 18, "algorithm_converged": true, "world_matrix": null, "assessment": "Not accepted: numerical convergence does not establish registration accuracy; no independent control points or project tolerance are available."},
+  "coarse_matcher_candidate": {"method": "existing BEV structural coarse matcher followed by rigid ICP", "coarse_residual_p80_m": 0.8998169377, "yaw_deg": 286.8792417, "icp_rmse_mm": 220.224, "icp_inlier_fraction": 0.6594, "algorithm_converged": true, "assessment": "Rejected as an improvement over baseline. Candidate transform was not saved."},
+  "rcp_rotation_convention_trials": [
+    {"convention": "xyz_degrees", "rmse_mm": 297.739, "inlier_fraction": 0.0126, "algorithm_converged": true},
+    {"convention": "xyz_radians", "rmse_mm": 315.799, "inlier_fraction": 0.0984, "algorithm_converged": true},
+    {"convention": "zyx_degrees", "rmse_mm": 311.007, "inlier_fraction": 0.036, "algorithm_converged": true},
+    {"convention": "zyx_radians", "rmse_mm": 244.625, "inlier_fraction": 0.4982, "algorithm_converged": true}
+  ],
+  "acceptance": {"stage_closed": false, "accepted_stage_count": "3/12", "reason": "All tested automatic candidates remain unverified and are worse or insufficient against the local-coordinate baseline. Independent control observations and an agreed tolerance are still required."},
+  "safety": {"station_transforms_saved": false, "rcp_modified": false, "rcs_sources_modified": false, "project_registration_records_written": false}
+}

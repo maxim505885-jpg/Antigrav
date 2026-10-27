@@ -803,3 +803,11 @@ A separate current-source installer candidate was built and exact-install tested
 ## Stage 2/10 recheck — 27 October 2026
 
 Full two-station import remains paused because C: is short by 4.59 GB against the estimator. Revit 2027 empty startup stopped at license initialization before any document opened, so the registered plug-in is not considered host-verified. No source scan, project row, or RVT document was changed.
+
+# 2026-10-27 — Stage 4: read-only FARO RCP pair diagnostic
+
+На активном RCP-наборе проверены две соседние готовые станции `scans__kr_761015` и `scans__kr_761016`. Полноразрешённые источники содержат 2,337,103 и 2,466,414 точек; оба RCP-узла помечены `registered=false`, а заявленные количества расходятся с прочитанными на 748,908 и 562,239 точек. Локальный ICP на выборках сошёлся вычислительно, но дал RMSE 189.849 мм при 67.06% соответствий; мировой matrix отсутствует. BEV coarse-match + ICP дал 220.224 мм, а четыре проверенные трактовки RCP углов — 244.625–315.799 мм. Ни один кандидат не сохранён/применён. Это не подтверждает точность; контрольные точки и допуск всё ещё отсутствуют. Отдельный полноразрешённый импорт всего RCP продолжается: 91/810 станций, 11.22%, ошибок на момент проверки нет. Этап 4 открыт, общее число принятых этапов остаётся 3/12; Stage 11 активен, Stage 6 предпоследний, Stage 9 последний. [Протокол](validation/STAGE4_FARO_RCP_PAIR_DIAGNOSTIC_2026-10-27.json).
+
+# 2026-10-27 — Autodesk ReCap official SDK path
+
+Проверена официальная документация Autodesk: Reality Solutions SDK умеет записывать RCP/RCS, доступ к нему предлагается через ReCap Community Forum или ADN Standard/Professional. Документация также подтверждает импорт FARO RCS/FLS/FWS, export RCP/RCS и structured E57 с регистрационными трансформами. Проект RCP связан с Support-папкой, поэтому перенос проверяется целым комплектом. SCAN уже делегирует создание native-проекта установленному DeCap; остаётся проверка экспорта в GUI ReCap и координат станций. Непроверенный RCP-писатель не добавляется. [Исследование с официальными ссылками](validation/RECAP_OFFICIAL_SDK_PATH_2026-10-27.md).
