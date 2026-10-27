@@ -242,7 +242,7 @@ test("native ReCap export sends only the selected source scans to DeCap", async 
     payload = JSON.parse(String(init?.body));
     return {
       ok: true,
-      json: async () => ({ status: "created_by_autodesk_decap", package_verified: true, rcp_path: "Hall/Hall.rcp" }),
+      json: async () => ({ status: "created_by_autodesk_decap", package_verified: true, source_files_copied_for_decap: false, source_cache_path: null, rcp_path: "Hall/Hall.rcp" }),
     } as Response;
   }) as typeof fetch;
   try {
@@ -255,6 +255,8 @@ test("native ReCap export sends only the selected source scans to DeCap", async 
       stations: [{ name: "Station 01", path: "C:/scans/station-01.rcs", point_count: 1200 }],
     });
     assert.equal(result.package_verified, true);
+    assert.equal(result.source_files_copied_for_decap, false);
+    assert.equal(result.source_cache_path, null);
   } finally {
     globalThis.fetch = originalFetch;
   }

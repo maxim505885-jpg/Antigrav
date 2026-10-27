@@ -1058,6 +1058,8 @@ export const api = {
       linked_rcs_count: number;
       external_rcs_count: number;
       external_rcs_paths: string[];
+      source_files_copied_for_decap: boolean;
+      source_cache_path: string | null;
       rcp_size_bytes: number;
       linked_rcs_size_bytes: number;
     }>("/registration/export-rcp-project", {

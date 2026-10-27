@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import locale
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Mapping
@@ -83,6 +84,57 @@ def _decap_compatible_path(path: Path) -> str:
     return _short_windows_path(path) or value
 
 
+def _stage_non_ascii_inputs(inputs: list[Path]) -> tuple[list[Path], Path | None]:
+    """Copy only DeCap inputs without an ASCII/8.3 path to a durable local cache."""
+    incompatible = [path for path in inputs if not _decap_compatible_path(path).isascii()]
+    if not incompatible:
+        return inputs, None
+    cache_root = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "SCANStudio" / "ReCapSourceCache"
+    if not _decap_compatible_path(cache_root).isascii():
+        cache_root = Path(tempfile.gettempdir()) / "SCANStudio" / "ReCapSourceCache"
+    if not _decap_compatible_path(cache_root).isascii():
+        raise RuntimeError(
+            "DeCap requires ASCII input paths and Windows provides no short path. "
+            "Set LOCALAPPDATA or TEMP to an ASCII-only writable folder."
+        )
+    cache_root.mkdir(parents=True, exist_ok=True)
+    copy_bytes = sum(path.stat().st_size for path in incompatible)
+    required_bytes = copy_bytes + RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES
+    available_bytes = shutil.disk_usage(cache_root).free
+    if available_bytes < required_bytes:
+        raise InsufficientStorageError(available_bytes=available_bytes, required_bytes=required_bytes, source_bytes=copy_bytes)
+    cache_dir = _new_staging_dir(cache_root, "export_")
+    copied: dict[Path, Path] = {}
+    try:
+        used_names: set[str] = set()
+        for index, source in enumerate(inputs, start=1):
+            if source not in incompatible:
+                continue
+            filename = source.name if source.name.isascii() else f"station_{index:04d}{source.suffix.lower()}"
+            if filename.casefold() in used_names:
+                filename = f"station_{index:04d}{source.suffix.lower()}"
+            used_names.add(filename.casefold())
+            destination = cache_dir / filename
+            shutil.copyfile(source, destination)
+            if destination.stat().st_size != source.stat().st_size:
+                raise OSError(f"Staged RCS copy size mismatch for {source.name}")
+            copied[source] = destination
+        return [copied.get(path, path) for path in inputs], cache_dir
+    except Exception:
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        raise
+
+
+def _cleanup_source_cache(source_cache: Path | None) -> None:
+    if source_cache:
+        shutil.rmtree(source_cache, ignore_errors=True)
+
+
+def _cleanup_failed_attempt(staging: Path, source_cache: Path | None) -> None:
+    shutil.rmtree(staging, ignore_errors=True)
+    _cleanup_source_cache(source_cache)
+
+
 def create_recap_project(output_root: Path, project_name: str,
                          scans: list[Mapping[str, Any]], *, timeout: int = 3600) -> dict[str, Any]:
     if not re.fullmatch(r"[\w .()\-]{1,80}", project_name, flags=re.UNICODE) or project_name in {".", ".."}:
@@ -109,7 +161,12 @@ def create_recap_project(output_root: Path, project_name: str,
             required_bytes=required_bytes,
             source_bytes=source_bytes,
         )
-    staging = _new_staging_dir(output_root, ".s2b_decap_")
+    decap_inputs, source_cache = _stage_non_ascii_inputs(inputs)
+    try:
+        staging = _new_staging_dir(output_root, ".s2b_decap_")
+    except Exception:
+        _cleanup_source_cache(source_cache)
+        raise
     command = [
         str(decap), "--importWithLicense", _decap_compatible_path(staging),
         project_name, "--controlFile",
@@ -117,7 +174,7 @@ def create_recap_project(output_root: Path, project_name: str,
     control = staging / "scan-list.txt"
     try:
         control.write_text(
-            "\n".join(_decap_compatible_path(path) for path in inputs),
+            "\n".join(_decap_compatible_path(path) for path in decap_inputs),
             encoding=locale.getpreferredencoding(False),
         )
         result = subprocess.run(
@@ -129,16 +186,16 @@ def create_recap_project(output_root: Path, project_name: str,
             cwd=str(decap.parent),
         )
     except subprocess.TimeoutExpired as exc:
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"DeCap exceeded the {timeout} second time limit") from exc
     except UnicodeEncodeError as exc:
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(
             "DeCap cannot encode a scan path in the current Windows code page; "
             "move the scan under an ASCII-only path or enable Windows 8.3 short names"
         ) from exc
     except OSError as exc:
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"Could not start DeCap or prepare its control file: {exc}") from exc
     rcp_candidates = list(staging.rglob(f"{project_name}.rcp"))
     rcp = rcp_candidates[0] if len(rcp_candidates) == 1 else None
@@ -146,26 +203,26 @@ def create_recap_project(output_root: Path, project_name: str,
     failed_match = re.search(r"\[(?:P|p)\]\[(\d+) Failed\]", result.stdout)
     failed_scans = int(failed_match.group(1)) if failed_match else None
     if result.returncode or failed_scans not in (None, 0) or rcp is None or not support.is_dir():
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"DeCap did not produce a complete RCP bundle (exit {result.returncode}, failed scans {failed_scans}): {result.stdout[-2000:]} {result.stderr[-2000:]}")
     linked_scans = list(support.rglob("*.rcs"))
     package_files = [rcp, *linked_scans]
     empty_files = [str(path.relative_to(staging)) for path in package_files if path.stat().st_size == 0]
     if empty_files:
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"DeCap created empty files in the RCP bundle: {', '.join(empty_files)}")
     try:
         manifest = read_rcp_manifest(rcp)
     except RcpManifestError as exc:
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"DeCap created an unreadable RCP project: {exc}") from exc
     if len(manifest["nodes"]) < len(inputs):
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(
             f"DeCap RCP contains {len(manifest['nodes'])} scan nodes for {len(inputs)} input stations"
         )
 
-    known_source_paths = {str(path.resolve()).casefold() for path in inputs}
+    known_source_paths = {str(path.resolve()).casefold() for path in decap_inputs}
     known_linked_paths = {str(path.resolve()).casefold() for path in linked_scans}
     external_paths: set[str] = set()
     unresolved_nodes: list[str] = []
@@ -186,13 +243,17 @@ def create_recap_project(output_root: Path, project_name: str,
             f"unexpected paths={unexpected_paths}; stdout={result.stdout[-1200:]!r}; "
             f"stderr={result.stderr[-1200:]!r}"
         )
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise RuntimeError(f"DeCap RCP has unresolved station sources ({diagnostics})")
     destination = output_root / project_name
     if destination.exists():
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise FileExistsError("A ReCap project with this name already exists; choose another name")
-    bundle_staging = _new_staging_dir(output_root, f".{project_name}_")
+    try:
+        bundle_staging = _new_staging_dir(output_root, f".{project_name}_")
+    except Exception:
+        _cleanup_failed_attempt(staging, source_cache)
+        raise
     try:
         shutil.move(str(support), str(bundle_staging / support.name))
         final_rcp = bundle_staging / rcp.name
@@ -202,20 +263,30 @@ def create_recap_project(output_root: Path, project_name: str,
         final_support = destination / support.name
     except OSError:
         shutil.rmtree(bundle_staging, ignore_errors=True)
-        shutil.rmtree(staging, ignore_errors=True)
+        _cleanup_failed_attempt(staging, source_cache)
         raise
     shutil.rmtree(staging, ignore_errors=True)
     try:
         final_manifest = read_rcp_manifest(final_rcp)
     except RcpManifestError as exc:
         shutil.rmtree(destination, ignore_errors=True)
+        _cleanup_source_cache(source_cache)
         raise RuntimeError(f"Moved ReCap project failed manifest verification: {exc}") from exc
     if len(final_manifest["nodes"]) != len(manifest["nodes"]) or any(
         not node["resolved_rcs_path"] for node in final_manifest["nodes"]
     ):
         shutil.rmtree(destination, ignore_errors=True)
+        _cleanup_source_cache(source_cache)
         raise RuntimeError("Moved ReCap project lost one or more linked station sources")
     final_linked_scans = list(final_support.rglob("*.rcs"))
+    source_cache_path = None
+    if source_cache:
+        cache_prefix = str(source_cache.resolve()).casefold().rstrip("\\/") + os.sep.casefold()
+        cache_is_referenced = any(str(Path(path).resolve()).casefold().startswith(cache_prefix) for path in external_paths)
+        if cache_is_referenced:
+            source_cache_path = str(source_cache.resolve())
+        else:
+            shutil.rmtree(source_cache, ignore_errors=True)
     return {
         "status": "created_by_autodesk_decap",
         "project_verified": True,
@@ -227,6 +298,8 @@ def create_recap_project(output_root: Path, project_name: str,
         "linked_rcs_count": len(final_linked_scans),
         "external_rcs_count": len(external_paths),
         "external_rcs_paths": sorted(external_paths),
+        "source_files_copied_for_decap": bool(source_cache),
+        "source_cache_path": source_cache_path,
         "rcp_size_bytes": final_rcp.stat().st_size,
         "linked_rcs_size_bytes": sum(path.stat().st_size for path in final_support.rglob("*.rcs")),
         "disk_preflight": {

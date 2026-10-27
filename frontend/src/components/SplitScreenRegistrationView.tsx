@@ -61,6 +61,8 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
     linkedRcsCount: number;
     externalRcsCount: number;
     packageVerified: boolean;
+    sourceFilesCopiedForDecap: boolean;
+    sourceCachePath: string | null;
   } | null>(null);
   const sourceCloud = readyClouds.find((cloud) => cloud.id === sourceCloudId) || null;
   const targetCloud = readyClouds.find((cloud) => cloud.id === targetCloudId) || null;
@@ -154,10 +156,14 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
         linkedRcsCount: result.linked_rcs_count,
         externalRcsCount: result.external_rcs_count,
         packageVerified: result.package_verified,
+        sourceFilesCopiedForDecap: result.source_files_copied_for_decap,
+        sourceCachePath: result.source_cache_path,
       });
-      setAlignStatus(result.external_rcs_count
-        ? "RCP создан и проверен. Станции остаются отдельными и ссылаются на исходные RCS; перед переносом проекта проверьте доступность этих файлов. Регистрацию завершите в ReCap."
-        : "RCP создан и проверен с включёнными RCS. Станции остаются отдельными; регистрацию завершите в ReCap.");
+      setAlignStatus(result.source_files_copied_for_decap
+        ? "RCP создан и проверен. Исходные станции скопированы в локальный кэш этого компьютера; сохраните его и не переносите RCP отдельно. Регистрацию завершите в ReCap."
+        : result.external_rcs_count
+          ? "RCP создан и проверен. Станции остаются отдельными и ссылаются на исходные RCS; перед переносом проекта проверьте доступность этих файлов. Регистрацию завершите в ReCap."
+          : "RCP создан и проверен с включёнными RCS. Станции остаются отдельными; регистрацию завершите в ReCap.");
     } catch (error: any) {
       setAlignStatus(`Не удалось создать проект ReCap: ${error.message || String(error)}`);
     } finally {
@@ -575,7 +581,12 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
             <strong>RCP для станций:</strong> {stationRcpExport.sourceName} + {stationRcpExport.targetName}
             <br />Узлов в RCP: {stationRcpExport.rcpNodeCount} · RCS в комплекте: {stationRcpExport.linkedRcsCount} · внешних RCS: {stationRcpExport.externalRcsCount}
             <br /><code className="registration-rcp-path" title={stationRcpExport.rcpPath}>{stationRcpExport.rcpPath}</code>
-            <br />{stationRcpExport.packageVerified ? "RCP проверен вместе с файлами RCS." : "RCP ссылается на исходные RCS по их путям и не является автономным комплектом."} Расчёт SCAN не записывается в RCP — зарегистрируйте станции в ReCap.
+            <br />{stationRcpExport.packageVerified
+              ? "RCP проверен вместе с файлами RCS."
+              : stationRcpExport.sourceFilesCopiedForDecap
+                ? "Станции скопированы в локальный кэш этого компьютера. RCP не переносится отдельно; сохраните кэш и проверьте ссылки после переноса."
+                : "RCP ссылается на исходные RCS и не является автономным комплектом."} Расчёт SCAN не записывается в RCP — зарегистрируйте станции в ReCap.
+            {stationRcpExport.sourceCachePath && <><br />Кэш: <code className="registration-rcp-path">{stationRcpExport.sourceCachePath}</code></>}
           </div>}
           <div className="registration-inspector-note">Для точного результата сначала укажите общие реперы в блоке «Точная настройка», затем проверьте преобразование отдельными геодезическими точками.</div>
         </aside>

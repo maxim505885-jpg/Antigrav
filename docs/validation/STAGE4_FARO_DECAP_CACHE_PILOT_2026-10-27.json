@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-27",
+  "repo": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "branch": "feature/recap-realworks-parity",
+  "base_commit": "21e86f2",
+  "pilot_project": "FARO_RCP_PILOT_20261027",
+  "input_scan_count": 2,
+  "rcp_node_count": 2,
+  "linked_rcs_count": 0,
+  "external_rcs_count": 2,
+  "project_verified": true,
+  "package_verified": false,
+  "registered": false,
+  "gui_open_verified": false,
+  "round_trip_verified": false,
+  "source_cache_path": "C:\\Users\\maxim\\AppData\\Local\\ScanStudio\\ReCapSourceCache\\export_48122cb68ad2459aa0ef7242c70e3b66",
+  "sources": [
+    {
+      "sha256": "8156F75ACADEED2F9DEEAB673C42AD90AA4CF507333DE09861CF725E24D1626E",
+      "cache_sha256_matches": true,
+      "name": "scans__kr_761015.rcs",
+      "source_unchanged": true,
+      "bytes": 58396283
+    },
+    {
+      "sha256": "DB99841B0BA21F98158AA1B2C5F52884F73E20D4376003B2DBB9DDA5BA0C4782",
+      "cache_sha256_matches": true,
+      "name": "scans__kr_761016.rcs",
+      "source_unchanged": true,
+      "bytes": 60193759
+    }
+  ],
+  "backend_tests": {
+    "failed": 0,
+    "passed": 11
+  },
+  "frontend_tests": "passed",
+  "typescript_build": "passed",
+  "vite_modules": 1983,
+  "full_faro_import": {
+    "progress_percent": 25.05,
+    "last_station": "scans__kr_761148",
+    "stations_done": 203,
+    "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "stations_total": 810,
+    "status": "running"
+  },
+  "accepted_stages": "3/12",
+  "current_stage": 11,
+  "penultimate_stage": 6,
+  "last_stage": 9,
+  "limitations": [
+    "RCP points to local cached RCS and is not portable as a standalone project",
+    "ReCap GUI open and save/reopen round-trip not verified",
+    "DeCap import does not register stations; independent controls and tolerance are missing",
+    "810-station import is still running"
+  ],
+  "source_rcp": {
+    "node_count": 810,
+    "resolved_source_count": 810,
+    "registered_count": 0,
+    "pose_fields": "present",
+    "transforms_treated_as_verified_registration": false
+  }
+}
