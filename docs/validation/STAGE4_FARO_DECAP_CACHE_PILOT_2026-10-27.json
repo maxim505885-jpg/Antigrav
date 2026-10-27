@@ -38,9 +38,9 @@
   "typescript_build": "passed",
   "vite_modules": 1983,
   "full_faro_import": {
-    "progress_percent": 25.05,
-    "last_station": "scans__kr_761148",
-    "stations_done": 203,
+    "progress_percent": 26.53,
+    "last_station": "scans__kr_761160",
+    "stations_done": 215,
     "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
     "stations_total": 810,
     "status": "running"
@@ -61,5 +61,14 @@
     "registered_count": 0,
     "pose_fields": "present",
     "transforms_treated_as_verified_registration": false
+  },
+  "decap_support_probe": {
+    "decap_exit_code": 0,
+    "node_count": 2,
+    "preexisting_support_sources": null,
+    "paths_absolute": true,
+    "relative_paths_empty": true,
+    "folder_relocation_verified": false,
+    "gui_open_verified": false
   }
 }

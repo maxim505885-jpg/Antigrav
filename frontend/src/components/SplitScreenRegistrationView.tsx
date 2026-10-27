@@ -159,11 +159,13 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
         sourceFilesCopiedForDecap: result.source_files_copied_for_decap,
         sourceCachePath: result.source_cache_path,
       });
-      setAlignStatus(result.source_files_copied_for_decap
-        ? "RCP создан и проверен. Исходные станции скопированы в локальный кэш этого компьютера; сохраните его и не переносите RCP отдельно. Регистрацию завершите в ReCap."
-        : result.external_rcs_count
-          ? "RCP создан и проверен. Станции остаются отдельными и ссылаются на исходные RCS; перед переносом проекта проверьте доступность этих файлов. Регистрацию завершите в ReCap."
-          : "RCP создан и проверен с включёнными RCS. Станции остаются отдельными; регистрацию завершите в ReCap.");
+      setAlignStatus(result.package_verified
+        ? "RCP создан и проверен вместе с файлами станций. Регистрацию завершите в ReCap."
+        : result.source_files_copied_for_decap
+          ? "RCP создан и проверен. Исходные станции скопированы в локальный кэш этого компьютера; сохраните его и не переносите RCP отдельно. Регистрацию завершите в ReCap."
+          : result.external_rcs_count
+            ? "RCP создан и проверен. Станции остаются отдельными и ссылаются на исходные RCS; перед переносом проекта проверьте доступность этих файлов. Регистрацию завершите в ReCap."
+            : "RCP создан и проверен. Регистрация станций не выполнена — завершите её в ReCap.");
     } catch (error: any) {
       setAlignStatus(`Не удалось создать проект ReCap: ${error.message || String(error)}`);
     } finally {
