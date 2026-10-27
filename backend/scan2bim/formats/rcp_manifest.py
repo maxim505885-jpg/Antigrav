@@ -7,6 +7,7 @@ remain the responsibility of the licensed local ReCap reader.
 from __future__ import annotations
 
 import math
+import os
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path, PureWindowsPath
@@ -91,7 +92,24 @@ def _number(parent: ET.Element, tag: str, attr: str, default: float = 0.0) -> fl
     return result
 
 
-def _resolve_scan_path(rcp_path: Path, stored_path: str, relative_path: str) -> Path | None:
+def _index_support_scans(support_root: Path) -> dict[str, list[Path]]:
+    """Index RCS filenames once instead of recursively walking Support per node."""
+    index: dict[str, list[Path]] = {}
+    if not support_root.is_dir():
+        return index
+    for directory, _subdirs, filenames in os.walk(support_root):
+        for filename in filenames:
+            if filename.lower().endswith(".rcs"):
+                index.setdefault(filename.casefold(), []).append(Path(directory) / filename)
+    return index
+
+
+def _resolve_scan_path(
+    rcp_path: Path,
+    stored_path: str,
+    relative_path: str,
+    support_index: dict[str, list[Path]] | None = None,
+) -> Path | None:
     candidates: list[Path] = []
     for raw in (stored_path, relative_path):
         if not raw.strip():
@@ -123,11 +141,17 @@ def _resolve_scan_path(rcp_path: Path, stored_path: str, relative_path: str) -> 
     named_support_root = rcp_path.parent / f"{rcp_path.stem} Support"
     if named_support_root.name.casefold() in old_parent_names and named_support_root.is_dir():
         for basename in basenames:
-            support_matches = {
-                candidate.resolve()
-                for candidate in named_support_root.rglob(basename)
-                if candidate.is_file() and candidate.suffix.lower() == ".rcs"
-            }
+            if support_index is not None:
+                support_matches = {
+                    candidate.resolve()
+                    for candidate in support_index.get(basename.casefold(), [])
+                }
+            else:
+                support_matches = {
+                    candidate.resolve()
+                    for candidate in named_support_root.rglob(basename)
+                    if candidate.is_file() and candidate.suffix.lower() == ".rcs"
+                }
             if len(support_matches) == 1:
                 return next(iter(support_matches))
             if len(support_matches) > 1:
@@ -150,9 +174,15 @@ def _resolve_scan_path(rcp_path: Path, stored_path: str, relative_path: str) -> 
                     if candidate.is_file() and candidate.suffix.lower() == ".rcs":
                         matches.add(candidate.resolve())
                 if root.name.casefold().endswith(" support"):
-                    for candidate in root.rglob(basename):
-                        if candidate.is_file() and candidate.suffix.lower() == ".rcs":
-                            matches.add(candidate.resolve())
+                    if support_index is not None and root == named_support_root:
+                        matches.update(
+                            candidate.resolve()
+                            for candidate in support_index.get(basename.casefold(), [])
+                        )
+                    else:
+                        for candidate in root.rglob(basename):
+                            if candidate.is_file() and candidate.suffix.lower() == ".rcs":
+                                matches.add(candidate.resolve())
         if len(matches) == 1:
             return next(iter(matches))
         if len(matches) > 1:
@@ -202,6 +232,7 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
     if nodes_parent is None:
         raise RcpManifestError("RCP has no Nodes section")
     nodes: list[dict[str, Any]] = []
+    support_index = _index_support_scans(rcp_path.parent / f"{rcp_path.stem} Support")
     for node in list(nodes_parent):
         stored_path = _value(node, "Path")
         relative_path = _value(node, "RelativePath")
@@ -255,7 +286,9 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
             "name": node_name,
             "stored_path": stored_path,
             "relative_path": relative_path,
-            "resolved_rcs_path": str(_resolve_scan_path(rcp_path, stored_path, relative_path) or ""),
+            "resolved_rcs_path": str(
+                _resolve_scan_path(rcp_path, stored_path, relative_path, support_index) or ""
+            ),
             "declared_point_count": declared_point_count,
             "has_rgb": _value(node, "HasRGB", "0") == "1",
             "has_intensity": _value(node, "HasIntensity", "0") == "1",
