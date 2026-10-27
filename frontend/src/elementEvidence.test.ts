@@ -22,6 +22,8 @@ test("presents recognition output as read-only evidence for independent annotati
     sourceLabel: "геометрия",
     bboxLabel: "6000 × 400 × 600 мм",
     confidenceLabel: "82% · эвристический балл, не вероятность",
+    sectionProfileCoverageLabel: "",
+    sectionProfileWarning: "",
   });
 });
 
@@ -68,6 +70,63 @@ test("does not invent dimensions or confidence when candidate geometry is invali
   assert.equal(evidence.confidenceLabel, "не задана или не калибрована");
   assert.equal(evidence.roleLabel, "роль не предложена");
   assert.equal(evidence.sourceLabel, "unknown_source");
+});
+
+test("warns when a complete-looking section is based on sparse height bands", () => {
+  const evidence = annotationCandidateEvidence({
+    class_name: "column",
+    source: "geometric",
+    confidence: 0.866,
+    confidence_kind: "heuristic",
+    bbox: { min: [-55, -31, -11], max: [-54, -30, -2] },
+    dimensions: {
+      section_status: "unique_section",
+      section_source: "measured",
+      section_coverage: 0.25,
+      below_resolution: false,
+    },
+  } as Element);
+
+  assert.equal(evidence.sectionProfileCoverageLabel, "Точки найдены в 25% высотных интервалов профиля.");
+  assert.equal(evidence.sectionProfileWarning, "Более половины высотных интервалов профиля пусты; тип и размеры требуют проверки по исходному облаку.");
+});
+
+test("warns when a measured section is below the spatial-grid resolution", () => {
+  const evidence = annotationCandidateEvidence({
+    class_name: "column",
+    source: "geometric",
+    confidence: 0.8,
+    confidence_kind: "heuristic",
+    bbox: { min: [0, 0, 0], max: [1, 1, 8] },
+    dimensions: { below_resolution: true },
+  } as Element);
+
+  assert.equal(evidence.sectionProfileCoverageLabel, "");
+  assert.equal(evidence.sectionProfileWarning, "Поперечный размер ниже разрешения пространственной сетки; проверь его по исходным точкам.");
+});
+
+test("does not warn for a well-supported profile or display invalid coverage", () => {
+  const wellSupported = annotationCandidateEvidence({
+    class_name: "column",
+    source: "geometric",
+    confidence: 0.8,
+    confidence_kind: "heuristic",
+    bbox: { min: [0, 0, 0], max: [1, 1, 8] },
+    dimensions: { section_coverage: 1, below_resolution: false },
+  } as Element);
+  assert.equal(wellSupported.sectionProfileCoverageLabel, "Точки найдены в 100% высотных интервалов профиля.");
+  assert.equal(wellSupported.sectionProfileWarning, "");
+
+  const invalid = annotationCandidateEvidence({
+    class_name: "column",
+    source: "geometric",
+    confidence: 0.8,
+    confidence_kind: "heuristic",
+    bbox: { min: [0, 0, 0], max: [1, 1, 8] },
+    dimensions: { section_coverage: 1.5, below_resolution: false },
+  } as Element);
+  assert.equal(invalid.sectionProfileCoverageLabel, "");
+  assert.equal(invalid.sectionProfileWarning, "");
 });
 
 test("marks recognizer-assigned structural roles as hypotheses until reviewed", () => {

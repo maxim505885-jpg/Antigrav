@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-25",
+  "stage": 9,
+  "status": "partial_not_accepted",
+  "source": {
+    "database": "data/scan2bim.sqlite3 (opened read-only)",
+    "project_id": "cf967dc89b8c46b899d428fbfa122d77",
+    "element_count": 414,
+    "element_ids_match_previous_visual_snapshot": true,
+    "serialized_payload_sha256": "09db321857f4278af61e0e9773c80721dd1240a6a3e0067ad53b248edd990581"
+  },
+  "output_directory": "data/output/workshop_release/spds_album_visual_review_fixed_20261025",
+  "changes": [
+    "PDF rendering temporarily maps ACI 7 to dark gray and restores the original DXF colors after each page.",
+    "Combined album rendering now uses the same temporary contrast palette as single-page PDFs.",
+    "Deviation-sheet scale is selected from the grid extents, and the title-block band is reserved below grid bubbles and notes."
+  ],
+  "checks": {
+    "synthetic_36_axis_grid_inside_a1_frame": true,
+    "synthetic_axis_bubbles_clear_title_block": true,
+    "album_page_count": 5,
+    "all_album_pages_a1": true,
+    "a1_media_box_points": [2383.92, 1684.08],
+    "generated_dxf_frame_layer_remains_aci_7": true,
+    "manual_visual_review_page_5": "grid fits inside the sheet frame; axis bubbles and notes clear the title block; text remains small at overview size",
+    "manual_visual_review_pages_1_to_4": "grid and structural content are present, but member labels and some views remain sparse or small; engineering review is still needed",
+    "pytest_selected_stage9_cases": "not accepted as a passing run: Windows denied pytest temp-directory cleanup (WinError 5); equivalent long-grid geometry and A1 media-box checks were run directly"
+  },
+  "not_verified": [
+    "AutoCAD GUI Cyrillic/font rendering, editing, line weights and physical printing",
+    "ReCap native project round-trip",
+    "engineering approval of drawing content and tolerances"
+  ],
+  "faro_source_files_modified": false
+}

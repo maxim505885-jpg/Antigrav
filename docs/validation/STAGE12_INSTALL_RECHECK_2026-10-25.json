@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Rebuild the installer after the desktop worker lifecycle change and attempt an isolated current-user install",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170034581,
+    "sha256": "8F785525F34B546C0F213049FCD6931AB96F0ACC7891F1D89A702BD171182FA4",
+    "authenticode": "NotSigned",
+    "compiler": "Inno Setup 7.1.0"
+  },
+  "build": {
+    "release_preflight": "passed",
+    "compile": "passed",
+    "compile_seconds": 227.719
+  },
+  "isolated_install": {
+    "host_os": "Windows 10.0.19045",
+    "target": "unique path under %TEMP%",
+    "setup_exit_code": 4,
+    "failure": "Inno Setup failed to create HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{5E973B90-E57A-4543-8473-A3FE9DF3289E}_is1; RegCreateKeyEx returned Win32 error 5 (Access denied). Setup rolled back the temporary files.",
+    "runtime_smoke": "not_run",
+    "temporary_install_removed_by_rollback": true,
+    "scan_user_installation_overwritten": false,
+    "existing_scan_uninstall_registration_present_after": false
+  },
+  "safety": {
+    "production_database_modified": false,
+    "faro_sources_modified": false,
+    "registry_acl_modified": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "new_artifact_install_smoke": "not_verified",
+    "clean_windows_11_acceptance": "not_verified",
+    "code_signing": "not_signed",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

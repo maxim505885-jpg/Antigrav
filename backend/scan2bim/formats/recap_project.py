@@ -20,9 +20,10 @@ def generate_recap_project_draft_xml(
     unit: str = "meter",
     coordinate_system: str = "Local",
 ) -> str:
-    """Generate authentic Autodesk ReCap .rcp XML structure.
+    """Generate SCAN research XML that resembles a ReCap project listing.
     
-    Each scan entry in `scans` must contain:
+    This is not a valid or openable Autodesk ReCap project. Each scan entry
+    in `scans` may contain:
     - `id`: unique scan identifier (e.g. 'scan_01')
     - `path`: relative or absolute path to .rcs file
     - `matrix_4x4`: 4x4 transformation matrix (numpy array or nested list)
@@ -90,12 +91,11 @@ def export_recap_project_draft_bundle(
     unit: str = "meter",
     coordinate_system: str = "Local",
 ) -> dict[str, Any]:
-    """Generate complete ReCap project folder structure.
+    """Generate a research draft folder; this is not a ReCap project.
     
-    Creates:
-    - `<project_dir>/<project_name>.rcp`
-    - `<project_dir>/<project_name> Support/`
-    - `<project_dir>/<project_name> Support/manifest.json`
+    Creates a non-openable `.rcp-draft.xml` and a JSON metadata sidecar. It
+    does not package RCS files or create an Autodesk Support folder structure.
+    The directory is named as a draft to avoid implying ReCap compatibility.
     """
     project_dir = Path(project_dir)
     project_dir.mkdir(parents=True, exist_ok=True)

@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { StudioReferenceLayout } from "./StudioReferenceLayout";
 import "./styles.css";
 import "./theme.css";
-import { api, waitForCloud, waitForJob } from "./api";
+import { api, waitForJob } from "./api";
 import { type Cloud, type Element, type Project } from "./types";
 
 function Root() {
@@ -21,14 +21,18 @@ function Root() {
   const [project, setProject] = useState<Project | null>(null);
   const [clouds, setClouds] = useState<Cloud[]>([]);
   const [elements, setElements] = useState<Element[]>([]);
+  const [jobs, setJobs] = useState<import("./types").Job[]>([]);
   const [activeCloudId, setActiveCloudId] = useState<string | undefined>();
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState<number | null>(null);
+  const [activeImportJobId, setActiveImportJobId] = useState<string | null>(null);
 
   // Load live data from local API backend
   const loadData = async (preferredCloudId?: string, preferredProjectId?: string): Promise<number> => {
+    setDataLoading(true);
     try {
       const projectsList = await api.listProjects();
       if (!projectsList || projectsList.length === 0) return 0;
@@ -39,6 +43,9 @@ function Root() {
         || projectsList.find((p) => p.id === "workshop_project")
         || projectsList[0];
       setProject(prj);
+
+      const projectJobs = await api.projectJobs(prj.id);
+      setJobs(projectJobs);
 
       // Load clouds for project
       const cloudList = await api.listClouds(prj.id);
@@ -61,6 +68,8 @@ function Root() {
       const detail = err instanceof Error ? err.message : String(err);
       setJobLabel("Не удалось загрузить данные из API: " + detail);
       return -1;
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -138,29 +147,83 @@ function Root() {
     setJobLabel(`Проект «${created.name}» создан`);
   };
 
-  const handleUploadScan = async (file: File) => {
+  const handleUploadScan = async (file: File, maxPoints?: number) => {
     if (!project) throw new Error("Сначала выберите проект.");
     setBusy(true);
     setJobLabel(`Загрузка «${file.name}»`);
     setJobProgress(0);
     try {
-      const incoming = await api.uploadCloud(project.id, file);
+      const incoming = await api.uploadCloud(project.id, file, undefined, maxPoints);
       setActiveCloudId(incoming.id);
-      setJobLabel("Обработка облака точек");
-      setJobProgress(0.05);
-      const ready = await waitForCloud(incoming.id, (update) => {
-        setJobProgress(update.status === "processing" ? 0.5 : 0.9);
-        setJobLabel(update.status === "processing" ? "Обработка облака точек" : update.status);
-      });
-      if (ready.status !== "ready") throw new Error(ready.error || `Импорт завершился со статусом ${ready.status}`);
+      if (!incoming.import_job_id) throw new Error("API не создал фоновое задание импорта.");
+      setActiveImportJobId(incoming.import_job_id);
+      const job = await waitForJob(incoming.import_job_id, (update) => {
+        setJobProgress(update.progress);
+        setJobLabel(update.message || "Обработка облака точек");
+      }, 60 * 60 * 1000);
+      const ready = await api.getCloud(incoming.id);
+      if (job.status !== "succeeded" || ready.status !== "ready") {
+        throw new Error(job.error || ready.error || `Импорт завершился со статусом ${ready.status}`);
+      }
       await loadData(ready.id, project.id);
       setActiveCloudId(ready.id);
       setJobLabel(`Скан готов · ${ready.name}`);
       setJobProgress(null);
     } finally {
+      setActiveImportJobId(null);
       setBusy(false);
       setJobProgress(null);
     }
+  };
+
+  const handleImportPath = async (path: string, maxPoints?: number) => {
+    if (!project) throw new Error("Сначала выберите проект.");
+    setBusy(true);
+    setJobLabel(`Импорт ${path.split(/[\\/]/).pop() || path}`);
+    setJobProgress(0.02);
+    try {
+      if (path.trim().toLowerCase().endsWith(".rcp")) {
+        const batch = await api.importRcpPath(project.id, path.trim(), undefined, maxPoints);
+        setActiveImportJobId(batch.import_job_id);
+        const job = await waitForJob(batch.import_job_id, (update) => {
+          setJobProgress(update.progress || 0.03);
+          setJobLabel(update.message ? `Импорт RCP: ${update.message}` : "Импорт станций RCP");
+        }, 30 * 60 * 1000);
+        await loadData(undefined, project.id);
+        if (job.status === "cancelled") throw new Error("Импорт станций RCP отменён.");
+        if (job.status === "failed") throw new Error(job.error || "Импорт станций RCP завершился ошибкой.");
+        if (job.result?.failed_count) {
+          throw new Error(`Готово ${job.result.ready_count}/${job.result.node_count} станций RCP.`);
+        }
+        setJobLabel(`Готово · импортировано станций: ${batch.node_count}`);
+        return;
+      }
+      const incoming = await api.importPath(project.id, path.trim(), undefined, maxPoints);
+      setActiveCloudId(incoming.id);
+      if (!incoming.import_job_id) throw new Error("API не создал фоновое задание импорта.");
+      setActiveImportJobId(incoming.import_job_id);
+      const job = await waitForJob(incoming.import_job_id, (update) => {
+        setJobProgress(update.progress);
+        setJobLabel(update.message || "Импорт облака");
+      }, 60 * 60 * 1000);
+      const ready = await api.getCloud(incoming.id);
+      if (job.status !== "succeeded" || ready.status !== "ready") {
+        throw new Error(job.error || ready.error || `Импорт завершился со статусом ${ready.status}`);
+      }
+      await loadData(ready.id, project.id);
+      setActiveCloudId(ready.id);
+      setJobLabel(`Готово · ${ready.name} · ${ready.ingested_count.toLocaleString("ru-RU")} точек`);
+    } finally {
+      setActiveImportJobId(null);
+      setBusy(false);
+      setJobProgress(null);
+    }
+  };
+
+  const handleCancelImport = async () => {
+    if (!activeImportJobId) return;
+    const result = await api.cancelJob(activeImportJobId);
+    setJobLabel(result.cancel_requested ? "Запрошена отмена импорта; ожидаю безопасную границу чанка…" : "Импорт уже завершился; отменять нечего.");
   };
 
   const primaryCloud = clouds.find((c) => c.id === activeCloudId)
@@ -175,6 +238,8 @@ function Root() {
       cloud={primaryCloud}
       clouds={clouds}
       elements={elements}
+      jobs={jobs}
+      dataLoading={dataLoading}
       selectedElement={selectedEl}
       onSelectElement={setSelectedEl}
       onRunSinglePass={(cloudId) => void handleRunSinglePass(cloudId)}
@@ -182,6 +247,9 @@ function Root() {
       onProjectChange={(projectId) => void handleProjectChange(projectId)}
       onCreateProject={handleCreateProject}
       onUploadScan={handleUploadScan}
+      onImportPath={handleImportPath}
+      onCancelImport={handleCancelImport}
+      canCancelImport={activeImportJobId !== null}
       busy={busy}
       jobLabel={jobLabel}
       jobProgress={jobProgress}

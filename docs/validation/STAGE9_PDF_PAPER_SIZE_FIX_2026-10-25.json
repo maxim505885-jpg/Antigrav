@@ -1,0 +1,87 @@
+{
+  "stage": 9,
+  "date": "2026-10-25",
+  "change": "Preserve physical A1/A2 paper size in single-sheet PDFs and the combined five-sheet album",
+  "files_changed": [
+    "backend/scan2bim/cad/spds_full_set.py",
+    "backend/tests/test_spds_full_set.py"
+  ],
+  "verification": {
+    "method": "Generate all five single-sheet A1 PDFs from release DXFs, combine their DXFs with the shared vector-rendering path, and inspect with Poppler pdfinfo plus PDF MediaBox parsing",
+    "dxf_bytes": 58746,
+    "pdf_bytes": 148516,
+    "pages": 1,
+    "page_size_points": [
+      2383.92,
+      1684.08
+    ],
+    "expected_format": "A1 landscape",
+    "result": "pass",
+    "visual_check": "Rendered 1400px preview shows the full A1 border, title block, axis bubbles and grid without clipping; the drawing is at its stated 1:150 scale and leaves intentional sheet whitespace.",
+    "release_dxf_batch": {
+      "count": 5,
+      "output_directory": "data/output/workshop_release/spds_album_pdf_a1_rebuilt_2026-10-25",
+      "each_pdf_pages": 1,
+      "each_pdf_page_size_points": [
+        2383.92,
+        1684.08
+      ],
+      "each_pdf_format": "A1 landscape"
+    }
+  },
+  "pytest": {
+    "target": "backend/tests/test_spds_full_set.py",
+    "result": "passed",
+    "passed": 7,
+    "failed": 0,
+    "method": "pytest.main with an isolated workspace-local S2B_DATA_DIR and a fixture tmp_path rooted under docs/validation; pytest tmpdir/cache plugins disabled because Windows denies pytest basetemp access",
+    "warning": "existing Starlette/httpx deprecation warning"
+  },
+  "scope": {
+    "release_dxfs_modified": false,
+    "faro_source_files_modified": false,
+    "autocad_gui_acceptance": "still_open"
+  },
+  "acceptance": "Stage 9 remains open until AutoCAD 2026 visual, edit, and print checks pass.",
+  "rebuild_outputs": {
+    "directory": "data/output/workshop_release/spds_album_pdf_a1_rebuilt_2026-10-25",
+    "files": [
+      "01_plan_kolonn_SPDS.pdf",
+      "02_plan_podkranovyh_balok_SPDS.pdf",
+      "03_razrez_ceha_1-1_SPDS.pdf",
+      "04_shema_ferm_i_svyazei_SPDS.pdf",
+      "05_ispolnitelnaya_shema_otkloneniy_SPDS.pdf"
+    ],
+    "verified_single_page_a1_count": 5,
+    "old_dxf_files_overwritten": false,
+    "faro_sources_modified": false
+  },
+  "combined_album": {
+    "file": "data/output/workshop_release/spds_album_pdf_a1_rebuilt_2026-10-25/ALBUM_RD_KR_KM_SPDS_A1_REBUILT_2026-10-25.pdf",
+    "pages": 5,
+    "media_boxes": [
+      [
+        2383.92,
+        1684.08
+      ],
+      [
+        2383.92,
+        1684.08
+      ],
+      [
+        2383.92,
+        1684.08
+      ],
+      [
+        2383.92,
+        1684.08
+      ],
+      [
+        2383.92,
+        1684.08
+      ]
+    ],
+    "verified_with": "pdfinfo plus five MediaBox entries",
+    "bytes": 1631068
+  }
+}

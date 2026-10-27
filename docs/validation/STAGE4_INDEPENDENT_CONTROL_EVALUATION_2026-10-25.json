@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "feature": "Independent survey-control evaluation",
+  "endpoint": "POST /api/v1/registration/evaluate-controls",
+  "acceptance_rmse_mm": 10.0,
+  "minimum_control_pairs": 3,
+  "behavior": [
+    "requires explicit user attestation that controls were not used to fit/refine the transform",
+    "reports 3D residuals, RMSE, maximum and p95 in millimetres",
+    "reports whether RMSE is below the configured threshold",
+    "rejects invalid homogeneous matrices, duplicate source controls and too few controls",
+    "rejects scale, shear and reflection matrices"
+  ],
+  "tests": {
+    "focused": "9 passed",
+    "command": ".venv/Scripts/python.exe -m pytest backend/tests/test_registration_control_validation.py backend/tests/test_registration_api.py -q",
+    "frontend": "full npm test suite passed",
+    "production_build": "passed; 1978 modules; index-BHwVRZp5.js"
+  },
+  "limits": [
+    "live test used synthetic coordinates against existing cloud IDs solely to check route wiring; it is not evidence of field accuracy",
+    "no independent field controls were supplied",
+    "independence remains an explicit user attestation, not something the application can independently verify",
+    "Stage 4 acceptance remains open"
+  ],
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass",
+  "live_smoke": {
+    "server_restarted": "verified repository API after confirming zero active jobs",
+    "health_http": 200,
+    "openapi_route_present": true,
+    "browser": "registration UI displays coordinate fields and independence attestation",
+    "console_errors": 0,
+    "synthetic_control_count": 4,
+    "synthetic_rmse_mm": 4.000000000000001,
+    "synthetic_threshold_mm": 10,
+    "synthetic_criterion_passed": true,
+    "project_rows_written": false,
+    "source_clouds_modified": false
+  }
+}

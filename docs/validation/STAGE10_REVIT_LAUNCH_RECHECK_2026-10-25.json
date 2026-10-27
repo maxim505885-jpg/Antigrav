@@ -1,0 +1,59 @@
+{
+  "checked_at_local": "2026-10-25T17:55:01+03:00",
+  "stage": 10,
+  "scope": "Revit 2027 host launch after signed Identity Manager repair; no project opened",
+  "host": {
+    "executable": "C:/Program Files/Autodesk/Revit 2027/Revit.exe",
+    "pid": 9100,
+    "process_responding": false,
+    "main_window_title": "Autodesk Revit 2027",
+    "addin_manifest": "%APPDATA%/Autodesk/Revit/Addins/2027/SCAN.StructuralModel.addin",
+    "manifest_path_was_verified_in_prior_contract_recheck": true
+  },
+  "ui_observation": {
+    "source": "Windows UI Automation read-only query for exact Revit HWND",
+    "modal_dialog": "Autodesk Revit 2027",
+    "message": "Ошибка системы лицензирования 6",
+    "button": "ОК",
+    "dialog_dismissed": false
+  },
+  "journal": {
+    "new_journal_created": false,
+    "latest_prior_journal": "journal.0020.txt",
+    "last_write_local": "2026-10-25T17:28:51+03:00",
+    "latest_prior_record": "Older run: ADLM VendorError -5 with generic checkout error (15:21 local); predates the current launch. Current launch produced no fresh journal, only the UI modal licensing error 6."
+  },
+  "action_taken": "Started Revit 2027 without a project. Observed the application window and licensing error 6 using read-only UI Automation. Did not click buttons, open any model, save files, or modify the add-in manifest.",
+  "acceptance": {
+    "stage_10": "in_progress",
+    "addin_build": "passed in prior check",
+    "interactive_import_save_reopen": "not verified; blocked at host launch by licensing error 6",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  },
+  "safety": {
+    "user_rvt_opened_or_modified": false,
+    "faro_sources_modified": false,
+    "addin_manifest_modified": false
+  },
+  "official_autodesk_guidance": {
+    "revit_license_error_6": {
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Licensing-System-Error-6-when-launching-Revit.html",
+      "summary": "Autodesk lists missing product licensing data, corrupted trusted storage, LMU.exe startup failure, and ProgramData access as possible causes. This diagnostic did not modify licensing files or registry."
+    },
+    "identity_manager_error_3005": {
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Autodesk-How-to-resolve-error-code---3005-3201-3203-3204-3205-Sign-in-Component-Failed-to-Load.html",
+      "summary": "Autodesk recommends closing the product and Identity Manager, then relaunching; reinstall/restart the computer if the problem persists. Current running processes predate the successful Identity Manager reinstall."
+    }
+  },
+  "older_revit_licensing_log_observation": {
+    "path": "%PROGRAMDATA%/Autodesk/AdskLicensingService/Log/AdskLicensingAgent_2026-10-25_15-21-20-298_fb70f9b8-cce3-4164-911b-c3ffb71a37d5.log",
+    "event_local": "2026-10-25T15:21:27+03:00",
+    "result": "LicenseHeadlessCheckout failed with code 20; VendorError=-5",
+    "provider": "FLEXLM-NW (network licensing provider)",
+    "meaning_per_autodesk": "No such network license feature / requested feature is not available in the selected network license",
+    "temporal_limit": "This log predates the latest Revit launch and Identity Manager reinstall; it is not proof of the current dialog cause.",
+    "official_source": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Network-License-not-available-if-the-problem-continues-contact-your-system-admin-with-the-following-error-code-so-they-can-help-you--5-when-opening-Autodesk-software.html"
+  },
+  "interpretation": "Current UI proves Revit 2027 cannot pass licensing initialization. A separate older licensing log selected the network-license provider and returned VendorError -5 (no matching network feature); because it predates the current run, it is diagnostic context, not an established cause. Autodesk license/sign-in state must be reloaded and a fresh log captured before choosing remediation."
+}

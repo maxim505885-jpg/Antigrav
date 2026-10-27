@@ -1,0 +1,56 @@
+{
+  "check": "autocad_accoreconsole_acceptance",
+  "started_at": "2026-10-26T16:23:06.275111+00:00",
+  "host": "win32",
+  "python": "3.13.15",
+  "failures": [],
+  "notes": [
+    "Опорный DWG мог содержать собственные объекты, поэтому проверяется не равенство счётчиков, а наличие маркера и его координаты."
+  ],
+  "accoreconsole": "C:\\Program Files\\Autodesk\\AutoCAD 2026\\accoreconsole.exe",
+  "seed_drawing": "C:\\Program Files\\Autodesk\\AutoCAD 2026\\Express\\brkline.dwg",
+  "source": {
+    "path": "C:\\Users\\maxim\\AppData\\Local\\Temp\\s2b_accore__36xfd0j\\acceptance_sheet.dxf",
+    "size_bytes": 68262,
+    "sha256": "25cdda62168169dad1d7b903061af729b965c7ed2fc0f1a71fec99cc59ccc734",
+    "entity_counts": {
+      "LINE": 2,
+      "CIRCLE": 1,
+      "LWPOLYLINE": 1,
+      "TEXT": 1
+    },
+    "entity_total": 5,
+    "marker_xy": [
+      12.75,
+      4.25
+    ]
+  },
+  "conversion_elapsed_seconds": 1.7,
+  "dwg": {
+    "path": "C:\\Users\\maxim\\AppData\\Local\\Temp\\s2b_accore__36xfd0j\\acceptance_sheet.dwg",
+    "exists": true,
+    "size_bytes": 22023,
+    "sha256": "7a29c5a1a7405bb58a83adc7df8cb96b3296a6d6b1b7924a0e25ee9f3f99e952",
+    "header": "AC1032",
+    "header_valid": true
+  },
+  "readback": {
+    "exit_code": 0,
+    "elapsed_seconds": 1.52,
+    "opened": true,
+    "entity_count": 8,
+    "marker_count": 1,
+    "marker_xyz": [
+      12.75,
+      4.25,
+      0.0
+    ],
+    "marker_layer": "SCAN-ACCEPT",
+    "acad_version": "25.1",
+    "output_tail": "LiberationSerif-Bold.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationSerif-BoldItalic.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationSerif-Italic.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationMono-Regular.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationMono-Bold.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationMono-BoldItalic.ttf].\r\nПодстановка [simplex.shx] вместо [LiberationMono-Italic.ttf].\r\nВыполняется регенерация модели.\r\n\r\n**** Системная переменная изменена ****\r\nОтслеживаемым системным переменным (2) назначены значения, отличные от предпочтительных. Для просмотра изменений воспользуйтесь командой СИСТПЕРЕММОНИТОР.\r\n\r\n\r\nУтилиты меню AutoCAD загружены.\r\nКоманда:\r\nКоманда:\r\n\r\nКоманда:\r\nКоманда: (setvar \"CMDECHO\" 0)\r\n0\r\n\r\nКоманда: (princ \"\\nSCAN_READBACK_BEGIN\")\r\n\r\nSCAN_READBACK_BEGIN\"\\nSCAN_READBACK_BEGIN\"\r\n\r\nКоманда: (setq s (ssget \"_X\"))\r\n<Selection set: 2>\r\n\r\nКоманда: (princ (strcat \"\\nSCAN_ENTITY_COUNT=\" (if s (itoa (sslength s)) \"0\")))\r\n\r\nSCAN_ENTITY_COUNT=8\"\\nSCAN_ENTITY_COUNT=8\"\r\n\r\nКоманда: (setq ms (ssget \"_X\" (list (cons 0 \"TEXT\") (cons 1 \"SCAN_ACCEPTANCE_MARKER\"))))\r\n<Selection set: 4>\r\n\r\nКоманда: (princ (strcat \"\\nSCAN_MARKER_COUNT=\" (if ms (itoa (sslength ms)) \"0\")))\r\n\r\nSCAN_MARKER_COUNT=1\"\\nSCAN_MARKER_COUNT=1\"\r\n\r\nКоманда: (if ms\r\n(_>   (progn\r\n((_>     (setq d (entget (ssname ms 0)))\r\n((_>     (setq p (cdr (assoc 10 d)))\r\n((_>     (princ (strcat \"\\nSCAN_MARKER_XYZ=\"\r\n((((_>       (rtos (car p) 2 6) \",\" (rtos (cadr p) 2 6) \",\" (rtos (caddr p) 2 6)))\r\n((_>     (princ (strcat \"\\nSCAN_MARKER_LAYER=\" (cdr (assoc 8 d))))\r\n((_>   )\r\n(_> )\r\n\r\nSCAN_MARKER_XYZ=12.750000,4.250000,0.000000\r\nSCAN_MARKER_LAYER=SCAN-ACCEPT\"\\nSCAN_MARKER_LAYER=SCAN-ACCEPT\"\r\n\r\nКоманда: (princ (strcat \"\\nSCAN_ACADVER=\" (getvar \"ACADVER\")))\r\n\r\nSCAN_ACADVER=25.1\"\\nSCAN_ACADVER=25.1\"\r\n\r\nКоманда: (princ \"\\nSCAN_READBACK_END\")\r\n\r\nSCAN_READBACK_END\"\\nSCAN_READBACK_END\"\r\n\r\nКоманда: (command \"_.QUIT\" \"_Y\")\r\n; ошибка: Функция прервана.\r\nLogFilePath has been restored to ''.\r\n"
+  },
+  "marker_deviation_m": 0.0,
+  "result": "passed",
+  "artifacts": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\docs\\validation\\artifacts\\autocad_acceptance_20261026T162306Z",
+  "finished_at": "2026-10-26T16:23:09.534199+00:00"
+}

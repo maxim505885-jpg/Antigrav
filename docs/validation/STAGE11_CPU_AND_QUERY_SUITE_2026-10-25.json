@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-25",
+  "stage": 11,
+  "title": "CPU fallback, spatial query and job-control regression suite",
+  "command": "pytest backend/tests/test_gpu_voxel.py backend/tests/test_pointdata_query.py backend/tests/test_jobs.py -q",
+  "verification": {
+    "focused_tests": "20 passed",
+    "cuda_available": "no; CPU fallback only",
+    "distributed_workers": "not configured",
+    "source_clouds_modified": false
+  },
+  "acceptance": {
+    "stage_11": "in_progress",
+    "missing": "CUDA path on compatible GPU and distributed worker pipeline; earlier stream benchmark covers reading/finite checks, not recognition throughput.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

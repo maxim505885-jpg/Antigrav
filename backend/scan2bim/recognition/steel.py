@@ -171,33 +171,58 @@ def _angle_diff(a: float, b: float) -> float:
 def _bands_points_with_source_ids(
     geom: CloudGeometry, bands: list[tuple[float, float]],
 ) -> list[tuple[np.ndarray, np.ndarray, int]]:
-    """Return band points and their original row indices in one cloud pass."""
-    point_collectors: list[list[np.ndarray]] = [[] for _ in bands]
-    row_collectors: list[list[np.ndarray]] = [[] for _ in bands]
+    """Return bounded band samples and original row IDs without large concatenations."""
+    if not bands:
+        return []
+
+    full_counts = np.zeros(len(bands), dtype=np.int64)
+    point_dtype = np.dtype(np.float32)
+    # Count first so the same deterministic stride can be applied while reading
+    # the second pass. The point buffers are capped before any data is copied.
+    for chunk in _iter_positions(geom.positions_path):
+        point_dtype = chunk.dtype
+        z = chunk[:, 2]
+        for index, (z0, z1) in enumerate(bands):
+            full_counts[index] += np.count_nonzero((z >= z0) & (z < z1))
+
+    strides = [
+        max(1, int(math.ceil(int(count) / BAND_CAP_POINTS)))
+        for count in full_counts
+    ]
+    sample_counts = [
+        (int(count) + stride - 1) // stride
+        for count, stride in zip(full_counts, strides)
+    ]
+    point_buffers = [
+        np.empty((count, 3), dtype=point_dtype) for count in sample_counts
+    ]
+    row_buffers = [np.empty(count, dtype=np.int64) for count in sample_counts]
+    seen_counts = np.zeros(len(bands), dtype=np.int64)
     source_offset = 0
     for chunk in _iter_positions(geom.positions_path):
         z = chunk[:, 2]
-        row_ids = np.arange(source_offset, source_offset + len(chunk), dtype=np.int64)
         for index, (z0, z1) in enumerate(bands):
-            mask = (z >= z0) & (z < z1)
-            if mask.any():
-                point_collectors[index].append(chunk[mask])
-                row_collectors[index].append(row_ids[mask])
+            positions = np.flatnonzero((z >= z0) & (z < z1))
+            if not len(positions):
+                continue
+
+            before = int(seen_counts[index])
+            after = before + len(positions)
+            stride = strides[index]
+            first_sample = (before + stride - 1) // stride
+            next_sample = (after + stride - 1) // stride
+            if next_sample > first_sample:
+                sample_ranks = np.arange(first_sample, next_sample, dtype=np.int64)
+                within_chunk = sample_ranks * stride - before
+                selected_positions = positions[within_chunk]
+                point_buffers[index][first_sample:next_sample] = chunk[selected_positions]
+                row_buffers[index][first_sample:next_sample] = source_offset + selected_positions
+            seen_counts[index] = after
         source_offset += len(chunk)
-    out: list[tuple[np.ndarray, np.ndarray, int]] = []
-    for point_parts, row_parts in zip(point_collectors, row_collectors):
-        if not point_parts:
-            out.append((np.zeros((0, 3), dtype=np.float32), np.zeros(0, dtype=np.int64), 0))
-            continue
-        points = np.concatenate(point_parts)
-        source_rows = np.concatenate(row_parts)
-        full_band_count = len(points)
-        if len(points) > BAND_CAP_POINTS:
-            stride = int(math.ceil(len(points) / BAND_CAP_POINTS))
-            points = points[::stride]
-            source_rows = source_rows[::stride]
-        out.append((points, source_rows, full_band_count))
-    return out
+    return [
+        (points, rows, int(full_count))
+        for points, rows, full_count in zip(point_buffers, row_buffers, full_counts)
+    ]
 
 
 def _bands_points(geom: CloudGeometry, bands: list[tuple[float, float]]) -> list[np.ndarray]:
@@ -1400,16 +1425,49 @@ def _runway_column_context(
             continue
         if not lo[2] <= z <= hi[2] + 0.3:
             continue
-        delta = (lo[:2] + hi[:2]) / 2 - world_center
+        geometry = column.geometry if isinstance(column.geometry, dict) else {}
+        sizes = geometry.get("sizes", {}) if isinstance(geometry.get("sizes", {}), dict) else {}
+        try:
+            box_length = float(sizes.get("length"))
+            box_thickness = float(sizes.get("thickness"))
+            box_angle = float(geometry.get("rotation_z"))
+            has_oriented_footprint = (
+                geometry.get("kind") == "oriented_box"
+                and np.isfinite([box_length, box_thickness, box_angle]).all()
+                and box_length > 0 and box_thickness > 0
+            )
+        except (TypeError, ValueError):
+            has_oriented_footprint = False
+        if has_oriented_footprint:
+            footprint_center = np.asarray(geometry.get("center", []), dtype=float)
+            if footprint_center.shape != (3,) or not np.isfinite(footprint_center).all():
+                footprint_center = (lo + hi) / 2
+            delta = footprint_center[:2] - world_center
+            # The AABB of a rotated column can be much wider than its actual
+            # footprint when viewed across a diagonal runway. Project the
+            # measured oriented rectangle onto the runway axes instead.
+            box_axis = np.array([np.cos(box_angle), np.sin(box_angle)])
+            box_normal = np.array([-box_axis[1], box_axis[0]])
+            half_width = float(
+                abs(normal @ box_axis) * box_length
+                + abs(normal @ box_normal) * box_thickness
+            ) / 2
+            half_extent_along = float(
+                abs(direction @ box_axis) * box_length
+                + abs(direction @ box_normal) * box_thickness
+            ) / 2
+        else:
+            # Legacy or incomplete candidates only carry an axis-aligned box.
+            delta = (lo[:2] + hi[:2]) / 2 - world_center
+            half_width = float(np.abs(normal) @ (hi[:2] - lo[:2])) / 2
+            half_extent_along = float(np.abs(direction) @ (hi[:2] - lo[:2])) / 2
         along, across = float(delta @ direction), abs(float(delta @ normal))
-        half_width = float(np.abs(normal) @ (hi[:2] - lo[:2])) / 2
         # A column supports this candidate only when its footprint reaches the
         # beam strip (allowing 20 cm for coarse detection and scan occlusion).
         # The previous fixed 0.8 m offset linked beams to a separate parallel
         # column row, which made the runway context misleading.
         lateral_gap = max(0.15, float(member_thickness_m) / 2 + 0.20)
         if abs(along) <= length / 2 + endpoint_search_margin_m and across <= half_width + lateral_gap:
-            half_extent_along = float(np.abs(direction) @ (hi[:2] - lo[:2])) / 2
             start_gap = max(0.0, abs(along + length / 2) - half_extent_along)
             end_gap = max(0.0, abs(along - length / 2) - half_extent_along)
             supports.append({"column_index": index, "along_m": round(along, 4),

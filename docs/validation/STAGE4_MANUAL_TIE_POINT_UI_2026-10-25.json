@@ -1,0 +1,36 @@
+{
+  "stage": 4,
+  "date": "2026-10-25",
+  "feature": "manual homologous point selection in split-screen station registration",
+  "source_coordinate_contract": {
+    "viewer": "raycast hit on rendered LOD Points returns XYZ in the scene coordinate frame",
+    "lod": "XYZ records are loaded directly into the scene without a transform",
+    "api": "registration/pair-align accepts source and target XYZ in their respective cloud coordinates",
+    "units": "metres"
+  },
+  "behavior": {
+    "selection": "click source point A then matching target point B; repeat",
+    "minimum_pairs": 3,
+    "calculation": "Kabsch/SVD through existing pair-align API; ICP refinement disabled",
+    "application": "candidate matrix displayed only; source clouds are not transformed or persisted"
+  },
+  "verification": {
+    "frontend_tests": "passed",
+    "typescript": "passed",
+    "production_build": "passed; 1973 modules",
+    "manual_kabsch_and_registration_api_tests": "5 passed",
+    "production_browser": "HTTP localhost:8000; controls rendered; defaulted to Workshop 1.rcs and Workshop 2.rcs",
+    "live_point_selection": "a point hit produced XYZ and a transient pair in memory on the former aggregate/sample default; the pair was reset. A center click on the corrected workshop pair returned the new miss feedback and stored nothing",
+    "pair_align_requests": 0,
+    "console_errors": 0,
+    "surveyed_control_points": "not available",
+    "independent_registration_accuracy": "not measured",
+    "stage_acceptance": "open"
+  },
+  "safety": {
+    "live_pairs_submitted": false,
+    "alignment_applied": false,
+    "cloud_data_modified": false,
+    "scan_source_modified": false
+  }
+}

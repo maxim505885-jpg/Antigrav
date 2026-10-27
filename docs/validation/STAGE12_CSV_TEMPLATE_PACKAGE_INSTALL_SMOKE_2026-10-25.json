@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Verify the current production installer includes the registration-control CSV template, starts its packaged API and UI, isolates test data, and uninstalls cleanly.",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170019078,
+    "sha256": "7BFEDEDA67FC0B4F4FC0FB0DF0518E03F69358AF84A193CAB4F4816A016762C1",
+    "compiler": "Inno Setup 7.1.0",
+    "authenticode_status": "NotSigned"
+  },
+  "preflight": {
+    "release_bundle_inputs": "passed",
+    "frontend_assets_referenced": 4,
+    "registration_control_template_present": true,
+    "registration_control_template_headers": "label,source_x,source_y,source_z,target_x,target_y,target_z",
+    "registration_control_template_sha256": "FBECBF7DBC57AF41D38AB57A3ED993268384F15BD7E9050B6E564EAFA5161426"
+  },
+  "isolated_install": {
+    "install_root": "%TEMP%/scanstudio-csv-acceptance-<ephemeral>",
+    "install_exit_code": 0,
+    "csv_template_in_installed_bundle": true,
+    "csv_template_sha256_matches_production_build": true,
+    "runtime_smoke_exit_code": 0,
+    "api_health_http": 200,
+    "api_status": "ok",
+    "production_ui_http": 200,
+    "ui_title_present": true,
+    "python_bytecode_before_and_after": 0,
+    "isolated_test_data_root_under_temp": true,
+    "frontend_asset_manifest_and_hashes_match_source": true,
+    "relocated_python_home_executable_and_command": true,
+    "required_backend_and_contract_files_present": true,
+    "developer_data_and_dependency_test_files_absent": true,
+    "uninstall_exit_code": 0,
+    "temporary_install_removed": true
+  },
+  "environment": {
+    "windows_version": "10.0.19045",
+    "clean_windows_11": false,
+    "source_faro_files_modified": false,
+    "production_database_modified": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": [
+      "clean Windows 11 acceptance",
+      "Authenticode signing",
+      "full release acceptance on the user's machine"
+    ]
+  }
+}

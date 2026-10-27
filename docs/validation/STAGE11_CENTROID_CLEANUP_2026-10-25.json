@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 11,
+  "change": "Integrated the existing exact voxel centroid and RGB mean implementation into the non-destructive cleanup job as an explicit centroid mode.",
+  "behavior": {
+    "default_mode": "representative",
+    "centroid_mode": "centroid",
+    "compute_backend_selection": "CUDA when PyTorch reports a CUDA device; otherwise NumPy CPU",
+    "cuda_fallback_on_runtime_failure": false,
+    "source_cloud_mutated": false,
+    "api_reports_mode_and_backend": true,
+    "ui_exposes_mode": true
+  },
+  "verification": {
+    "backend_cleanup_and_voxel_tests": "20 passed",
+    "frontend_test_suite": "passed",
+    "frontend_typescript_and_production_build": "passed; 1978 modules",
+    "focused_centroid_assertions": [
+      "centroid coordinates are averaged within exact voxels",
+      "RGB colors are averaged and retained",
+      "source positions file SHA-256 remains unchanged",
+      "API job returns centroid mode and selected backend"
+    ]
+  },
+  "runtime": {
+    "selected_backend": "cpu",
+    "nvidia_smi_available": false,
+    "gpu_inventory_query": "no device name returned in this session",
+    "cuda_path_verified": false
+  },
+  "acceptance": {
+    "centroid_cleanup_available_in_application": true,
+    "cuda_verified_on_compatible_device": false,
+    "distributed_worker_pipeline_implemented": false,
+    "stage_11_closed": false,
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass per user instruction"
+  }
+}

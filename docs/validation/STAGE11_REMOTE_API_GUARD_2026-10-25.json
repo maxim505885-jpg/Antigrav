@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-25",
+  "stage": 11,
+  "purpose": "Keep the supported SCAN CLI local by default and require an API key before remote API access.",
+  "implementation": {
+    "supported_cli": "backend/run.py",
+    "default_bind": "127.0.0.1",
+    "non_loopback_without_key": "rejected before Uvicorn starts, exit code 2",
+    "request_policy": "without S2B_API_KEY, protected API routes accept loopback clients only",
+    "forwarded_address_headers_trusted": false,
+    "configured_key_header": "X-API-Key",
+    "public_routes": ["/", "/api/v1/health"]
+  },
+  "red_green": {
+    "red": "Remote client without a key received 200 before the request-level guard; regression expected 401.",
+    "green": "Remote client receives 401; loopback client receives 200; configured key allows remote API request; X-Forwarded-For cannot turn a remote client into loopback."
+  },
+  "verification": {
+    "focused_security_desktop_openapi_pipeline": {
+      "passed": 32,
+      "failed": 0
+    },
+    "full_backend_suite": {
+      "passed": 786,
+      "failed": 0,
+      "warnings": 1,
+      "duration_seconds": 106.32,
+      "warning": "Starlette deprecation notice for its httpx TestClient integration."
+    },
+    "cli_remote_bind_smoke_exit_code": 2,
+    "current_release_bundle_preflight": "passed",
+    "installed_bundle_smoke": {
+      "install_exit_code": 0,
+      "api_health_http": 200,
+      "production_ui_http": 200,
+      "remote_api_without_key_http": 401,
+      "installed_api_sources_match": true,
+      "python_bytecode_files": 0,
+      "isolated_test_data_under_temp": true,
+      "uninstall_exit_code": 0,
+      "temporary_install_removed": true
+    }
+  },
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170032666,
+    "sha256": "6C4D2D510D7390285185C69F9BAB321BADA3E4934F6A2BE78EC09F03F8233EC2",
+    "compiler": "Inno Setup 7.1.0",
+    "authenticode_status": "NotSigned",
+    "previous_package_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre_remote_api_guard_20261025.exe",
+    "previous_package_sha256": "7BFEDEDA67FC0B4F4FC0FB0DF0518E03F69358AF84A193CAB4F4816A016762C1"
+  },
+  "environment": {
+    "windows_version": "10.0.19045",
+    "clean_windows_11": false,
+    "source_faro_files_modified": false,
+    "production_database_modified": false
+  },
+  "acceptance": {
+    "stage_11": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": [
+      "CUDA hardware verification",
+      "distributed worker acceptance",
+      "clean Windows 11 and signed release acceptance in Stage 12"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Install and smoke-test the exact current SCAN installer artifact in an isolated temporary directory",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170010478,
+    "sha256": "DA70E1A25834A88D1C0B5D927CA056355F32CB53B0308411B607DE1A3A8D7B05",
+    "authenticode": "NotSigned",
+    "app_id_registration_existed_before_test": false
+  },
+  "host": {
+    "windows_build": "10.0.19045",
+    "clean_windows_11": false,
+    "c_free_bytes_after_cleanup": 19572674560,
+    "c_free_gib_after_cleanup": 18.22
+  },
+  "install": {
+    "target": "unique short directory under %TEMP%",
+    "setup_exit_code": 0,
+    "installer_log": "Installation process succeeded.",
+    "same_app_id_install_existed": false
+  },
+  "runtime_smoke": {
+    "script": "scripts/smoke_installed_bundle.ps1",
+    "result": "passed",
+    "python_source_manifest": "exact match; zero missing, unexpected, or mismatched files",
+    "frontend_asset_hashes_and_registration_csv": "match current source build",
+    "api_health_http": 200,
+    "production_ui_http": 200,
+    "remote_protected_api_without_key_http": 401,
+    "python_bytecode_files": 0,
+    "isolated_data_root_under_temp": true,
+    "relocated_python_and_required_contract_files": "verified",
+    "developer_data_and_dependency_tests_in_bundle": "absent"
+  },
+  "uninstall": {
+    "exit_code": 0,
+    "temporary_install_directory_removed": true,
+    "per_user_uninstall_registration_remaining": false,
+    "start_menu_shortcut_remaining": false,
+    "temporary_test_directories_remaining": false,
+    "application_process_remaining": false
+  },
+  "safety": {
+    "production_database_modified": false,
+    "faro_sources_modified": false,
+    "user_installation_overwritten": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "remaining": [
+      "independent clean Windows 11 acceptance",
+      "Authenticode signing",
+      "user acceptance"
+    ],
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 2,
+  "purpose": "Read-only disk-capacity recheck after refreshing the SCAN installer.",
+  "measurement": {
+    "C_free_bytes": 3411501056,
+    "C_free_gib": 3.18,
+    "full_rcp_estimated_required_gib": 13.77,
+    "R_drive_mapped": true,
+    "R_display_root": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT",
+    "R_free_bytes": null,
+    "R_root_readable": false,
+    "R_root_error": "System.UnauthorizedAccessException: Access to the path R:\\ is denied."
+  },
+  "decision": "Do not run the full-resolution RCP acceptance: C: has less than the estimate and R: free capacity cannot be read from this session.",
+  "side_effects": {
+    "source_scans_modified": false,
+    "database_modified": false,
+    "import_started": false,
+    "installer_refreshed": true
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

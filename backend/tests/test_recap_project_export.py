@@ -23,7 +23,7 @@ def test_generate_recap_project_draft_xml():
             "id": "scan_02",
             "name": "Station 02",
             "path": "2.rcs",
-            "point_count": 576820490,
+            "point_count": 574367742,
             "matrix_4x4": [
                 [0.9998, -0.015, 0.005, 12.450],
                 [0.015, 0.9998, -0.002, -3.120],
@@ -61,6 +61,7 @@ def test_generate_recap_project_draft_xml():
 
     assert scan_elements[1].attrib["id"] == "scan_02"
     assert scan_elements[1].attrib["path"] == "2.rcs"
+    assert scan_elements[1].find("PointCount").text == "574367742"
     assert scan_elements[1].find("RegistrationRmseMm").text == "2.1400"
     assert "12.450" in scan_elements[1].find("Matrix").text
 

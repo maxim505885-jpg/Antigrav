@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-25",
+  "latest_disk_recheck_at_utc": "2026-10-25T08:09:51Z",
+  "stage": 2,
+  "purpose": "Read-only full-resolution disk preflight for the original two FARO workshop stations",
+  "sources": [
+    {
+      "path": "../../1.rcs",
+      "bytes": 7196593757,
+      "last_write": "2026-10-13T16:25:39.956361+03:00",
+      "reader_point_count": 297873927
+    },
+    {
+      "path": "../../2.rcs",
+      "bytes": 13906332111,
+      "last_write": "2026-10-16T12:14:28.2322579+03:00",
+      "reader_point_count": 574367742
+    }
+  ],
+  "estimator": "scan2bim.formats.rcs_native.estimate_full_resolution_batch_disk_bytes",
+  "estimate_bytes": {
+    "durable_arrays_and_previews": 13158625035,
+    "sequential_raw_stream_peak": 15507929034,
+    "safety_margin_10_percent": 2866655407,
+    "application_reserve": 1073741824,
+    "required_total": 32606951300
+  },
+  "initial_preflight_before_user_cleanup": {
+    "available_on_data_volume_bytes": 23894917120,
+    "shortfall_bytes": 8712034180
+  },
+  "available_on_data_volume_bytes": 30485782528,
+  "shortfall_bytes": 2121168772,
+  "decision": "do_not_start_full_resolution_import",
+  "latest_capacity_recheck_method": "Read-only PowerShell Get-PSDrive C after user cleanup and isolated test cleanup",
+  "method": "The product's actual preflight estimator was run with a temporary isolated data root on the same C: volume. It only created and removed that temporary folder; it did not open either RCS source or use the production database.",
+  "safety": {
+    "source_files_opened": false,
+    "source_files_modified": false,
+    "production_database_used": false,
+    "production_project_rows_written": false
+  },
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass"
+}

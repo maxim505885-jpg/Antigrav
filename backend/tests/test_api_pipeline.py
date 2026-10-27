@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 from pathlib import Path
 import tempfile
 
@@ -9,6 +10,7 @@ import ezdxf
 import numpy as np
 
 from conftest import wait_cloud, wait_job
+from scan2bim.api.app import _cloud, _cloud_out
 from scan2bim.cad.pdf import structural_schedule_from_dxf
 
 
@@ -19,6 +21,101 @@ def _demo_cloud(client) -> tuple[dict, str]:
     cloud = wait_cloud(client, data["cloud"]["id"])
     assert cloud["status"] == "ready", cloud
     return cloud, data["project"]["id"]
+
+
+def test_cloud_output_uses_persisted_decimation_metadata_and_explains_sample():
+    row = {
+        "id": "legacy-sampled-cloud",
+        "project_id": "project",
+        "name": "sampled FARO scan",
+        "source_path": "2.rcs",
+        "source_format": "rcs",
+        "size_bytes": 13_906_332_111,
+        "point_count": 576_820_490,
+        "ingested_count": 3_500_000,
+        # Older rows can have a stale denormalized DB flag while meta.json has
+        # the durable importer result.
+        "decimated": 0,
+        "origin_x": None,
+        "origin_y": None,
+        "origin_z": None,
+        "bbox_min_x": None,
+        "bbox_min_y": None,
+        "bbox_min_z": None,
+        "bbox_max_x": None,
+        "bbox_max_y": None,
+        "bbox_max_z": None,
+        "has_color": 1,
+        "has_intensity": 0,
+        "status": "ready",
+        "error": None,
+        "created_at": "2026-10-23T00:00:00+00:00",
+        "updated_at": "2026-10-23T00:00:00+00:00",
+        "metadata_json": json.dumps(
+            {
+                "decimated": True,
+                "source_point_count": 576_820_490,
+                "stored_point_count": 3_500_000,
+                "preview_count": 2_500_000,
+                "warning": None,
+            }
+        ),
+    }
+
+    cloud = _cloud_out(row)
+
+    assert cloud["decimated"] is True
+    assert "576,820,490" in cloud["warning"]
+    assert "3,500,000" in cloud["warning"]
+
+    row["decimated"] = 1
+    row["metadata_json"] = json.dumps({"decimated": False})
+    assert _cloud_out(row)["decimated"] is True
+
+
+def test_cloud_output_warns_when_rcp_manifest_and_linked_rcs_counts_differ():
+    row = {
+        "id": "rcp-station", "project_id": "project", "name": "10",
+        "source_path": "10.rcs", "source_format": "rcs", "size_bytes": 100,
+        "point_count": 295_591_803, "ingested_count": 5_000_000,
+        "decimated": 1, "origin_x": None, "origin_y": None, "origin_z": None,
+        "bbox_min_x": None, "bbox_min_y": None, "bbox_min_z": None,
+        "bbox_max_x": None, "bbox_max_y": None, "bbox_max_z": None,
+        "has_color": 1, "has_intensity": 1, "status": "ready", "error": None,
+        "created_at": "2026-10-25T00:00:00+00:00",
+        "updated_at": "2026-10-25T00:00:00+00:00",
+        "metadata_json": json.dumps({
+            "decimated": True,
+            "recap_project": {
+                "actual_source_point_count": 295_591_803,
+                "selected_node": {"declared_point_count": 295_836_062},
+            },
+        }),
+    }
+
+    cloud = _cloud_out(row)
+
+    assert cloud["point_count"] == 295_591_803
+    assert cloud["ingested_count"] == 5_000_000
+    assert "295,836,062" in cloud["warning"]
+    assert "295,591,803" in cloud["warning"]
+    assert "244,259" in cloud["warning"]
+    assert "не доказывает потерю точек" in cloud["warning"]
+
+
+def test_cloud_lookup_never_treats_legacy_sample_as_full_resolution(monkeypatch):
+    module = importlib.import_module("scan2bim.api.app")
+    monkeypatch.setattr(
+        module,
+        "one",
+        lambda _sql, _params: {
+            "id": "legacy-sampled-cloud",
+            "decimated": 0,
+            "metadata_json": json.dumps({"decimated": True}),
+        },
+    )
+
+    assert _cloud("legacy-sampled-cloud")["decimated"] == 1
 
 
 def _read_dxf(content: bytes):
@@ -250,6 +347,10 @@ def test_full_pipeline(client):
     model = train.json()
     assert model["status"] == "candidate"
     assert model["metrics"]["eligible_for_activation"] is False
+    assert model["metrics"]["evaluation_status"] == "not_verified"
+    assert model["metrics"]["accuracy"] is None
+    assert model["metrics"]["macro_f1"] is None
+    assert "physical instance IDs" in model["metrics"]["blocking_reason"]
     activation = client.post(f"/api/v1/models/{model['id']}/activate")
     assert activation.status_code == 409
 
@@ -263,17 +364,26 @@ def test_upload_and_rcs_guidance(client, request):
     payload = "\n".join(" ".join(f"{v:.3f}" for v in row) for row in xyz) + "\n"
     response = client.post(
         f"/api/v1/projects/{project['id']}/clouds/upload",
+        data={"max_points": "0"},
         files={"file": ("tiny.xyz", payload.encode("utf-8"), "text/plain")},
     )
     assert response.status_code == 200, response.text
     cloud = wait_cloud(client, response.json()["id"])
     assert cloud["status"] == "ready"
     assert cloud["point_count"] == 4
+    assert cloud["ingested_count"] == 4
+    assert cloud["metadata"]["max_points"] == 0
 
     # Guidance must always be available and must be honest about the format.
     guidance = client.get("/api/v1/formats/rcs").json()
     assert "steps" in guidance
     assert "proprietary" in guidance["summary"].lower()
+    # RCP import is now a multi-station batch route; user-facing guidance and
+    # format discovery must not tell operators that only one linked RCS works.
+    assert any("пакет" in step.lower() and "станц" in step.lower() for step in guidance["steps"])
+    formats = client.get("/api/v1/formats").json()["supported"]
+    assert "batch-import" in formats["notes"]["rcp"].lower()
+    assert "all linked scan nodes" in formats["notes"]["rcp"].lower()
 
     from scan2bim.formats.rcs_native import native_available
 
@@ -282,13 +392,14 @@ def test_upload_and_rcs_guidance(client, request):
     request.addfinalizer(lambda: rcs.unlink(missing_ok=True))
     response = client.post(
         f"/api/v1/projects/{project['id']}/clouds/import-path",
-        json={"path": str(rcs)},
+        json={"path": str(rcs), "max_points": 0},
     )
     if native_available()["dll_exists"]:
         # The import is accepted (the local ReCap DLL exists) but a fake
         # ADOCT file must FAIL INGEST with a real error, never a silent
         # success or an invented point cloud.
         assert response.status_code == 200, response.text
+        assert response.json()["metadata"]["max_points"] == 0
         cloud = wait_cloud(client, response.json()["id"])
         assert cloud["status"] == "failed"
         assert cloud.get("error"), "failed ingest must carry an error message"

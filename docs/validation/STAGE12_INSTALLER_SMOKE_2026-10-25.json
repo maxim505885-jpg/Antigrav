@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "compiler": {
+    "name": "Inno Setup",
+    "version": "6.7.3",
+    "compile_exit_code": 0
+  },
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 177078930,
+    "sha256": "E06A0CA913D4628BB63B47AD1582668CB322F0629B11AF9BD39DAE7F413F41EF",
+    "authenticode_status": "NotSigned",
+    "promoted_to_release_output_after_smoke": true,
+    "python_test_directories_excluded": true,
+    "previous_artifact_preserved_under_ignored_tools_directory": true,
+    "base_python_site_packages_excluded": true,
+    "superseded_artifact_sha256": "01E263844C106AF95022FD2B754A9377600DF532117C0B8E95FA51A125BEA2A3",
+    "superseded_artifact_preserved_under_ignored_tools_directory": true
+  },
+  "temporary_current_user_install": {
+    "install_root": "%TEMP%/s2b-acceptance",
+    "install_exit_code": 0,
+    "uninstall_exit_code": 0,
+    "clean_windows_11_machine": false,
+    "native_desktop_window_opened": false,
+    "installed_asset_manifest_and_sha256_match_source": true,
+    "setup_data_paths_relocated": {
+      "home": true,
+      "executable": true,
+      "command": true
+    },
+    "initial_compiled_bytecode_files": 0,
+    "runtime_smoke_created_bytecode_files": 0,
+    "imports": [
+      "FastAPI",
+      "Uvicorn",
+      "NumPy",
+      "SciPy",
+      "ezdxf",
+      "desktop_app",
+      "scan2bim.main",
+      "scan2bim.structure.models",
+      "scan2bim.bim.model"
+    ],
+    "api_health": {
+      "status_code": 200,
+      "status": "ok"
+    },
+    "production_ui": {
+      "status_code": 200,
+      "title_present": true
+    },
+    "developer_data_in_package": false,
+    "pytest_data_in_package": false,
+    "logs_in_package": false,
+    "test_install_registry_removed": true,
+    "test_install_start_menu_shortcut_removed": true,
+    "temporary_install_and_test_data_removed": true,
+    "deep_install_path_chars": 110,
+    "deep_install_path_error_206": false,
+    "deep_path_install_exit_code": 0,
+    "deep_path_smoke_exit_code": 0,
+    "deep_path_uninstall_exit_code": 0,
+    "deep_path_uninstall_record_removed": true
+  },
+  "reusable_smoke_script": {
+    "path": "scripts/smoke_installed_bundle.ps1",
+    "powershell_parser_errors": 0,
+    "exit_code": 0,
+    "health_status_code": 200,
+    "ui_status_code": 200,
+    "contract_modules_loaded": true,
+    "bytecode_files_after_smoke": 0,
+    "dependency_test_files_in_installed_python_runtimes": 0,
+    "test_data_created_under_temp_and_removed": true,
+    "temporary_install_uninstalled_after_script_test": true
+  },
+  "path_length_boundary": {
+    "previous_build_deep_workspace_install_path": "failed with Windows error 206 before excluding duplicate base Python site-packages",
+    "current_build_deep_workspace_install_path": "passed at 110-character install root after excluding base Python Lib/site-packages; runtime smoke and uninstall succeeded",
+    "short_temp_install_path": "passed; full runtime smoke and uninstall all succeeded"
+  },
+  "acceptance": "Partial. The 177,078,930-byte installer was rebuilt with Inno Setup 6.7.3, excluding unused duplicate base Python site-packages. It installed at a 110-character path, passed the installed-bundle runtime/API/UI smoke, and uninstalled with its registry record removed. Native desktop window, clean independent Windows 11 acceptance, and Authenticode signing remain open."
+}

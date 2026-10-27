@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Compare ReCap's declared count to the full linked RCS reader count, not the saved limited-resolution sample",
+  "cloud_id": "52370d1f13a147518dd2458886dafee5",
+  "source": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "rcs_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+    "rcs_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "identity_source": "LIVE_RCP_STATION_10_2026-10-24.json",
+    "source_files_opened_for_write": false
+  },
+  "counts": {
+    "rcp_declared_source_points": 295836062,
+    "linked_rcs_reader_source_points": 295591803,
+    "stored_decimated_sample_points": 5000000,
+    "old_incorrect_declared_minus_sample": 290836062,
+    "correct_declared_minus_reader_source": 244259,
+    "cause_of_rcp_vs_reader_difference": "unresolved"
+  },
+  "implementation": {
+    "bug": "_ingest_work compared selected_node.declared_point_count with ingested_count, which is only the stored limited-resolution sample",
+    "fix": "Persist actual_source_point_count from point_count, preserve actual_ingested_point_count from ingested_count, and calculate declared_point_count_difference against actual_source_point_count",
+    "regression": "test_rcp_declared_count_is_compared_to_source_count_not_decimated_sample"
+  },
+  "migration": {
+    "script": "backend/scripts/repair_station_10_rcp_count_metadata.py",
+    "dry_run": "passed",
+    "applied": true,
+    "updated_fields": [
+      "metadata.recap_project.actual_source_point_count",
+      "metadata.recap_project.actual_ingested_point_count",
+      "metadata.recap_project.declared_point_count_difference",
+      "metadata.recap_project.point_count_comparison"
+    ],
+    "cloud_point_count_changed": false,
+    "cloud_ingested_count_changed": false,
+    "point_arrays_changed": false,
+    "database_integrity": "ok",
+    "database_backup": "data/scan2bim.sqlite3.before-rcp-count-20261024T225749Z.bak",
+    "sidecar_backup": "data/projects/workshop_project/clouds/52370d1f13a147518dd2458886dafee5/meta.json.before-rcp-count-20261024T225749Z.bak"
+  },
+  "verification": {
+    "focused_rcp_batch_test_functions": {
+      "passed": 5,
+      "failed": 0,
+      "execution": "direct TestClient invocation with isolated in-workspace data; pytest temp-directory scanning is denied by the managed sandbox"
+    },
+    "live_api": {
+      "http_status": 200,
+      "source_point_count": 295591803,
+      "ingested_count": 5000000,
+      "decimated": true,
+      "declared_point_count_difference": 244259,
+      "point_count_comparison_status": "reader_count_differs_from_rcp_declaration"
+    },
+    "source_and_sample_data": "not modified"
+  },
+  "stage_2": "in_progress",
+  "remaining": [
+    "Determine why the RCP declaration differs from the linked RCS reader by 244259 points",
+    "Verify full-resolution native RCP multi-station import, cancellation/restart, resource envelope and ReCap round-trip"
+  ]
+}

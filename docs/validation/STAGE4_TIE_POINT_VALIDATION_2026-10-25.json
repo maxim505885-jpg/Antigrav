@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "title": "Manual tie-point coordinate validation",
+  "finding": "Mismatched coordinate dimensions were accepted by the request model; a ragged list reached NumPy array construction in the route and raised an unhandled ValueError.",
+  "change": "PointPair.source_point and PointPair.target_point now require exactly three coordinates at request validation. The API returns HTTP 422 for short or oversized point vectors before registration code runs.",
+  "test_first": {
+    "command": "scripts/run_pytest.ps1 backend/tests/test_manual_registration_svd.py",
+    "before_fix": "The malformed-dimension regression reproduced the unhandled ValueError; an earlier invalid-ID setup returned 404 before reaching the defect."
+  },
+  "verification": {
+    "command": "scripts/run_pytest.ps1 backend/tests/test_manual_registration_svd.py backend/tests/test_registration_api.py backend/tests/test_openapi_schema.py",
+    "exit_code": 0,
+    "result": "13 passed; 1 existing Starlette/httpx deprecation warning",
+    "covered": [
+      "two-coordinate and four-coordinate source tie points rejected",
+      "two-coordinate and four-coordinate target tie points rejected",
+      "manual Kabsch endpoint and coordinate frames",
+      "ICP registration endpoint contract",
+      "OpenAPI request schema"
+    ],
+    "latest_runner_cleanup": "Passed after fixing lazy S2B_DATA_DIR initialization; no temporary test run directory remained and no cleanup warning was emitted."
+  },
+  "live_after_restart": {
+    "active_jobs_before_restart": 0,
+    "health": "ok",
+    "openapi_source_point_min_items": 3,
+    "openapi_source_point_max_items": 3,
+    "malformed_pair_http_status": 422,
+    "production_ui_http_status": 200,
+    "database_path": "unchanged repository data directory"
+  },
+  "acceptance": {
+    "stage_4": "in_progress",
+    "reason": "This validates request shape only. Independent surveyed controls and RMSE below 10 mm remain unavailable.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

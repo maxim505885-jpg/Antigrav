@@ -1,0 +1,32 @@
+{
+  "checked_at_local": "2026-10-25T15:13:23+03:00",
+  "stage": 2,
+  "purpose": "Read-only confirmation of ReCap launch after the approved ODIS and Identity Manager repair.",
+  "environment": {
+    "windows": "Windows 10 build 19045",
+    "recap_version": "24.0.0.240",
+    "identity_manager_executable_present": true,
+    "recap_executable_present": true,
+    "c_free_bytes": 24835915776,
+    "c_free_gib": 23.13
+  },
+  "launch": {
+    "command": "C:/Program Files/Autodesk/Autodesk ReCap/ReCap.exe (no project argument)",
+    "process_id": 18172,
+    "exit_code": 1,
+    "main_window": false,
+    "recap_process_after_check": false,
+    "application_event_log_match": false,
+    "recent_recap_cer_report": false
+  },
+  "data_safety": {
+    "project_opened": false,
+    "faro_sources_opened_or_modified": false,
+    "project_database_modified": false
+  },
+  "acceptance": {
+    "stage_2": "open; ReCap GUI round-trip still unavailable and the 10.rcp declared point-count delta remains unexplained",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

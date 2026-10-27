@@ -1,0 +1,79 @@
+{
+  "date_utc": "2026-10-24T18:39:59.365995+00:00",
+  "purpose": "Live production API smoke for sequential two-station RCP batch ingestion using the original FARO RCS sources.",
+  "acceptance_scope": "Batch route only. The RCP manifest was synthetically assembled for this validation; this is not a real FARO/ReCap multi-node project, registration, or ReCap round-trip.",
+  "api_base": "http://127.0.0.1:8000",
+  "route": "POST /api/v1/projects/{project_id}/rcp/import-path",
+  "validation_project_id": "c4e75f3085e047f8bf9b0a1d11dde7e2",
+  "project_retained_for_review": true,
+  "job": {
+    "id": "baef5830f2eb453197d2dc06ed0900e3",
+    "type": "rcp_batch_ingest",
+    "status": "succeeded",
+    "duration_seconds": 572,
+    "node_count": 2,
+    "ready_count": 2,
+    "failed_count": 0,
+    "station_cloud_ids": [
+      "d1e2c6a193cd4d788c47e5868a54d4c4",
+      "3ae34c514a434bcfb691014b350993b6"
+    ]
+  },
+  "manifest": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\docs\\validation\\SYNTHETIC_TWO_SOURCE_RCP_BATCH_2026-10-24.rcp",
+    "sha256": "fd7b2f4f8407d9c0542d5d07dbca3b65a4a028b3d4f96201601d389ce5b8f3da",
+    "synthetic": true,
+    "node_count": 2
+  },
+  "stations": [
+    {
+      "node_name": "FARO 1.rcs",
+      "cloud_id": "d1e2c6a193cd4d788c47e5868a54d4c4",
+      "source_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+      "source_point_count": 297873927,
+      "stored_point_count": 1000000,
+      "status": "ready",
+      "has_rgb": true,
+      "positions_shape": [
+        1000000,
+        3
+      ],
+      "positions_dtype": "float32",
+      "colors_shape": [
+        1000000,
+        3
+      ],
+      "colors_dtype": "uint8",
+      "all_xyz_finite": true,
+      "source_size_bytes": 7196593757,
+      "source_mtime_ns": 1791897939956361000,
+      "source_sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+      "source_sha256_matches_previous_audit": true
+    },
+    {
+      "node_name": "FARO 2.rcs",
+      "cloud_id": "3ae34c514a434bcfb691014b350993b6",
+      "source_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\2.rcs",
+      "source_point_count": 574367742,
+      "stored_point_count": 1000000,
+      "status": "ready",
+      "has_rgb": true,
+      "positions_shape": [
+        1000000,
+        3
+      ],
+      "positions_dtype": "float32",
+      "colors_shape": [
+        1000000,
+        3
+      ],
+      "colors_dtype": "uint8",
+      "all_xyz_finite": true,
+      "source_size_bytes": 13906332111,
+      "source_mtime_ns": 1792142068232257900,
+      "source_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+      "source_sha256_matches_previous_audit": true
+    }
+  ],
+  "result": "PASS for live sequential batch route and independent post-import array/source verification. Stage 2 remains open."
+}

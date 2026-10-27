@@ -1,0 +1,27 @@
+{
+  "checked_at_local": "2026-10-25T20:18:47+03:00",
+  "stage": 7,
+  "method": "Read-only GET against the active local SCAN API",
+  "api_health": {
+    "status": "ok",
+    "api": "v1",
+    "auth_required": false
+  },
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+  "annotation_queue": {
+    "candidate_count": 376,
+    "states": {
+      "pending": 376
+    },
+    "nonempty_physical_label_fields": 0,
+    "history_entries": 0
+  },
+  "safety": {
+    "write_requests_sent": false,
+    "project_database_modified": false,
+    "source_cloud_modified": false
+  },
+  "acceptance": "Live annotation feature remains operational but there are no reviewer-entered physical labels or history to score; Stage 7 remains open."
+}

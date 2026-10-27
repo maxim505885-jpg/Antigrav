@@ -1,0 +1,216 @@
+{
+  "acceptance": {
+    "reason": "Independent physical-reference annotations and holdout evaluation are still required.",
+    "stage_6_closed": false
+  },
+  "audit_date": "2026-10-24",
+  "audit_type": "read_only_candidate_source_row_alignment",
+  "clouds": [
+    {
+      "candidate_count": 1482,
+      "candidate_status_counts": {
+        "consistent": 1479,
+        "mismatch": 0,
+        "unverifiable": 3
+      },
+      "cloud_id": "2621e5a320df49949d04aa1b7399539e",
+      "independent_annotation_counts": {
+        "column_annotations": 0,
+        "element_annotations": 0
+      },
+      "reason_counts_by_status": {
+        "consistent": {
+          "none": 1479
+        },
+        "unverifiable": {
+          "missing_source_point_ids": 3
+        }
+      },
+      "review_status_counts": {
+        "corrected": 2,
+        "rejected": 1,
+        "unreviewed": 1479
+      },
+      "source_file_name": "1.rcs",
+      "source_format": "rcs",
+      "source_rows_declared": 297873927,
+      "source_snapshot_counts": {
+        "current": 1479,
+        "missing": 3,
+        "stale": 0,
+        "unchecked": 0
+      },
+      "source_snapshot_id": "1f33ce3e3849387637294dc6dd1ebc52397d2bd01c2882778a7dd94641b05627",
+      "status_counts_by_class": {
+        "beam": {
+          "consistent": 761,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "brace": {
+          "consistent": 370,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "column": {
+          "consistent": 264,
+          "mismatch": 0,
+          "unverifiable": 3
+        },
+        "slab": {
+          "consistent": 8,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "truss": {
+          "consistent": 24,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "wall": {
+          "consistent": 52,
+          "mismatch": 0,
+          "unverifiable": 0
+        }
+      },
+      "stored_rows": 40000000
+    },
+    {
+      "candidate_count": 1684,
+      "candidate_status_counts": {
+        "consistent": 1684,
+        "mismatch": 0,
+        "unverifiable": 0
+      },
+      "cloud_id": "workshop_cloud",
+      "independent_annotation_counts": {
+        "column_annotations": 0,
+        "element_annotations": 0
+      },
+      "reason_counts_by_status": {
+        "consistent": {
+          "none": 1684
+        }
+      },
+      "review_status_counts": {
+        "unreviewed": 1684
+      },
+      "source_file_name": "unified_stitched_cloud.ply",
+      "source_format": "ply",
+      "source_rows_declared": 43500000,
+      "source_snapshot_counts": {
+        "current": 1684,
+        "missing": 0,
+        "stale": 0,
+        "unchecked": 0
+      },
+      "source_snapshot_id": "c9490803b1dbaced5d2bd7362b7edcbc313964c93df560405dac3f3e24608b06",
+      "status_counts_by_class": {
+        "beam": {
+          "consistent": 846,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "brace": {
+          "consistent": 378,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "column": {
+          "consistent": 376,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "slab": {
+          "consistent": 4,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "truss": {
+          "consistent": 22,
+          "mismatch": 0,
+          "unverifiable": 0
+        },
+        "wall": {
+          "consistent": 58,
+          "mismatch": 0,
+          "unverifiable": 0
+        }
+      },
+      "stored_rows": 43500000
+    },
+    {
+      "candidate_count": 641,
+      "candidate_status_counts": {
+        "consistent": 0,
+        "mismatch": 482,
+        "unverifiable": 159
+      },
+      "cloud_id": "workshop_cloud_01",
+      "independent_annotation_counts": {
+        "column_annotations": 0,
+        "element_annotations": 0
+      },
+      "reason_counts_by_status": {
+        "mismatch": {
+          "source_point_ids_bbox_mismatch": 176,
+          "source_point_ids_member_axis_mismatch": 306
+        },
+        "unverifiable": {
+          "missing_source_point_ids": 159
+        }
+      },
+      "review_status_counts": {
+        "unreviewed": 641
+      },
+      "source_file_name": "1.rcs",
+      "source_format": "rcs",
+      "source_rows_declared": 297873927,
+      "source_snapshot_counts": {
+        "current": 0,
+        "missing": 641,
+        "stale": 0,
+        "unchecked": 0
+      },
+      "source_snapshot_id": "bee0a3c800155c4e90ea0df1e14d5c4138fe0c5c95cd75b1447a65673aee36fc",
+      "status_counts_by_class": {
+        "beam": {
+          "consistent": 0,
+          "mismatch": 200,
+          "unverifiable": 0
+        },
+        "brace": {
+          "consistent": 0,
+          "mismatch": 282,
+          "unverifiable": 0
+        },
+        "column": {
+          "consistent": 0,
+          "mismatch": 0,
+          "unverifiable": 87
+        },
+        "slab": {
+          "consistent": 0,
+          "mismatch": 0,
+          "unverifiable": 4
+        },
+        "truss": {
+          "consistent": 0,
+          "mismatch": 0,
+          "unverifiable": 10
+        },
+        "wall": {
+          "consistent": 0,
+          "mismatch": 0,
+          "unverifiable": 58
+        }
+      },
+      "stored_rows": 40000000
+    }
+  ],
+  "database": "scan2bim.sqlite3",
+  "database_mode": "read_only",
+  "implementation": "backend/scan2bim/learning/store.py:inspect_source_point_alignment",
+  "interpretation": "Source-row alignment verifies point provenance only. It does not measure physical detection accuracy, independent labels, or engineering tolerance.",
+  "source_files_modified": false
+}

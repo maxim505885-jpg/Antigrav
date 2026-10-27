@@ -118,7 +118,7 @@ def supported_formats() -> dict[str, Any]:
         "project_containers": ["rcp"],
         "notes": {
             "rcs": "proprietary point data read via the installed Autodesk ReCap DLL in an isolated process",
-            "rcp": "ZIP/XML project manifest; import-path resolves a single linked RCS and preserves the station transform as metadata",
+            "rcp": "ZIP/XML project manifest; the project RCP batch-import route resolves all linked scan nodes as separate clouds and preserves station transforms as metadata",
             "e57": "pye57; all scans in the file are merged in world coordinates",
             "las/laz": "laspy + lazrs",
             "ply": "plyfile; vertex x/y/z and red/green/blue",
@@ -156,7 +156,8 @@ def rcs_guidance(path: str | Path) -> dict[str, Any]:
         "recap_path": str(RECAP_EXE),
         "converter_configured": bool(RCS_CONVERTER_CMD),
         "steps": [
-            "Если ReCap установлен: импортируйте .rcs напрямую; односкановый .rcp разрешается в связанный .rcs с сохранением метаданных проекта.",
+            "Для .rcp используйте пакетный импорт проекта: все связанные станции создаются отдельными облаками последовательно; исходные RCS остаются только для чтения.",
+            "Для отдельного .rcs при установленном ReCap доступно чтение через Autodesk DLL; трансформации RCP сохраняются как метаданные и не применяются автоматически.",
             "Если ReCap нет: откройте проект .rcp в ReCap и экспортируйте в E57 (или LAS) в полном разрешении.",
             "Импортируйте полученный .e57/.las в это приложение.",
             "Либо задайте S2B_RCS_CONVERTER с разрешённой командой конвертации и повторите импорт.",
@@ -184,16 +185,24 @@ def read_cloud(path: str | Path, max_points: int | None = None, progress: Progre
         from .rcs import convert_rcs
         from .rcs_native import native_available, read_rcs_native
 
+        native_error = None
         if native_available()["dll_exists"]:
             try:
                 return read_rcs_native(p, limit, progress=progress)
             except Exception as exc:  # fall through to the documented path
+                native_error = exc
                 if progress:
                     progress(0.01, f"native RCS reader unavailable ({exc}); using converter path")
 
         # 2) Documented, licensed conversion command (if the user configured one).
         converted = convert_rcs(p, progress=progress)
         if converted is None:
+            if native_error is not None:
+                raise RcsConversionRequired(
+                    p,
+                    f"Native Autodesk RCS reader failed: {native_error}. "
+                    f"{rcs_guidance(p)['summary']}",
+                ) from native_error
             raise RcsConversionRequired(p)
         return read_cloud(converted, max_points=limit, progress=progress)
 

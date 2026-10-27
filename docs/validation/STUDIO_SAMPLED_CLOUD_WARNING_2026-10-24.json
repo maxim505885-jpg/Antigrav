@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-24",
+  "url": "http://127.0.0.1:8000/",
+  "page_title": "Intelligent Scan-to-BIM · Инженерная среда",
+  "viewport": [1440, 900],
+  "production_build": true,
+  "temporary_qa_project_id": "workshop_project",
+  "temporary_qa_cloud_id": "workshop_cloud_02",
+  "observed_import_status": "3,500,000 из 576,820,490 точек · ПРОРЕЖЕНО · ready",
+  "observed_visible_warning": "В исходном RCS число точек по разным чтениям не совпадает: rcs_native_stream — 576,820,490, AdskRcExport.dll — 574,367,742 (разница 2,452,748; причина не установлена). В проекте хранится выборка из 3,500,000 точек, облако прорежено и не подходит для полноразмерной регистрации или точных чертежей.",
+  "accessibility": {
+    "sample_status_role": "status",
+    "warning_role": "alert",
+    "full_warning_available_as_title": true
+  },
+  "console_errors": 0,
+  "restored_default_project_view": true,
+  "result": "PASS: active production Studio clearly labels sampled point-cloud data and exposes the source-count discrepancy; temporary QA selection was removed afterward."
+}

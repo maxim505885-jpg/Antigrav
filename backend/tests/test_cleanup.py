@@ -98,6 +98,35 @@ def test_apply_cleanup_keeps_source_bytes_and_writes_meta(tmp_path: Path):
     assert np.all(np.isfinite(curvature))
 
 
+def test_apply_cleanup_centroid_voxel_mode_averages_geometry_and_colors(tmp_path: Path):
+    points = np.array(
+        [[0.01, 0.01, 0.01], [0.03, 0.03, 0.03], [0.11, 0.01, 0.01]],
+        dtype=np.float32,
+    )
+    colors = np.array([[10, 20, 30], [30, 40, 50], [100, 110, 120]], dtype=np.float32) / 255.0
+    source = tmp_path / "positions.npy"
+    colors_path = tmp_path / "colors.npy"
+    np.save(source, points)
+    np.save(colors_path, colors)
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    derived = tmp_path / "centroids"
+    result = apply_cleanup(
+        source,
+        derived,
+        "voxel",
+        {"voxel_m": 0.1, "voxel_mode": "centroid", "estimate_normals": False},
+        colors_path=colors_path,
+    )
+
+    assert result["stats"]["voxel_mode"] == "centroid"
+    assert result["stats"]["compute_backend"] in {"cpu", "cuda"}
+    assert result["output_count"] == 2
+    assert np.allclose(np.load(derived / "positions.npy"), [[0.02, 0.02, 0.02], [0.11, 0.01, 0.01]])
+    assert np.array_equal(np.load(derived / "colors.npy"), [[20, 30, 40], [100, 110, 120]])
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_hash
+
+
 def test_apply_cleanup_drops_non_finite_points(tmp_path: Path):
     points = np.array(
         [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [np.nan, 0.0, 0.0]], dtype=np.float32
@@ -161,6 +190,21 @@ def test_cleanup_api_creates_and_downloads_derived_cloud(client):
 
     cloud_after = client.get(f"/api/v1/clouds/{cloud['id']}").json()
     assert cloud_after["ingested_count"] == source_count
+
+
+def test_cleanup_api_runs_centroid_voxel_mode(client):
+    demo = client.post("/api/v1/demo")
+    cloud = wait_cloud(client, demo.json()["cloud"]["id"])
+    response = client.post(
+        f"/api/v1/clouds/{cloud['id']}/cleanup",
+        json={"method": "voxel", "voxel_m": 0.3, "voxel_mode": "centroid"},
+    )
+    assert response.status_code == 200, response.text
+    done = wait_job(client, response.json()["id"])
+    assert done["status"] == "succeeded", done.get("error")
+    assert done["result"]["stats"]["voxel_mode"] == "centroid"
+    assert done["result"]["stats"]["compute_backend"] in {"cpu", "cuda"}
+    assert done["result"]["output_count"] > 0
 
 
 def test_cleanup_api_rejects_unknown_derived_id(client):

@@ -246,6 +246,25 @@ def test_rcs_is_refused_with_guidance(tmp_path: Path):
     assert any("E57" in step for step in guidance["steps"])
 
 
+def test_rcs_native_failure_is_preserved_when_converter_is_unavailable(monkeypatch, tmp_path: Path):
+    path = tmp_path / "scan.rcs"
+    path.write_bytes(b"ADOCT" + b"\x00" * 64)
+
+    monkeypatch.setattr(
+        "scan2bim.formats.rcs_native.native_available",
+        lambda: {"dll_exists": True, "dll_path": "fake.dll"},
+    )
+
+    def fail_native(*args, **kwargs):
+        raise RuntimeError("native RCS worker failed: synthetic fixture detail")
+
+    monkeypatch.setattr("scan2bim.formats.rcs_native.read_rcs_native", fail_native)
+    monkeypatch.setattr("scan2bim.formats.rcs.convert_rcs", lambda *args, **kwargs: None)
+
+    with pytest.raises(RcsConversionRequired, match="native RCS worker failed: synthetic fixture detail"):
+        read_cloud(path)
+
+
 def test_e57_reader_roundtrip(tmp_path: Path):
     """E57 is a listed format; prove the reader on a file we actually wrote."""
     pye57 = pytest.importorskip("pye57")

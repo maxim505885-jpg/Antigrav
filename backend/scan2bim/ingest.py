@@ -72,8 +72,23 @@ def _write_json_durable(path: Path, value: object) -> None:
 def _preview_indices(count: int, target: int) -> np.ndarray | None:
     if target <= 0 or count <= target:
         return None
-    idx = np.random.default_rng(20240517).choice(count, size=target, replace=False)
-    idx.sort()
+    # NumPy's choice(..., replace=False) selects its tail-shuffle path when
+    # target > population / 50; that allocates an int64 index vector as large
+    # as the source. At the default 2.5M preview and the 40M ingest cap this is
+    # about 320 MB. Billion-point RCS streams instead use NumPy's Floyd path,
+    # which is also O(target) but maintains a large hash table. Pick one
+    # deterministic random point from each equal-width source interval instead:
+    # O(target) output, temporary buffers bounded to sample_chunk, and evenly
+    # covered source row ranges.
+    rng = np.random.default_rng(20240517)
+    scale = count / target
+    idx = np.empty(target, dtype=np.int64)
+    sample_chunk = 500_000
+    for start in range(0, target, sample_chunk):
+        end = min(target, start + sample_chunk)
+        bins = np.arange(start, end, dtype=np.float64)
+        offsets = rng.random(end - start)
+        idx[start:end] = ((bins + offsets) * scale).astype(np.int64)
     return idx
 
 
@@ -222,6 +237,29 @@ def _finalize_checkpoint(
     manifest: dict[str, Any],
     progress=None,
 ) -> dict[str, Any]:
+    cloud = manifest["cloud"]
+    existing = one("SELECT metadata_json FROM clouds WHERE id = ?", (cloud_id,)) or {}
+    try:
+        existing_metadata = json.loads(existing.get("metadata_json") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        existing_metadata = {}
+    # Import options and source-project provenance are recorded before the
+    # worker starts. Preserve them in the checkpoint package itself so the
+    # cloud never becomes visible as ready before those fields are committed.
+    metadata = {**existing_metadata, **cloud.get("metadata", {})}
+    if metadata != cloud.get("metadata", {}):
+        cloud["metadata"] = metadata
+        meta_record = manifest["files"].get("meta")
+        if meta_record is not None:
+            staged_meta = stage_dir / meta_record["name"]
+            meta_target = staged_meta if staged_meta.is_file() else paths["meta"]
+            write_json_atomic(meta_target, metadata)
+            manifest["files"]["meta"] = {
+                "name": meta_record["name"],
+                **_file_record(meta_target),
+            }
+            _write_json_durable(stage_dir / "manifest.json", manifest)
+
     if progress:
         progress(0.98, "checkpoint ready; finalizing")
     for key, record in manifest["files"].items():
@@ -234,7 +272,6 @@ def _finalize_checkpoint(
         destination.parent.mkdir(parents=True, exist_ok=True)
         os.replace(staged, destination)
 
-    cloud = manifest["cloud"]
     now = utcnow()
     execute(
         """UPDATE clouds SET
@@ -274,20 +311,35 @@ def _ingest_full_rcs_stream(
         raise ValueError("RCS stream contains no points")
     raw_xyz_path = Path(raw["xyz_path"])
     raw_rgb_path = Path(raw["rgb_path"])
-    raw_xyz = np.memmap(raw_xyz_path, mode="r", dtype="<f8", shape=(source_count, 3))
+    raw_xyz_dtype = np.dtype(raw.get("xyz_dtype", "<f8"))
+    block_local_coordinates = bool(raw.get("block_local_coordinates"))
+    raw_xyz = np.memmap(raw_xyz_path, mode="r", dtype=raw_xyz_dtype, shape=(source_count, 3))
     raw_rgb = np.memmap(raw_rgb_path, mode="r", dtype="u1", shape=(source_count, 3))
-    chunk_size = 500_000
+    raw_blocks = list(raw.get("blocks") or [])
+    if not raw_blocks:
+        fallback_block_size = 500_000
+        raw_blocks = [
+            {"points": min(fallback_block_size, source_count - start), "origin": [0.0, 0.0, 0.0]}
+            for start in range(0, source_count, fallback_block_size)
+        ]
     bbox_min = np.full(3, np.inf, dtype=np.float64)
     bbox_max = np.full(3, -np.inf, dtype=np.float64)
     valid_count = 0
-    for start in range(0, source_count, chunk_size):
-        chunk = np.asarray(raw_xyz[start : start + chunk_size])
+    source_start = 0
+    for block in raw_blocks:
+        source_end = source_start + int(block["points"])
+        chunk = np.asarray(raw_xyz[source_start:source_end], dtype=np.float64)
+        if block_local_coordinates:
+            chunk = chunk + np.asarray(block["origin"], dtype=np.float64)
         finite = np.isfinite(chunk).all(axis=1)
         if finite.any():
             valid = chunk[finite]
             bbox_min = np.minimum(bbox_min, valid.min(axis=0))
             bbox_max = np.maximum(bbox_max, valid.max(axis=0))
             valid_count += int(finite.sum())
+        source_start = source_end
+    if source_start != source_count:
+        raise RuntimeError("RCS block metadata does not match its point count")
     if valid_count == 0:
         raise ValueError("RCS stream contains no finite XYZ points")
     derived_bytes = valid_count * (3 * np.dtype("<f4").itemsize + 3 * np.dtype("u1").itemsize)
@@ -317,18 +369,22 @@ def _ingest_full_rcs_stream(
         staged_files["colors"], mode="w+", dtype="u1", shape=(valid_count, 3)
     )
     out_start = 0
-    for start in range(0, source_count, chunk_size):
-        end = min(source_count, start + chunk_size)
-        xyz_chunk = np.asarray(raw_xyz[start:end])
+    source_start = 0
+    for block in raw_blocks:
+        source_end = source_start + int(block["points"])
+        xyz_chunk = np.asarray(raw_xyz[source_start:source_end], dtype=np.float64)
+        if block_local_coordinates:
+            xyz_chunk = xyz_chunk + np.asarray(block["origin"], dtype=np.float64)
         finite = np.isfinite(xyz_chunk).all(axis=1)
         count = int(finite.sum())
         if count:
             out_end = out_start + count
             positions[out_start:out_end] = (xyz_chunk[finite] - origin).astype(np.float32)
-            colors[out_start:out_end] = raw_rgb[start:end][finite]
+            colors[out_start:out_end] = raw_rgb[source_start:source_end][finite]
             out_start = out_end
         if progress:
-            progress(0.62 + 0.28 * (end / source_count), "writing full-resolution RCS points")
+            progress(0.62 + 0.28 * (source_end / source_count), "writing full-resolution RCS points")
+        source_start = source_end
     positions.flush()
     colors.flush()
     raw_xyz._mmap.close()
@@ -1210,7 +1266,18 @@ def ingest_cloud(
     cloud_id: str,
     source_path: Path,
     progress=None,
+    max_points: int | None = None,
 ) -> dict[str, Any]:
+    point_limit = MAX_INGEST_POINTS if max_points is None else max_points
+    if point_limit < 0:
+        raise ValueError("max_points must be zero (full resolution) or a positive limit")
+    if point_limit == 0 and source_path.suffix.lower() not in {
+        ".rcs", ".e57", ".las", ".laz", ".pts", ".xyz", ".txt", ".csv", ".pcd", ".ply",
+    }:
+        raise ValueError(
+            "Полный импорт без прореживания пока поддерживается для потоковых форматов "
+            "RCS, E57, LAS/LAZ, PTS/XYZ/TXT/CSV, PCD и PLY."
+        )
     paths = cloud_paths(project_id, cloud_id)
     paths["dir"].mkdir(parents=True, exist_ok=True)
     stage_dir = paths["dir"] / ".ingest-stage"
@@ -1220,14 +1287,14 @@ def ingest_cloud(
 
     full_rcs_stream = (
         source_path.suffix.lower() == ".rcs"
-        and MAX_INGEST_POINTS == 0
+        and point_limit == 0
         and native_available()["dll_exists"]
     )
-    full_e57_stream = source_path.suffix.lower() == ".e57" and MAX_INGEST_POINTS == 0
-    full_las_stream = source_path.suffix.lower() in {".las", ".laz"} and MAX_INGEST_POINTS == 0
-    full_text_stream = source_path.suffix.lower() in {".pts", ".xyz", ".txt", ".csv"} and MAX_INGEST_POINTS == 0
-    full_pcd_stream = source_path.suffix.lower() == ".pcd" and MAX_INGEST_POINTS == 0
-    full_ply_stream = source_path.suffix.lower() == ".ply" and MAX_INGEST_POINTS == 0
+    full_e57_stream = source_path.suffix.lower() == ".e57" and point_limit == 0
+    full_las_stream = source_path.suffix.lower() in {".las", ".laz"} and point_limit == 0
+    full_text_stream = source_path.suffix.lower() in {".pts", ".xyz", ".txt", ".csv"} and point_limit == 0
+    full_pcd_stream = source_path.suffix.lower() == ".pcd" and point_limit == 0
+    full_ply_stream = source_path.suffix.lower() == ".ply" and point_limit == 0
     preserve_raw_stream = full_rcs_stream and (stage_dir / "raw" / "stream.json").is_file()
     preserve_e57_stream = full_e57_stream and (stage_dir / "e57-write-checkpoint.json").is_file()
     preserve_las_stream = full_las_stream and (stage_dir / "las-write-checkpoint.json").is_file()
@@ -1281,7 +1348,7 @@ def ingest_cloud(
     # decode and again before committing, including sources larger than 2 GiB.
     source_checksum = sha256_file(source_path)
     source_identity = {**source_identity, "sha256": source_checksum}
-    raw = read_cloud(source_path, max_points=MAX_INGEST_POINTS, progress=progress)
+    raw = read_cloud(source_path, max_points=point_limit, progress=progress)
     if len(raw.xyz) == 0:
         raise ValueError("облако точек не содержит точек")
 
@@ -1319,8 +1386,7 @@ def ingest_cloud(
     if decimated:
         warning = (
             f"В источнике ~{source_count:,} точек, в проект загружено {len(local):,} "
-            f"(S2B_MAX_INGEST_POINTS={MAX_INGEST_POINTS:,}). Увеличьте лимит или "
-            "конвертируйте в LAS/E57 для работы в полном разрешении."
+            f"(лимит точек: {point_limit:,}). Выберите полный импорт или задайте больший лимит."
         )
 
     checksum = source_checksum

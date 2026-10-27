@@ -1,0 +1,12 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 2,
+  "purpose": "Review the high-risk RCP path resolver, native RCS stream import, restart/cancel handling, API bind guard and release-bundle checks.",
+  "test_command": ".venv/Scripts/python.exe -m pytest backend/tests/test_rcp_manifest.py backend/tests/test_rcs_streaming_ingest.py backend/tests/test_ingest_restart.py backend/tests/test_jobs.py backend/tests/test_server_bind_security.py backend/tests/test_release_bundle.py -q",
+  "result": "passed",
+  "exit_code": 0,
+  "test_scope": ["rcp manifest/path resolution", "RCS streaming ingestion", "ingest and job restart", "job cancellation/outcomes", "server bind/API auth", "release bundle"],
+  "environment": { "pytest_temp_root": "isolated Windows TEMP test directory", "production_database_used": false, "original_faro_sources_modified": false },
+  "review": { "source_areas": ["backend/scan2bim/formats/rcp_manifest.py", "backend/scan2bim/formats/rcs_native.py", "backend/scan2bim/ingest.py", "backend/scan2bim/jobs.py", "backend/scan2bim/api/app.py"], "actionable_regression_found": false, "scope": "focused review of current high-risk import and job changes; not a whole-repository audit" },
+  "acceptance": { "stage_2": "in_progress", "overall_closed_stages": "3/12", "stage_6": "parked until final pass" }
+}

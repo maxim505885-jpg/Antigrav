@@ -13,6 +13,15 @@ export interface ColumnTypeProposal {
   status: "proposed";
 }
 
+export interface RcpImportBatch {
+  project_id: string;
+  project_file: string;
+  project_sha256: string;
+  import_job_id: string;
+  node_count: number;
+  stations: { node_id: string | null; node_name: string; cloud: import("./types").Cloud }[];
+}
+
 export interface ConfirmedColumnType {
   id: string;
   mark: string;
@@ -176,7 +185,7 @@ export interface ColumnSurfaceTrackAnalysisResponse {
     dimensions_by_height_m: { z_m: number; side_lengths_m: number[] }[];
     profile_variation_status: string;
   };
-  excluded_tracks: { track_id: string; reason: string }[];
+  excluded_tracks: { track_id: string; reason: string; detail_reasons?: string[] }[];
   confirmed: false;
   review_required: true;
   engineering_status: "not_assessed";
@@ -232,6 +241,49 @@ export interface TrainingSample {
   split: string;
   source: string;
   created_at: string;
+}
+
+export interface LearningManifestPreview {
+  schema_version: 1;
+  project_id: string;
+  manifest_sha256: string;
+  eligible_sample_count: number;
+  class_counts: Record<string, number>;
+  excluded_sample_counts: Record<string, number>;
+  training_started: false;
+  model_activated: false;
+}
+
+export interface LearningManifestExportResult {
+  manifest_sha256: string;
+  relative_path: string;
+  eligible_sample_count: number;
+  training_started: false;
+  model_activated: false;
+}
+
+export interface ProjectColumnReferenceTypes {
+  schema: "scan.column-reference-types/1";
+  project_id: string;
+  annotation_origin: "independent_manual";
+  tolerance_status: "not_applied";
+  current_column_cloud_count: number;
+  reviewed_column_cloud_count: number;
+  labeled_annotation_count: number;
+  unique_physical_instance_count: number;
+  groups: Array<{
+    type_label: string;
+    physical_instance_count: number;
+    physical_instance_ids: string[];
+    source_cloud_ids: string[];
+    measurement_count: number;
+    measurement_sources: string[];
+    measured_sides_range_m: {
+      long: { min: number; max: number } | null;
+      short: { min: number; max: number } | null;
+    };
+  }>;
+  conflicts: Array<{ physical_instance_id: string; type_labels: string[]; source_cloud_ids: string[] }>;
 }
 
 export interface ColumnAnnotationDataset {
@@ -419,6 +471,23 @@ async function download(path: string, method: "GET" | "POST" = "POST", fallback 
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+export type CloudExportFormat = "e57" | "las" | "laz" | "ply" | "xyz";
+
+export interface CloudExportMeta {
+  export_id: string;
+  cloud_id: string;
+  format: CloudExportFormat;
+  point_count: number;
+  size_bytes: number;
+  has_color: boolean;
+  has_intensity: boolean;
+  verified: boolean;
+  max_deviation_m?: number;
+  tolerance_m?: number;
+  elapsed_s?: number;
+  path?: string;
+}
+
 export interface DerivedCloud {
   derived_id: string;
   method: "statistical" | "radius" | "voxel" | string;
@@ -427,6 +496,7 @@ export interface DerivedCloud {
   removed_count: number;
   has_colors: boolean;
   duration_s: number;
+  stats?: { voxel_mode?: "representative" | "centroid"; compute_backend?: "cpu" | "cuda" };
   created_at?: string;
 }
 
@@ -438,11 +508,21 @@ export interface RegistrationPointPair {
 
 export interface PairAlignResponse {
   status: string;
+  accuracy_status: "not_measured";
+  independent_control_count: number;
+  fit_residuals_are_independent: boolean;
   method: string;
   source_cloud_id: string;
   target_cloud_id: string;
   pairs_count: number;
   matrix_4x4: number[][];
+  world_matrix_4x4: number[][] | null;
+  coordinate_frame: {
+    matrix_4x4: "stored_local_source_to_stored_local_target";
+    world_matrix_4x4: "source_world_to_target_world" | null;
+    source_origin_world_m: number[] | null;
+    target_origin_world_m: number[] | null;
+  };
   rotation_3x3: number[][];
   translation: number[];
   rmse_mm: number;
@@ -459,10 +539,148 @@ export interface PairAlignResponse {
   icp_warning?: string;
 }
 
+export interface RegistrationControlEvaluationResponse {
+  status: "controls_evaluated";
+  accuracy_status: "independent_controls_measured";
+  independent_control_count: number;
+  independence_attested_by_user: true;
+  fit_residuals_are_independent: true;
+  acceptance_rmse_mm: number;
+  rmse_mm: number;
+  max_error_mm: number;
+  p95_error_mm: number;
+  criterion_passed: boolean;
+  residuals_mm: number[];
+  source_cloud_id: string;
+  target_cloud_id: string;
+  matrix_4x4: number[][];
+  world_matrix_4x4: number[][] | null;
+  coordinate_frame: PairAlignResponse["coordinate_frame"];
+  control_details: Array<{
+    label: string;
+    source: number[];
+    target: number[];
+    residual_mm: number;
+  }>;
+}
+
+export interface StationRegistrationProposal {
+  id: string;
+  project_id: string;
+  source_station_id: string;
+  target_station_id: string;
+  source_station_name: string;
+  target_station_name: string;
+  method: "rigid_icp" | "manual_kabsch" | "manual_kabsch_icp";
+  matrix_4x4: number[][];
+  world_matrix_4x4: number[][] | null;
+  fit_rmse_mm: number | null;
+  independent_control_count: number;
+  control_rmse_mm: number | null;
+  acceptance_rmse_mm: number | null;
+  status: "proposed" | "verified";
+  matrix_applied: boolean;
+  rcp_updated: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StationPhotoMeta {
+  file: string;
+  source: "photo";
+  is_photograph: true;
+  original_filename: string | null;
+  format: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  sha256: string;
+  projection: "equirectangular";
+  yaw_offset_deg: number;
+  station_id: string;
+  uploaded_at: string;
+}
+
+export interface StationCloudPanoramaMeta {
+  cache_key: string;
+  station_id: string;
+  source: "point_cloud";
+  is_photograph: false;
+  width: number;
+  height: number;
+  max_range_m: number;
+  anchor: number[];
+  anchor_kind: string;
+  anchor_note: string;
+  coverage: number;
+  rendered_points: number;
+  source_points: number;
+  stride: number;
+  color_source: "cloud_rgb" | "height_ramp";
+  rendered_at: string;
+}
+
+export interface StationPanoramaSummary {
+  station_id: string;
+  name: string;
+  point_count: number;
+  station_source: "station_row_ranges" | "cloud";
+  anchor: number[];
+  anchor_kind: string;
+  bbox_min: number[];
+  bbox_max: number[];
+  photo: StationPhotoMeta | null;
+  has_photo: boolean;
+  cloud_panorama: StationCloudPanoramaMeta | null;
+  has_cloud_panorama: boolean;
+  panorama_url: string;
+  measure_supported: boolean;
+}
+
+export interface StationListResponse {
+  cloud_id: string;
+  count: number;
+  stations: StationPanoramaSummary[];
+}
+
+export interface PanoramaPick {
+  resolved: boolean;
+  u: number;
+  v: number;
+  pixel?: number[];
+  point?: number[];
+  point_local?: number[];
+  distance_m?: number;
+  lateral_precision_m?: number;
+  angular_resolution_deg?: number[];
+  depth_source?: "point_cloud";
+  stable?: boolean;
+  stability?: "continuous_surface" | "depth_discontinuity";
+  depth_spread_m?: number;
+  max_depth_gap_m?: number;
+  stability_tolerance_m?: number;
+  reason?: string;
+}
+
+export interface PanoramaMeasureResult {
+  resolved: true;
+  distance_m: number;
+  distance_mm: number;
+  precision_mm: number;
+  depth_source: "point_cloud";
+  a: PanoramaPick;
+  b: PanoramaPick;
+  station_id: string;
+  reliable?: boolean;
+  warning?: string;
+  unstable_endpoints?: string[];
+}
+
 export const api = {
   health: () => request<{ status: string; version: string; auth_required: boolean }>("/health"),
 
   listProjects: () => request<Project[]>("/projects"),
+  projectJobs: (projectId: string) => request<Job[]>(`/projects/${encodeURIComponent(projectId)}/jobs`),
   createProject: (name: string, description = "") =>
     request<Project>("/projects", {
       method: "POST",
@@ -470,15 +688,21 @@ export const api = {
     }),
   deleteProject: (id: string) => request<{ deleted: string }>(`/projects/${id}`, { method: "DELETE" }),
 
-  importPath: (projectId: string, path: string, name?: string) =>
+  importPath: (projectId: string, path: string, name?: string, maxPoints?: number) =>
     request<Cloud>(`/projects/${projectId}/clouds/import-path`, {
       method: "POST",
-      body: JSON.stringify({ path, name }),
+      body: JSON.stringify({ path, name, max_points: maxPoints }),
     }),
-  uploadCloud: async (projectId: string, file: File, name?: string) => {
+  importRcpPath: (projectId: string, path: string, namePrefix?: string, maxPoints?: number) =>
+    request<RcpImportBatch>(`/projects/${encodeURIComponent(projectId)}/rcp/import-path`, {
+      method: "POST",
+      body: JSON.stringify({ path, name_prefix: namePrefix, max_points: maxPoints }),
+    }),
+  uploadCloud: async (projectId: string, file: File, name?: string, maxPoints?: number) => {
     const form = new FormData();
     form.append("file", file);
     if (name) form.append("name", name);
+    if (maxPoints !== undefined) form.append("max_points", String(maxPoints));
     const response = await fetch(`${BASE}/projects/${projectId}/clouds/upload`, {
       method: "POST",
       body: form,
@@ -496,6 +720,67 @@ export const api = {
   getCloud: (id: string) => request<Cloud>(`/clouds/${id}`),
   resumeImport: (id: string) => request<Cloud>(`/clouds/${encodeURIComponent(id)}/resume`, { method: "POST" }),
   previewUrl: (id: string) => `${BASE}/clouds/${id}/preview`,
+  listStations: (cloudId: string) =>
+    request<StationListResponse>(`/clouds/${encodeURIComponent(cloudId)}/stations`),
+  ensureStationPanorama: (
+    cloudId: string,
+    stationId: string,
+    params: { width?: number; height?: number; maxRangeM?: number } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (params.width !== undefined) query.set("width", String(params.width));
+    if (params.height !== undefined) query.set("height", String(params.height));
+    if (params.maxRangeM !== undefined) query.set("max_range_m", String(params.maxRangeM));
+    return request<
+      | { status: "ready"; panorama: StationCloudPanoramaMeta }
+      | { status: "queued"; job: Job }
+    >(
+      `/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/panorama/render${
+        query.size ? `?${query.toString()}` : ""
+      }`,
+      { method: "POST" },
+    );
+  },
+  stationPanoramaUrl: (
+    cloudId: string,
+    stationId: string,
+    options: { source?: "auto" | "photo" | "cloud"; version?: string } = {},
+  ) => {
+    const params = new URLSearchParams({ source: options.source ?? "auto" });
+    if (options.version) params.set("v", options.version);
+    return `${BASE}/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/panorama?${params.toString()}`;
+  },
+  uploadStationPhoto: async (cloudId: string, stationId: string, file: File, yawOffsetDeg = 0) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("yaw_offset_deg", String(yawOffsetDeg));
+    const response = await fetch(
+      `${BASE}/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/photo`,
+      { method: "POST", body: form },
+    );
+    if (!response.ok) {
+      const detail = await response.json().catch(() => response.statusText);
+      const error = new Error(JSON.stringify(detail?.detail ?? detail));
+      (error as any).detail = detail;
+      throw error;
+    }
+    return (await response.json()) as { status: string; station_id: string; photo: StationPhotoMeta };
+  },
+  deleteStationPhoto: (cloudId: string, stationId: string) =>
+    request<{ status: string; station_id: string }>(
+      `/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/photo`,
+      { method: "DELETE" },
+    ),
+  measureOnStation: (cloudId: string, stationId: string, a: { u: number; v: number }, b: { u: number; v: number }) =>
+    request<PanoramaMeasureResult>(
+      `/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/measure`,
+      { method: "POST", body: JSON.stringify({ a, b }) },
+    ),
+  pickOnStation: (cloudId: string, stationId: string, point: { u: number; v: number }) =>
+    request<PanoramaPick>(
+      `/clouds/${encodeURIComponent(cloudId)}/stations/${encodeURIComponent(stationId)}/pick`,
+      { method: "POST", body: JSON.stringify(point) },
+    ),
   getLodManifest: (cloudId: string) =>
     request<LodManifest>(`/clouds/${encodeURIComponent(cloudId)}/lod/manifest`),
   lodBinaryUrl: (cloudId: string, level: number) =>
@@ -534,8 +819,62 @@ export const api = {
         apply_icp_refinement: applyIcpRefinement,
       }),
     }),
+  evaluateRegistrationControls: (
+    sourceCloudId: string,
+    targetCloudId: string,
+    matrix4x4: number[][],
+    controls: RegistrationPointPair[],
+    independentOfFit: boolean,
+    acceptanceRmseMm = 10,
+  ) =>
+    request<RegistrationControlEvaluationResponse>("/registration/evaluate-controls", {
+      method: "POST",
+      body: JSON.stringify({
+        source_cloud_id: sourceCloudId,
+        target_cloud_id: targetCloudId,
+        matrix_4x4: matrix4x4,
+        controls,
+        independent_of_fit: independentOfFit,
+        acceptance_rmse_mm: acceptanceRmseMm,
+      }),
+    }),
+  listStationRegistrations: (projectId: string) =>
+    request<{ project_id: string; items: StationRegistrationProposal[] }>(
+      `/projects/${encodeURIComponent(projectId)}/station-registrations`,
+    ),
+  saveStationRegistration: (
+    projectId: string,
+    payload: {
+      source_station_id: string;
+      target_station_id: string;
+      method: StationRegistrationProposal["method"];
+      matrix_4x4: number[][];
+      world_matrix_4x4: number[][] | null;
+      fit_rmse_mm: number | null;
+    },
+  ) => request<{ status: "proposed"; accuracy_status: "not_measured"; message: string; item: StationRegistrationProposal }>(
+    `/projects/${encodeURIComponent(projectId)}/station-registrations`,
+    { method: "POST", body: JSON.stringify(payload) },
+  ),
   derivedClouds: (cloudId: string) =>
     request<DerivedCloud[]>(`/clouds/${cloudId}/derived`),
+  exportCloud: (cloudId: string, format: CloudExportFormat, options: { derivedId?: string | null; verify?: boolean } = {}) =>
+    request<Job>(`/clouds/${encodeURIComponent(cloudId)}/export`, {
+      method: "POST",
+      body: JSON.stringify({
+        format,
+        derived_id: options.derivedId ?? null,
+        verify: options.verify ?? true,
+      }),
+    }),
+  cloudExports: (cloudId: string) =>
+    request<CloudExportMeta[]>(`/clouds/${encodeURIComponent(cloudId)}/exports`),
+  downloadCloudExport: (cloudId: string, exportId: string, format: CloudExportFormat) =>
+    download(
+      `/clouds/${encodeURIComponent(cloudId)}/exports/${encodeURIComponent(exportId)}/download`,
+      "GET",
+      `cloud.${format}`,
+    ),
   downloadDerived: (cloudId: string, derivedId: string, format: "ply" | "xyz" | "npy") =>
     download(
       `/clouds/${cloudId}/derived/${encodeURIComponent(derivedId)}/download?format=${format}`,
@@ -544,6 +883,8 @@ export const api = {
     ),
   elements: (cloudId: string) => request<Element[]>(`/clouds/${cloudId}/elements`),
   columnTypes: (cloudId: string) => request<ColumnTypesResponse>(`/clouds/${encodeURIComponent(cloudId)}/column-types`),
+  projectColumnReferenceTypes: (projectId: string) =>
+    request<ProjectColumnReferenceTypes>(`/projects/${encodeURIComponent(projectId)}/column-reference-types`),
   columnAnnotations: (cloudId: string) =>
     request<ColumnAnnotationDataset>(`/clouds/${encodeURIComponent(cloudId)}/column-annotations`),
   columnAnnotationHistory: (cloudId: string) =>
@@ -636,6 +977,13 @@ export const api = {
     download(`/clouds/${encodeURIComponent(cloudId)}/spds-album.pdf`, "GET", "ALBUM_RD_KR_KM_SPDS.pdf"),
 
   samples: (projectId: string) => request<TrainingSample[]>(`/projects/${projectId}/samples`),
+  learningManifestPreview: (projectId: string) =>
+    request<LearningManifestPreview>(`/projects/${encodeURIComponent(projectId)}/learning-manifest/preview`),
+  exportLearningManifest: (projectId: string, manifestSha256: string) =>
+    request<LearningManifestExportResult>(`/projects/${encodeURIComponent(projectId)}/learning-manifests/export`, {
+      method: "POST",
+      body: JSON.stringify({ confirmed: true, expected_manifest_sha256: manifestSha256 }),
+    }),
   train: (projectId: string, payload: Record<string, unknown>) =>
     request<ModelInfo>(`/projects/${projectId}/train`, {
       method: "POST",
@@ -670,7 +1018,13 @@ export const api = {
       rotation: number[][];
       translation: number[];
       matrix_4x4: number[][];
+      world_matrix_4x4: number[][] | null;
+      coordinate_frame: PairAlignResponse["coordinate_frame"];
       rmse_mm: number | null;
+      inlier_count: number;
+      source_sample_count: number;
+      target_sample_count: number;
+      inlier_fraction: number;
       iterations: number;
       converged: boolean;
     }>("/registration/match", {
@@ -695,11 +1049,15 @@ export const api = {
   exportNativeRecapProject: (projectName: string, stations: Array<{ name: string; path: string; point_count?: number }>) =>
     request<{
       status: "created_by_autodesk_decap";
+      project_verified: boolean;
       package_verified: boolean;
       rcp_path: string;
       support_dir: string;
       input_scan_count: number;
+      rcp_node_count: number;
       linked_rcs_count: number;
+      external_rcs_count: number;
+      external_rcs_paths: string[];
       rcp_size_bytes: number;
       linked_rcs_size_bytes: number;
     }>("/registration/export-rcp-project", {

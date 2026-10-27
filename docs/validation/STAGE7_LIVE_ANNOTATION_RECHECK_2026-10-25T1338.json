@@ -1,0 +1,26 @@
+{
+  "recorded_at_local": "2026-10-25T13:38:50+03:00",
+  "stage": 7,
+  "method": "Read-only GET requests to the currently running local Studio API at 127.0.0.1:8000.",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "current_snapshot": {
+    "column_candidates": 376,
+    "column_states": { "pending": 376, "labeled": 0, "rejected": 0 },
+    "column_annotation_history": 0,
+    "all_element_candidates": 1684,
+    "all_element_states": { "pending": 1684, "labeled": 0, "rejected": 0 },
+    "element_annotation_history": 0,
+    "labeled_physical_column_instances": 0,
+    "reviewed_column_clouds": 0
+  },
+  "api": { "health": "ok", "project_count": 12 },
+  "writes_performed": false,
+  "faro_sources_modified": false,
+  "acceptance": {
+    "stage_7": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass",
+    "remaining": ["operator physical labels and instance IDs", "independent holdout", "measured review and learning metrics"]
+  }
+}

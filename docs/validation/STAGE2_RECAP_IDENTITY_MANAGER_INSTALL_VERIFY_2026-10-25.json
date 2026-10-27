@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Verify Autodesk Identity Manager repair and ReCap launch against the isolated two-station sample RCP",
+  "installer": {
+    "product": "Autodesk Identity Manager",
+    "version": "1.21.1.5",
+    "official_source": "https://up1.autodesk.com/Windows/1.21.1.5/AdskIdentityManager-UCT-Installer.exe",
+    "size_bytes": 220700072,
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA",
+    "authenticode": "Valid",
+    "signer": "Autodesk, Inc."
+  },
+  "installation": {
+    "user_uac_action": "Approved",
+    "odis_summary": "INSTALLED",
+    "odis_installer_exit_code": 0,
+    "install_started": "2026-10-25T09:07:31+03:00",
+    "install_completed": "2026-10-25T09:07:51+03:00",
+    "installbuilder_exit_code": 0,
+    "reported_install_path": "C:/Program Files/Autodesk/AdskIdentityManager/1.21.1.5",
+    "reported_current_junction": "C:/Program Files/Autodesk/AdskIdentityManager/Current",
+    "post_install_executable_present": false,
+    "post_install_registry_path_present": false,
+    "temp_extraction_removed_bytes": 235607676,
+    "lifecycle_diagnosis": {
+      "installed_successfully": true,
+      "subsequently_uninstalled": true,
+      "uninstall_started": "2026-10-25T09:07:53.936+03:00",
+      "uninstall_completed": "2026-10-25T09:08:04.619+03:00",
+      "initiator_observed": "Autodesk ODIS Install Manager",
+      "logged_uninstall_command": "C:/Program Files/Autodesk/AdskIdentityManager/uninstall.exe --mode unattended",
+      "odis_reason": "Package appeared in dangling-packages cleanup; ODIS logged install count 0 across BundleAppPackage, PackageDependencies and UpdateBundlePackage; original launch trigger was not recorded.",
+      "recap_registration": "ReCap 2024 is registered in ODIS, but its bundle manifest does not declare Identity Manager as an explicit dependency.",
+      "confidence": "ODIS-driven uninstall is directly logged; why ODIS classified the package as dangling and which upstream request began the cleanup remain unresolved."
+    }
+  },
+  "recap": {
+    "product": "Autodesk ReCap 2024 (24.0.0.240)",
+    "test_rcp": "C:/Users/maxim/.codex/visualizations/2026/10/21/01a15bf8-9fe1-7a11-973a-78493d211b69/scan_recap_pilot_20261024/deCap_output/SCAN_FARO_two_scan_pilot_20261024/SCAN_FARO_two_scan_pilot_20261024.rcp",
+    "test_rcp_size_bytes": 2202,
+    "launch_exit_code": 1,
+    "main_window_opened": false,
+    "test_rcp_opened": false,
+    "diagnostics": [
+      "ReCap cannot obtain AdskIdentityManager path from registry (error 2).",
+      "IDSDKVersionCompatibility.config not found; no compatible client plugin resolved.",
+      "ReCap process exits before opening a window.",
+      "ODIS Install.log confirms it ran the Identity Manager uninstaller as a dangling-package cleanup 2 seconds after install completion."
+    ],
+    "autodesk_recap_log_updated": false
+  },
+  "storage": {
+    "c_free_bytes": 90447872,
+    "c_free_gib": 0.084,
+    "full_rcp_estimated_bytes": 14782617889,
+    "full_rcp_estimated_gib": 13.767,
+    "deficit_bytes": 13529680161,
+    "deficit_gib": 12.6,
+    "r_drive": "unavailable_access_denied",
+    "full_import_started": false,
+    "observed_at": "2026-10-25T09:38:55+03:00",
+    "note": "Read-only recheck after the browser download and validation work; still below the observed installer extraction requirement."
+  },
+  "safety": {
+    "faro_source_modified": false,
+    "project_database_modified": false,
+    "rcp_sample_modified": false,
+    "only_autodesk_system_install_attempted": true
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "reason": "Identity Manager 1.21.1.5 installed under approved UAC, then ODIS removed it as a dangling package with zero dependency counts. Official Autodesk standalone UCT installer is downloaded and verified (Autodesk signature valid; SHA-256 matches), but not run because C: has only 86.3 MiB free. ReCap sample launch and full RCP remain unverified.",
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass",
+    "next_action": "Free at least 1 GiB on C: or provide an accessible volume with sufficient installation headroom; then run the verified standalone UCT installer outside ODIS cleanup, check file/registry persistence, and launch the small RCP sample. Full 10.rcp import separately requires about 13.8 GiB free on the configured data volume."
+  },
+  "standalone_installer_download": {
+    "official_url": "https://up1.autodesk.com/Windows/1.21.1.5/AdskIdentityManager-UCT-Installer.exe",
+    "local_temp_path": "C:/Users/maxim/AppData/Local/Temp/playwright-artifacts-UaEl5j/57bc40cb-9d11-4459-9d81-35dc25b660e1",
+    "size_bytes": 220700072,
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA",
+    "authenticode": "Valid",
+    "signer": "Autodesk, Inc.",
+    "not_run_reason": "C: had 90447872 bytes (86.3 MiB) free; prior ODIS extraction used about 235 MB, so installation was deferred pending safe disk headroom."
+  }
+}

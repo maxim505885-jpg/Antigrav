@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { columnAnnotationQueueStats, nextPendingColumn } from "./columnAnnotationQueue.ts";
+import { columnAnnotationQueueStats, nextPendingColumn, upsertColumnAnnotation } from "./columnAnnotationQueue.ts";
 import type { ColumnAnnotation } from "./api.ts";
 import type { Element } from "./types.ts";
 
@@ -31,4 +31,18 @@ test("queue treats a missing annotation as pending and never reselects the curre
   const columns = [column("a"), column("b")];
   assert.equal(nextPendingColumn(columns, [annotation("a", "labeled")], "a")?.id, "b");
   assert.equal(nextPendingColumn(columns, [], "a")?.id, "b");
+});
+
+test("saving a first review adds it to progress, while a revision replaces the prior state", () => {
+  const columns = [column("a"), column("b")];
+  const first = upsertColumnAnnotation([], annotation("a", "labeled"));
+  assert.deepEqual(columnAnnotationQueueStats(columns, first), {
+    total: 2, reviewed: 1, pending: 1, labeled: 1, unknown: 0, excluded: 0,
+  });
+
+  const revised = upsertColumnAnnotation(first, annotation("a", "unknown"));
+  assert.deepEqual(revised, [annotation("a", "unknown")]);
+  assert.deepEqual(columnAnnotationQueueStats(columns, revised), {
+    total: 2, reviewed: 1, pending: 1, labeled: 0, unknown: 1, excluded: 0,
+  });
 });

@@ -1,0 +1,33 @@
+{
+  "stage": 7,
+  "date": "2026-10-25",
+  "change": "Remember reviewer name per cloud in active frontend session and reuse it when switching candidates.",
+  "behavior": {
+    "scope": "in-memory frontend session",
+    "cloud_isolation": true,
+    "saved_annotation_name_precedence": true,
+    "blank_name_clears_session_default": true,
+    "annotation_data_saved": false
+  },
+  "tests": {
+    "frontend_reviewer_session_regressions": 3,
+    "frontend_suite": "passed",
+    "typescript": "passed",
+    "production_build": "passed"
+  },
+  "live_browser_check": {
+    "url": "http://127.0.0.1:8000/",
+    "cloud": "workshop_cloud",
+    "action": "Entered a temporary reviewer name, switched between two pending candidates, and verified the name remained in the form.",
+    "annotation_write": "not performed",
+    "annotation_reads": "GET list/history returned 200",
+    "console_errors": 0
+  },
+  "acceptance": {
+    "stage_7": "open",
+    "reason": "No independently verified physical labels or leakage-safe field holdout metrics are available.",
+    "project_stages_accepted": 3,
+    "project_stages_total": 12
+  },
+  "user_order": "Stage 6 remains deferred until all other stages have been worked through."
+}

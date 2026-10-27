@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-26",
+  "stage": 11,
+  "status": "partial acceptance; Stage 11 remains open",
+  "change": {
+    "worker_task": "panorama_render",
+    "api": "POST /api/v1/clouds/{cloud_id}/stations/{station_id}/panorama/render",
+    "behavior": [
+      "returns a valid cached panorama immediately",
+      "reuses an active job with the same cloud, station, and render settings",
+      "persists a serializable task for the headless worker",
+      "reports monotonic progress while streaming station points in blocks",
+      "Studio viewer polls the job and displays progress before requesting the rendered image"
+    ],
+    "legacy_image_get": "retained for compatibility"
+  },
+  "verification": {
+    "live_local_api": {
+      "health": "HTTP 200 / ok",
+      "cloud": "workshop_cloud (43.5 million points)",
+      "stations": "HTTP 200; one cloud station; streaming renderer cache already present",
+      "cached_render_request": "POST returned status=ready with the existing 2048x1024 streaming cache"
+    },
+    "live_worker_render": {
+      "cloud": "workshop_cloud, existing derived PLY, 43,500,000 points",
+      "request": "POST /api/v1/clouds/workshop_cloud/stations/cloud/panorama/render?width=1024&height=512",
+      "job_status": "succeeded",
+      "progress": 1.0,
+      "renderer": "streaming",
+      "points_examined": 43500000,
+      "station_points": 43500000,
+      "coverage": 0.720773696899414,
+      "image_get": "HTTP 200 image/png, 1,097,280 bytes",
+      "source_scan_files_modified": false
+    },
+    "backend_focused": {
+      "command": "pytest backend/tests/test_station_panorama.py backend/tests/test_station_panorama_api.py",
+      "passed": 38,
+      "failed": 0,
+      "covers": [
+        "stream block progress reaches 1.0 monotonically",
+        "queue request and duplicate request reuse the same job",
+        "headless worker completes rendering and persists cache",
+        "subsequent request returns ready cache"
+      ]
+    },
+    "frontend": {
+      "tests": "npm test exited 0",
+      "typescript": "npx tsc -b exited 0",
+      "production_build": "npm run build passed; Vite 6.4.4 transformed 1,983 modules"
+    }
+  },
+  "acceptance_limits": [
+    "CUDA voxel and normal-estimation acceleration not verified on CUDA-capable hardware",
+    "multi-host deployment with shared PostgreSQL, broker, and object storage not configured or verified",
+    "multi-hundred-million-point native FARO scan was not re-rendered; the 43.5-million-point derived PLY station completed end to end",
+    "Stage 11 remains open"
+  ],
+  "data_safety": "Tests used synthetic clouds in an isolated temporary data root; production project database and FARO source scans were not used."
+}

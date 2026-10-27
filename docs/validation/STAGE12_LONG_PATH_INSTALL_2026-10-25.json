@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "title": "Long-path install after excluding duplicate base Python packages",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 177078930,
+    "sha256": "E06A0CA913D4628BB63B47AD1582668CB322F0629B11AF9BD39DAE7F413F41EF",
+    "supersedes_sha256": "01E263844C106AF95022FD2B754A9377600DF532117C0B8E95FA51A125BEA2A3",
+    "installer_compiler": "Inno Setup 6.7.3"
+  },
+  "change": {
+    "file": "installer/scan_studio_setup.iss",
+    "excluded": "Python313\\Lib\\site-packages\\* from the base runtime",
+    "reason": "The relocated venv has include-system-site-packages=false and already carries runtime dependencies in its own site-packages; copying global packages duplicated dependencies and produced paths beyond MAX_PATH."
+  },
+  "verification": {
+    "red_test": "backend/tests/test_release_bundle.py failed before the exclusion was added",
+    "green_test": "backend/tests/test_release_bundle.py: 1 passed",
+    "release_preflight": "scripts/verify_release_bundle.py passed; 4 production UI assets found",
+    "inno_compile_exit_code": 0,
+    "deep_install_root_characters": 110,
+    "deep_install_exit_code": 0,
+    "installer_log_error_206_count": 0,
+    "base_site_packages_files_copied": 0,
+    "runtime_smoke": {
+      "health_status": 200,
+      "ui_status": 200,
+      "python_paths_relocated": true,
+      "bytecode_files": 0,
+      "data_isolated_under_temp": true
+    },
+    "uninstall_exit_code": 0,
+    "uninstall_record_removed": true,
+    "install_directory_removed": true
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "remaining": "Native desktop window, clean independent Windows 11 acceptance, Authenticode signature and user acceptance.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Record the exact-artifact install attempt for the separate A1 renderer candidate without treating it as accepted",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "staging_path": "data/output/workshop_release/installer_a1_rebuild_20261025/SCAN_Studio_Windows11_Setup_20261025_A1.exe",
+    "size_bytes": 170031677,
+    "sha256": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+    "authenticode": "NotSigned",
+    "release_preflight": "passed",
+    "promoted_to_release_output": true,
+    "previous_release_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre_a1_candidate_20261025.exe",
+    "previous_release_sha256": "8F785525F34B546C0F213049FCD6931AB96F0ACC7891F1D89A702BD171182FA4"
+  },
+  "host": {
+    "windows_build": "10.0.19045",
+    "clean_windows_11": false
+  },
+  "install_attempt": {
+    "target": "unique temporary directory under %TEMP%",
+    "setup_exit_code": 4,
+    "installer_log": "%TEMP%/scan-a1-verify-683a262170b446c496f07ad87f520ef8.log",
+    "observed": "Setup began extracting files, then the setup process launched an uninstall/rollback and removed the temporary tree before the smoke script could start.",
+    "cause_recheck": "The same artifact installed successfully when run with the required sandbox escalation to permit temporary HKCU uninstall registration; the failed un-escalated attempt is attributed to the execution sandbox, not the installer payload.",
+    "runtime_smoke": {
+      "result": "passed",
+      "script": "scripts/smoke_installed_bundle.ps1",
+      "python_source_manifest": "exact match; zero missing, unexpected, or mismatched files",
+      "frontend_assets_and_registration_template": "matched source build",
+      "api_health_http": 200,
+      "production_ui_http": 200,
+      "remote_protected_api_without_key_http": 401,
+      "python_bytecode_files": 0,
+      "data_directory_isolated_under_temp": true,
+      "developer_data_and_dependency_tests_in_bundle": "absent"
+    }
+  },
+  "elevated_acceptance_recheck": {
+    "setup_exit_code": 0,
+    "smoke_exit_code": 0,
+    "uninstall_exit_code": 0,
+    "temporary_install_removed": true,
+    "uninstall_registration_remaining": false,
+    "production_database_modified": false,
+    "faro_sources_modified": false
+  },
+  "safety": {
+    "production_database_modified": false,
+    "faro_sources_modified": false,
+    "existing_scan_install_overwritten": false,
+    "temporary_install_remaining": false,
+    "uninstall_registration_remaining": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "candidate_package_accepted": true,
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

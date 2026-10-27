@@ -1,0 +1,19 @@
+{
+  "stage": 12,
+  "checked_on": "2026-10-25",
+  "artifact": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+  "artifact_sha256": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+  "authenticode_status": "NotSigned",
+  "signer_present": false,
+  "code_signing_certificates_with_private_key": {
+    "current_user_my": 0,
+    "local_machine_my": 0
+  },
+  "signtool": {
+    "found_on_path": false,
+    "found_in_windows_kit_default_bin": false
+  },
+  "result": "blocked_on_signing_credentials_and_tooling",
+  "decision": "Do not claim signing acceptance. Do not modify or replace the current release artifact.",
+  "source_faro_data_modified": false
+}

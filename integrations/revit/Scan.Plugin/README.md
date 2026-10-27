@@ -1,9 +1,16 @@
 # SCAN Revit 2027 add-in
 
 The add-in imports `scan2bim.bim/1.0` JSON in metres. It creates or updates
-columns and linear members as Revit `DirectShape` solids and reuses levels at
-matching elevations. SCAN element IDs are stored as `ApplicationDataId` and in
-the instance Comments parameter, so a second import updates the existing shape.
+columns, linear members and polygonal slabs as Revit `DirectShape` geometry
+(slabs use the `Floors` category), and reuses levels at matching elevations.
+Members without a verified positive section are imported as centerline curves,
+with `GEOMETRY=AXIS_ONLY; SECTION=UNKNOWN` in Comments; the importer does not
+invent a cross-section. Truss envelope rows are skipped because they are not
+truss solids; the observed member rows remain individual line geometry.
+Slab elevation is interpreted as the center plane and the extrusion starts at
+`z - thickness/2`, matching the IFC export convention. SCAN element IDs are
+stored as `ApplicationDataId` and in the instance Comments parameter, so a
+second import updates the existing shape.
 New exports identify `source_cloud_world` coordinates, metres and a Z vertical
 axis. The importer validates that frame when present and rejects duplicate or
 empty element IDs before opening a Revit transaction. Older 1.0 files without
@@ -35,6 +42,13 @@ command under the current Windows user's Revit 2027 AddIns folder. Restart
 Revit, use **Add-Ins → External Tools → Импорт SCAN BIM JSON**, and select a
 JSON file exported by SCAN. Review the model in a disposable RVT first; the
 add-in has compiled, but has not yet been loaded into Revit in this workspace.
+
+The add-in also provides **Сверить модель с исходником**. After importing and
+saving the RVT, close and reopen it, run this command, select the same BIM JSON,
+and save the audit report. A passing report checks unique SCAN IDs, expected
+Revit categories, and the source/review/dimension provenance stored on every
+element. It deliberately flags geometric visual review as still required; it
+does not claim measured geometric accuracy.
 
 For a deterministic repeat-import, absent-ID preservation and rollback check,
 use the synthetic fixtures in `integrations/revit/pilot/` and follow

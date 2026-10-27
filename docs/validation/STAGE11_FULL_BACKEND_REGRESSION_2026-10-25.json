@@ -1,0 +1,40 @@
+{
+  "recorded_at_local": "2026-10-25T15:01:00+03:00",
+  "stage": 11,
+  "scope": "Full backend regression after persistent worker gained recognition, cleanup, and cloud export handlers",
+  "result": {
+    "collected": 808,
+    "passed": 808,
+    "failed": 0,
+    "warnings": [
+      "Existing Starlette/httpx TestClient deprecation warning"
+    ]
+  },
+  "command": "python -m pytest backend/tests -q -p no:tmpdir -p no:cacheprovider -p tmp_fixture_plugin --tb=short",
+  "environment": {
+    "python": "project .venv, Python 3.13",
+    "data_root": "isolated short path inside repository: .t-suite-recognition-full",
+    "pytest_tmp_path": "A temporary fixture plugin rooted tmp_path under S2B_DATA_DIR because Windows denied access to pytest's default temp directory.",
+    "cache_plugin": "disabled for sandbox compatibility"
+  },
+  "first_attempts_and_resolution": [
+    "An initial full run exposed a too-long isolated data path in one manifest export test; moving to a short data root made that test pass.",
+    "AutoCAD Core Console exceeded its existing 20-second timeout under full-suite load; the converter test passed when rerun by itself, and it also passed in the final full-suite run."
+  ],
+  "data_safety": {
+    "isolated_test_database": true,
+    "production_database_used": false,
+    "original_faro_sources_opened": false,
+    "original_faro_sources_modified": false
+  },
+  "acceptance_limits": [
+    "This establishes backend regression only; it does not close Stage 11.",
+    "The worker queue is still single-host SQLite; multi-host queue/storage and CUDA execution remain unaccepted.",
+    "Native Autodesk GUI acceptance and field calibration criteria in other stages remain open."
+  ],
+  "overall_acceptance": {
+    "closed_stages": "3/12",
+    "stage_11": "in_progress",
+    "stage_6_order": "parked until final pass"
+  }
+}

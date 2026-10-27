@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "check": "runway column support uses measured oriented column footprint",
+  "change": "For oriented_box column hypotheses with finite positive length/thickness and rotation_z, runway support extents are projected from the measured oriented rectangle and its measured center onto beam direction and normal. Legacy candidates without valid oriented dimensions keep the AABB fallback.",
+  "regression": "Synthetic cases reject two offset columns whose oriented footprints miss a diagonal beam strip, and confirm that footprint positioning uses its measured center rather than an outlier-shifted AABB center.",
+  "verification": {
+    "command": ".venv/Scripts/python.exe -m pytest backend/tests/test_runway_context.py backend/tests/test_steel.py backend/tests/test_beam_source_lineage.py backend/tests/test_recognition_evaluation.py backend/tests/test_recognition_evaluation_api.py -q",
+    "result": "88 focused tests passed; full backend suite reached 100% with no failures in pytest output",
+    "warnings": [
+      "Existing Starlette/httpx deprecation warning"
+    ]
+  },
+  "live_data_mutation": false,
+  "physical_labels_added": 0,
+  "stage_acceptance": "open: independent physical labels, leakage-safe holdout, and an agreed engineering tolerance are still required",
+  "overall_acceptance": "3/12"
+}

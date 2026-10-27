@@ -14,6 +14,23 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
+from .rcp_manifest import RcpManifestError, read_rcp_manifest
+
+RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES = 1024**3
+
+
+class InsufficientStorageError(RuntimeError):
+    def __init__(self, *, available_bytes: int, required_bytes: int, source_bytes: int):
+        self.available_bytes = available_bytes
+        self.required_bytes = required_bytes
+        self.source_bytes = source_bytes
+        super().__init__(
+            f"Insufficient free disk space for a non-destructive ReCap project copy "
+            f"(available {available_bytes} bytes; at least {required_bytes} bytes required "
+            f"for {source_bytes} bytes of station sources plus a "
+            f"{RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES}-byte reserve)"
+        )
+
 
 def find_decap() -> Path | None:
     configured = os.environ.get("S2B_DECAP_EXE")
@@ -83,6 +100,15 @@ def create_recap_project(output_root: Path, project_name: str,
         raise FileNotFoundError("DeCap.exe was not found; install Autodesk ReCap Pro or set S2B_DECAP_EXE")
     output_root = Path(output_root).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
+    source_bytes = sum(path.stat().st_size for path in inputs)
+    required_bytes = source_bytes + RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES
+    available_bytes = shutil.disk_usage(output_root).free
+    if available_bytes < required_bytes:
+        raise InsufficientStorageError(
+            available_bytes=available_bytes,
+            required_bytes=required_bytes,
+            source_bytes=source_bytes,
+        )
     staging = _new_staging_dir(output_root, ".s2b_decap_")
     command = [
         str(decap), "--importWithLicense", _decap_compatible_path(staging),
@@ -123,14 +149,45 @@ def create_recap_project(output_root: Path, project_name: str,
         shutil.rmtree(staging, ignore_errors=True)
         raise RuntimeError(f"DeCap did not produce a complete RCP bundle (exit {result.returncode}, failed scans {failed_scans}): {result.stdout[-2000:]} {result.stderr[-2000:]}")
     linked_scans = list(support.rglob("*.rcs"))
-    if not linked_scans:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise RuntimeError("DeCap created no linked RCS scans in the Support folder")
     package_files = [rcp, *linked_scans]
     empty_files = [str(path.relative_to(staging)) for path in package_files if path.stat().st_size == 0]
     if empty_files:
         shutil.rmtree(staging, ignore_errors=True)
         raise RuntimeError(f"DeCap created empty files in the RCP bundle: {', '.join(empty_files)}")
+    try:
+        manifest = read_rcp_manifest(rcp)
+    except RcpManifestError as exc:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise RuntimeError(f"DeCap created an unreadable RCP project: {exc}") from exc
+    if len(manifest["nodes"]) < len(inputs):
+        shutil.rmtree(staging, ignore_errors=True)
+        raise RuntimeError(
+            f"DeCap RCP contains {len(manifest['nodes'])} scan nodes for {len(inputs)} input stations"
+        )
+
+    known_source_paths = {str(path.resolve()).casefold() for path in inputs}
+    known_linked_paths = {str(path.resolve()).casefold() for path in linked_scans}
+    external_paths: set[str] = set()
+    unresolved_nodes: list[str] = []
+    unexpected_paths: list[str] = []
+    for node in manifest["nodes"]:
+        resolved = node["resolved_rcs_path"]
+        if not resolved:
+            unresolved_nodes.append(node["name"])
+            continue
+        key = str(Path(resolved).resolve()).casefold()
+        if key in known_source_paths:
+            external_paths.add(str(Path(resolved).resolve()))
+        elif key not in known_linked_paths:
+            unexpected_paths.append(resolved)
+    if unresolved_nodes or unexpected_paths:
+        diagnostics = (
+            f"DeCap exit={result.returncode}; unresolved nodes={unresolved_nodes}; "
+            f"unexpected paths={unexpected_paths}; stdout={result.stdout[-1200:]!r}; "
+            f"stderr={result.stderr[-1200:]!r}"
+        )
+        shutil.rmtree(staging, ignore_errors=True)
+        raise RuntimeError(f"DeCap RCP has unresolved station sources ({diagnostics})")
     destination = output_root / project_name
     if destination.exists():
         shutil.rmtree(staging, ignore_errors=True)
@@ -148,14 +205,37 @@ def create_recap_project(output_root: Path, project_name: str,
         shutil.rmtree(staging, ignore_errors=True)
         raise
     shutil.rmtree(staging, ignore_errors=True)
+    try:
+        final_manifest = read_rcp_manifest(final_rcp)
+    except RcpManifestError as exc:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise RuntimeError(f"Moved ReCap project failed manifest verification: {exc}") from exc
+    if len(final_manifest["nodes"]) != len(manifest["nodes"]) or any(
+        not node["resolved_rcs_path"] for node in final_manifest["nodes"]
+    ):
+        shutil.rmtree(destination, ignore_errors=True)
+        raise RuntimeError("Moved ReCap project lost one or more linked station sources")
+    final_linked_scans = list(final_support.rglob("*.rcs"))
     return {
         "status": "created_by_autodesk_decap",
-        "package_verified": True,
+        "project_verified": True,
+        "package_verified": not external_paths,
         "rcp_path": str(final_rcp),
         "support_dir": str(final_support),
         "input_scan_count": len(inputs),
-        "linked_rcs_count": len(linked_scans),
+        "rcp_node_count": len(final_manifest["nodes"]),
+        "linked_rcs_count": len(final_linked_scans),
+        "external_rcs_count": len(external_paths),
+        "external_rcs_paths": sorted(external_paths),
         "rcp_size_bytes": final_rcp.stat().st_size,
         "linked_rcs_size_bytes": sum(path.stat().st_size for path in final_support.rglob("*.rcs")),
+        "disk_preflight": {
+            "status": "passed",
+            "source_bytes": source_bytes,
+            "required_free_bytes": required_bytes,
+            "available_free_bytes": available_bytes,
+            "reserve_bytes": RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES,
+            "estimate_is_conservative": True,
+        },
         "decap_output": result.stdout[-4000:],
     }

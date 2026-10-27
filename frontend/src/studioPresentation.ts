@@ -21,6 +21,26 @@ export function cloudPointCoverage(cloud: CloudPointMetadata) {
   };
 }
 
+export function rcpDeclaredCountWarning(metadata: Record<string, unknown> | null | undefined, existingWarning?: string | null): string | null {
+  const recapProject = metadata?.recap_project;
+  if (!recapProject || typeof recapProject !== "object") return null;
+  const selectedNode = (recapProject as Record<string, unknown>).selected_node;
+  if (!selectedNode || typeof selectedNode !== "object") return null;
+
+  const declared = Number((selectedNode as Record<string, unknown>).declared_point_count);
+  const actual = Number((recapProject as Record<string, unknown>).actual_source_point_count);
+  if (!Number.isSafeInteger(declared) || !Number.isSafeInteger(actual) || declared <= 0 || actual <= 0 || declared === actual) {
+    return null;
+  }
+
+  const format = (count: number) => count.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ");
+  if (existingWarning && /RCP/i.test(existingWarning) && /манифест/i.test(existingWarning) && /разниц|расхожд/i.test(existingWarning)) {
+    const mentionedCounts = new Set((existingWarning.match(/\d[\d,.\s\u00a0\u202f]*/g) || []).map((value) => value.replace(/\D/g, "")));
+    if (mentionedCounts.has(String(declared)) && mentionedCounts.has(String(actual))) return null;
+  }
+  return `Манифест RCP: ${format(declared)} точек; связанный RCS: ${format(actual)}. Расхождение: ${format(Math.abs(declared - actual))} точек; число из манифеста не подтверждено.`;
+}
+
 export function scannerModelLabel(cloud: { metadata?: Record<string, any> } | null | undefined): string {
   const metadata = cloud?.metadata || {};
   const sensor = metadata.sensor && typeof metadata.sensor === "object" ? metadata.sensor : {};

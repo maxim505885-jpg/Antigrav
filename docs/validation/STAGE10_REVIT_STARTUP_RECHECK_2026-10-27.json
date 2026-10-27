@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-27",
+  "stage": 10,
+  "application": "Autodesk Revit 2027.0.2 (build 20260417_1515)",
+  "test": "empty Revit startup to verify registered SCAN add-in load",
+  "addin_manifest": "%APPDATA%/Autodesk/Revit/Addins/2027/SCAN.StructuralModel.addin",
+  "candidate_assembly": "data/.tools/scan-revit-audit-candidate/Scan.Revit.Plugin.dll",
+  "candidate_sha256": "F0EF6C780942B847C8FDB5B0007C98F7B458FC3D706BBBFA64295D87A31C94F4",
+  "outcome": "not accepted",
+  "observations": {
+    "process_started": true,
+    "process_responded": true,
+    "main_window_title": "",
+    "journal_path": "%LOCALAPPDATA%/Autodesk/Revit/Autodesk Revit 2027/Journals/journal.0021.txt",
+    "journal_last_timestamp": "2026-10-26 23:54:38.504",
+    "journal_last_entry": "manage licensing",
+    "journal_contains": ["License initialization complete", "idsdk_init fails #3005"],
+    "journal_stopped_growing": true,
+    "document_opened": false,
+    "computer_use_capture": "timed out twice; no screenshot or plugin UI confirmation"
+  },
+  "cleanup": "Only the Revit 2027 process started for this empty-startup test was stopped after the journal stopped growing; no model was open.",
+  "result": "The registered add-in assembly was not confirmed loaded. Revit startup/license initialization must reach the application workspace before import/save/reopen acceptance can run.",
+  "stage_status": "Stage 10 remains open"
+}

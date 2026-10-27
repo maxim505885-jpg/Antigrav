@@ -96,6 +96,41 @@ def test_rigid_icp_uses_reproducible_unique_sample_indices():
     assert first["rmse_mm"] == second["rmse_mm"]
 
 
+def test_rigid_icp_preserves_supplied_initial_pose():
+    rng = np.random.default_rng(31)
+    target = rng.uniform(-2.0, 2.0, size=(1200, 3))
+    angle = np.deg2rad(37.0)
+    rotation = np.array([
+        [np.cos(angle), -np.sin(angle), 0.0],
+        [np.sin(angle), np.cos(angle), 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    translation = np.array([12.0, -8.0, 3.0])
+    source = (rotation.T @ (target - translation).T).T
+    initial = np.eye(4)
+    initial[:3, :3] = rotation
+    initial[:3, 3] = translation
+
+    result = rigid_icp(source, target, initial_t4x4=initial, sample_size=1000)
+
+    assert result["converged"] is True
+    assert result["inlier_fraction"] > 0.99
+    assert result["rmse_mm"] < 0.01
+    np.testing.assert_allclose(result["matrix_4x4"], initial, atol=1e-8)
+
+
+@pytest.mark.parametrize("initial", [
+    np.eye(3),
+    np.full((4, 4), np.nan),
+    np.diag([2.0, 1.0, 1.0, 1.0]),
+    np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0]], dtype=float),
+])
+def test_rigid_icp_rejects_invalid_initial_pose(initial):
+    points = np.random.default_rng(32).uniform(-1.0, 1.0, size=(100, 3))
+    with pytest.raises(ValueError, match="initial_t4x4"):
+        rigid_icp(points, points, initial_t4x4=initial)
+
+
 def test_full_resolution_station_gate_accepts_complete_matching_source():
     validate_full_resolution_station(
         "station_01", 1000, 1000, complete=True, decimated=False,

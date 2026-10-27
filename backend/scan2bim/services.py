@@ -131,21 +131,14 @@ def _restore_element_state(element_id: str, state: dict[str, Any]) -> dict[str, 
 
 
 def list_elements(cloud_id: str) -> list[dict[str, Any]]:
-    # Invalidated synthetic catalog rows remain in SQLite for audit, but must
-    # never appear as live candidates or leak into downstream model exports.
+    # Elements are station-scoped. Invalidated synthetic catalog rows remain
+    # in SQLite for audit, but neither they nor another cloud's candidates may
+    # appear in this cloud's live list or downstream model exports.
     invalidated_source = "invalidated_synthetic_ground_truth"
-    els = [element_from_row(r) for r in rows(
+    return [element_from_row(r) for r in rows(
         "SELECT * FROM elements WHERE cloud_id = ? AND source != ? ORDER BY class_name, id",
         (cloud_id, invalidated_source),
     )]
-    if not els:
-        c_row = one("SELECT project_id FROM clouds WHERE id = ?", (cloud_id,))
-        if c_row:
-            els = [element_from_row(r) for r in rows(
-                "SELECT * FROM elements WHERE project_id = ? AND source != ? ORDER BY class_name, id",
-                (c_row["project_id"], invalidated_source),
-            )]
-    return els
 
 
 def _update_element(element_id: str, updates: dict[str, Any]) -> dict[str, Any]:

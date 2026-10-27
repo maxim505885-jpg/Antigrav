@@ -143,6 +143,17 @@ def _read_colors(path: Path | None, count: int) -> np.ndarray | None:
     return colors
 
 
+def _colors_to_uint8(colors: np.ndarray) -> np.ndarray:
+    rgb = np.asarray(colors)
+    if rgb.dtype == np.uint8:
+        return rgb
+    if rgb.size == 0:
+        return np.empty(rgb.shape, dtype=np.uint8)
+    if rgb.max() <= 1.0:
+        rgb = rgb * 255.0
+    return np.clip(rgb, 0, 255).astype(np.uint8)
+
+
 def write_ply(positions: np.ndarray, colors: np.ndarray | None, out_path: Path) -> Path:
     """Write a binary little-endian PLY (x,y,z float32, optional RGB uchar)."""
     positions = np.asarray(positions, dtype=np.float32)
@@ -195,6 +206,9 @@ def apply_cleanup(
         raise CleanupError(f"unknown cleanup method: {method}")
     params = dict(params or {})
     started = time.perf_counter()
+    voxel_mode = str(params.get("voxel_mode", "representative"))
+    if method != "voxel" and voxel_mode != "representative":
+        raise CleanupError("voxel_mode is available only for voxel cleanup")
 
     positions = np.load(positions_path, mmap_mode="r")
     if positions.ndim != 2 or positions.shape[1] != 3:
@@ -212,6 +226,8 @@ def apply_cleanup(
     _notify(progress, 0.15, "проверка координат")
 
     stats: dict[str, Any]
+    derived_positions: np.ndarray | None = None
+    derived_colors: np.ndarray | None = None
     if method == "statistical":
         keep, stats = statistical_outlier_mask(
             finite_points,
@@ -229,14 +245,44 @@ def apply_cleanup(
         )
         indices = finite_indices[keep]
     else:
-        local, stats = voxel_downsample_indices(
-            finite_points, float(params.get("voxel_m", 0.05)), progress=progress
-        )
-        indices = finite_indices[local]
+        if voxel_mode == "centroid":
+            from .gpu_voxel import voxel_compute_backend, voxel_downsample_accelerated
+
+            source_colors = _read_colors(colors_path, total)
+            finite_colors = (
+                _colors_to_uint8(source_colors[finite_indices])
+                if source_colors is not None
+                else None
+            )
+            _notify(progress, 0.35, "усреднение точек по вокселям")
+            derived_positions, derived_colors = voxel_downsample_accelerated(
+                finite_points,
+                float(params.get("voxel_m", 0.05)),
+                finite_colors,
+            )
+            indices = np.empty(0, dtype=np.int64)
+            stats = {
+                "voxel_m": float(params.get("voxel_m", 0.05)),
+                "voxels": int(len(derived_positions)),
+                "voxel_mode": voxel_mode,
+                "compute_backend": voxel_compute_backend(),
+            }
+        elif voxel_mode == "representative":
+            local, stats = voxel_downsample_indices(
+                finite_points, float(params.get("voxel_m", 0.05)), progress=progress
+            )
+            indices = finite_indices[local]
+            stats["voxel_mode"] = voxel_mode
+            stats["compute_backend"] = "cpu"
+        else:
+            raise CleanupError("voxel_mode must be 'representative' or 'centroid'")
 
     _notify(progress, 0.9, "запись производного облака")
     derived_dir.mkdir(parents=True, exist_ok=True)
-    derived_positions = np.asarray(points[indices], dtype=np.float32)
+    if derived_positions is None:
+        derived_positions = np.asarray(points[indices], dtype=np.float32)
+    else:
+        derived_positions = np.asarray(derived_positions, dtype=np.float32)
     np.save(derived_dir / "positions.npy", derived_positions)
 
     # Estimate surface normals for derived cloud if requested or reasonable size
@@ -250,16 +296,16 @@ def apply_cleanup(
             normals_written = True
         except Exception:
             normals_written = False
-    colors = _read_colors(colors_path, total)
     color_written = False
-    if colors is not None:
-        rgb = np.asarray(colors)
-        if rgb.dtype != np.uint8:
-            if rgb.max() <= 1.0:
-                rgb = rgb * 255.0
-            rgb = np.clip(rgb, 0, 255).astype(np.uint8)
-        np.save(derived_dir / "colors.npy", rgb[indices])
+    if derived_colors is not None:
+        np.save(derived_dir / "colors.npy", derived_colors)
         color_written = True
+    else:
+        colors = _read_colors(colors_path, total)
+        if colors is not None:
+            rgb = _colors_to_uint8(colors)
+            np.save(derived_dir / "colors.npy", rgb[indices])
+            color_written = True
 
     meta = {
         "method": method,
@@ -267,8 +313,8 @@ def apply_cleanup(
         "stats": stats,
         "input_count": total,
         "finite_count": int(len(finite_indices)),
-        "output_count": int(len(indices)),
-        "removed_count": int(total - len(indices)),
+        "output_count": int(len(derived_positions)),
+        "removed_count": int(total - len(derived_positions)),
         "has_colors": color_written,
         "has_normals": normals_written,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

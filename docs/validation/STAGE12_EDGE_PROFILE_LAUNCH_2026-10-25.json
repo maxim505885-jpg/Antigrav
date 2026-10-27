@@ -1,0 +1,38 @@
+{
+  "stage": 12,
+  "date": "2026-10-25",
+  "change": "The desktop launcher supplies a dedicated persistent browser profile for SCAN app mode, isolated per Chromium browser.",
+  "profile_location": "%LOCALAPPDATA%/ScanStudio/BrowserProfile/<browser>",
+  "fallback": "If profile-directory creation fails, open the application URL in the default browser.",
+  "tests": {
+    "test_first_red": "failed because native_window_command was not implemented",
+    "lifecycle_test_first_red": "failed because main returned without waiting for the app process",
+    "targeted_launcher_regressions": "3 passed",
+    "full_backend_regression": "749 passed, 1 existing Starlette/httpx warning, 104.15 seconds, exit code 0; cleanup succeeded"
+  },
+  "live_attempt": {
+    "launcher_command_returned": true,
+    "scan_profile_directory_created": true,
+    "api_health": "ok",
+    "visible_native_window_confirmed": false,
+    "reason": "Edge delegated the app command to a hidden process and the launching Edge process exited immediately; no visible native app window or nonzero OS window handle was observed.",
+    "launcher_waits_for_window_process": true,
+    "server_stops_only_when_started_by_launcher": true,
+    "server_output_pipe_deadlock_removed": true,
+    "project_database_modified": false,
+    "source_scans_modified": false
+  },
+  "acceptance": {
+    "stage_12": "open",
+    "inno_compiler": "Not found; the uninstall registry entry points to a removed directory under %TEMP%.",
+    "remaining": [
+      "Confirm the app-mode native window on the user's desktop",
+      "Rebuild the installer from current sources when ISCC is available",
+      "Install and accept on a clean independent Windows 11 machine",
+      "Sign the release package"
+    ],
+    "project_stages_accepted": 3,
+    "project_stages_total": 12,
+    "stage_6_order": "deferred until last"
+  }
+}

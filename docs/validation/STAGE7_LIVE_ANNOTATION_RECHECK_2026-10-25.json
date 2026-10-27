@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "purpose": "Read-only check whether physical column references were entered since the previous review-queue verification.",
+  "api": "http://127.0.0.1:8000",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "dataset_id": "workshop_cloud:3a7765e2b090",
+  "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+  "candidate_count": 376,
+  "state_counts": {
+    "pending": 376,
+    "labeled": 0,
+    "unknown": 0,
+    "excluded": 0
+  },
+  "saved_annotations": 0,
+  "writes_performed": false,
+  "acceptance": {
+    "stage_7": "in_progress",
+    "reason_open": "Independent physical IDs and type labels are still needed before holdout evaluation or learning export can be accepted.",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

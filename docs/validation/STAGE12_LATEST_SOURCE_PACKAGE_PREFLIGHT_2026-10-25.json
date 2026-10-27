@@ -1,0 +1,30 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 12,
+  "purpose": "Verify whether the latest cleanup feature is represented in the current Windows installer and whether the package can be rebuilt here.",
+  "source_preflight": {
+    "release_bundle_validation": "passed",
+    "frontend_assets_referenced": 4,
+    "frontend_production_build": "passed; 1978 modules",
+    "backend_centroid_cleanup_tests": "20 passed"
+  },
+  "current_installer": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170008836,
+    "sha256": "55CCFCB4C00411C11FA37534A755D1760CF0C8CC9D06D01217EA9994A1A1E2F5",
+    "includes_latest_centroid_cleanup": false
+  },
+  "build_environment": {
+    "inno_compiler_on_path": false,
+    "compiler_found_in_standard_locations": false,
+    "c_free_gib": 3.41
+  },
+  "acceptance": {
+    "latest_windows_installer_built": false,
+    "clean_windows_11_host_verified": false,
+    "native_window_verified": false,
+    "stage_12_closed": false,
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-26",
+  "stage": 11,
+  "scope": "Persistent scan registration workspace integrated into SCAN Studio",
+  "implementation": {
+    "navigation": [
+      "The top navigation and sidebar open the same persistent stitching workspace.",
+      "The registration step in the processing pipeline opens the persistent workspace instead of a modal.",
+      "Ready clouds are listed with working A (moving) and B (base) assignment controls.",
+      "The existing two live 3D views remain available for manual corresponding-point selection.",
+      "The quality inspector separates ICP correspondence fraction, fit RMSE, manual tie-pair count, and independent control evaluation.",
+      "UI text states that the current ICP/manual calculations are read-only and do not apply transforms or save RCP."
+    ],
+    "recommendation": "Add a shared registered preview after a pair has been reviewed, persist the station graph and transforms only after explicit confirmation, and validate the produced RCP by reopening it in ReCap and checking independent field controls.",
+    "frontend_tests": "passed",
+    "typescript": "passed",
+    "production_build": "passed; Vite 6.4.4, 1,981 modules",
+    "browser_smoke": {
+      "environment": "http://127.0.0.1:8000/",
+      "ready_clouds_listed": 5,
+      "viewports_mounted": 2,
+      "canvas_nonzero_dimensions": true,
+      "station_role_assignment": "passed; A assignment changed and B was prevented on the same cloud",
+      "console_errors": 0
+    }
+  },
+  "not_performed": [
+    "No ICP run was started on the large FARO clouds.",
+    "No transformation was applied or persisted.",
+    "No RCP was created or reopened in ReCap.",
+    "No independent field control measurements were entered or evaluated."
+  ],
+  "acceptance": {
+    "accepted_roadmap_stages": [1, 3, 5],
+    "stage_11": "in_progress",
+    "stage_6_order": "penultimate",
+    "stage_9_order": "last"
+  }
+}

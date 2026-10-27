@@ -1,0 +1,15 @@
+{
+  "schema": "scan2bim.validation/stage11-frontend-build/1.0",
+  "date": "2026-10-26",
+  "stage": 11,
+  "frontend_test_command": "npm test",
+  "frontend_test_result": "PASS",
+  "production_build_command": "npm run build",
+  "production_build_result": "PASS",
+  "vite_version": "6.4.4",
+  "modules_transformed": 1980,
+  "first_sandbox_build_attempt": "BLOCKED_BY_SPAWN_EPERM",
+  "verified_build_retry": "PASS_WITH_APPROVED_PROCESS_SPAWN",
+  "source_clouds_modified": false,
+  "production_database_used": false
+}

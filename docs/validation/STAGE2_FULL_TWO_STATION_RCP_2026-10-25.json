@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Full-resolution two-station import through the RCP batch API using a synthetic two-node manifest and the original FARO RCS files",
+  "method": {
+    "route": "POST /api/v1/projects/{project_id}/rcp/import-path",
+    "max_points": 0,
+    "reader": "Installed Autodesk ReCap AdskRcExport.dll 24.0.0.240, isolated subprocess",
+    "manifest": "Synthetic RCP ZIP manifest linking the original 1.rcs and 2.rcs by absolute path; this does not claim a ReCap-generated project GUI round-trip",
+    "data_root": "Unique isolated test data root; production database and live project were not used"
+  },
+  "sources": [
+    {
+      "name": "FARO Station 1",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+      "bytes": 7196593757,
+      "points_declared_and_read": 297873927,
+      "points_ingested": 297873927,
+      "rgb": true,
+      "decimated": false,
+      "sha256_before": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+      "sha256_after": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a"
+    },
+    {
+      "name": "FARO Station 2",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\2.rcs",
+      "bytes": 13906332111,
+      "points_declared_and_read": 574367742,
+      "points_ingested": 574367742,
+      "rgb": true,
+      "decimated": false,
+      "sha256_before": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+      "sha256_after": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792"
+    }
+  ],
+  "api_acceptance": {
+    "job_type": "rcp_batch_ingest",
+    "job_status": "succeeded",
+    "node_count": 2,
+    "ready_count": 2,
+    "failed_count": 0,
+    "clouds_are_separate": true,
+    "both_full_resolution": true,
+    "both_have_rgb": true,
+    "all_source_points_finite": true,
+    "production_database_used": false
+  },
+  "fresh_process_reopen": {
+    "health_http": 200,
+    "projects_http": 200,
+    "clouds_http": 200,
+    "both_clouds_ready": true,
+    "point_counts": [297873927, 574367742],
+    "decimated": [false, false],
+    "rgb": [true, true]
+  },
+  "sqlite_integrity": "ok",
+  "capacity": {
+    "free_before_bytes": 30119030784,
+    "durable_arrays_and_previews_bytes": 13158625035,
+    "sequential_raw_peak_bytes": 8615516130,
+    "safety_margin_10_percent_bytes": 2177414117,
+    "application_reserve_bytes": 1073741824,
+    "estimated_required_total_bytes": 25025297106,
+    "minimum_observed_free_bytes": 8076529664,
+    "free_after_raw_checkpoint_cleanup_bytes": 16700190720
+  },
+  "verification": {
+    "focused_rcs_streaming_tests": "14 passed",
+    "packed_coordinate_precision": "passed; synthetic billion-scale world coordinates restored within 2 micrometres",
+    "legacy_v2_checkpoint_compatibility": "passed",
+    "production_source_sha256_rechecked_after_import": true,
+    "restart_check_ran_in_separate_python_process": true
+  },
+  "duration_seconds": 3743,
+  "resource_trace": {
+    "peak_process_tree_rss_bytes": null,
+    "note": "Peak RSS was not captured in this run; import point counts, disk samples and source hashes were independently verified."
+  },
+  "test_harness_note": "The first monitor script expected cloud_id at the station response top level and exited after submitting the job. The application job continued in its isolated run, completed successfully, and a corrected independent fresh-process verification passed. The harness now reads station.cloud.id.",
+  "acceptance": {
+    "full_resolution_two_station_batch_route": "passed",
+    "source_files_unchanged": true,
+    "reopened_after_fresh_process": "passed",
+    "stage_2": "still_open",
+    "remaining_stage_2_gates": [
+      "ReCap-generated multi-node RCP GUI round-trip",
+      "10.rcp declared count discrepancy of 244259 points"
+    ],
+    "additional_full_resolution_cancel_resume_evidence": "STAGE2_FULL_RCS_CANCEL_RESUME_2026-10-25.json",
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  },
+  "cleanup": {
+    "isolated_derived_data": "removed after successful fresh-process verification; exact isolated run directory deleted",
+    "original_faro_sources": "retained unchanged",
+    "production_data": "untouched"
+  }
+}

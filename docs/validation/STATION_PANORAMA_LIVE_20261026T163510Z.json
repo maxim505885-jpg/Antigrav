@@ -1,0 +1,98 @@
+{
+  "check": "station_panorama_and_export_live",
+  "started_at": "2026-10-26T16:35:03.449361+00:00",
+  "points_uploaded": 43200,
+  "data_root": "C:\\Users\\maxim\\AppData\\Local\\Temp\\s2b_live_smoke_evz4qesa\\data",
+  "health": {
+    "status": "ok",
+    "version": "0.1.0",
+    "api": "v1",
+    "auth_required": false,
+    "max_ingest_points": 40000000
+  },
+  "cloud": {
+    "status": "ready",
+    "point_count": 43200,
+    "source_format": "ply",
+    "error": null
+  },
+  "stations": {
+    "count": 1,
+    "first": {
+      "station_id": "cloud",
+      "station_source": "cloud",
+      "anchor_kind": "point_centroid",
+      "point_count": 43200
+    }
+  },
+  "panorama": {
+    "status": 200,
+    "bytes": 288221,
+    "png_magic": "89504e470d0a1a0a",
+    "source_header": "point_cloud",
+    "coverage_header": "0.0205"
+  },
+  "resolved_picks": [
+    {
+      "u": 0.1,
+      "v": 0.45,
+      "distance_m": 3.735062837600708
+    },
+    {
+      "u": 0.1,
+      "v": 0.55,
+      "distance_m": 3.7367730140686035
+    },
+    {
+      "u": 0.2,
+      "v": 0.45,
+      "distance_m": 4.232102870941162
+    },
+    {
+      "u": 0.2,
+      "v": 0.55,
+      "distance_m": 4.233874797821045
+    }
+  ],
+  "measure": {
+    "distance_m": 1.1416767378249504,
+    "distance_mm": 1141.6767378249504,
+    "precision_mm": 16.209225044746695,
+    "depth_source": "point_cloud"
+  },
+  "export_job": {
+    "status": "succeeded",
+    "error": null,
+    "result": {
+      "format": "las",
+      "point_count": 43200,
+      "has_color": true,
+      "has_intensity": false,
+      "size_bytes": 1469027,
+      "verified": true,
+      "max_deviation_m": 9.536743217353205e-08,
+      "tolerance_m": 1e-05,
+      "read_back_has_color": true,
+      "elapsed_s": 0.221,
+      "export_id": "728b277c46dd",
+      "cloud_id": "48c1ef801e0d4d2aa7df4006944fea3d",
+      "path": "C:\\Users\\maxim\\AppData\\Local\\Temp\\s2b_live_smoke_evz4qesa\\data\\projects\\5cdd8c3097934045b955fc7899bf2c96\\exports\\cloud_las_48c1ef80_728b277c46dd\\cloud.las"
+    }
+  },
+  "export": {
+    "count": 1,
+    "meta": {
+      "format": "las",
+      "point_count": 43200,
+      "size_bytes": 1469027,
+      "verified": true,
+      "max_deviation_m": 9.536743217353205e-08,
+      "tolerance_m": 1e-05
+    },
+    "download_status": 200,
+    "download_bytes": 1469027,
+    "las_magic": "LASF"
+  },
+  "result": "passed",
+  "finished_at": "2026-10-26T16:35:10.880818+00:00"
+}

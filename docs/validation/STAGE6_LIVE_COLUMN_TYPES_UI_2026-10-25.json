@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "url": "http://127.0.0.1:8000/",
+  "feature": "active Studio recognition dialog exposes repeated-column-type review",
+  "browser": {
+    "viewport_css_px": [1912, 966],
+    "recognition_dialog_open": true,
+    "candidate_filter": "columns",
+    "column_candidates": 376,
+    "selected_candidate": "00e0fe96d3444247ae247045dff64ee7",
+    "type_panel_default": "collapsed",
+    "type_panel_opened_by": "Сравнить повторяющиеся типы колонн",
+    "type_panel_visible": true,
+    "document_overflow_px": [0, 0],
+    "details_form_scrollable": true,
+    "browser_console_errors": 0
+  },
+  "api": {
+    "health": "ok",
+    "loaded_endpoint": "GET /api/v1/clouds/workshop_cloud/column-types",
+    "proposal_count": 39,
+    "repeated_proposal_groups": 0,
+    "confirmed_project_types": 0,
+    "rejected_proposal_groups": 0,
+    "linear_tolerance_mm": 5,
+    "relative_tolerance_percent": 1,
+    "tolerance_status": "provisional",
+    "column_annotations": {
+      "pending": 376,
+      "reviewed": 0,
+      "total": 376
+    }
+  },
+  "network_mutations": false,
+  "interpretation": "The existing review-only type catalogue is now available from the active Studio recognition workflow. This pilot has 39 stored point-measured section statuses among 376 columns and no repeat groups at the provisional search tolerance. No type or annotation was confirmed; this is not physical acceptance or accuracy evidence.",
+  "acceptance": "UI integration verified by browser. Stage 6/7/8 accuracy and type-repeatability criteria remain open pending independent physical labels, a holdout set and an agreed engineering tolerance. Overall accepted stages remain 3/12."
+}

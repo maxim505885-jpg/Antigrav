@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-24",
+  "purpose": "Exercise production point-cloud export and read-back verification for both stations from the native DeCap RCP pilot.",
+  "scope": "Two 50,000-point RGB clouds generated from sampled derivatives of actual FARO 1.rcs and 2.rcs. Each export job used verify=true; SCAN reopened the written file, checked point count, and measured maximum XYZ deviation against the source array. This is not a full-resolution or ReCap GUI acceptance.",
+  "project_id": "81973e9b7cd7407bb42c49ec523775b5",
+  "formats": ["e57", "las", "laz", "ply", "xyz"],
+  "stations": [
+    {
+      "cloud_id": "f5a64c57573945f29f417675ef6f8ceb",
+      "name": "ReCap FARO sample — FARO_2_sample",
+      "source_derived_from": "2.rcs",
+      "point_count": 50000,
+      "has_rgb_in_source": true,
+      "exports": [
+        {"format":"e57","job_id":"847afab571b142cd90d113da5b0b9c2c","status":"succeeded","export_id":"0bb467ea2df1","size_bytes":757760,"verified":true,"max_deviation_m":0.0,"tolerance_m":1e-9,"read_back_has_color":true},
+        {"format":"las","job_id":"5d3be3cdd2654259986e20625f1601fa","status":"succeeded","export_id":"4edd954563c7","size_bytes":1700227,"verified":true,"max_deviation_m":4.997253597593954e-7,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"laz","job_id":"91e4e70667744a02a399312280347097","status":"succeeded","export_id":"c273008f561a","size_bytes":623861,"verified":true,"max_deviation_m":4.997253597593954e-7,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"ply","job_id":"41296c5e46214d2589caa58cb0d28ed5","status":"succeeded","export_id":"b12a67fd6e1b","size_bytes":750179,"verified":true,"max_deviation_m":0.0,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"xyz","job_id":"fe1f84f792cf41b7ac9fd4eaf02d472b","status":"succeeded","export_id":"a3a418b941b2","size_bytes":1233543,"verified":true,"max_deviation_m":7.568359364995558e-6,"tolerance_m":0.001,"read_back_has_color":false}
+      ]
+    },
+    {
+      "cloud_id": "8f5ec75b0e0849399932d3944cca1efb",
+      "name": "ReCap FARO sample — FARO_1_sample",
+      "source_derived_from": "1.rcs",
+      "point_count": 50000,
+      "has_rgb_in_source": true,
+      "exports": [
+        {"format":"e57","job_id":"a6b3ff4cb43a4161956375fcc5d95e7b","status":"succeeded","export_id":"67f772feb1bb","size_bytes":757760,"verified":true,"max_deviation_m":0.0,"tolerance_m":1e-9,"read_back_has_color":true},
+        {"format":"las","job_id":"3a060eebbb544c3cbd3e6f02a0751dba","status":"succeeded","export_id":"56e9a792769d","size_bytes":1700227,"verified":true,"max_deviation_m":4.997253455485406e-7,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"laz","job_id":"49782cf5c4394ef7b0e4dbdbcd110025","status":"succeeded","export_id":"53ce1e098d12","size_bytes":570982,"verified":true,"max_deviation_m":4.997253455485406e-7,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"ply","job_id":"4dc0663b3b8b40d49a5288cd1284aa3f","status":"succeeded","export_id":"45a6581ddd21","size_bytes":750179,"verified":true,"max_deviation_m":0.0,"tolerance_m":1e-5,"read_back_has_color":true},
+        {"format":"xyz","job_id":"3cb8ddc8af91428fb879865f8da4ea6b","status":"succeeded","export_id":"516c0f75b7a0","size_bytes":1177276,"verified":true,"max_deviation_m":3.784179682497779e-6,"tolerance_m":0.001,"read_back_has_color":false}
+      ]
+    }
+  ],
+  "result": "PASS for all ten production export jobs and coordinate read-back checks across E57, LAS, LAZ, PLY, and XYZ for both sample stations. All point counts matched and maximum XYZ deviations were within each format tolerance. XYZ exports read back without color by format behavior; RGB remains preserved in E57/LAS/LAZ/PLY."
+}

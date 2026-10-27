@@ -1,0 +1,86 @@
+{
+  "schema": "scan2bim.validation/local-runtime-smoke/1.0",
+  "date": "2026-10-26",
+  "repo": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "launcher": "Запустить_SCAN.bat",
+  "url": "http://127.0.0.1:8000/",
+  "data_root": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data",
+  "database": {
+    "prelaunch_backup": {
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.tools\\scan2bim-prelaunch-20261026.sqlite3",
+      "bytes": 55816192,
+      "sha256": "3d8017c4cb24809e06e510e75f8dfd48b60c3280f9c3e5d7d588e0cc3a6cd71a",
+      "integrity_check": "ok",
+      "journal_mode": "wal"
+    },
+    "after_read_only_ui_smoke": {
+      "bytes": 55816192,
+      "sha256": "2de48b755d4126e37822d196146cc222bf2afc0b0ecb60cdfed95b85dd46e9ac",
+      "integrity_check": "ok",
+      "journal_mode": "wal",
+      "sidecars": [
+        {
+          "name": "scan2bim.sqlite3-shm",
+          "bytes": 32768
+        },
+        {
+          "name": "scan2bim.sqlite3-wal",
+          "bytes": 0
+        }
+      ]
+    },
+    "main_file_sha256_equal": false,
+    "schema_equal": true,
+    "all_user_table_rows_equal": true,
+    "table_counts": {
+      "api_keys": 0,
+      "clouds": 17,
+      "column_annotations": 0,
+      "column_type_actions": 0,
+      "column_type_assignments": 0,
+      "column_type_rejections": 0,
+      "column_types": 0,
+      "element_annotations": 0,
+      "elements": 4334,
+      "events": 141,
+      "feedback": 8,
+      "jobs": 53,
+      "model_versions": 5,
+      "projects": 12,
+      "sections": 26,
+      "structural_members": 0,
+      "training_samples": 113,
+      "webhooks": 0
+    }
+  },
+  "http": {
+    "health": 200,
+    "health_status": "ok",
+    "ui": 200,
+    "title": "Intelligent Scan-to-BIM · Инженерная среда",
+    "projects": 200,
+    "project_count": 12,
+    "workshop_project": {
+      "id": "workshop_project",
+      "cloud_count": 5,
+      "element_count": 2325,
+      "main_cloud_points": 43500000,
+      "recognition_candidates": 1684
+    }
+  },
+  "browser_qa": {
+    "main_screen_loaded": true,
+    "selected_project": "workshop_project",
+    "console_errors": 0,
+    "mutating_controls_used": false
+  },
+  "app_left_running": true,
+  "acceptance": {
+    "local_current_source_launch": "passed",
+    "database_schema_and_rows_match_backup": true,
+    "clean_windows_11": "pending",
+    "cuda": "pending",
+    "revit_gui_roundtrip": "pending",
+    "recap_gui_roundtrip": "pending"
+  }
+}

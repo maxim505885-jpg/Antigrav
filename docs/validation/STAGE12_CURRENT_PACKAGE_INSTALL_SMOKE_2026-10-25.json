@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Verify the rebuilt current installer with its normal per-user shortcuts, packaged API/UI, and uninstall cleanup.",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170020077,
+    "sha256": "019C8D66B2E03C9435740439AB71E57475D5E3AF6DB67D6687A856874974CA9B",
+    "compiler": "Inno Setup 7.1.0",
+    "authenticode_status": "NotSigned",
+    "previous_package_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre-storage-guard_20261025.exe",
+    "previous_package_sha256": "51452B892A788AD09697B73366CFE1B5CD265F334AA6D6DDB636AEEEDBD2C235"
+  },
+  "isolated_install": {
+    "install_root": "%TEMP%/ss3d79ede4",
+    "install_exit_code": 0,
+    "default_start_menu_shortcut_created": true,
+    "runtime_smoke": {
+      "script": "scripts/smoke_installed_bundle.ps1",
+      "exit_code": 0,
+      "api_health_http": 200,
+      "api_status": "ok",
+      "production_ui_http": 200,
+      "ui_title_present": true,
+      "python_bytecode_before_and_after": 0,
+      "isolated_test_data_root_under_temp": true,
+      "frontend_asset_manifest_and_hashes_match_source": true,
+      "relocated_python_home_executable_and_command": true,
+      "required_backend_and_contract_files_present": true,
+      "developer_data_and_dependency_test_files_absent": true
+    },
+    "uninstall_exit_code": 0,
+    "temporary_install_removed": true,
+    "per_user_uninstall_registry_entry_removed": true,
+    "start_menu_shortcut_removed": true,
+    "temporary_project_data_removed": true
+  },
+  "environment": {
+    "windows_version": "10.0.19045",
+    "clean_windows_11": false,
+    "source_faro_files_modified": false,
+    "production_database_modified": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": [
+      "clean Windows 11 acceptance",
+      "Authenticode signing",
+      "full release acceptance on the user's machine"
+    ]
+  }
+}

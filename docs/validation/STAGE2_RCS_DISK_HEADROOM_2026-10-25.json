@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "title": "Preserve disk space for full-resolution RCS finalization",
+  "implementation": {
+    "streamed_raw_reserve": "The native RCS stream now includes conservative derived XYZ/RGB array bytes and preview-array bytes for each committed source point in its free-space check.",
+    "pause_behavior": "The stream raises a resumable disk-reserve pause before writing a chunk when remaining disk space would consume known finalization headroom.",
+    "source_and_live_database_modified": false
+  },
+  "verification": {
+    "test_rcs_streaming_ingest.py_and_test_ingest_restart.py": "22 passed",
+    "covers": [
+      "RCS stream stops before derived arrays and preview headroom are consumed",
+      "checkpoint preserves prior committed block",
+      "freed-space resume yields all expected source points",
+      "RCS restart/cancel regressions remain passing"
+    ],
+    "warning": "Existing Starlette/httpx TestClient deprecation warning.",
+    "execution": "pytest with isolated workspace data root and permitted temporary-file creation"
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "live_full_resolution_run_performed": false,
+    "remaining": [
+      "Full-resolution original multi-station RCP run and round-trip",
+      "Full-volume resource envelope",
+      "Native full-resolution cancellation/restart acceptance",
+      "Explain the 10.rcp versus linked RCS count delta"
+    ],
+    "accepted_stages": "3/12"
+  }
+}

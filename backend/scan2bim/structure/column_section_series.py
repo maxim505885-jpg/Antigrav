@@ -98,7 +98,15 @@ def fit_column_track_sections(
         edge_id = track.get("candidate_edge_id")
         track_status = str(track.get("track_status", "unknown"))
         if edge_id not in _CANDIDATE_EDGES or track_status not in _REVIEWABLE_TRACK_STATES:
-            excluded.append({"track_id": track_id, "reason": "no_supported_candidate_edge"})
+            reasons = track.get("exclusion_reasons", [])
+            if not isinstance(reasons, Sequence) or isinstance(reasons, (str, bytes)):
+                reasons = []
+            reasons = sorted({str(reason) for reason in reasons if str(reason)})
+            excluded.append({
+                "track_id": track_id,
+                "reason": reasons[0] if reasons else "no_supported_candidate_edge",
+                "detail_reasons": reasons,
+            })
             continue
         values = track.get("source_point_indices", [])
         if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):

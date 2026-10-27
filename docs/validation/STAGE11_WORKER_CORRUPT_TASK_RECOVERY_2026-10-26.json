@@ -1,0 +1,39 @@
+{
+  "schema": "scan2bim.validation/worker-corrupt-task-recovery/1.0",
+  "date": "2026-10-26",
+  "change": "Parse and validate serialized task payload inside the worker job exception boundary so malformed persisted task data marks the job failed and clears worker lease",
+  "focused_test_file": "backend/tests/test_worker_process.py",
+  "focused_tests": 11,
+  "focused_result": "PASS",
+  "additional_check": "Two concurrent worker threads were synchronized to claim one queued job; exactly one worker received it and attempts remained 1",
+  "malformed_payload_shapes_checked": 3,
+  "full_backend_result": "PARTIAL_FAILURE",
+  "backend_regression_excluding_reserved_stage9_failures": "PASS",
+  "excluded_stage9_tests": 4,
+  "full_backend_failures": [
+    {
+      "stage": 9,
+      "error": "UnboundLocalError: scale_factor is not associated with a value",
+      "test": "test_full_pipeline_acceptance_certification"
+    },
+    {
+      "stage": 9,
+      "error": "same failure in generate_sheet_5_executive_deviation_scheme",
+      "test": "test_spds_album_endpoint_returns_draft_dxf_pdf_and_manifest"
+    },
+    {
+      "stage": 9,
+      "error": "same failure in generate_sheet_5_executive_deviation_scheme",
+      "test": "test_spds_album_pdf_endpoint"
+    },
+    {
+      "stage": 9,
+      "error": "same failure in generate_sheet_5_executive_deviation_scheme",
+      "test": "test_deviation_sheet_is_unknown_without_independent_axes_or_tolerance"
+    }
+  ],
+  "stage9_modified": false,
+  "test_data_isolated": true,
+  "production_database_used": false,
+  "faro_sources_modified": false
+}

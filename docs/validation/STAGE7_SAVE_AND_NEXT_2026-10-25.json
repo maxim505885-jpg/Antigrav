@@ -1,0 +1,27 @@
+{
+  "checked_at_utc": "2026-10-25T04:10:48Z",
+  "stage": 7,
+  "feature": "save annotation and select next pending column",
+  "behavior": {
+    "save_action_is_explicit": true,
+    "next_pending_selection_uses_saved_state": true,
+    "new_annotation_is_added_to_live_queue_state": true,
+    "annotation_revision_replaces_existing_queue_state": true
+  },
+  "validation": {
+    "frontend_tests": "passed",
+    "production_build": "passed",
+    "vite_modules_transformed": 1978,
+    "live_api_health_status": 200,
+    "live_studio_root_status": 200,
+    "live_studio_asset_status": 200,
+    "live_column_candidates": 376,
+    "save_and_next_button_visible": true,
+    "browser_console_errors": 0,
+    "annotation_saved_during_qa": false
+  },
+  "acceptance_status": "open_pending_independent_physical_labels_and_holdout",
+  "accepted_stages": 3,
+  "total_stages": 12,
+  "stage_6_order": "last"
+}

@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "title": "Release bundle preflight",
+  "command": "python scripts/verify_release_bundle.py",
+  "verification": {
+    "exit_code": 0,
+    "result": "Release bundle inputs OK; 4 frontend assets referenced.",
+    "required_runtime_inputs": "present",
+    "source_scan_data_in_installer": "excluded"
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "existing_evidence": "Fresh Inno Setup 6.7.3 package built; temporary installation verified all relocated Python paths, current frontend asset hashes, imports, API/UI health, isolated TEMP data, zero .pyc, and successful uninstall.",
+    "missing": "Native desktop window confirmation, clean independent Windows 11 acceptance, and Authenticode signing. Fresh installer was rebuilt and smoke-tested locally; a too-deep workspace target triggers Windows error 206, while a short TEMP target installs and uninstalls successfully.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

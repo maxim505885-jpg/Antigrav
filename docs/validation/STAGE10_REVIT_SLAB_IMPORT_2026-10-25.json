@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "stage": 10,
+  "scope": "Revit BIM/1.0 slab solids and section-unknown member-axis geometry",
+  "change": {
+    "slab_class_category": "OST_Floors",
+    "geometry": "polygon extruded upward from z - thickness/2 by the declared thickness; default 0.2 m; minimum 0.02 m to match IFC export",
+    "validation": "finite XY coordinates, repeated closing/consecutive vertex normalization, collapsed and zero-area contour rejection, positive finite thickness, finite elevation, counterclockwise profile normalization",
+    "source_model_slabs": 4,
+    "source_vertex_counts": [2428, 1357, 839, 3717],
+    "source_minimum_edge_m": [0.0706918, 0.0706918, 0.0706588, 0.0706208],
+    "section_unknown_member_axes": 1048,
+    "truss_envelope_rows_skipped": 22,
+    "truss_member_proposal_ids_mapped_to_member_axes": 993,
+    "section_unknown_member_behavior": "import centerline as DirectShape Curve; add GEOMETRY=AXIS_ONLY; SECTION=UNKNOWN to Comments; no cross-section is fabricated"
+  },
+  "verification": {
+    "policy_checks": "8/8 synthetic slab cases, 4/4 live slabs, 4/4 synthetic axis cases, and 1048/1048 live member axes passed",
+    "existing_policy_and_provenance_checks": "9/9 passed",
+    "revit_2027_plugin_build": "0 errors, 3 existing MSB3277 dependency-reference warnings",
+    "build_output": "%TEMP%/scan-member-axis-revit-build/bin/Release/net10.0-windows/Scan.Revit.Plugin.dll",
+    "build_dll_sha256": "0EFA98DAC11AAEDE520003CE8C69B209CFDF73C9BFADA4F0D2C933F554B394DF",
+    "registered_addin_replaced": false,
+    "host_gui_import_save_reopen": "not verified"
+  },
+  "environment": {
+    "revit_process_running_during_build": true,
+    "autocad_process_running_during_build": true,
+    "source_faro_files_modified": false,
+    "production_project_database_modified": false
+  },
+  "acceptance": {
+    "stage_10_closed": false,
+    "overall_accepted_stages": "3/12",
+    "stage_6_order": "last"
+  }
+}

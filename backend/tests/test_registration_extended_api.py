@@ -127,3 +127,28 @@ def test_export_recap_project_api_does_not_fallback_to_xml_draft(client, monkeyp
     })
     assert response.status_code == 422
     assert "failed scans 1" in response.json()["detail"]
+
+
+def test_export_recap_project_api_reports_insufficient_space_without_starting_decap(client, monkeypatch):
+    from scan2bim.formats import recap_decap
+
+    def reject_for_space(*_args):
+        raise recap_decap.InsufficientStorageError(
+            available_bytes=500,
+            required_bytes=2048,
+            source_bytes=1024,
+        )
+
+    monkeypatch.setattr(recap_decap, "create_recap_project", reject_for_space)
+    response = client.post("/api/v1/registration/export-rcp-project", json={
+        "project_name": "insufficient-space",
+        "stations": [{"path": "station.rcs"}],
+    })
+    assert response.status_code == 507
+    assert response.json()["detail"] == {
+        "summary": "Недостаточно свободного места для безопасного создания RCP.",
+        "available_bytes": 500,
+        "required_bytes": 2048,
+        "source_bytes": 1024,
+        "message": "DeCap не запускался; исходные станции не изменены.",
+    }

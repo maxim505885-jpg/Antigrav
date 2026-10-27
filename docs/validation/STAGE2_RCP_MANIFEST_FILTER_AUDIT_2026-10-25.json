@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Read-only check whether the RCP project manifest explains the 244259-point declaration difference",
+  "source": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "rcs_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+    "rcs_size_bytes": 7130808277,
+    "rcs_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "rcs_sha256_reference": "LIVE_RCP_COUNT_COMPARISON_REPAIR_2026-10-25.json",
+    "source_files_opened_for_write": false
+  },
+  "manifest": {
+    "entry": "4104aa8f-4e92-48a7-9993-0e778259e83a.xml",
+    "declared_point_count": 295836062,
+    "layer": {
+      "visible": true,
+      "removed": false,
+      "locked": false
+    },
+    "region_array_empty": true,
+    "spatial_filters_empty": true,
+    "save_information_records": 2,
+    "save_information_count_values": [0, 0],
+    "save_information_timestamps": ["20261016T032037", "20261016T032037"]
+  },
+  "count_comparison": {
+    "manifest_declared": 295836062,
+    "linked_rcs_reader_count": 295591803,
+    "difference": 244259,
+    "status": "unresolved"
+  },
+  "conclusion": "The inspected project manifest does not show a hidden/removed layer, populated region, or spatial filter that explains the difference. This does not rule out point removal baked into the RCS, stale manifest metadata, or a reader/count-semantics difference.",
+  "acceptance": {
+    "stage_2": "in_progress",
+    "remaining": [
+      "Determine the cause of the RCP/RCS source-count difference",
+      "Verify full-resolution native multi-station import, cancellation/restart, resource envelope, and ReCap round-trip"
+    ],
+    "accepted_stages": "3/12"
+  }
+}

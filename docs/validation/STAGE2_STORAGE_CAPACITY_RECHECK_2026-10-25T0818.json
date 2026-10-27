@@ -1,0 +1,18 @@
+{
+  "date_local": "2026-10-25T08:18:37+03:00",
+  "stage": 2,
+  "scope": "Read-only recheck of volumes before any full-resolution import.",
+  "volumes": {
+    "C": {"ready": true, "free_bytes": 2582695936, "free_gib": 2.405},
+    "R": {"ready": false, "free_bytes": null, "free_gib": null}
+  },
+  "full_10_rcp_required_bytes": 14782617889,
+  "shortfall_bytes": 12199921953,
+  "shortfall_gib": 11.36,
+  "other_volume_inventory": "Win32_LogicalDisk query returned Access Denied; filesystem PowerShell view exposed C: and unavailable R: only.",
+  "hardware_inventory": "Win32_ComputerSystem and Win32_VideoController queries returned Access Denied.",
+  "full_import_started": false,
+  "faro_source_modified": false,
+  "project_database_modified": false,
+  "acceptance": {"stage_2": "in_progress", "closed_stages": "3/12", "stage_6": "parked_until_final_pass"}
+}

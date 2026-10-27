@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import re
 import ezdxf
 import pytest
 
@@ -10,6 +11,8 @@ from scan2bim.cad.spds_full_set import (
     generate_sheet_3_transverse_section,
     generate_sheet_4_roof_structure,
     generate_full_spds_album,
+    _pdf_render_config,
+    _pdf_contrast_palette,
 )
 
 
@@ -110,11 +113,31 @@ def test_generate_sheet_1_columns_plan(tmp_path, sample_workshop_elements):
     assert out_pdf.exists()
     assert out_pdf.stat().st_size > 1000
 
+    # A1 page size is part of the print-scale contract. The DXF renderer may
+    # resize its Matplotlib figure to drawing extents unless explicitly reset.
+    media_box = re.search(rb"/MediaBox\s*\[\s*0\s+0\s+([0-9.]+)\s+([0-9.]+)\s*\]", out_pdf.read_bytes())
+    assert media_box is not None
+    assert float(media_box.group(1)) == pytest.approx(841 / 25.4 * 72, abs=1.0)
+    assert float(media_box.group(2)) == pytest.approx(594 / 25.4 * 72, abs=1.0)
+
     # Verify DXF contents
     doc = ezdxf.readfile(str(out_dxf))
     assert "SPDS-FRAME" in doc.layers
     assert "SPDS-COLUMNS" in doc.layers
     assert "SPDS-AXES" in doc.layers
+
+
+def test_pdf_palette_keeps_white_spds_frame_visible_on_white_page():
+    doc = ezdxf.new()
+    doc.layers.new("SPDS-FRAME", dxfattribs={"color": 7})
+    entity = doc.modelspace().add_line((0, 0), (10, 0), dxfattribs={"layer": "SPDS-FRAME", "color": 7})
+    config = _pdf_render_config()
+    assert config.background_policy.name == "WHITE"
+    with _pdf_contrast_palette(doc):
+        assert doc.layers.get("SPDS-FRAME").dxf.color == 250
+        assert entity.dxf.color == 250
+    assert doc.layers.get("SPDS-FRAME").dxf.color == 7
+    assert entity.dxf.color == 7
 
 
 def test_generate_sheet_2_crane_plan(tmp_path, sample_workshop_elements):
@@ -163,6 +186,14 @@ def test_generate_full_spds_album(tmp_path, sample_workshop_elements):
         assert Path(sheet["dxf_path"]).exists()
         assert Path(sheet["pdf_path"]).exists()
     assert Path(album_manifest["album_pdf_path"]).exists()
+    media_boxes = re.findall(
+        rb"/MediaBox\s*\[\s*0\s+0\s+([0-9.]+)\s+([0-9.]+)\s*\]",
+        Path(album_manifest["album_pdf_path"]).read_bytes(),
+    )
+    assert len(media_boxes) == 5
+    for width, height in media_boxes:
+        assert float(width) == pytest.approx(841 / 25.4 * 72, abs=1.0)
+        assert float(height) == pytest.approx(594 / 25.4 * 72, abs=1.0)
     transform = album_manifest["coordinate_transform"]
     assert transform["source_frame"] == "source_cloud_world"
     assert transform["target_frame"] == "spds_sheet_local"
@@ -186,3 +217,29 @@ def test_deviation_sheet_does_not_claim_tolerance_acceptance(tmp_path, sample_wo
     assert "НЕ ОЦЕНЕНО" in notes
     assert "±5 мм" not in notes
     assert "в пределах допустимых строительных норм" not in notes
+
+
+def test_deviation_sheet_fits_long_grid_inside_a1_frame(tmp_path, sample_workshop_elements):
+    from scan2bim.cad.spds_full_set import generate_sheet_5_executive_deviation_scheme
+
+    aligned = align_elements_to_grid(sample_workshop_elements)
+    aligned["x_bays"] = [index * 6.0 for index in range(36)]
+    out = tmp_path / "long-deviations.dxf"
+    generate_sheet_5_executive_deviation_scheme(aligned, out)
+
+    doc = ezdxf.readfile(out)
+    frame = next(entity for entity in doc.modelspace().query("LWPOLYLINE") if entity.dxf.layer == "SPDS-FRAME")
+    frame_max_x = max(point[0] for point in frame.get_points("xy"))
+    frame_min_x = min(point[0] for point in frame.get_points("xy"))
+    stamp = next(entity for entity in doc.modelspace().query("LWPOLYLINE") if entity.dxf.layer == "SPDS-STAMP")
+    stamp_max_y = max(point[1] for point in stamp.get_points("xy"))
+    axis_bubbles = list(doc.modelspace().query('CIRCLE[layer=="SPDS-AXES-BUBBLES"]'))
+    assert axis_bubbles
+    assert min(circle.dxf.center.y - circle.dxf.radius for circle in axis_bubbles) > stamp_max_y
+    axis_x_values = [
+        coordinate[0]
+        for entity in doc.modelspace().query("LINE[layer==\"SPDS-AXES\"]")
+        for coordinate in (entity.dxf.start, entity.dxf.end)
+    ]
+    assert min(axis_x_values) >= frame_min_x
+    assert max(axis_x_values) <= frame_max_x

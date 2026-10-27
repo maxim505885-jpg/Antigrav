@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from conftest import wait_cloud, wait_job
-from scan2bim.db import execute
+from scan2bim.db import dumps, execute
+from scan2bim.geometry.bounds import derive_bbox
 
 
 def _recognized_demo(client):
@@ -136,6 +137,13 @@ def test_invalidated_synthetic_element_cannot_be_reviewed_or_sampled(client):
     visible = client.get(f"/api/v1/clouds/{cloud['id']}/elements")
     assert visible.status_code == 200
     assert all(item["source"] != "invalidated_synthetic_ground_truth" for item in visible.json())
+    project_list = client.get("/api/v1/projects")
+    assert project_list.status_code == 200
+    listed_project = next(item for item in project_list.json() if item["id"] == cloud["project_id"])
+    project_detail = client.get(f"/api/v1/projects/{cloud['project_id']}")
+    assert project_detail.status_code == 200
+    assert listed_project["element_count"] == len(visible.json())
+    assert project_detail.json()["element_count"] == len(visible.json())
     model_export = client.get(f"/api/v1/clouds/{cloud['id']}/bim?format=json")
     assert model_export.status_code == 200, model_export.text
     assert all(item["source"] != "invalidated_synthetic_ground_truth"
@@ -147,6 +155,23 @@ def test_invalidated_synthetic_element_cannot_be_reviewed_or_sampled(client):
     model_status = client.get(f"/api/v1/projects/{cloud['project_id']}/model-status")
     assert model_status.status_code == 200
     assert model_status.json()["samples"] == 0
+
+
+def test_empty_cloud_does_not_fall_back_to_other_clouds_project_elements(client):
+    cloud, elements = _recognized_demo(client)
+    assert elements
+    other_cloud_id = "empty-same-project-cloud"
+    now = "2026-10-24T00:00:00+00:00"
+    execute(
+        "INSERT INTO clouds (id,project_id,name,source_path,source_format,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (other_cloud_id, cloud["project_id"], "empty station", "", "rcs", now, now),
+    )
+
+    response = client.get(f"/api/v1/clouds/{other_cloud_id}/elements")
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_explicit_training_sample_requires_review_and_is_idempotent(client):
@@ -216,6 +241,50 @@ def test_undo_split_restores_parent_and_keeps_children_as_rejected_history(clien
         archived = next(item for item in current if item["id"] == child["id"])
         assert archived["review_status"] == "rejected"
         assert restored_children[child["id"]]["metadata"]["undone_split"] == feedback_id
+
+
+def test_member_axis_split_preserves_orientation_role_and_requeries_child_evidence(client):
+    cloud, elements = _recognized_demo(client)
+    parent = next(item for item in elements if item["class_name"] == "column")
+    geometry = {
+        "kind": "oriented_box",
+        "center": [10.0, 20.0, 4.0],
+        "sizes": {"length": 10.0, "thickness": 0.8, "height": 0.6},
+        "rotation_z": 0.35,
+    }
+    dimensions = {
+        "length_m": 10.0, "thickness_m": 0.8, "height_m": 0.6,
+        "role": "crane_girder", "role_status": "proposed",
+    }
+    metadata = {
+        "source_point_ids": [1, 2, 3],
+        "source_point_ids_sampled": True,
+        "member_proposal": {"id": "parent-proposal"},
+        "source_cloud_snapshot": {"sha256": "a" * 64},
+    }
+    execute(
+        "UPDATE elements SET class_name='beam', geometry_json=?, bbox_json=?, dimensions_json=?, metadata_json=? WHERE id=?",
+        (dumps(geometry), dumps(derive_bbox(geometry)), dumps(dimensions), dumps(metadata), parent["id"]),
+    )
+
+    split = client.post(
+        f"/api/v1/elements/{parent['id']}/feedback",
+        json={"action": "split", "axis": "member", "value": 4.0, "engineer": "reviewer"},
+    )
+
+    assert split.status_code == 200, split.text
+    children = split.json()["children"]
+    assert [child["dimensions"]["length_m"] for child in children] == [4.0, 6.0]
+    assert [child["geometry"]["rotation_z"] for child in children] == [0.35, 0.35]
+    assert all(child["dimensions"]["role"] == "crane_girder" for child in children)
+    assert all("source_point_ids" not in child["metadata"] for child in children)
+    assert all(child["metadata"]["source_evidence_status"] == "requires_requery_after_member_axis_split" for child in children)
+    assert children[0]["geometry"]["center"] != children[1]["geometry"]["center"]
+
+    undone = client.post(
+        f"/api/v1/elements/{parent['id']}/history/{split.json()['feedback_id']}/undo"
+    )
+    assert undone.status_code == 200, undone.text
 
 
 def test_undo_merge_restores_both_source_elements(client):

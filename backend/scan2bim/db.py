@@ -63,6 +63,30 @@ CREATE TABLE IF NOT EXISTS sections (
     created_at TEXT NOT NULL
 );
 
+-- A station pair stores a proposed rigid transform between two individually
+-- imported stations (one cloud row per RCP node or standalone station file).
+-- Saving a proposal never applies it or changes the source points/RCP project.
+CREATE TABLE IF NOT EXISTS station_registrations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    source_station_id TEXT NOT NULL REFERENCES clouds(id) ON DELETE CASCADE,
+    target_station_id TEXT NOT NULL REFERENCES clouds(id) ON DELETE CASCADE,
+    method TEXT NOT NULL CHECK (method IN ('rigid_icp', 'manual_kabsch', 'manual_kabsch_icp')),
+    matrix_json TEXT NOT NULL,
+    world_matrix_json TEXT,
+    fit_rmse_mm REAL,
+    independent_control_count INTEGER NOT NULL DEFAULT 0 CHECK (independent_control_count >= 0),
+    control_rmse_mm REAL,
+    acceptance_rmse_mm REAL,
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'verified')),
+    matrix_applied INTEGER NOT NULL DEFAULT 0 CHECK (matrix_applied = 0),
+    rcp_updated INTEGER NOT NULL DEFAULT 0 CHECK (rcp_updated = 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(project_id, source_station_id, target_station_id),
+    CHECK (source_station_id <> target_station_id)
+);
+
 CREATE TABLE IF NOT EXISTS elements (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -219,6 +243,11 @@ CREATE TABLE IF NOT EXISTS jobs (
     message TEXT NOT NULL DEFAULT '',
     result_json TEXT NOT NULL DEFAULT '{}',
     error TEXT,
+    task_payload_json TEXT,
+    worker_id TEXT,
+    lease_expires_at TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    cancel_requested INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -258,6 +287,7 @@ CREATE INDEX IF NOT EXISTS idx_column_type_actions_project ON column_type_action
 CREATE INDEX IF NOT EXISTS idx_column_annotations_snapshot ON column_annotations(cloud_id, source_snapshot_sha256, element_id, revision);
 CREATE INDEX IF NOT EXISTS idx_element_annotations_snapshot ON element_annotations(cloud_id, source_snapshot_sha256, element_id, revision);
 CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id);
+CREATE INDEX IF NOT EXISTS idx_station_registrations_project ON station_registrations(project_id);
 
 -- Also supports the initial local catalog schema whose foreign keys used
 -- immediate RESTRICT checks. Cleanup order is explicit, without rebuilding
@@ -307,8 +337,28 @@ def db() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with db() as con:
         con.executescript(SCHEMA)
+        _ensure_job_worker_columns(con)
         _ensure_training_sample_identity(con)
         _downgrade_legacy_structural_grid_columns(con)
+
+
+def _ensure_job_worker_columns(con: sqlite3.Connection) -> None:
+    """Add durable task ownership and cancellation fields to existing databases."""
+    columns = {row["name"] for row in con.execute("PRAGMA table_info(jobs)")}
+    additions = {
+        "task_payload_json": "TEXT",
+        "worker_id": "TEXT",
+        "lease_expires_at": "TEXT",
+        "attempts": "INTEGER NOT NULL DEFAULT 0",
+        "cancel_requested": "INTEGER NOT NULL DEFAULT 0",
+    }
+    for name, sql_type in additions.items():
+        if name not in columns:
+            con.execute(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS idx_jobs_worker_claim "
+        "ON jobs(status, lease_expires_at, created_at)"
+    )
 
 
 def _ensure_training_sample_identity(con: sqlite3.Connection) -> None:

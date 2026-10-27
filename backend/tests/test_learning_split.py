@@ -3,7 +3,11 @@
 import sqlite3
 
 from scan2bim import db as database
-from scan2bim.learning.training import _split_samples_by_element, _validate_physical_instance_labels
+from scan2bim.learning.training import (
+    _physical_holdout_status,
+    _split_samples_by_element,
+    _validate_physical_instance_labels,
+)
 from scan2bim.learning import store
 
 
@@ -50,6 +54,47 @@ def test_different_candidate_ids_for_one_physical_instance_stay_in_one_split():
     physical_test = {sample["physical_instance_id"] for sample in test}
     assert physical_train.isdisjoint(physical_test)
     assert {sample["id"] for sample in train + test} == {sample["id"] for sample in samples}
+
+
+def test_score_requires_complete_disjoint_physical_instance_holdout():
+    train = [{"physical_instance_id": "C-1"}, {"physical_instance_id": "C-2"}]
+    test = [{"physical_instance_id": "C-3"}]
+
+    result = _physical_holdout_status(train, test)
+
+    assert result["verified"] is True
+    assert result["status"] == "independent_physical_holdout"
+    assert result["training_physical_instance_count"] == 2
+    assert result["held_out_physical_instance_count"] == 1
+    assert result["samples_missing_physical_instance_id"] == 0
+
+
+def test_score_holdout_is_unverified_if_any_training_or_test_sample_lacks_physical_id():
+    train = [{"physical_instance_id": "C-1"}, {"physical_instance_id": None}]
+    test = [{"physical_instance_id": "C-2"}]
+
+    result = _physical_holdout_status(train, test)
+
+    assert result["verified"] is False
+    assert result["status"] == "not_verified"
+    assert result["samples_missing_physical_instance_id"] == 1
+
+
+def test_score_holdout_is_unverified_if_a_physical_id_crosses_the_split():
+    result = _physical_holdout_status(
+        [{"physical_instance_id": "C-1"}],
+        [{"physical_instance_id": "C-1"}],
+    )
+
+    assert result["verified"] is False
+    assert result["overlapping_physical_instance_ids"] == ["C-1"]
+
+
+def test_score_holdout_is_unverified_when_training_split_is_empty():
+    result = _physical_holdout_status([], [{"physical_instance_id": "C-1"}])
+
+    assert result["verified"] is False
+    assert result["status"] == "not_verified"
 
 
 def test_training_rejects_conflicting_classes_for_one_physical_instance():

@@ -1,0 +1,35 @@
+{
+  "schema": "scan2bim.validation/full-backend-regression/1.0",
+  "date": "2026-10-27",
+  "stage": 11,
+  "host": "Current Windows workstation; isolated test data and pytest temp root",
+  "command": "scripts/run_pytest.ps1",
+  "result": {
+    "tests_passed": 872,
+    "tests_failed": 0,
+    "exit_code": 0,
+    "elapsed_seconds": 157.16,
+    "warnings": [
+      "StarletteDeprecationWarning: using httpx with starlette.testclient is deprecated"
+    ]
+  },
+  "change_under_test": "The desktop launcher now defaults to its owned API and same-host durable worker; S2B_INGEST_MODE=local remains an explicit override.",
+  "focused_suites": {
+    "desktop_launcher_and_worker_process": {
+      "tests_passed": 26,
+      "tests_failed": 0
+    },
+    "station_registration_proposal_api": {
+      "tests_passed": 8,
+      "tests_failed": 0
+    }
+  },
+  "frontend": {
+    "npm_test_exit_code": 0,
+    "typescript_and_production_build": "passed on the current frontend sources; no frontend source changed in this worker-mode turn"
+  },
+  "limitations": [
+    "Software regression does not verify CUDA hardware, multi-host workers, industrial field accuracy, or native Autodesk host acceptance.",
+    "No production project database or original FARO source was used by the regression run."
+  ]
+}

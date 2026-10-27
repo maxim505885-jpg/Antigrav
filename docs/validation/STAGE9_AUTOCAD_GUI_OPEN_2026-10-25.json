@@ -1,0 +1,27 @@
+{
+  "checked_at_local": "2026-10-25T15:18:00+03:00",
+  "stage": 9,
+  "application": "AutoCAD 2026",
+  "test_drawing": "01_plan_kolonn_SPDS.dxf",
+  "source": "data/output/workshop_release/spds_album/clean_dwg_ready/01_plan_kolonn_SPDS.dxf",
+  "source_sha256": "9072537F570263062C5FEAD43F2D07FEB2D91DFF39ADAF45E5D7BFBEBC3C6E56",
+  "opened_copy": "%TEMP%/SCAN-AutoCAD-acceptance/01_plan_kolonn_SPDS.dxf",
+  "copy_sha256": "9072537F570263062C5FEAD43F2D07FEB2D91DFF39ADAF45E5D7BFBEBC3C6E56",
+  "gui_observation": {
+    "process_responding": true,
+    "window_title": "Autodesk AutoCAD 2026 - [01_plan_kolonn_SPDS.dxf]",
+    "drawing_opened": true,
+    "visual_inspection": false,
+    "editing": false,
+    "printing": false
+  },
+  "data_safety": {
+    "opened_copy_only": true,
+    "release_source_modified": false
+  },
+  "acceptance": {
+    "stage_9": "in progress; GUI open confirmed for a hash-matched copy, but Cyrillic rendering, lineweights, interactive edit and print remain unverified",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

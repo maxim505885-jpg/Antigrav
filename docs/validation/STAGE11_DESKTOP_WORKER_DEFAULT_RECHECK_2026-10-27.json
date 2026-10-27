@@ -1,0 +1,57 @@
+{
+  "checked_at_local": "2026-10-27T10:20:46+03:00",
+  "stage": 11,
+  "entrypoint": "desktop_app.py",
+  "runtime": {
+    "data_root": "<repository>/data",
+    "mode": "worker",
+    "launcher_reported": [
+      "API process started successfully",
+      "headless worker started successfully",
+      "native Edge app window did not appear within timeout; launcher fell back to the standard browser"
+    ],
+    "api_process": {
+      "pid": 17304,
+      "command": "python -m uvicorn scan2bim.main:app --host 127.0.0.1 --port 8000 --app-dir backend"
+    },
+    "worker_process": {
+      "pid": 20356,
+      "command": "python -m scan2bim.worker"
+    }
+  },
+  "checks": {
+    "health_url": "http://127.0.0.1:8000/api/v1/health",
+    "health_status": "ok",
+    "project_list_http": 200,
+    "project_count": 12,
+    "sqlite_read_only_job_counts": {
+      "queued": 0,
+      "running": 0,
+      "succeeded": 51,
+      "failed": 2,
+      "cancelled": 2
+    },
+    "browser_title": "SCAN STUDIO · Сшивка станций",
+    "station_workspace_loaded": true,
+    "browser_console_errors": 0,
+    "browser_console_warnings": 0
+  },
+  "mutations": {
+    "source_scans_modified": false,
+    "project_records_modified": false,
+    "jobs_submitted": false
+  },
+  "acceptance": {
+    "owned_same_host_worker_runtime": "verified",
+    "distributed_multi_host_worker": "open",
+    "cuda_processing": "open",
+    "hundred_million_or_billion_point_recognition": "open",
+    "stage_11": "in progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "penultimate",
+    "stage_9": "last"
+  },
+  "limitations": [
+    "The launcher fell back to the standard browser after the app-window timeout; the page itself loaded successfully."
+  ]
+}

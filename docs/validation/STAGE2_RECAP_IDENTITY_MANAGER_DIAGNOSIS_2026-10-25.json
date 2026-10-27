@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "scope": "Read-only diagnosis of Autodesk ReCap 24.0.0.240 exiting before opening a project.",
+  "observations": {
+    "recap_executable": "C:/Program Files/Autodesk/Autodesk ReCap/ReCap.exe",
+    "recap_version": "24.0.0.240",
+    "latest_attempts": [
+      {"time_local": "2026-10-25T07:24:07", "identity_sdk_error": 3005, "window_observed": false},
+      {"time_local": "2026-10-25T07:24:48", "identity_sdk_error": 3005, "window_observed": false}
+    ],
+    "identity_manager_install_directory_exists": false,
+    "identity_manager_uninstall_entry_found": false,
+    "adsk_licensing_service": "running",
+    "desktop_connector_messages": ["Failed to get root folder item of connected drive", "Failed to get drive root path"],
+    "mapped_R_drive_ready": false
+  },
+  "root_cause_assessment": {
+    "most_likely": "Autodesk Identity Manager is missing; ReCap's Identity SDK logs error 3005 and startup terminates before a window appears.",
+    "confidence": "high",
+    "basis": "The local Identity Manager install path and uninstall entry are absent; ReCap logs error 3005; Autodesk's current support article defines 3005 as a missing, damaged, or unloadable sign-in component and directs users to install the latest Identity Manager.",
+    "not_yet_tested": "Whether installing Identity Manager 1.21.1 resolves the ReCap launch on this machine."
+  },
+  "official_remediation": {
+    "component": "Autodesk Identity Manager 1.21.1 English-US 64-Bit (Windows)",
+    "supported_os": "Windows 10 build 17763 or later",
+    "official_update_article": "https://www.autodesk.com/support/technical/article/caas/tsarticles/ts/7zbgTemIhA3ltRs4eACL0g.html",
+    "official_error_3005_article": "https://www.autodesk.com/support/technical/article/caas/tsarticles/tsarticles/ESP/ts/39MInVGpwCA2pvxUK6AN4W.html",
+    "installer_execution": "not performed"
+  },
+  "data_safety": {"rcp_opened": false, "faro_sources_modified": false, "project_database_modified": false, "system_components_modified": false},
+  "acceptance": {"stage_2": "in_progress", "overall_closed_stages": "3/12", "stage_6": "parked until the final pass"}
+}

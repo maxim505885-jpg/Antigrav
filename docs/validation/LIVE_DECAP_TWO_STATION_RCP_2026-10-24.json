@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-24",
+  "purpose": "Live interoperability smoke: create a native two-node ReCap RCP with Autodesk DeCap from sampled derivatives of the two supplied FARO stations, then import it through SCAN production API.",
+  "scope_and_limits": "The inputs are 50,000-point sampled PTS derivatives generated from SCAN's already verified full-source FARO RCS streams. They are not the original full-resolution FARO RCS files. This verifies DeCap RCP packaging, linked RCS resolution, multi-node manifest parsing, separate station imports, RGB and finite coordinates. It does not verify registration, ReCap GUI review, full-resolution native FARO RCP generation, or round-trip editing.",
+  "recap": {
+    "product": "Autodesk ReCap DeCap command-line component",
+    "input_scan_count": 2,
+    "process_exit_code": 0,
+    "duration_seconds": 13.28,
+    "failed_scan_count": 0,
+    "rcp_path": "C:/Users/maxim/.codex/visualizations/2026/10/21/01a15bf8-9fe1-7a11-973a-78493d211b69/scan_recap_pilot_20261024/deCap_output/SCAN_FARO_two_scan_pilot_20261024/SCAN_FARO_two_scan_pilot_20261024.rcp",
+    "rcp_size_bytes": 2202,
+    "rcp_sha256": "46dd7f26300e66a919776eb52744fd1b6ad91e7049e6d86fa5d27e6d77da84af",
+    "support_rcs_count": 2,
+    "support_rcs_total_size_bytes": 4258510,
+    "manifest_node_count": 2,
+    "project_id": "91136e3f-c5b2-4a42-b294-0da208e1255e",
+    "nodes_registered": false,
+    "note": "ReCap packaged two scans as separate unregistered nodes; SCAN preserves node transforms as provenance and does not apply them without verified coordinate semantics."
+  },
+  "inputs": [
+    {
+      "station": "FARO_1_sample",
+      "derived_from_original": "1.rcs",
+      "original_source_point_count": 297873927,
+      "sample_point_count": 50000,
+      "pts_size_bytes": 2033645,
+      "pts_sha256": "6ef965a6f889657a53d94e7f6174921bf25a061e442e63f0209a0830be32c1df",
+      "support_rcs_size_bytes": 2866583,
+      "support_rcs_sha256": "f0f0e869ac991c33e3a70e22935676683a476394f098652a08174a6716ab16a1"
+    },
+    {
+      "station": "FARO_2_sample",
+      "derived_from_original": "2.rcs",
+      "original_source_point_count": 574367742,
+      "sample_point_count": 50000,
+      "pts_size_bytes": 2055485,
+      "pts_sha256": "ac944f0e59d9cd00213d183e54d96b935464999ab28687dbafdef8c6cd0ce7b",
+      "support_rcs_size_bytes": 1391927,
+      "support_rcs_sha256": "f2609a9718d240ef3222a2d189f7a662029a85bda5e697e0020712aefc57fd42"
+    }
+  ],
+  "scan_api_import": {
+    "api_base": "http://127.0.0.1:8000",
+    "project_id": "81973e9b7cd7407bb42c49ec523775b5",
+    "project_name": "Autodesk ReCap 2-station pilot",
+    "route": "POST /api/v1/projects/{project_id}/rcp/import-path",
+    "job_id": "7653334d02a048c08f657519d69f82c0",
+    "job_type": "rcp_batch_ingest",
+    "job_status": "succeeded",
+    "progress": 1.0,
+    "node_count": 2,
+    "ready_count": 2,
+    "failed_count": 0,
+    "clouds": [
+      {
+        "node_name": "FARO_2_sample",
+        "node_id": "{0a6c678f_5f3a_4ab5_8868_7b533f1c8d03}",
+        "cloud_id": "f5a64c57573945f29f417675ef6f8ceb",
+        "status": "ready",
+        "point_count": 50000,
+        "ingested_count": 50000,
+        "has_rgb": true,
+        "all_xyz_finite": true,
+        "source_sha256": "f2609a9718d240ef3222a2d189f7a662029a85bda5e697e0020712aefc57fd42",
+        "source_unchanged": true,
+        "registered": false,
+        "transform_applied": false
+      },
+      {
+        "node_name": "FARO_1_sample",
+        "node_id": "{0a335834_77f7_46a5_be3d_acaae77ea761}",
+        "cloud_id": "8f5ec75b0e0849399932d3944cca1efb",
+        "status": "ready",
+        "point_count": 50000,
+        "ingested_count": 50000,
+        "has_rgb": true,
+        "all_xyz_finite": true,
+        "source_sha256": "f0f0e869ac991c33e3a70e22935676683a476394f098652a08174a6716ab16a1",
+        "source_unchanged": true,
+        "registered": false,
+        "transform_applied": false
+      }
+    ]
+  },
+  "result": "PASS for native DeCap two-node RCP package generation from sampled FARO-derived PTS, manifest parsing, support-file linking, and production API batch import into separate ready RGB clouds. Stages 2 and 10 remain open."
+}

@@ -54,6 +54,28 @@ class CloudOut(BaseModel):
 class CloudImportPath(BaseModel):
     path: str
     name: str | None = None
+    max_points: int | None = Field(default=None, ge=0, le=2_000_000_000)
+
+
+class RcpImportPath(BaseModel):
+    path: str
+    name_prefix: str | None = None
+    max_points: int | None = Field(default=None, ge=0, le=2_000_000_000)
+
+
+class RcpImportedStation(BaseModel):
+    node_id: str | None = None
+    node_name: str
+    cloud: CloudOut
+
+
+class RcpImportBatchOut(BaseModel):
+    project_id: str
+    project_file: str
+    project_sha256: str
+    import_job_id: str
+    node_count: int
+    stations: list[RcpImportedStation]
 
 
 class Region(BaseModel):
@@ -318,6 +340,11 @@ class TrainRequest(BaseModel):
     notes: str = ""
 
 
+class LearningManifestExportRequest(BaseModel):
+    confirmed: StrictBool
+    expected_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class ModelOut(BaseModel):
     id: str
     name: str
@@ -379,6 +406,7 @@ class CleanupRequest(BaseModel):
 
     method: Literal["statistical", "radius", "voxel"] = "voxel"
     voxel_m: float = Field(default=0.05, gt=0.0005, le=2.0)
+    voxel_mode: Literal["representative", "centroid"] = "representative"
     k: int = Field(default=16, ge=1, le=200)
     std_ratio: float = Field(default=2.0, gt=0.1, le=10.0)
     radius_m: float = Field(default=0.05, gt=0.0005, le=5.0)

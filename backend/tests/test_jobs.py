@@ -78,3 +78,29 @@ def test_cloud_import_response_exposes_its_cancellable_job(client, tmp_path):
     job = client.get(f"/api/v1/jobs/{cloud['import_job_id']}").json()
     assert job["cloud_id"] == cloud["id"]
     assert job["type"] == "ingest"
+
+
+def test_job_with_station_failures_is_not_reported_as_succeeded(client):
+    job_id = create_job("rcp_batch_ingest", message="two stations")
+
+    def work(_progress):
+        return {
+            "status": "completed_with_failures",
+            "node_count": 2,
+            "ready_count": 1,
+            "failed_count": 1,
+            "failures": [{"node_name": "Station B", "error": "native reader failed"}],
+        }
+
+    submit(job_id, work)
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        job = get_job(job_id)
+        if job and job["status"] in {"failed", "succeeded"}:
+            break
+        time.sleep(0.005)
+
+    job = get_job(job_id)
+    assert job["status"] == "failed"
+    assert job["result"]["failed_count"] == 1
+    assert "Station B" in job["error"]

@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "change": "The legacy manual Kabsch panel now leaves ICP refinement disabled by default. The operator may still opt in with the existing checkbox; the split-screen manual point workflow already submits apply_icp_refinement=false.",
+  "why": "A manual tie-point transform should preserve the transform calculated from the manually selected pairs unless the operator explicitly requests geometry-based ICP refinement.",
+  "verification": {
+    "red": "The new policy regression initially failed because the tested policy module was absent.",
+    "frontend_policy_test": "1 passed",
+    "frontend_test_suite": "passed",
+    "backend_registration_tests": "11 passed",
+    "production_build": "passed; TypeScript and 1,978 Vite modules",
+    "change_applied_to_saved_clouds": false,
+    "surveyed_controls_submitted": false
+  },
+  "acceptance": {
+    "stage_4": "open",
+    "reason": "No independent survey control points or agreed engineering tolerance are available; RMSE < 10 mm is not verified.",
+    "accuracy_status": "not_measured"
+  },
+  "stage_6_order": "parked_until_last"
+}

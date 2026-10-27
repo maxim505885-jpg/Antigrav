@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { api, type ColumnTypeProposal, type ColumnTypesResponse } from "../api";
+import { api, type ColumnTypeProposal, type ColumnTypesResponse, type ProjectColumnReferenceTypes } from "../api";
 import { measuredColumnTypeSides } from "../columnTypePresentation";
 import type { Element } from "../types";
 
 interface Props {
   cloudId: string;
+  projectId?: string;
   elements: Element[];
   selected: Element | null;
   busy: boolean;
@@ -17,8 +18,9 @@ const MORPHOLOGY: Record<string, string> = {
   solid: "сплошное", stepped: "ступенчатое", built_up: "составное", unknown: "неизвестное", other: "прочее",
 };
 
-export default function ColumnTypesPanel({ cloudId, elements, selected, busy, onSelect, onSelectGroup }: Props) {
+export default function ColumnTypesPanel({ cloudId, projectId, elements, selected, busy, onSelect, onSelectGroup }: Props) {
   const [data, setData] = useState<ColumnTypesResponse | null>(null);
+  const [referenceTypes, setReferenceTypes] = useState<ProjectColumnReferenceTypes | null>(null);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,16 @@ export default function ColumnTypesPanel({ cloudId, elements, selected, busy, on
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [cloudId, elements, revision]);
+
+  useEffect(() => {
+    let current = true;
+    setReferenceTypes(null);
+    if (!projectId) return () => { current = false; };
+    api.projectColumnReferenceTypes(projectId)
+      .then((result) => { if (current) setReferenceTypes(result); })
+      .catch(() => { if (current) setReferenceTypes(null); });
+    return () => { current = false; };
+  }, [projectId, revision]);
 
   async function run(operation: () => Promise<{ action_id: string | null; changed: boolean }>, undo = false) {
     setSaving(true);
@@ -93,6 +105,19 @@ export default function ColumnTypesPanel({ cloudId, elements, selected, busy, on
       Подтверждение общего типа не заменяет проверку геометрии каждой колонны.</p>
     {error && <p role="alert" className="column-type-error">{error}</p>}
     {loading && <p role="status">Загружаю группы…</p>}
+    {referenceTypes && <section className="column-reference-types" aria-label="Независимые типы проекта">
+      <h4>Типы из ручной ведомости проекта · {referenceTypes.groups.length}</h4>
+      <p className="hint">Группировка следует только введённой независимой марке типа. Диапазоны сторон справочные: инженерный допуск не задан, автоматического назначения нет.</p>
+      {referenceTypes.groups.map((group) => <details key={group.type_label} className="column-type-card">
+        <summary>{group.type_label} · {group.physical_instance_count} физических колонн</summary>
+        <p>Стороны, мм: длинная {group.measured_sides_range_m.long
+          ? `${mm(group.measured_sides_range_m.long.min)}–${mm(group.measured_sides_range_m.long.max)}` : "нет замеров"}; короткая {group.measured_sides_range_m.short
+          ? `${mm(group.measured_sides_range_m.short.min)}–${mm(group.measured_sides_range_m.short.max)}` : "нет замеров"}.</p>
+        <p className="hint">Объектов с размерами: {group.measurement_count}; облака: {group.source_cloud_ids.length}.</p>
+      </details>)}
+      {!referenceTypes.groups.length && <p className="hint">Нет текущих независимых меток физических колонн.</p>}
+      {referenceTypes.conflicts.length > 0 && <p className="column-type-error">У {referenceTypes.conflicts.length} физических ID расходятся независимые марки; они исключены из групп до проверки.</p>}
+    </section>}
     {data && <>
       <p className="hint">Предварительный порог сравнения: {mm(data.linear_tolerance_m)} мм / {data.relative_tolerance * 100}%.
         Это настройка поиска совпадений; точность обмеров ещё не подтверждена.</p>

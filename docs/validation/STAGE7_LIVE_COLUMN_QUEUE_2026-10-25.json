@@ -1,0 +1,36 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 7,
+  "purpose": "Verify the real workshop column annotation queue without writing any annotations.",
+  "environment": {
+    "frontend": "Vite working-tree build at http://127.0.0.1:5173/",
+    "api": "existing local backend at http://127.0.0.1:8000/",
+    "project_id": "workshop_project",
+    "cloud_id": "workshop_cloud",
+    "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293"
+  },
+  "browser_checks": {
+    "recognition_review_filter": "columns selected",
+    "filtered_candidates": 376,
+    "queue_summary": "0 reviewed / 376 pending",
+    "next_pending_column_control_visible": true,
+    "next_pending_control_changed_selection": true,
+    "column_annotation_form_opened": true,
+    "save_annotation_clicked": false
+  },
+  "post_check_api_read": {
+    "candidates": 376,
+    "pending": 376,
+    "labeled": 0,
+    "unknown": 0,
+    "excluded": 0
+  },
+  "acceptance": {
+    "column_annotation_workflow_operable": true,
+    "physical_labels_created": false,
+    "holdout_evaluation_available": false,
+    "stage_7_closed": false,
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

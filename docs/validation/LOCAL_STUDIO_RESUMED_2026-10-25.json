@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-25",
+  "purpose": "Resume the user's local SCAN Studio for visual review and manual annotation",
+  "server": {
+    "url": "http://127.0.0.1:8000/",
+    "bind": "127.0.0.1",
+    "process_id": 24208,
+    "health_http": 200,
+    "health": "ok",
+    "ui_http": 200,
+    "ui_title_present": true,
+    "projects_api_http": 200,
+    "project_count": 12,
+    "active_faro_workshop_project": {
+      "id": "workshop_project",
+      "name": "Завод №1 (Цех 1.rcs + 2.rcs)",
+      "cloud_count": 5,
+      "element_count": 2325
+    }
+  },
+  "storage": "repository data/scan2bim.sqlite3",
+  "writes": {
+    "project_api_calls": "GET only",
+    "faro_source_modified": false,
+    "project_database_changed_by_validation": false
+  },
+  "acceptance": {
+    "stage_7": "annotation workspace available for user review; physical labels remain pending",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  },
+  "source_followup_correction": {
+    "old_manifest_absolute_path": "C:/Users/maxim/Desktop/ФОТО ЛУГАНСК/10 Support/10.rcs",
+    "verified_local_copy": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/10 Support/10.rcs",
+    "sha256_matches_prior_live_station_record": true,
+    "full_resolution_import_evidence": "STAGE2_LIVE_FULL_RCP_10_IMPORT_2026-10-25.json"
+  }
+}

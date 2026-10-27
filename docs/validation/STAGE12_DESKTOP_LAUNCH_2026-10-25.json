@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "test": "temporary installed package desktop launcher",
+  "install_root": "%TEMP%/scan-launch-1a3e5894",
+  "launcher_exit_code": 0,
+  "launcher_observations": {
+    "batch_launcher_ran": true,
+    "api_was_already_running": true,
+    "edge_app_mode_command_submitted": true,
+    "separate_native_window_confirmed": false,
+    "reason_window_not_confirmed": "The Edge command was handed to an existing browser process; this environment did not expose a separate window handle or an independently verifiable app-mode window."
+  },
+  "api_health": {
+    "status_code": 200,
+    "status": "ok",
+    "served_by": "pre-existing local API; this run did not verify server startup from the installed runtime"
+  },
+  "production_ui": {
+    "status_code": 200
+  },
+  "temporary_data_isolation": {
+    "launcher_data_root": "%TEMP%/scan-launch-userdata/ScanStudio/data",
+    "created_under_temp": true,
+    "removed_after_test": true
+  },
+  "cleanup": {
+    "uninstall_exit_code": 0,
+    "temporary_install_removed": true,
+    "temporary_logs_removed": true,
+    "active_local_api_left_running": true
+  },
+  "acceptance": "Partial. The installed batch launcher exited successfully, set data paths under TEMP, and submitted the Edge app-mode command while the API and UI were healthy. Because Windows reused an existing Edge process and no separate native window could be observed, native-window acceptance remains open. A clean Windows 11 machine and Authenticode signature are also still required."
+}

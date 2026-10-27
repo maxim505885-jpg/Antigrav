@@ -115,6 +115,8 @@ export interface Job {
   message: string;
   result: Record<string, any>;
   error?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ModelInfo {

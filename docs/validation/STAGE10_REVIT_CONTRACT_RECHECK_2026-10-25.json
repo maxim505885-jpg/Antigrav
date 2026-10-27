@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-25",
+  "stage": 10,
+  "scope": "Revit adapter and BIM/IFC contract recheck",
+  "host": {
+    "revit_2027_executable_present": true,
+    "project_local_dotnet_sdk": "10.0.100 at data/.tools/dotnet10/sdk",
+    "revit_api_references_present": true,
+    "revit_process_running_during_check": false
+  },
+  "checks": [
+    {
+      "command": "data/.tools/dotnet10/dotnet.exe build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release --no-restore",
+      "exit_code": 0,
+      "result": "passed",
+      "warnings": 3,
+      "warning_detail": "MSB3277 Microsoft.VisualBasic reference conflicts from Revit 2027 dependencies; no build errors.",
+      "output": "integrations/revit/Scan.Plugin/bin/Release/net10.0-windows/Scan.Revit.Plugin.dll",
+      "output_sha256": "B4FDC8FE6B4199337C91C52C20638525BA031BCADC0402F8CDD26DC74A3F65CE"
+    },
+    {
+      "commands": [
+        "data/.tools/dotnet10/dotnet.exe build integrations/revit/Scan.PolicyTests/Scan.PolicyTests.csproj -c Release --no-restore",
+        "data/.tools/dotnet10/dotnet.exe integrations/revit/Scan.PolicyTests/bin/Release/net10.0/Scan.PolicyTests.dll"
+      ],
+      "result": "passed",
+      "build_exit_code": 0,
+      "build_warnings": 0,
+      "checks_passed": 9,
+      "checks_failed": 0
+    },
+    {
+      "check": "Current user Revit 2027 add-in manifest and assembly target",
+      "result": "passed",
+      "manifest": "%APPDATA%/Autodesk/Revit/Addins/2027/SCAN.StructuralModel.addin",
+      "assembly_path_matches_current_release_dll": true
+    },
+    {
+      "files": [
+        "backend/tests/test_structural_model_contract.py",
+        "backend/tests/test_structural_ifc.py",
+        "backend/tests/test_api_pipeline.py"
+      ],
+      "result": "passed",
+      "passed": 17,
+      "failed": 0,
+      "pytest_exit_code": 0,
+      "warning": "Existing Starlette/httpx deprecation warning.",
+      "isolation": "Unique test data root and tmp_path fixture under a new workspace verification directory; pytest's standard temp cleanup is disabled because Windows denied directory enumeration/removal in its managed temp folder. Test files are isolated and not used by the production database.",
+      "scratch_cleanup": "The sandbox also denied recursive removal of the exact isolated .stage10-contract-check* folders after the run. They remain under the repository root and contain only test fixtures/databases; no production data is inside them."
+    }
+  ],
+  "acceptance": {
+    "stage_10": "in_progress",
+    "overall_closed_stages": "3/12",
+    "interactive_revit_2027_import_reopen": "not_verified; Revit was not running and host UI validation remains required",
+    "autocad_and_recap_gui_acceptance": "not_verified",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

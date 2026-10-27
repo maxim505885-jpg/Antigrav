@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ElementAnnotation, type ElementAnnotationDataset, type ElementAnnotationDraft, type RecognitionEvaluationReport, type SourceEvidenceAudit } from "../api";
 import { annotationCandidateEvidence } from "../annotationCandidateEvidence";
 import { elementPointEvidenceMessage, type SourcePointEvidence } from "../elementPointEvidence";
+import { annotationReviewerFor, rememberAnnotationReviewer } from "../annotationReviewer";
 import { buildRecognitionEvaluationRequest, emptyPhysicalReferenceDraft, roleMatchesClass, roleOptionsForClass, type PhysicalReferenceDraft, type RecognitionEvaluationMetadataDraft } from "../recognitionReferences";
 import { classLabel, type Element } from "../types";
 
@@ -30,9 +31,9 @@ const metric = (value: number | null) => value === null ? "пока нет да�
 
 type DraftFields = Omit<ElementAnnotationDraft, "source_snapshot_sha256">;
 
-function initial(annotation?: ElementAnnotation): DraftFields {
+function initial(annotation: ElementAnnotation | undefined, cloudId: string): DraftFields {
   return {
-    annotator: annotation?.annotator || "",
+    annotator: annotationReviewerFor(cloudId, annotation?.annotator),
     state: annotation?.state === "pending" ? "labeled" : annotation?.state || "labeled",
     physical_instance_id: annotation?.physical_instance_id || "",
     class_label: annotation?.class_label || "",
@@ -45,7 +46,7 @@ function initial(annotation?: ElementAnnotation): DraftFields {
 
 export default function ElementAnnotationPanel({ cloudId, element, busy, onAnnotationSaved }: Props) {
   const [dataset, setDataset] = useState<ElementAnnotationDataset | null>(null);
-  const [draft, setDraft] = useState<DraftFields>(initial());
+  const [draft, setDraft] = useState<DraftFields>(() => initial(undefined, cloudId));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -99,7 +100,7 @@ export default function ElementAnnotationPanel({ cloudId, element, busy, onAnnot
 
   useEffect(() => {
     if (!dataset) return;
-    setDraft(initial(current)); setNotice(""); setError("");
+    setDraft(initial(current, cloudId)); setNotice(""); setError("");
   // current is derived from the loaded immutable dataset and selected element.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset?.source_snapshot_sha256, element.id]);
@@ -120,7 +121,8 @@ export default function ElementAnnotationPanel({ cloudId, element, busy, onAnnot
       const saved = await api.saveElementAnnotation(cloudId, element.id, payload);
       onAnnotationSaved(saved);
       setDataset(await api.elementAnnotations(cloudId));
-      setDraft(initial(saved));
+      rememberAnnotationReviewer(cloudId, saved.annotator);
+      setDraft(initial(saved, cloudId));
       setNotice(`Сохранена независимая разметка, ревизия ${saved.revision}. Исходный кандидат не изменён.`);
     } catch (reason) {
       setError(String(reason instanceof Error ? reason.message : reason));
@@ -197,6 +199,8 @@ export default function ElementAnnotationPanel({ cloudId, element, busy, onAnnot
       <p><strong>Как это видит распознаватель — проверь по облаку</strong></p>
       <p>Класс: {candidateEvidence.classLabel} · роль: {candidateEvidence.roleLabel} ({candidateEvidence.roleStatus})</p>
       <p>Габариты по bbox: {candidateEvidence.bboxLabel} · источник: {candidateEvidence.sourceLabel} · оценка и основание: {candidateEvidence.confidenceLabel}</p>
+      {candidateEvidence.sectionProfileCoverageLabel && <p className="hint">{candidateEvidence.sectionProfileCoverageLabel}</p>}
+      {candidateEvidence.sectionProfileWarning && <p className="warn-box" role="note">{candidateEvidence.sectionProfileWarning}</p>}
     </div>
     <p className={pointQuery?.evidence.status === "mismatch" ? "column-type-error" : "hint"} role="status">
       {pointQueryLoading
@@ -287,7 +291,7 @@ export default function ElementAnnotationPanel({ cloudId, element, busy, onAnnot
     </div>}
     {dataset && <>
       <div className="column-fit-fields">
-        <label><span className="field-label">Разметчик</span><input value={draft.annotator} onChange={(e) => setDraft({ ...draft, annotator: e.target.value })} /></label>
+        <label><span className="field-label">Разметчик</span><input value={draft.annotator} onChange={(e) => { rememberAnnotationReviewer(cloudId, e.target.value); setDraft({ ...draft, annotator: e.target.value }); }} /></label>
         <label><span className="field-label">Решение</span><select value={draft.state} onChange={(e) => setDraft({ ...draft, state: e.target.value as DraftFields["state"] })}>
           <option value="labeled">Размечено</option><option value="unknown">Неизвестно</option><option value="excluded">Ложный кандидат / исключить</option>
         </select></label>

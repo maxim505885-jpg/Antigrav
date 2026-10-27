@@ -1,0 +1,317 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Isolated full-resolution import through the real single-node RCP API route",
+  "source": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256_before": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "rcs_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+    "rcs_size_bytes": 7130808277,
+    "rcs_sha256_before": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "declared_point_count": 295836062,
+    "rcp_sha256_after": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "rcs_sha256_after": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "unchanged": true
+  },
+  "derived_test_data_root": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.t\\fullrcp_7d513f8097ef\\app-data",
+  "api": {
+    "health_http": 200,
+    "project_id": "9280e4b28f754ba68dcbf355aa0783a3",
+    "import_http": 200,
+    "cloud_id": "0e66e4028b054fc4b3462b78fd99432d",
+    "job_id": "da1e18af3317445191090cb26f4993b1",
+    "job": {
+      "id": "da1e18af3317445191090cb26f4993b1",
+      "project_id": "9280e4b28f754ba68dcbf355aa0783a3",
+      "cloud_id": "0e66e4028b054fc4b3462b78fd99432d",
+      "type": "ingest",
+      "status": "succeeded",
+      "progress": 1.0,
+      "message": "готово",
+      "result": {
+        "cloud_id": "0e66e4028b054fc4b3462b78fd99432d",
+        "point_count": 295591803,
+        "ingested_count": 295591803,
+        "preview_count": 2500000,
+        "decimated": false,
+        "warning": null
+      },
+      "error": null,
+      "created_at": "2026-10-25T07:19:36+00:00",
+      "updated_at": "2026-10-25T07:39:23+00:00"
+    },
+    "cloud_after_import": {
+      "id": "0e66e4028b054fc4b3462b78fd99432d",
+      "project_id": "9280e4b28f754ba68dcbf355aa0783a3",
+      "name": "10 — full-resolution validation",
+      "source_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+      "source_format": "rcs",
+      "size_bytes": 7130808277,
+      "point_count": 295591803,
+      "ingested_count": 295591803,
+      "preview_count": 2500000,
+      "decimated": false,
+      "has_color": true,
+      "has_intensity": false,
+      "status": "ready",
+      "error": null,
+      "metadata": {
+        "recap_project": {
+          "project_id": "1307a42e-3076-48d5-8ce9-4fa377dbef3d",
+          "project_file": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+          "manifest_member": "4104aa8f-4e92-48a7-9993-0e778259e83a.xml",
+          "unit_type_raw": "1",
+          "node_count": 1,
+          "nodes": [
+            {
+              "node_id": "{08a15dac_f04b_4de2_876c_6b5fa500c63d}",
+              "name": "10",
+              "stored_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+              "relative_path": "",
+              "resolved_rcs_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+              "declared_point_count": 295836062,
+              "has_rgb": true,
+              "has_intensity": true,
+              "has_normals": true,
+              "registered": false,
+              "translation": [
+                -9.47617950106483,
+                42.9205067460918,
+                5.89918721754716
+              ],
+              "rotation": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "scale": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "asset_bounds": {
+                "tform_translation": [
+                  -50.8636486709028,
+                  -28.3974500969408,
+                  -3.12890562964454
+                ],
+                "size": [
+                  82.7749383396759,
+                  142.635913686065,
+                  18.0561856943834
+                ],
+                "axis_aligned_interpretation_supported": true,
+                "min": [
+                  -50.8636486709028,
+                  -28.3974500969408,
+                  -3.12890562964454
+                ],
+                "max": [
+                  31.9112896687731,
+                  114.23846358912421,
+                  14.927280064738861
+                ]
+              }
+            }
+          ],
+          "project_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+          "selected_node": {
+            "node_id": "{08a15dac_f04b_4de2_876c_6b5fa500c63d}",
+            "name": "10",
+            "stored_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+            "relative_path": "",
+            "resolved_rcs_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+            "declared_point_count": 295836062,
+            "has_rgb": true,
+            "has_intensity": true,
+            "has_normals": true,
+            "registered": false,
+            "translation": [
+              -9.47617950106483,
+              42.9205067460918,
+              5.89918721754716
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "asset_bounds": {
+              "tform_translation": [
+                -50.8636486709028,
+                -28.3974500969408,
+                -3.12890562964454
+              ],
+              "size": [
+                82.7749383396759,
+                142.635913686065,
+                18.0561856943834
+              ],
+              "axis_aligned_interpretation_supported": true,
+              "min": [
+                -50.8636486709028,
+                -28.3974500969408,
+                -3.12890562964454
+              ],
+              "max": [
+                31.9112896687731,
+                114.23846358912421,
+                14.927280064738861
+              ]
+            }
+          },
+          "declared_point_count_difference": 244259,
+          "transform_applied": false,
+          "transform_note": "SCAN did not reapply the RCP node translation: the full linked RCS extents match the axis-aligned RCP asset bounds within the metadata-consistency epsilon. This verifies extents for this node only, not every point or other RCP projects.",
+          "actual_source_point_count": 295591803,
+          "actual_ingested_point_count": 295591803,
+          "coordinate_frame_check": {
+            "status": "rcs_bounds_match_rcp_asset_bounds",
+            "method": "axis-aligned RCP AssetBoundingBox min/size compared with full ingested RCS extents",
+            "rcp_asset_min": [
+              -50.8636486709028,
+              -28.3974500969408,
+              -3.12890562964454
+            ],
+            "rcp_asset_max": [
+              31.9112896687731,
+              114.23846358912421,
+              14.927280064738861
+            ],
+            "rcs_min": [
+              -50.86330842804833,
+              -28.397686644383462,
+              -3.1290869562622454
+            ],
+            "rcs_max": [
+              31.910917194172782,
+              114.23818402069409,
+              14.927187217547159
+            ],
+            "absolute_min_delta": [
+              0.00034024285447031843,
+              0.00023654744266110583,
+              0.000181326617705313
+            ],
+            "absolute_max_delta": [
+              0.00037247460031863966,
+              0.00027956843011622823,
+              9.284719170210565e-05
+            ],
+            "max_absolute_delta_in_coordinate_units": 0.00037247460031863966,
+            "consistency_epsilon_in_coordinate_units": 0.001,
+            "unit_type_raw": "1",
+            "epsilon_is_engineering_tolerance": false,
+            "translation_reapplication": "do_not_apply_for_this_node"
+          }
+        },
+        "max_points": 0,
+        "reader": "recap-adskrcexport-dll",
+        "reader_abi": "undocumented Autodesk internal (RCRcsDataSource), subprocess-isolated",
+        "dll": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\AdskRcExport.dll",
+        "native_rcs_verified": true,
+        "sampling": "none; full sequential RCS stream",
+        "source_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+        "origin": [
+          -9.476195616937773,
+          42.92024868815531,
+          5.899050130642457
+        ],
+        "bbox_min": [
+          -50.86330842804833,
+          -28.397686644383462,
+          -3.1290869562622454
+        ],
+        "bbox_max": [
+          31.910917194172782,
+          114.23818402069409,
+          14.927187217547159
+        ],
+        "preview_count": 2500000,
+        "preview_stride_bytes": 15,
+        "stored_point_count": 295591803,
+        "source_point_count": 295591803,
+        "decimated": false,
+        "dropped_non_finite": 0,
+        "warning": null,
+        "has_color": true,
+        "has_intensity": false,
+        "crash_safe": true,
+        "source_unchanged": true,
+        "checksum_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+        "source_identity": {
+          "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+          "size_bytes": 7130808277,
+          "mtime_ns": 1792120837260768600,
+          "sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a"
+        }
+      }
+    }
+  },
+  "resource_trace": {
+    "sample_interval_seconds": 5,
+    "started_utc": "2026-10-25T07:19:35.784629+00:00",
+    "ended_utc": "2026-10-25T07:39:25.537210+00:00",
+    "duration_seconds": 1189.75,
+    "peak_aggregate_process_tree_rss_bytes": 12224122880,
+    "minimum_free_bytes_in_isolated_data_volume": 11445743616,
+    "minimum_system_available_memory_bytes": 6600065024
+  },
+  "acceptance": {
+    "single_node_full_resolution_rcp_import": "passed",
+    "reader_source_count_and_stored_count_match": true,
+    "color_retained": true,
+    "reopened_after_new_api_process": "passed",
+    "original_faro_sources_unchanged": true,
+    "stage_2": "in_progress",
+    "remaining": [
+      "RCP declared-count discrepancy (+244,259) not explained",
+      "full-resolution multi-station native RCP import and restart/cancel acceptance",
+      "ReCap GUI open/move/review round-trip (Identity Manager missing)",
+      "independent surveyed controls for transform/unit validation"
+    ],
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  },
+  "cleanup": {
+    "temporary_project_deleted": true,
+    "project_id": "9280e4b28f754ba68dcbf355aa0783a3",
+    "project_folder_removed": true,
+    "database_project_row_removed": true,
+    "sqlite_integrity_check": "ok",
+    "original_rcp_sha256_unchanged": true,
+    "original_rcs_sha256_unchanged": true,
+    "source_hashes_after": {
+      "rcp": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+      "rcs": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a"
+    },
+    "derived_test_cloud_deleted": true,
+    "current_c_free_bytes_after_validation_and_cleanup": 23893987328
+  },
+  "environment": {
+    "original_manifest_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+    "resolved_station_copy": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+    "resolved_copy_matches_recorded_source_hash": true,
+    "validation_harness_note": "The first run imported scan2bim.formats.rcp_manifest before setting S2B_DATA_DIR, freezing DB_PATH at repository data/; the isolated run directory was not the active app data root. The newly inserted, uniquely named temporary project was independently read after a fresh process start, then deleted. The runner script was corrected to set S2B_DATA_DIR before any scan2bim import and to preserve the data root if restart verification fails."
+  },
+  "effective_data_root": "repository data/ (not the intended temporary directory due to the harness import-order defect; the temporary test project was verified and removed)",
+  "restart_verification": {
+    "process_restarted": true,
+    "health_http": 200,
+    "project_http": 200,
+    "clouds_http": 200,
+    "project_id": "9280e4b28f754ba68dcbf355aa0783a3",
+    "project_name": "Isolated full RCP acceptance 10",
+    "cloud_id": "0e66e4028b054fc4b3462b78fd99432d",
+    "cloud_status": "ready",
+    "point_count": 295591803,
+    "ingested_count": 295591803,
+    "decimated": false,
+    "has_color": true
+  }
+}

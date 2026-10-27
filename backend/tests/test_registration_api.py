@@ -6,7 +6,7 @@ from scan2bim.db import execute, new_id, utcnow
 from scan2bim.storage import cloud_paths
 
 
-def test_registration_flow_success(client, tmp_path):
+def test_registration_flow_success(client):
     project = client.post("/api/v1/projects", json={"name": "Registration test"}).json()
     project_id = project["id"]
     
@@ -14,9 +14,9 @@ def test_registration_flow_success(client, tmp_path):
     c1_id = new_id()
     now = utcnow()
     execute(
-        """INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?)""",
-        (c1_id, project_id, "Cloud 1", "c1.ply", "ply", 1000, "ready", now, now)
+        """INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, origin_x, origin_y, origin_z, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (c1_id, project_id, "Cloud 1", "c1.ply", "ply", 1000, "ready", 10.0, 20.0, 30.0, now, now)
     )
     p1 = cloud_paths(project_id, c1_id)
     p1["positions"].parent.mkdir(parents=True, exist_ok=True)
@@ -26,9 +26,9 @@ def test_registration_flow_success(client, tmp_path):
     # Cloud 2 (shifted Cloud 1)
     c2_id = new_id()
     execute(
-        """INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?)""",
-        (c2_id, project_id, "Cloud 2", "c2.ply", "ply", 1000, "ready", now, now)
+        """INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, origin_x, origin_y, origin_z, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (c2_id, project_id, "Cloud 2", "c2.ply", "ply", 1000, "ready", 100.0, 200.0, 300.0, now, now)
     )
     p2 = cloud_paths(project_id, c2_id)
     p2["positions"].parent.mkdir(parents=True, exist_ok=True)
@@ -45,8 +45,14 @@ def test_registration_flow_success(client, tmp_path):
     assert res.status_code == 200
     data = res.json()
     assert "matrix_4x4" in data
+    assert data["world_matrix_4x4"] is not None
+    assert data["coordinate_frame"]["world_matrix_4x4"] == "source_world_to_target_world"
     assert "rmse_mm" in data
     assert data["rmse_mm"] >= 0
+    assert data["source_sample_count"] == 100
+    assert data["target_sample_count"] == 100
+    assert 0 <= data["inlier_count"] <= data["source_sample_count"]
+    assert data["inlier_fraction"] == pytest.approx(data["inlier_count"] / 100)
     assert len(data["source_sample_row_ids"]) == len(set(data["source_sample_row_ids"])) == 100
     assert len(data["target_sample_row_ids"]) == len(set(data["target_sample_row_ids"])) == 100
     assert set(data["source_sample_row_ids"]) == set(range(100))

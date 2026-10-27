@@ -1,0 +1,43 @@
+{
+  "schema": "scan2bim.validation/stage12-current-source-candidate/1.0",
+  "date": "2026-10-27",
+  "stage": 12,
+  "artifact": "data/.tools/stage12-candidate-20261026/SCAN_Studio_Panorama_Worker_Setup.exe",
+  "artifact_size_bytes": 170047732,
+  "artifact_sha256": "D9A943A1107137F43769E91D1B59409BA5E1D2ACE0C2F0D0BE24ED07553C9D06",
+  "compiler": "Inno Setup 6.7.3",
+  "release_preflight": {
+    "status": "passed",
+    "frontend_asset_references": 4
+  },
+  "isolated_install_smoke": {
+    "sandboxed_first_attempt_exit": 4,
+    "retry_install_exit": 0,
+    "installed_python_source_manifest": "exact match; no missing, unexpected, or hash-mismatched modules",
+    "health_http": 200,
+    "ui_http": 200,
+    "ui_title_present": true,
+    "unauthenticated_remote_api_http": 401,
+    "python_bytecode_count": 0,
+    "data_root": "isolated under TEMP",
+    "panorama_worker_smoke": {
+      "installed_copy": true,
+      "synthetic_station_points": 6,
+      "task_type": "panorama_render",
+      "job_status": "succeeded",
+      "progress": 1.0,
+      "renderer": "sampled",
+      "image_http": 200,
+      "image_bytes": 2763
+    },
+    "uninstall_exit": 0,
+    "temporary_install_removed": true,
+    "temporary_uninstall_registry_entry_removed": true,
+    "temporary_start_menu_shortcut_removed": true
+  },
+  "limits": [
+    "Validated on the current Windows 10 host only; clean Windows 11 acceptance and signing remain open.",
+    "Candidate was not promoted to the release installer."
+  ],
+  "data_safety": "Existing release EXE, production database, and FARO source scans were not modified. The isolated temporary install was uninstalled and verified removed."
+}

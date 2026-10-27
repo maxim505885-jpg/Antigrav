@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Reject an obviously under-provisioned full-resolution RCP batch before creating cloud rows or jobs.",
+  "input": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "declared_source_points": 295836062,
+    "linked_rcs_reader_source_points": 295591803,
+    "linked_rcs_reader_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "full_resolution_requested": true,
+    "source_point_data_modified": false
+  },
+  "implementation": {
+    "file": "backend/scan2bim/api/app.py",
+    "estimate": "persistent float32 XYZ/RGB arrays and preview per station + one sequential float64 XYZ/RGB raw stream + 10% margin + configured free-space reserve",
+    "unknown_or_missing_manifest_counts": "skip estimate and retain authoritative per-chunk streaming disk guard",
+    "http_status_when_insufficient": 507,
+    "openapi_documents_507": true,
+    "streaming_guard_retained": true
+  },
+  "live_isolated_api": {
+    "port": 8001,
+    "database": "temporary isolated test database under TEMP",
+    "status_before_request": "ok",
+    "status_code": 507,
+    "required_bytes": 14782617889,
+    "available_bytes": 5817888768,
+    "project_cloud_rows_after_rejection": 0,
+    "project_jobs_after_rejection": 0,
+    "temporary_api_and_data_removed": true,
+    "main_api_after_test": "ok"
+  },
+  "regression": {
+    "tests": "backend/tests/test_rcp_batch_import_api.py, test_api_pipeline.py, test_openapi_schema.py, test_rcs_streaming_ingest.py, test_ingest_restart.py",
+    "passed": 37,
+    "failed": 0,
+    "warning": "Existing Starlette/httpx TestClient deprecation warning",
+    "additional_cases": [
+      "Full-resolution multi-node RCP is rejected before creating clouds/jobs when disk is insufficient.",
+      "Full-resolution single-node RCP is rejected before creating cloud/job rows when disk is insufficient."
+    ],
+    "cleanup_warning": {
+      "occurred": true,
+      "cause": "run_pytest.ps1 could not immediately remove its isolated temp folder",
+      "resolution": "The exact empty workspace-owned pytest folders were verified non-reparse and removed after the run; no test artifacts remain from these runs."
+    }
+  },
+  "acceptance": "This prevents a full RCP import from beginning when the manifest-based estimate exceeds available disk and confirms there are no partial cloud/job writes. The estimate is conservative but based on manifest metadata; native source counts can differ, and the existing per-chunk disk guard remains authoritative. Stage 2 remains open for full-volume RCP/ReCap round-trip, native full-resolution cancellation/restart, resource envelope, and the 244259-point declaration discrepancy. The refreshed main project API on port 8000 was also checked against the real RCP: HTTP 507 before cloud/job writes, with the project database unchanged; its served UI asset manifest matches the current production build.",
+  "frontend_validation": {
+    "npm_test": "passed",
+    "production_build": "passed",
+    "vite_modules_transformed": 1977,
+    "release_bundle_preflight": "passed; 4 production UI assets referenced"
+  },
+  "live_project_api": {
+    "port": 8000,
+    "process_id": 26684,
+    "data_directory": "repository data/scan2bim.sqlite3",
+    "restart_preconditions": {
+      "projects_matched_repository_database": true,
+      "projects": 12,
+      "active_jobs_before_restart": 0
+    },
+    "health": "ok",
+    "openapi_documents_507": true,
+    "real_rcp_full_resolution_response_status": 507,
+    "required_bytes": 14782617889,
+    "available_bytes": 5817147392,
+    "workshop_project_cloud_rows_unchanged": true,
+    "active_jobs_after_request": 0,
+    "served_frontend_assets_match_current_build": true
+  },
+  "release_bundle_after_change": {
+    "installer_rebuilt_for_this_change": false,
+    "compiler_check": "ISCC.exe not found in PATH or standard Inno Setup install locations; current project API and frontend build are updated, release preflight passes."
+  }
+}

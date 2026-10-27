@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "url": "http://127.0.0.1:8000/",
+  "cloud_id": "workshop_cloud",
+  "ui": {
+    "panel": "Независимая разметка конструкций",
+    "filter": "columns",
+    "visible_column_candidates": 376,
+    "selected_candidate": "00e0fe96d3444247ae247045dff64ee7",
+    "queue_reviewed": 0,
+    "queue_total": 376,
+    "required_fields_visible": [
+      "physical_id",
+      "long_side_mm",
+      "short_side_mm",
+      "structural_role",
+      "review_decision"
+    ],
+    "physical_reference_fields_empty_on_entry": true
+  },
+  "network": {
+    "elements_get": 200,
+    "column_annotations_get": 200,
+    "history_get": 200,
+    "annotation_write_requested": false
+  },
+  "browser_console_errors": 0,
+  "mutations": false,
+  "acceptance": "Annotation UI is available; no physical reference was entered, so Stage 6/7 accuracy gates remain open."
+}

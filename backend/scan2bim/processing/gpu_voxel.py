@@ -12,6 +12,15 @@ from typing import Tuple
 import numpy as np
 
 
+def voxel_compute_backend() -> str:
+    """Report which backend the next bounded voxel reduction will use."""
+    try:
+        import torch
+    except ImportError:
+        return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def _validate_inputs(
     points: np.ndarray, voxel_size_m: float, colors: np.ndarray | None
 ) -> tuple[np.ndarray, float, np.ndarray | None]:
@@ -44,6 +53,32 @@ def _validate_inputs(
     return pts, voxel_size, cols
 
 
+def _pack_voxel_coordinates(voxel_coords: np.ndarray) -> np.ndarray | None:
+    """Pack bounded integer XYZ cells into sortable, collision-free uint64 keys.
+
+    A mixed-radix encoding preserves the same lexicographic ordering as
+    ``np.unique(..., axis=0)``. Wide coordinate ranges return ``None`` so the
+    caller can retain the exact tuple-based fallback.
+    """
+    coords = np.asarray(voxel_coords)
+    if coords.ndim != 2 or coords.shape[1] != 3 or not np.issubdtype(coords.dtype, np.integer):
+        raise ValueError("voxel_coords must be an integer array with shape (N, 3)")
+    if len(coords) == 0:
+        return np.empty(0, dtype=np.uint64)
+
+    minima = coords.min(axis=0)
+    spans = [int(coords[:, axis].max()) - int(minima[axis]) + 1 for axis in range(3)]
+    key_space = spans[0] * spans[1] * spans[2]
+    if key_space > 2**63:
+        return None
+
+    offsets = coords - minima
+    x = offsets[:, 0].astype(np.uint64)
+    y = offsets[:, 1].astype(np.uint64)
+    z = offsets[:, 2].astype(np.uint64)
+    return (x * np.uint64(spans[1]) + y) * np.uint64(spans[2]) + z
+
+
 def _cpu_voxel_means(
     points: np.ndarray, voxel_size: float, colors: np.ndarray | None
 ) -> tuple[np.ndarray, np.ndarray | None]:
@@ -56,18 +91,26 @@ def _cpu_voxel_means(
     # the same voxel. float64 keeps millimetre precision for normal site scales.
     scaled = np.floor(points / voxel_size)
     voxel_coords = scaled.astype(np.int64)
-    _, inverse, counts = np.unique(
-        voxel_coords, axis=0, return_inverse=True, return_counts=True
-    )
+    packed = _pack_voxel_coordinates(voxel_coords)
+    if packed is None:
+        _, inverse, counts = np.unique(
+            voxel_coords, axis=0, return_inverse=True, return_counts=True
+        )
+    else:
+        _, inverse, counts = np.unique(packed, return_inverse=True, return_counts=True)
 
-    sums = np.zeros((len(counts), 3), dtype=np.float64)
-    np.add.at(sums, inverse, points)
+    # bincount uses optimized grouped accumulation and avoids Python-level
+    # indexed updates for every point in large CPU fallback workloads.
+    sums = np.column_stack(
+        [np.bincount(inverse, weights=points[:, axis], minlength=len(counts)) for axis in range(3)]
+    )
     centroids = (sums / counts[:, None]).astype(np.float32)
 
     mean_colors = None
     if colors is not None:
-        color_sums = np.zeros((len(counts), 3), dtype=np.float64)
-        np.add.at(color_sums, inverse, colors)
+        color_sums = np.column_stack(
+            [np.bincount(inverse, weights=colors[:, axis], minlength=len(counts)) for axis in range(3)]
+        )
         mean_colors = np.rint(color_sums / counts[:, None]).clip(0, 255).astype(np.uint8)
     return centroids, mean_colors
 
@@ -124,10 +167,6 @@ def voxel_downsample_accelerated(
     # Import or device discovery may fail on machines without PyTorch/CUDA. A
     # CUDA execution failure is allowed to surface; silently retrying an OOM on
     # CPU can exhaust workstation memory and hide a broken GPU path.
-    try:
-        import torch
-    except ImportError:
-        torch = None
-    if torch is not None and torch.cuda.is_available():
+    if voxel_compute_backend() == "cuda":
         return _cuda_voxel_means(pts, voxel_size, cols)
     return _cpu_voxel_means(pts, voxel_size, cols)

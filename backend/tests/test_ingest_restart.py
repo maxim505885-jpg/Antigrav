@@ -36,6 +36,14 @@ def test_ingest_resumes_finalization_from_a_complete_checkpoint(client, tmp_path
         VALUES (?,?,?,?,?,?,?,?,?)""",
         (cloud_id, project_id, "synthetic", str(source), "xyz", source.stat().st_size, "processing", now, now),
     )
+    initial_metadata = {
+        "max_points": 0,
+        "recap_project": {"project_id": "preserved-before-ready"},
+    }
+    execute(
+        "UPDATE clouds SET metadata_json = ? WHERE id = ?",
+        (json.dumps(initial_metadata), cloud_id),
+    )
     xyz = np.array([[10.0, 20.0, 1.0], [11.0, 22.0, 3.0], [12.0, 21.0, 2.0]])
     rgb = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.uint8)
     raw = RawCloud(xyz, rgb, metadata={"reader": "synthetic-test", "source_point_count": 3})
@@ -62,7 +70,13 @@ def test_ingest_resumes_finalization_from_a_complete_checkpoint(client, tmp_path
     np.testing.assert_array_equal(np.load(paths["positions"]), (xyz - xyz.mean(axis=0)).astype(np.float32))
     np.testing.assert_array_equal(np.load(paths["colors"]), rgb)
     assert paths["preview"].stat().st_size == result["preview_count"] * ingest.PREVIEW_DTYPE.itemsize
-    assert one("SELECT status FROM clouds WHERE id = ?", (cloud_id,))["status"] == "ready"
+    stored = one("SELECT status, metadata_json FROM clouds WHERE id = ?", (cloud_id,))
+    assert stored["status"] == "ready"
+    assert json.loads(stored["metadata_json"])["max_points"] == 0
+    assert json.loads(stored["metadata_json"])["recap_project"] == initial_metadata["recap_project"]
+    meta_file = json.loads(paths["meta"].read_text(encoding="utf-8"))
+    assert meta_file["max_points"] == 0
+    assert meta_file["recap_project"] == initial_metadata["recap_project"]
     assert not checkpoint.parent.exists(), "committed stage should be cleaned after database finalization"
 
 
@@ -201,6 +215,28 @@ def test_restart_marks_interrupted_cloud_import_resumable_without_reading_source
     assert cloud["status"] == "failed"
     assert "Возобновить" in cloud["error"]
     assert get_job(job_id)["status"] == "failed"
+
+
+def test_restart_marks_process_local_jobs_failed_and_preserves_terminal_jobs(client):
+    api_module = importlib.import_module("scan2bim.api.app")
+    project = client.post("/api/v1/projects", json={"name": "job startup recovery"}).json()
+    running_id = create_job("recognition", project["id"], "cloud-running", "recognition")
+    queued_id = create_job("export", project["id"], "cloud-queued", "export")
+    succeeded_id = create_job("section", project["id"], "cloud-done", "done")
+    update_job(running_id, status="running", progress=0.75, message="extracting slabs")
+    update_job(succeeded_id, status="succeeded", progress=1.0, message="done")
+
+    api_module._mark_interrupted_jobs()
+
+    running = get_job(running_id)
+    queued = get_job(queued_id)
+    succeeded = get_job(succeeded_id)
+    assert running["status"] == "failed"
+    assert running["progress"] == 0.75
+    assert "перезапуском сервера" in running["message"].lower()
+    assert running["error"]
+    assert queued["status"] == "failed"
+    assert succeeded["status"] == "succeeded"
 
 
 def test_changed_source_cannot_be_silently_imported_under_an_old_checkpoint(client, tmp_path, monkeypatch):

@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-24",
+  "run_kind": "read-only full-resolution derived-cloud streaming validation",
+  "cloud_id": "1c8f6d596518476b8b74055d5414609b",
+  "source_rcs_sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+  "source_rcs_size_bytes": 7196593757,
+  "source_rcs_mtime_ns": 1791897939956361000,
+  "stored_points": 297873927,
+  "chunk_rows": 1000000,
+  "finite_rows": 297873927,
+  "non_finite_rows": 0,
+  "bbox_min_local_m": [
+    -73.21534729003906,
+    -43.358036041259766,
+    -8.014436721801758
+  ],
+  "bbox_max_local_m": [
+    73.21534729003906,
+    43.358036041259766,
+    8.014436721801758
+  ],
+  "bbox_vs_metadata_after_origin_match": true,
+  "bbox_tolerance_m": 0.0005,
+  "read_bytes_xyz": 3574487252,
+  "read_bytes_rgb": 893621909,
+  "rgb_channel_sum": 89529161222,
+  "elapsed_seconds": 25.563,
+  "points_per_second": 11652595.5,
+  "process_rss_before_bytes": 29814784,
+  "process_rss_peak_sampled_bytes": 4510552064,
+  "input_files_unchanged": true,
+  "original_source_write_attempted": false,
+  "limits": "Derived positions/colors only; does not benchmark recognition throughput, GPU, index rebuild, concurrent workers, or 1B-point scale; it validates bounded full-array reading on one 297.9M-point FARO-derived cloud."
+}

@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "purpose": "Read-only check whether physical column annotations were entered in the live workshop project.",
+  "cloud_id": "workshop_cloud",
+  "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+  "candidate_count": 376,
+  "current_snapshot_annotation_states": {
+    "pending": 376,
+    "labeled": 0,
+    "rejected": 0,
+    "unknown": 0
+  },
+  "current_snapshot_history_count": 0,
+  "independent_export_annotation_states": {
+    "pending": 376,
+    "labeled": 0
+  },
+  "project_writes_performed": false,
+  "faro_sources_modified": false,
+  "acceptance": {
+    "stage_7": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": [
+      "operator-entered physical labels and IDs",
+      "independently labeled held-out members/bays",
+      "measured learning and review metrics"
+    ]
+  }
+}

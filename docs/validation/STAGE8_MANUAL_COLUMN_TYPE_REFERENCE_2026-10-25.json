@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-25",
+  "stage": 8,
+  "title": "Project reference groups from independently labeled physical column types",
+  "verification": {
+    "endpoint": "GET /api/v1/projects/{project_id}/column-reference-types",
+    "backend_tests": "backend/tests/test_column_type_api.py: 25 passed",
+    "frontend_tests": "passed",
+    "typescript": "passed",
+    "production_build": "passed",
+    "live_ui": "Studio recognition modal > select column > Compare repeated column types; project workshop_project displayed 0 current independent physical labels",
+    "live_data_mutated": false,
+    "manual_labels_created": 0,
+    "engineering_tolerance_applied": false,
+    "automatic_type_assignments_created": false
+  },
+  "acceptance": {
+    "stage_8": "in_progress",
+    "missing": "Independent FARO physical section measurements and an approved dimensional tolerance; live project currently has no manual physical column labels.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

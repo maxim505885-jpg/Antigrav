@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "measurement": "Read-only .NET DriveInfo recheck during the live project status audit.",
+  "drives": {
+    "C": {
+      "is_ready": true,
+      "available_free_bytes": 2789658624,
+      "available_free_gib": 2.598
+    },
+    "R": {
+      "is_ready": false,
+      "available_free_bytes": null
+    }
+  },
+  "full_10_rcp_estimated_required_gib": 13.77,
+  "full_import_started": false,
+  "faro_sources_modified": false,
+  "project_database_modified": false,
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

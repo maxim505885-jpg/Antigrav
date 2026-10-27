@@ -1,0 +1,936 @@
+{
+  "date": "2026-10-25",
+  "cloud_id": "workshop_cloud",
+  "endpoint": "http://127.0.0.1:8000/api/v1/clouds/workshop_cloud/elements",
+  "columns_loaded": 376,
+  "crane_girder_proposals_recomputed": 99,
+  "recorded_supported": 0,
+  "recomputed_supported": 1,
+  "contexts_changed": 8,
+  "changed_element_ids": [
+    "0cf45dcce981477b9e5f5809423b5c76",
+    "3502683a2b4a498e9c98487df789259d",
+    "66d3f358da6d4c69b04eb788e3821d00",
+    "73b3d3eb2a49465a9b23c1db324978d3",
+    "913752f22844498f8aa347cc15cae69f",
+    "b3313552150c4feea75a73dee28bac52",
+    "c3e286cdba8542a583f4d2cb7bf90864",
+    "e935121e2f33438a8a98d12e17a5444c"
+  ],
+  "read_only": true,
+  "database_or_annotations_written": false,
+  "note": "Recomputed from existing API geometry in memory using current code; no recognition job or persistence was invoked. One candidate gains a supported_hypothesis context; this is not physical confirmation.",
+  "results": [
+    {
+      "element_id": "01fa7183eb0b47f9b1dde111fc811f25",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "06a43b7ff54c4150897c314b5f5e451a",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "08e09055944f4d0ab1fadc0d52c23d66",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "08fbd27af76d4f7f9dae9b68baad76d3",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "09fc2e9d06ce4f73a2f9af1082ac5b76",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "0b82eacb3b194d7a806c5c1b52f066d1",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "0cf45dcce981477b9e5f5809423b5c76",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "0e71d46801564c9288e026db6171ff17",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "1303e13958794955b7e17de9140a47d9",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "13fc9ef8fd33439ca58548c055bbf9e5",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "147396767b3c445093d131e5aebbe77f",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 3,
+      "recomputed_support_count": 3,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "149b8bc34c8f42519d09b16426f7810d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "15aae438f40d441e8515467e0bd28078",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "1c4fd33e8caf4c4ba0595a550765586a",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "21b479afcbd44fc88220d7b2ff95863c",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "21ee74f6222947319cfc49aa62a2bd14",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "261e003c4aa143318b526049b258e1eb",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "2853eb067065426090ba948aab8d3eec",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "2ba9bbf808c542ffb0dafcfcf9248d5d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "2c4bdde164094c1ab80819a324d9ad55",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "2ccfb9aa59c5466ab5960ca12cd9deeb",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "2ff01b73cd3b4a78a9b4c53823874ded",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "3063c0b2880f423c915edb26ffbd7cc6",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "33ddbc5a2f8f43babb8d635487afd533",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "349012e224b34dbb9b04b32d8df40f44",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "3502683a2b4a498e9c98487df789259d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "supported_hypothesis",
+      "recorded_support_count": 3,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": true
+    },
+    {
+      "element_id": "3939c804431d45a4b4db7efa12c961c8",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "3a00aff0519e4349b69252b2467e263e",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "3d835f50085144a88b33d68bf31638b9",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "443384da2ec54b909ea4b033c18d0811",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "4905fb1a4b9d45dbad7dd8be82b2dd5e",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "49e32242c6c640d9aa56964941bdbfac",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "4dd8d9c7bf01471f98d81826cc484686",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "541fb143cb644ead9edfde64662889fa",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "5432da95dd5044ed8adc6ca33109c953",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "5468f36a783f42f98df9b2c1cbc04581",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "559d108f59d7430a82ab19665392f0e9",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "5677706901e5492399fd9c1be7260c4f",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "579329103d7e454fa721d5b7cd31debe",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "59d9696e5b484147b105a39dbeeed214",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "5d3d7bee75574ceca1838e92d9d744a6",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "66d3f358da6d4c69b04eb788e3821d00",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 4,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "6727d03c5ef043c880da977563da44b2",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "67d7509b4741443c9049fbe71ade063d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "67f8b65a274544c3b9873d3b0f864d18",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "718803a750394aec989fb88a50999fe7",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "71a5b6a74f2740308345d0e06e4f2d8f",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "72aeb2f54031414ba77de545fba3b656",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 4,
+      "recomputed_support_count": 4,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "72f0be2729d341eca0da40516bc20f6a",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "7325dd2dc0bb40748b852365d44a4efe",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "73afdd708ccd4230a74a5abfecfee704",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "73b3d3eb2a49465a9b23c1db324978d3",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "73bd6227933044eb92448c0680889d9b",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "7663098eccc84c05a03c64d0c7470afc",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "780519ed577a4ecf89e12ff15a9f76bc",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "7e8e45dd571541c392f0f6c5bf4c44f6",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "8de6b6c77c164dc7b759748dab0189ac",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "8f000e2b0d114618856de8cf2076bdaa",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "8f36a790333046ea90e209f4b890a7d6",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "913752f22844498f8aa347cc15cae69f",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "918ce2e5b42647b28f980f05502aed3b",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "98240c8b6b844778bd01cede30ab8c07",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "99a81de01fe94e99880a3d907a5ba787",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "9e369d09cab74210adb594ffc60a1a67",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "a25658e2008747c7bfb8afdc3448b87c",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "a3ca2631851c4cfc82957c925692af82",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "a58a6b5cacd641faa0430d91bc73feca",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "a85a7b986ed04791b1ec190256b45aa3",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "ada4b103d6e54f20a991ec4c4edfc10a",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "aeb9aa17438a4157be78b3518da39be0",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "b172d0db594b45199d34083fa4cb0374",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "b18477486f054f0895fb00c7b57d67ca",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "b3313552150c4feea75a73dee28bac52",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "b6db5af123ab4c40a82d5b6908f2caca",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "ba936d0a370948d9b378feda869b8baf",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "bc2c5453c6ca461cba0fcc7103fb5d87",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c0a5bd75f32946b3924153f98133c247",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c1c9cec05db2416d89acfe6905061a5d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c22746e60f994c269a12ffaf2d5b41df",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c3e286cdba8542a583f4d2cb7bf90864",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c51edd3d028f4ff2939a45c20db596f3",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 2,
+      "recomputed_support_count": 2,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c7eab624e146499fb8a949bd4ec1bd7e",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "c9d533ca82214d76af8917393def1cf1",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "cf14e61d64204e4fb91510bbc0262806",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "d5871572a0f64006bab7f4b5d52d7b7a",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "d8ddafa472b54a9ea9b7da3bcfda55b4",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e24e819ea73845da972a6ba615f0a794",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e43b7174c035431fbfcd84c405b76ad1",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e6fdb649f4e745a8b0fcf41f69fb87ec",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e7273dde4024424782564d563bd28d79",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e7effb29307845208b0bd9775f91111d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "e935121e2f33438a8a98d12e17a5444c",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "ecedd3b235214c2482a651269f65b739",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "ed254b563cbf40afa2bd30f059628bbf",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "ee54a001e56a4e1aaef82049ddc3c833",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 1,
+      "recomputed_support_count": 1,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "f00702aaaee0442998d63fb5e60efb92",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "f3d0c7e62d9b498a85999bdefbe4f902",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "f5409c50b852461cadd3a8676b3f874d",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    },
+    {
+      "element_id": "fa15e62045b647f6b5776608a1af7991",
+      "recorded_status": "insufficient_context",
+      "recomputed_status": "insufficient_context",
+      "recorded_support_count": 0,
+      "recomputed_support_count": 0,
+      "recorded_endpoint_pair": false,
+      "recomputed_endpoint_pair": false
+    }
+  ],
+  "sample_supported_candidate": {
+    "beam_id": "3502683a2b4a498e9c98487df789259d",
+    "beam_review_status": "unreviewed",
+    "beam_role_status": "proposed",
+    "beam_dimensions_m": {
+      "length": 2.55,
+      "thickness": 0.08,
+      "height": 0.05
+    },
+    "distinct_column_ids": [
+      "51fde53de3bb4da392ee323da3d31a73",
+      "3c08fb56967b4198bd2a9dfb7d3da8c4"
+    ],
+    "support_gaps_m": {
+      "start": 0.5672,
+      "end": 0.2626
+    },
+    "support_spacing_m": 2.1251,
+    "meaning": "Geometric context only. The member role and both physical supports remain unreviewed; no bearing, rail, or field survey was verified."
+  }
+}

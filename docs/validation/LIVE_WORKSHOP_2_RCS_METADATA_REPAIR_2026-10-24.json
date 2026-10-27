@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-24",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud_02",
+  "source": {
+    "path": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/2.rcs",
+    "size_bytes": 13906332111,
+    "mtime_ns": 1792142068232257900,
+    "sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "hash_rechecked": true,
+    "modified_by_repair": false
+  },
+  "stored_cloud_before": {
+    "status": "ready",
+    "reader": "rcs_native_stream",
+    "reader_reported_source_points": 576820490,
+    "stored_points": 3500000,
+    "positions_shape": [3500000, 3],
+    "positions_dtype": "float32",
+    "colors_shape": [3500000, 3],
+    "colors_dtype": "uint8",
+    "database_decimated": false,
+    "meta_json_decimated": true,
+    "database_sha256": null
+  },
+  "stored_cloud_after": {
+    "status": "ready",
+    "reader_reported_source_points": 576820490,
+    "stored_points": 3500000,
+    "decimated": true,
+    "sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "warning_added": true
+  },
+  "cross_reader_count_comparison": {
+    "same_source_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "legacy_rcs_native_stream_count": 576820490,
+    "AdskRcExport_dll_count_in_prior_full_stream_audit": 574367742,
+    "difference": 2452748,
+    "difference_percent_of_dll_count": 0.426818,
+    "cause": "unresolved",
+    "note": "Point count was not rewritten to either reader's value. This legacy cloud retains the count reported by its ingest reader and explicitly warns that only 3.5M sampled rows are stored."
+  },
+  "production_api_after_repair": {
+    "status": "ready",
+    "decimated": true,
+    "source_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "warning_present": true
+  },
+  "result": "PASS for correcting this cloud's stale denormalized decimated flag, adding source identity, and exposing the sampled-data warning. The raw RCS is unchanged. The 2,452,748-point reader discrepancy remains open; this does not convert the 3.5M stored sample to full resolution."
+}

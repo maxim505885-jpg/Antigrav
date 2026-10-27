@@ -1,0 +1,51 @@
+{
+  "recorded_at_utc": "2026-10-25T10:34:05Z",
+  "stage": 2,
+  "purpose": "Recheck native ReCap launch after the user freed disk space; do not modify FARO sources.",
+  "storage": {
+    "volume": "C:",
+    "free_bytes": 29806252032,
+    "free_gib": 27.76
+  },
+  "source_project": {
+    "rcp_path": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/10.rcp",
+    "rcp_exists": true,
+    "rcp_bytes": 2741,
+    "linked_station_path": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/10 Support/10.rcs",
+    "linked_station_exists": true,
+    "linked_station_bytes": 7130808277,
+    "source_files_modified": false
+  },
+  "recap": {
+    "version": "24.0.0.240",
+    "launch_with_rcp": "process exited before a ReCap window was created",
+    "launch_without_arguments": "process exited before a ReCap window was created",
+    "gui_round_trip": "not tested; ReCap did not stay open",
+    "launch_from_install_directory": "exited with code 1 within 12 seconds; no window; working directory set to ReCap install folder"
+  },
+  "identity_manager_installer": {
+    "path": "C:/Users/maxim/AppData/Local/Temp/AdskIdentityManager-UCT-Installer-verified.exe",
+    "authenticode": "Valid",
+    "publisher": "Autodesk, Inc.",
+    "elevated_launch": "failed before UI with Windows error 0xc0000142"
+  },
+  "system_checks": {
+    "vc_redist_2015_2022_x64": "14.44.35211.0 installed",
+    "vc_redist_2015_2022_x86": "14.42.34438.0 installed",
+    "pending_windows_restart_detected": false,
+    "system_registry_modified": false,
+    "odIS_removed_or_reinstalled": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass",
+    "next_external_action": "Install available Windows updates and restart; retry ReCap and the Autodesk-signed Identity Manager installer. If the same loader error remains, repair Autodesk components using Autodesk Access or an administrator account."
+  },
+  "host": {
+    "windows_product": "Windows 10 Pro",
+    "display_version": "22H2",
+    "build": "19045",
+    "windows_update_history": "not verified; Get-HotFix denied by local environment permissions"
+  }
+}

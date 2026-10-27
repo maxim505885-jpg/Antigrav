@@ -1,0 +1,51 @@
+{
+  "recorded_at_local": "2026-10-25T14:30:00+03:00",
+  "stage": 2,
+  "purpose": "Restore Autodesk installer and Identity Manager after a user-approved ReCap startup repair, then recheck ReCap without writing to original scans.",
+  "odIS": {
+    "removal": "Autodesk RemoveODIS log records completion and exit code 0.",
+    "official_installer_url": "https://emsfs.autodesk.com/utility/odis/1/installer/latest/AdODIS-installer.exe",
+    "downloaded_bytes": 430075288,
+    "sha256": "A359404B11D384090D541AA3070D00D4D765DD1FD057091F5D7AAEDE3514736C",
+    "authenticode_status": "Valid",
+    "signer": "Autodesk, Inc.",
+    "first_non_elevated_attempt_exit_code": 102,
+    "elevated_install_log": "C:/Users/maxim/AppData/Local/Temp/installbuilder_installer_9332.log",
+    "elevated_install_exit_code": 0,
+    "installed_version": "2.24.0.572",
+    "access_service": "Autodesk Access Service Host is Running"
+  },
+  "identity_manager": {
+    "package_version": "1.21.1.5",
+    "inner_installer_authenticode": "Valid, Autodesk, Inc.",
+    "official_package_command_exit_code": 0,
+    "installed_executable": "C:/Program Files/Autodesk/AdskIdentityManager/Current/AdskIdentityManager.exe",
+    "registered_location": "C:/Program Files/Autodesk/AdskIdentityManager/1.21.1.5",
+    "installation_log": "C:/Users/maxim/AppData/Local/Autodesk/Identity Services/Log/AdskIdentityManager-installLog.log",
+    "installation_log_result": "Installation completed; Current junction created"
+  },
+  "recap_recheck": {
+    "version": "24.0.0.240",
+    "launch_with_project_copy": "Exited with code 1; no window",
+    "launch_without_project": "Exited with code 1; no window",
+    "project_copy": "C:/Users/maxim/AppData/Local/Temp/SCAN-ReCap-validation-10/10.rcp",
+    "original_rcp_sha256": "3D3A00ACD971B42BEE11A8FB73F43356EA162D10855EDEFDE84AAA83D27918FD",
+    "copied_rcp_sha256": "3D3A00ACD971B42BEE11A8FB73F43356EA162D10855EDEFDE84AAA83D27918FD",
+    "original_linked_rcs_sha256": "A11497AB0E4649E18480A31ECEB00E8552051FF2209F1CA031C2BE5B1F693A4A",
+    "copied_linked_rcs_sha256": "A11497AB0E4649E18480A31ECEB00E8552051FF2209F1CA031C2BE5B1F693A4A",
+    "free_c_gib_after_copy": 16.89
+  },
+  "data_safety": {
+    "original_faro_rcs_modified": false,
+    "original_rcp_modified": false,
+    "test_open_target": "temporary copy only",
+    "project_copy_cleanup": "removed after SHA-256 verification; 7,130,811,018 bytes freed",
+    "free_c_gib_after_cleanup": 23.53,
+    "manual_registry_edits": false
+  },
+  "acceptance": {
+    "overall_closed_stages": "3/12",
+    "stage_2": "open; GUI round-trip still not proven and RCP/RCS point-count discrepancy remains unresolved",
+    "stage_6": "parked until final pass"
+  }
+}

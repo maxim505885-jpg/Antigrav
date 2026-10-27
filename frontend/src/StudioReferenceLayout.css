@@ -1,0 +1,354 @@
+.scan-studio-root {
+  min-width: 0;
+}
+
+/* The top workspace tabs are the single source of navigation. Keep the side
+   rail focused on project data, and give the point cloud the largest canvas. */
+.scan-studio-main--registration > .scan-studio-sidebar { display: none !important; }
+.scan-studio-main--registration > .scan-studio-registration-page { min-width: 0; }
+
+.scan-studio-top {
+  flex-direction: column !important;
+}
+
+.scan-studio-pipeline {
+  flex: 0 0 236px !important;
+  min-height: 0;
+  gap: 4px !important;
+  padding: 6px 12px 8px !important;
+  border-right: 0 !important;
+  border-bottom: 1px solid #333436;
+}
+
+.scan-studio-pipeline-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+
+.scan-studio-pipeline-grid > div:nth-child(1) > div:nth-child(2),
+.scan-studio-pipeline-grid > div:nth-child(2) > div:nth-child(2) {
+  display: none !important;
+}
+
+.scan-studio-pipeline-grid > div {
+  padding: 6px !important;
+}
+
+.scan-studio-viewport {
+  flex: 1 1 auto !important;
+  min-height: 260px;
+}
+
+.scan-studio-root .viewer-hud {
+  color: #d4d4d8 !important;
+  background: rgba(27, 28, 30, .94) !important;
+  border-color: #45474a !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .38) !important;
+  backdrop-filter: blur(8px);
+}
+
+.scan-studio-root .viewer-hud-row {
+  border-color: #3e3f42 !important;
+}
+
+.scan-studio-root .viewer-hud-row > span:first-child {
+  color: #d4d4d8 !important;
+}
+
+.scan-studio-root .viewer-hud .hud-chip {
+  color: #dedee0 !important;
+  background: #292a2c !important;
+  border-color: #505155 !important;
+}
+
+.scan-studio-root .viewer-hud .hud-chip[aria-pressed="true"] {
+  color: #171717 !important;
+  background: #fb923c !important;
+  border-color: #fb923c !important;
+  font-weight: 700 !important;
+}
+
+.scan-studio-root .viewer-hud .viewer-fps--good { color: #a7e2b7; background: #183424; }
+.scan-studio-root .viewer-hud .viewer-fps--warning { color: #f7ce7b; background: #3b2e16; }
+.scan-studio-root .viewer-hud .viewer-fps--low { color: #f2a7a2; background: #3d201e; }
+
+@media (max-width: 1100px) {
+  .scan-studio-pipeline { flex-basis: 250px !important; }
+  .scan-studio-pipeline-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; overflow: auto !important; }
+
+  .scan-studio-header {
+    height: auto !important;
+    min-height: 82px;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 5px 10px !important;
+  }
+
+  .scan-studio-header > div:first-child { order: 1; }
+  .scan-studio-header > div:nth-child(2) {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    flex: 1 0 100%;
+    justify-content: flex-start !important;
+    overflow-x: auto;
+  }
+  .scan-studio-header > div:nth-child(2) button { flex: 0 0 auto; padding: 7px 9px !important; }
+  .scan-studio-header > div:last-child { order: 2; margin-left: auto; gap: 6px !important; }
+  .scan-studio-header > div:last-child > div:first-child { width: min(190px, 23vw) !important; padding-inline: 8px !important; }
+}
+
+.scan-studio-registration-page {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #111213;
+}
+
+.scan-studio-registration-page .registration-screen { height: 100%; }
+
+@media (max-width: 760px) {
+  .scan-studio-registration-page { min-height: 100vh; overflow: auto; }
+  .scan-studio-registration-page .registration-screen { min-height: 100vh; height: auto; }
+}
+
+.scan-studio-import-status {
+  margin-top: auto;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #10b98122;
+  color: #10b981;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scan-studio-import-status--sampled {
+  background: #9a341233;
+  color: #fdba74;
+}
+
+.scan-studio-import-warning {
+  display: -webkit-box;
+  overflow: hidden;
+  padding: 4px 5px;
+  border: 1px solid #c2410c66;
+  border-radius: 4px;
+  background: #7c2d1240;
+  color: #fed7aa;
+  font-size: 8px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@media (max-width: 760px) {
+  .scan-studio-root {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100vh;
+    overflow: auto !important;
+    user-select: text !important;
+  }
+
+  .scan-studio-header {
+    height: auto !important;
+    min-height: 48px;
+    flex-wrap: wrap;
+    justify-content: flex-start !important;
+    gap: 8px;
+    padding: 6px 8px !important;
+  }
+
+  .scan-studio-header > div:nth-child(2) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .scan-studio-main {
+    flex: none !important;
+    min-width: 0;
+    overflow: visible !important;
+  }
+
+  .scan-studio-sidebar {
+    display: none !important;
+  }
+
+  .scan-studio-workspace {
+    width: 100%;
+    min-width: 0;
+    flex: none !important;
+    overflow: visible !important;
+  }
+
+  .scan-studio-top {
+    min-height: 0 !important;
+    flex: none !important;
+    flex-direction: column;
+    overflow: visible !important;
+  }
+
+  .scan-studio-pipeline {
+    width: 100%;
+    min-width: 0;
+    flex: none !important;
+    overflow: visible !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #333336;
+    padding: 8px !important;
+  }
+
+  .scan-studio-pipeline-grid {
+    flex: none !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow: visible !important;
+  }
+
+  .scan-studio-pipeline-grid > div {
+    min-width: 0;
+    min-height: 142px;
+  }
+
+  .scan-studio-viewport {
+    width: 100%;
+    min-height: 360px;
+    height: 62vh;
+    max-height: 620px;
+    flex: none !important;
+  }
+
+  .scan-studio-bottom {
+    min-height: 0 !important;
+    flex: none !important;
+    flex-direction: column;
+    padding: 8px !important;
+  }
+
+  .scan-studio-bottom > div,
+  .scan-studio-cloud-plan {
+    width: 100%;
+    min-width: 0;
+    min-height: 190px;
+    flex: none !important;
+  }
+
+  .scan-studio-cloud-plan > div {
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 420px) {
+  .scan-studio-header > div:first-child span:first-child {
+    font-size: 11px !important;
+  }
+
+  .scan-studio-header > div:nth-child(2) button {
+    padding-inline: 7px !important;
+    font-size: 10px !important;
+  }
+
+  .scan-studio-pipeline-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .scan-studio-pipeline-grid > div {
+    min-height: 120px;
+  }
+}
+.recognition-review-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, .72);
+  backdrop-filter: blur(3px);
+}
+.recognition-review-dialog {
+  width: min(1120px, calc(100vw - 36px));
+  height: min(850px, calc(100vh - 36px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #e5e7eb;
+  background: #1b1c1e;
+  border: 1px solid #45474a;
+  border-radius: 12px;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, .6);
+}
+.recognition-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #383a3d;
+}
+.recognition-review-header-actions { display: flex; align-items: center; gap: 8px; }
+.learning-manifest-toggle, .learning-manifest-export {
+  min-height: 34px; padding: 7px 12px; color: #ffedd5; background: #392719;
+  border: 1px solid #9a4b18; border-radius: 7px; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.learning-manifest-panel { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 14px; overflow: auto; padding: 24px; }
+.learning-manifest-panel-heading { display: flex; width: min(760px, 100%); align-items: flex-start; justify-content: space-between; gap: 20px; }
+.learning-manifest-panel-heading h2 { margin: 0; color: #f8fafc; font-size: 18px; }
+.learning-manifest-panel-heading p, .learning-manifest-muted { color: #a1a1aa; font-size: 12px; line-height: 1.5; }
+.learning-manifest-panel-heading strong { flex: 0 0 auto; color: #fdba74; font-size: 13px; }
+.learning-manifest-class-counts { display: flex; flex-wrap: wrap; gap: 7px; }
+.learning-manifest-class-counts span { padding: 5px 8px; color: #fed7aa; background: #292a2c; border: 1px solid #45474a; border-radius: 5px; font-size: 11px; }
+.learning-manifest-error { color: #fecaca; font-size: 12px; }
+.learning-manifest-success { color: #86efac; font-size: 12px; }
+.learning-manifest-export:disabled { color: #8b8b8b; background: #292a2c; border-color: #45474a; cursor: not-allowed; }
+.recognition-review-title { color: #fff; font-size: 17px; font-weight: 800; }
+.recognition-review-subtitle { margin-top: 5px; color: #a1a1aa; font-size: 12px; }
+.recognition-review-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #d4d4d8;
+  background: #292a2c;
+  border: 1px solid #45474a;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.recognition-review-body { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 0; flex: 1; }
+.recognition-review-candidates { display: flex; min-height: 0; flex-direction: column; border-right: 1px solid #383a3d; }
+.recognition-review-filters { display: grid; gap: 8px; padding: 12px; border-bottom: 1px solid #383a3d; }
+.recognition-review-filters input, .recognition-review-filters select {
+  width: 100%; min-height: 36px; box-sizing: border-box; padding: 7px 9px; color: #f4f4f5;
+  background: #252628; border: 1px solid #45474a; border-radius: 6px; outline-color: #f97316;
+}
+.recognition-review-filters option { color: #f4f4f5; background: #252628; }
+.recognition-review-count { color: #a1a1aa; font-size: 11px; }
+.recognition-review-list { min-height: 0; overflow: auto; padding: 5px; }
+.recognition-review-row { display: flex; width: 100%; flex-direction: column; gap: 3px; padding: 9px; text-align: left; color: #e4e4e7; background: transparent; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.recognition-review-row:hover { background: #292a2c; }
+.recognition-review-row.is-selected { background: #392719; border-color: #c45d16; }
+.recognition-review-row-class { font-size: 12px; font-weight: 700; }
+.recognition-review-row-id { overflow: hidden; color: #a1a1aa; font-family: ui-monospace, monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.recognition-review-row-state { color: #fdba74; font-size: 10px; }
+.recognition-review-row-state.is-labeled { color: #86efac; }
+.recognition-review-row-state.is-unknown { color: #fcd34d; }
+.recognition-review-row-state.is-excluded { color: #a1a1aa; }
+.recognition-review-row-state.is-pending { color: #fdba74; }
+.recognition-review-more { width: calc(100% - 10px); margin: 5px; padding: 8px; color: #fed7aa; background: #292a2c; border: 1px solid #45474a; border-radius: 6px; cursor: pointer; }
+.recognition-column-types-toggle { width: 100%; margin: 12px 0; padding: 10px 12px; color: #fed7aa; background: #292a2c; border: 1px solid #a34f16; border-radius: 7px; font: inherit; font-size: 12px; font-weight: 700; text-align: left; cursor: pointer; }
+.recognition-column-types-toggle:hover { background: #392719; }
+.recognition-column-types-toggle:focus-visible { outline: 2px solid #fb923c; outline-offset: 2px; }
+.recognition-review-form { min-width: 0; overflow: auto; padding: 14px; }
+.recognition-review-empty { display: grid; min-height: 140px; place-items: center; padding: 20px; text-align: center; color: #a1a1aa; font-size: 13px; }
+@media (max-width: 720px) {
+  .recognition-review-backdrop { padding: 7px; }
+  .recognition-review-dialog { width: calc(100vw - 14px); height: calc(100dvh - 14px); }
+  .recognition-review-header { padding: 12px; }
+  .recognition-review-title { font-size: 14px; }
+  .recognition-review-subtitle { max-width: 55ch; font-size: 10px; }
+  .recognition-review-body { grid-template-columns: 1fr; grid-template-rows: minmax(145px, 30vh) minmax(0, 1fr); }
+  .recognition-review-candidates { border-right: 0; border-bottom: 1px solid #383a3d; }
+  .recognition-review-form { padding: 9px; }
+}

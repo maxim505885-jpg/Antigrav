@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-10-25T08:53:00+03:00",
+  "stage": 2,
+  "purpose": "Show an RCP-declared versus linked-RCS source-count discrepancy in the active import card without duplicate warnings.",
+  "implementation": {
+    "helper": "frontend/src/studioPresentation.ts: rcpDeclaredCountWarning",
+    "ui": "frontend/src/StudioReferenceLayout.tsx: Import data card uses an accessible alert when the backend warning does not already report the same RCP/RCS counts.",
+    "tdd": "Focused test first failed because the helper was absent; then passed for mismatch display, equal/absent count suppression, and duplicate-warning suppression."
+  },
+  "verification": {
+    "focused_frontend_tests": "7 passed, 0 failed",
+    "frontend_full_suite": "passed",
+    "production_build": "passed; Vite transformed 1980 modules",
+    "live_site": "http://127.0.0.1:8000/ returned HTTP 200 and served the rebuilt asset",
+    "live_cloud": {
+      "name": "Live 10.rcp validation — 10",
+      "declared_rcp_points": 295836062,
+      "actual_linked_rcs_points": 295591803,
+      "difference": 244259,
+      "annotation": "The discrepancy is not evidence of point loss; it needs ReCap source review."
+    },
+    "browser_check": "Selected the live validation cloud in Studio; exactly one accessible import warning displayed the RCP/RCS discrepancy and the 5M sampled-import status.",
+    "database_write": "none",
+    "faro_source_modified": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress; full-resolution source import, native ReCap GUI/round-trip, and whole-job resource acceptance remain open",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  }
+}

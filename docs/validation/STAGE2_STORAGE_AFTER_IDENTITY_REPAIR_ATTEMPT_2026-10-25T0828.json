@@ -1,0 +1,24 @@
+{
+  "date_local": "2026-10-25T08:28:59+03:00",
+  "stage": 2,
+  "scope": "Read-only volume recheck after removing only the aborted Autodesk installer copies and extraction cache created for the ReCap diagnosis.",
+  "volumes": {
+    "C": {"ready": true, "free_bytes": 2596667392, "free_gib": 2.418},
+    "R": {"ready": false, "free_bytes": null, "free_gib": null}
+  },
+  "full_10_rcp_required_bytes": 14782617889,
+  "shortfall_bytes": 12185950497,
+  "shortfall_gib": 11.35,
+  "task_created_temporary_bytes_removed": 677007820,
+  "cleanup_targets": [
+    "workspace .playwright-mcp/AdskIdentityManager-UCT-Installer.exe",
+    "Temp/AdskIdentityManager-UCT-Installer extraction folder",
+    "Temp/playwright-artifacts-UaEl5j/24abe4d6-b4d3-40a0-bba8-e17d99064c5e download cache"
+  ],
+  "autodesk_identity_manager_installed": false,
+  "recap_launched": false,
+  "full_import_started": false,
+  "faro_source_modified": false,
+  "project_database_modified": false,
+  "acceptance": {"stage_2": "in_progress", "closed_stages": "3/12", "stage_6": "parked_until_final_pass"}
+}

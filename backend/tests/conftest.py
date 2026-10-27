@@ -12,10 +12,24 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
-os.environ.setdefault("S2B_DATA_DIR", tempfile.mkdtemp(prefix="s2b_test_"))
+if not os.environ.get("S2B_DATA_DIR"):
+    os.environ["S2B_DATA_DIR"] = tempfile.mkdtemp(prefix="s2b_test_")
 
 import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import fastapi.testclient as fastapi_testclient  # noqa: E402
+
+_TestClient = fastapi_testclient.TestClient
+
+
+class LoopbackTestClient(_TestClient):
+    """Model the desktop app's normal loopback client in API tests."""
+
+    def __init__(self, *args, client=("127.0.0.1", 8000), **kwargs):
+        super().__init__(*args, client=client, **kwargs)
+
+
+fastapi_testclient.TestClient = LoopbackTestClient
+TestClient = LoopbackTestClient
 
 from scan2bim.api.app import app  # noqa: E402
 

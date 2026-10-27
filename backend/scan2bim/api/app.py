@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hmac
+import hashlib
 import json
+import os
 import shutil
 import zipfile
 from contextlib import asynccontextmanager
@@ -10,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,7 +23,7 @@ from ..bim import build_model, export_ifc
 from ..cad import export_section_dxf, export_section_pdf
 from ..cad.dxf import export_elements_dxf, export_structural_plan_dxf
 from ..cad.pdf import export_structural_plan_pdf
-from ..config import ALLOWED_ORIGINS, API_KEY, API_VERSION, MAX_INGEST_POINTS
+from ..config import ALLOWED_ORIGINS, API_KEY, API_VERSION, DATA_DIR, MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 from ..db import db as db_session, dumps, execute, init_db, loads, new_id, one, rows, utcnow
 from ..demo import write_room_ply
 from ..formats import RcsConversionRequired, detect_format, read_cloud, supported_formats
@@ -34,12 +36,13 @@ from ..formats.rcp_manifest import (
 from ..geometry import extract_section
 from ..geometry.section import CloudGeometry
 from ..ingest import ingest_cloud
-from ..jobs import JobCancelled, create_job, dispatch_event, get_job, request_cancel, submit, update_job
+from ..jobs import JobCancelled, create_job, dispatch_event, get_job, request_cancel, submit, submit_ingest_task, submit_job_task, update_job
 from ..learning.features import features_from_element
 from ..learning.knn import KNNModel
 from ..learning.registry import activate, list_models, rollback
 from ..learning.store import (
     create_sample,
+    current_point_cloud_snapshot,
     element_bbox_coordinate_frame,
     inspect_source_point_alignment,
     list_samples,
@@ -53,6 +56,7 @@ from ..recognition import detect_structures, ml_status
 from ..recognition.evaluation import evaluate_recognition
 from ..recognition.geometric import DetectedElement
 from ..recognition.reconcile import protect_reviewed_candidates
+from ..server import is_loopback_host
 from ..structure.column_surface_assignment import (
     associate_surfaces_to_column,
     cluster_column_surface_tracks,
@@ -82,11 +86,14 @@ from ..schemas import (
     ProjectCreate,
     ProjectOut,
     RecognitionEvaluationRequest,
+    RcpImportBatchOut,
+    RcpImportPath,
     SampleCreate,
     SampleOut,
     SectionOut,
     SectionRequest,
     TrainRequest,
+    LearningManifestExportRequest,
     WebhookCreate,
 )
 from ..services import (
@@ -99,6 +106,7 @@ from ..services import (
     split_element,
     undo_feedback,
 )
+
 from ..storage import (
     cloud_paths,
     ensure_cloud_dir,
@@ -136,10 +144,77 @@ from ..pointdata import NpyPointProvider, PointQuery, select_query_provider
 
 # ---------------------------------------------------------------- helpers
 
+_FULL_RESOLUTION_STREAM_EXTENSIONS = {
+    ".rcs", ".e57", ".las", ".laz", ".pts", ".xyz", ".txt", ".csv", ".pcd", ".ply",
+}
 
-def require_auth(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
-    if API_KEY and not hmac.compare_digest(x_api_key or "", API_KEY):
-        raise HTTPException(status_code=401, detail="invalid or missing X-API-Key")
+
+def _validate_ingest_limit(source: Path, max_points: int | None) -> None:
+    if max_points == 0 and source.suffix.lower() not in _FULL_RESOLUTION_STREAM_EXTENSIONS:
+        raise HTTPException(
+            422,
+            "Полный импорт без прореживания поддерживается для RCS, E57, LAS/LAZ, "
+            "PTS/XYZ/TXT/CSV, PCD и PLY; выбранный формат использует ограниченный импорт.",
+        )
+
+
+def _preflight_full_resolution_rcp_storage(nodes: list[dict[str, Any]]) -> None:
+    from ..formats.rcs_native import estimate_full_resolution_batch_disk_bytes
+
+    estimate = estimate_full_resolution_batch_disk_bytes(
+        [int(node.get("declared_point_count") or 0) for node in nodes],
+        max_preview_points=MAX_PREVIEW_POINTS,
+    )
+    try:
+        available = shutil.disk_usage(DATA_DIR).free
+    except OSError as exc:
+        raise HTTPException(
+            503,
+            detail={
+                "summary": "Не удалось проверить хранилище данных.",
+                "storage_check": "unavailable",
+                "message": (
+                    "Полный импорт RCP не запущен: SCAN не смог проверить свободное место "
+                    "в целевом каталоге данных. Проверьте подключение и права доступа, "
+                    "затем повторите импорт."
+                ),
+            },
+        ) from exc
+    if estimate is None:
+        # Some manifests omit or stale their counts, so no reliable early size
+        # estimate is possible. We still require an accessible volume, and the
+        # native stream's live per-chunk reserve check remains authoritative.
+        return
+    if available < estimate["required_bytes"]:
+        raise HTTPException(
+            507,
+            detail={
+                "summary": "Для полного импорта RCP недостаточно свободного места.",
+                "available_bytes": available,
+                **estimate,
+                "message": (
+                    "Оценка основана на счётчиках станций в RCP и включает временный поток, "
+                    "массивы результата, 10% запас и резерв приложения. Освободите место "
+                    "или выберите ограниченный импорт. Потоковая проверка места остаётся включена."
+                ),
+            },
+        )
+
+
+def require_auth(
+    request: Request,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> None:
+    if API_KEY:
+        if not hmac.compare_digest(x_api_key or "", API_KEY):
+            raise HTTPException(status_code=401, detail="invalid or missing X-API-Key")
+        return
+    client_host = request.client.host if request.client else None
+    if not is_loopback_host(client_host):
+        raise HTTPException(
+            status_code=401,
+            detail="remote API access requires S2B_API_KEY",
+        )
 
 
 def _project(project_id: str) -> dict[str, Any]:
@@ -153,11 +228,53 @@ def _cloud(cloud_id: str) -> dict[str, Any]:
     row = one("SELECT * FROM clouds WHERE id = ?", (cloud_id,))
     if not row:
         raise HTTPException(404, f"cloud {cloud_id} not found")
+    # Older imports could persist the importer decision in metadata_json while
+    # leaving the denormalized SQLite flag false. Never let downstream routes
+    # treat such a sampled cloud as full-resolution.
+    metadata = loads(row.get("metadata_json"), {})
+    if (
+        not row.get("decimated")
+        and isinstance(metadata, dict)
+        and metadata.get("decimated") is True
+    ):
+        row["decimated"] = 1
     return row
 
 
 def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[str, Any]:
     meta = loads(row.get("metadata_json"), {})
+    metadata_decimated = meta.get("decimated")
+    decimated = bool(row["decimated"]) or metadata_decimated is True
+    warning = meta.get("warning")
+    point_count = int(row.get("point_count") or 0)
+    ingested_count = int(row.get("ingested_count") or 0)
+    if not warning and decimated and point_count > ingested_count > 0:
+        warning = (
+            f"В источнике {point_count:,} точек, в проект загружена выборка "
+            f"{ingested_count:,}. Для полного разрешения импортируйте исходник "
+            "с включённой настройкой полного разрешения."
+        )
+    recap = meta.get("recap_project")
+    if isinstance(recap, dict):
+        selected_node = recap.get("selected_node")
+        declared_count = (
+            selected_node.get("declared_point_count")
+            if isinstance(selected_node, dict)
+            else None
+        )
+        actual_source_count = recap.get("actual_source_point_count")
+        if declared_count is not None and actual_source_count is not None:
+            declared_count = int(declared_count)
+            actual_source_count = int(actual_source_count)
+            delta = declared_count - actual_source_count
+            if delta:
+                count_warning = (
+                    f"Манифест RCP указывает {declared_count:,} точек, а связанный "
+                    f"RCS reader прочитал {actual_source_count:,} "
+                    f"(разница {delta:+,}). Проверьте источник в ReCap; эта "
+                    "разница сама по себе не доказывает потерю точек."
+                )
+                warning = f"{warning} {count_warning}" if warning else count_warning
     origin = None
     if row.get("origin_x") is not None:
         origin = [row["origin_x"], row["origin_y"], row["origin_z"]]
@@ -176,7 +293,7 @@ def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[st
         "size_bytes": row["size_bytes"],
         "point_count": row["point_count"],
         "ingested_count": row["ingested_count"],
-        "decimated": bool(row["decimated"]),
+        "decimated": decimated,
         "origin": origin,
         "bbox_min": bbox_min,
         "bbox_max": bbox_max,
@@ -188,7 +305,7 @@ def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[st
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "metadata": meta,
-        "warning": meta.get("warning"),
+        "warning": warning,
     }
 
 
@@ -284,16 +401,39 @@ def _ingest_work(project_id: str, cloud_id: str):
         try:
             row = _cloud(cloud_id)
             import_metadata = loads(row.get("metadata_json"), {})
-            result = ingest_cloud(project_id, cloud_id, Path(row["source_path"]), progress)
+            ingest_options = {}
+            if "max_points" in import_metadata:
+                ingest_options["max_points"] = import_metadata["max_points"]
+            result = ingest_cloud(
+                project_id, cloud_id, Path(row["source_path"]), progress, **ingest_options
+            )
+            if "max_points" in import_metadata:
+                current = _cloud(cloud_id)
+                metadata = loads(current.get("metadata_json"), {})
+                metadata["max_points"] = import_metadata["max_points"]
+                execute(
+                    "UPDATE clouds SET metadata_json = ?, updated_at = ? WHERE id = ?",
+                    (dumps(metadata), utcnow(), cloud_id),
+                )
+                meta_path = cloud_paths(project_id, cloud_id)["meta"]
+                if meta_path.is_file():
+                    try:
+                        stored = json.loads(meta_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        stored = {}
+                    stored["max_points"] = import_metadata["max_points"]
+                    write_json_atomic(meta_path, stored)
             recap_project = import_metadata.get("recap_project")
             if recap_project:
                 current = _cloud(cloud_id)
                 selected_node = recap_project.get("selected_node", {})
                 declared = int(selected_node.get("declared_point_count") or 0)
-                actual = int(current.get("ingested_count") or 0)
-                recap_project["actual_ingested_point_count"] = actual
+                actual_source = int(current.get("point_count") or 0)
+                actual_ingested = int(current.get("ingested_count") or 0)
+                recap_project["actual_source_point_count"] = actual_source
+                recap_project["actual_ingested_point_count"] = actual_ingested
                 recap_project["declared_point_count_difference"] = (
-                    declared - actual if declared else None
+                    declared - actual_source if declared and actual_source else None
                 )
                 asset_bounds = selected_node.get("asset_bounds") or {}
                 if asset_bounds.get("axis_aligned_interpretation_supported"):
@@ -350,8 +490,29 @@ def _mark_interrupted_imports() -> None:
     file during startup. A complete staged checkpoint is picked up only after
     the user explicitly resumes the cloud from the UI/API.
     """
+    active_worker_clouds: set[str] = set()
+    if os.environ.get("S2B_INGEST_MODE", "local").strip().lower() == "worker":
+        for job in rows(
+            "SELECT task_payload_json FROM jobs WHERE task_payload_json IS NOT NULL "
+            "AND status IN ('queued', 'running')"
+        ):
+            try:
+                task = json.loads(job.get("task_payload_json") or "{}")
+                payload = task.get("payload") or {}
+                if task.get("task_type") == "ingest" and payload.get("cloud_id"):
+                    active_worker_clouds.add(str(payload["cloud_id"]))
+                elif task.get("task_type") == "rcp_batch_ingest":
+                    active_worker_clouds.update(
+                        str(item["cloud_id"])
+                        for item in payload.get("stations", [])
+                        if isinstance(item, dict) and item.get("cloud_id")
+                    )
+            except (TypeError, ValueError):
+                continue
     interrupted = rows("SELECT id, name FROM clouds WHERE status = 'processing'")
     for cloud in interrupted:
+        if cloud["id"] in active_worker_clouds:
+            continue
         message = "Импорт прерван перезапуском сервера. Нажмите «Возобновить импорт»."
         execute(
             "UPDATE clouds SET status = 'failed', error = ?, updated_at = ? WHERE id = ? AND status = 'processing'",
@@ -368,6 +529,31 @@ def _mark_interrupted_imports() -> None:
                 message="прервано перезапуском сервера; можно возобновить импорт",
                 error=message,
             )
+
+
+def _mark_interrupted_jobs() -> None:
+    """Fail persisted jobs whose in-memory worker was lost with the old API process.
+
+    Job execution is submitted to a process-local ThreadPoolExecutor and is not
+    rehydrated from SQLite. At lifespan startup, every queued/running row
+    therefore belongs to a previous process; leaving it active would strand the
+    UI forever at stale progress. Import recovery runs first so those rows retain
+    the specific resumable-import message.
+    """
+    worker_mode = os.environ.get("S2B_INGEST_MODE", "local").strip().lower() == "worker"
+    query = (
+        "SELECT id FROM jobs WHERE status IN ('queued', 'running') AND task_payload_json IS NULL"
+        if worker_mode
+        else "SELECT id FROM jobs WHERE status IN ('queued', 'running')"
+    )
+    interrupted = rows(query)
+    for job in interrupted:
+        update_job(
+            job["id"],
+            status="failed",
+            message="Задание прервано перезапуском сервера. Запустите обработку повторно.",
+            error="Job interrupted because its process-local worker did not survive API restart.",
+        )
 
 
 def _section_row(section: dict[str, Any]) -> dict[str, Any]:
@@ -448,6 +634,133 @@ def _current_physical_instance_id(cloud_id: str, element_id: str) -> str | None:
     return physical_id.strip()
 
 
+def _learning_manifest_preview(project_id: str) -> dict[str, Any]:
+    """Build a deterministic manifest from current, independently labeled examples."""
+    project_root = project_dir(project_id).resolve()
+    candidates_by_cloud: dict[str, dict[str, dict[str, Any]]] = {}
+    element_hash_by_cloud: dict[str, str] = {}
+    cloud_snapshot_by_id: dict[str, str] = {}
+    excluded: dict[str, int] = {}
+    eligible: list[dict[str, Any]] = []
+
+    def skip(reason: str) -> None:
+        excluded[reason] = excluded.get(reason, 0) + 1
+
+    for sample in samples_for_training(project_id):
+        cloud_id = sample.get("cloud_id")
+        element_id = sample.get("element_id")
+        if not isinstance(cloud_id, str) or not isinstance(element_id, str):
+            skip("missing_element_identity")
+            continue
+        if cloud_id not in candidates_by_cloud:
+            cloud = one("SELECT * FROM clouds WHERE id=?", (cloud_id,))
+            if not cloud:
+                candidates_by_cloud[cloud_id] = {}
+                element_hash_by_cloud[cloud_id] = ""
+                cloud_snapshot_by_id[cloud_id] = ""
+                skip("source_cloud_missing")
+                continue
+            if cloud["project_id"] != project_id:
+                candidates_by_cloud[cloud_id] = {}
+                element_hash_by_cloud[cloud_id] = ""
+                cloud_snapshot_by_id[cloud_id] = ""
+                skip("cloud_project_mismatch")
+                continue
+            candidates = _element_reference_candidates(cloud_id)
+            candidates_by_cloud[cloud_id] = {item["id"]: item for item in candidates}
+            try:
+                element_hash_by_cloud[cloud_id] = element_snapshot_sha256(candidates, cloud)
+                cloud_snapshot_by_id[cloud_id] = current_point_cloud_snapshot(cloud_id)["snapshot_id"]
+            except (OSError, ValueError):
+                element_hash_by_cloud[cloud_id] = ""
+                cloud_snapshot_by_id[cloud_id] = ""
+
+        candidate = candidates_by_cloud[cloud_id].get(element_id)
+        if not candidate:
+            skip("candidate_missing_or_invalidated")
+            continue
+        if candidate.get("review_status") not in {"confirmed", "corrected"} or candidate.get("inferred"):
+            skip("candidate_not_independently_reviewed")
+            continue
+        current_snapshot = cloud_snapshot_by_id[cloud_id]
+        if not current_snapshot or not element_hash_by_cloud[cloud_id]:
+            skip("source_cloud_snapshot_unavailable")
+            continue
+        if sample.get("source_snapshot_id") != current_snapshot:
+            skip("point_cloud_snapshot_stale")
+            continue
+        annotation = one(
+            "SELECT payload_json FROM element_annotations WHERE cloud_id=? AND source_snapshot_sha256=? "
+            "AND element_id=? ORDER BY revision DESC LIMIT 1",
+            (cloud_id, element_hash_by_cloud[cloud_id], element_id),
+        )
+        label = loads(annotation["payload_json"], {}) if annotation else {}
+        if (
+            label.get("state") != "labeled"
+            or label.get("class_label") != candidate.get("class_name")
+            or label.get("class_label") != sample.get("class_name")
+            or label.get("physical_instance_id") != sample.get("physical_instance_id")
+            or not isinstance(label.get("physical_instance_id"), str)
+            or not label["physical_instance_id"].strip()
+        ):
+            skip("current_independent_label_missing_or_mismatched")
+            continue
+
+        stored_path = Path(str(sample.get("points_path") or ""))
+        try:
+            resolved_path = stored_path.resolve(strict=True)
+            relative_path = resolved_path.relative_to(project_root).as_posix()
+        except (OSError, ValueError):
+            skip("sample_points_file_missing_or_outside_project")
+            continue
+        try:
+            points = np.load(resolved_path, mmap_mode="r", allow_pickle=False)
+            shape = tuple(points.shape)
+            point_count = int(shape[0]) if len(shape) == 2 and shape[1] == 3 else 0
+            valid_points = point_count > 0 and np.isfinite(points).all()
+            mmap = getattr(points, "_mmap", None)
+            if mmap is not None:
+                mmap.close()
+            if not valid_points:
+                skip("sample_points_file_invalid")
+                continue
+            file_sha256 = sha256_file(resolved_path)
+        except (OSError, ValueError, EOFError):
+            skip("sample_points_file_invalid")
+            continue
+        eligible.append({
+            "sample_id": sample["id"],
+            "cloud_id": cloud_id,
+            "element_id": element_id,
+            "class_name": sample["class_name"],
+            "physical_instance_id": label["physical_instance_id"].strip(),
+            "source_snapshot_id": current_snapshot,
+            "features": sample.get("features") or {},
+            "points_file": relative_path,
+            "points_sha256": file_sha256,
+            "point_count": point_count,
+            "split": sample.get("split"),
+        })
+
+    eligible.sort(key=lambda item: item["sample_id"])
+    manifest = {
+        "schema_version": 1,
+        "project_id": project_id,
+        "samples": eligible,
+        "eligible_sample_count": len(eligible),
+        "class_counts": {
+            name: sum(1 for item in eligible if item["class_name"] == name)
+            for name in sorted({item["class_name"] for item in eligible})
+        },
+        "excluded_sample_counts": dict(sorted(excluded.items())),
+        "training_started": False,
+        "model_activated": False,
+    }
+    encoded = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256(encoded).hexdigest()
+    return {**manifest, "manifest_sha256": digest}
+
+
 def _column_type_export_catalog(project_id: str, elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
     confirmed = list_column_types(project_id)
     excluded = {item["proposal_key"] for item in list_rejected_column_types(project_id)}
@@ -465,8 +778,149 @@ def _column_type_export_catalog(project_id: str, elements: list[dict[str, Any]])
 async def lifespan(app: FastAPI):
     init_db()
     _mark_interrupted_imports()
+    _mark_interrupted_jobs()
     yield
 
+
+def _recognition_work(project_id: str, cloud_id: str):
+    """Return the recognition job body for API and headless workers."""
+    cloud = _cloud(cloud_id)
+    if cloud["project_id"] != project_id:
+        raise ValueError("recognition cloud does not belong to the requested project")
+    geom = _cloud_geometry(cloud)
+    def work(progress):
+        source_snapshot = point_cloud_snapshot(
+            cloud_id, geom.positions_path, geom.count, geom.origin,
+        )
+        result = detect_structures(geom, progress)
+        current_snapshot = point_cloud_snapshot(
+            cloud_id, geom.positions_path, geom.count, geom.origin,
+        )
+        if current_snapshot["snapshot_id"] != source_snapshot["snapshot_id"]:
+            raise RuntimeError("cloud positions changed during recognition; no candidates were saved")
+        candidates = []
+        for el in result.elements:
+            element = {
+                "id": new_id(),
+                "project_id": project_id,
+                "cloud_id": cloud_id,
+                "class_name": el.class_name,
+                "geometry": el.geometry,
+                "bbox": el.bbox,
+                "confidence": el.confidence,
+                "confidence_kind": "heuristic",
+                "measured": 1 if el.measured else 0,
+                "inferred": 1 if el.inferred else 0,
+                "source": el.source,
+                "dimensions": el.dimensions,
+                "metadata": {
+                    **el.metadata,
+                    "bbox_coordinate_frame": "source_cloud_world",
+                    "source_cloud_snapshot": source_snapshot,
+                },
+            }
+            element["features"] = features_from_element(element)
+            candidates.append(element)
+        apply_learned_prior(candidates)
+        existing_geometric = rows(
+            """SELECT id, class_name, geometry_json, bbox_json, review_status FROM elements
+               WHERE cloud_id = ? AND source = 'geometric'""",
+            (cloud_id,),
+        )
+        reviewed = [
+            item for item in existing_geometric
+            if item["review_status"] in {"confirmed", "corrected", "rejected"}
+        ]
+        reusable = [item for item in existing_geometric if item["review_status"] == "unreviewed"]
+        reconciliation = protect_reviewed_candidates(candidates, reviewed, reusable)
+        reused_ids = reconciliation.reused_candidate_ids
+        if reused_ids:
+            placeholders = ",".join("?" for _ in reused_ids)
+            execute(
+                f"DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' "
+                f"AND review_status = 'unreviewed' AND id NOT IN ({placeholders})",
+                (cloud_id, *reused_ids),
+            )
+        else:
+            execute(
+                "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
+                (cloud_id,),
+            )
+        created = []
+        conflicts = []
+        for element in reconciliation.candidates:
+            if element.get("dimensions", {}).get("review_conflict_with"):
+                conflicts.append({
+                    "candidate_id": element["id"],
+                    "protected_ids": element["dimensions"]["review_conflict_with"],
+                })
+            created.append(element)
+        now = utcnow()
+        for element in created:
+            execute(
+                """
+                INSERT INTO elements
+                (id, project_id, cloud_id, parent_id, class_name, geometry_json, bbox_json,
+                 confidence, confidence_kind, measured, inferred, source, review_status,
+                 dimensions_json, metadata_json, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(id) DO UPDATE SET
+                    class_name=excluded.class_name,
+                    geometry_json=excluded.geometry_json,
+                    bbox_json=excluded.bbox_json,
+                    confidence=excluded.confidence,
+                    confidence_kind=excluded.confidence_kind,
+                    measured=excluded.measured,
+                    inferred=excluded.inferred,
+                    dimensions_json=excluded.dimensions_json,
+                    metadata_json=excluded.metadata_json,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    element["id"],
+                    project_id,
+                    cloud_id,
+                    None,
+                    element["class_name"],
+                    dumps(element["geometry"]),
+                    dumps(element["bbox"]),
+                    element["confidence"],
+                    element["confidence_kind"],
+                    element["measured"],
+                    element["inferred"],
+                    element["source"],
+                    "unreviewed",
+                    dumps(element["dimensions"]),
+                    dumps({**element["metadata"], "features": element["features"]}),
+                    now,
+                    now,
+                ),
+            )
+        meta = loads(cloud.get("metadata_json"), {})
+        meta["recognition"] = {
+            "levels": result.levels,
+            "stats": result.stats,
+            "warnings": result.warnings,
+            "recognised_at": now,
+        }
+        execute(
+            "UPDATE clouds SET metadata_json = ?, updated_at = ? WHERE id = ?",
+            (dumps(meta), utcnow(), cloud_id),
+        )
+        return {
+            "cloud_id": cloud_id,
+            "element_count": len(created),
+            "levels": result.levels,
+            "stats": result.stats,
+            "warnings": result.warnings,
+            "review_reconciliation": {
+                "preserved_manual_element_ids": reconciliation.preserved_ids,
+                "reused_candidate_ids": reconciliation.reused_candidate_ids,
+                "conflicts": conflicts,
+            },
+        }
+
+    return work
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -517,7 +971,8 @@ def create_app() -> FastAPI:
             """
             SELECT p.*,
               (SELECT COUNT(*) FROM clouds c WHERE c.project_id = p.id) AS cloud_count,
-              (SELECT COUNT(*) FROM elements e WHERE e.project_id = p.id) AS element_count
+              (SELECT COUNT(*) FROM elements e WHERE e.project_id = p.id
+                AND e.source != 'invalidated_synthetic_ground_truth') AS element_count
             FROM projects p ORDER BY p.updated_at DESC
             """
         )
@@ -527,7 +982,10 @@ def create_app() -> FastAPI:
     def get_project(project_id: str):
         row = _project(project_id)
         row["cloud_count"] = (one("SELECT COUNT(*) AS n FROM clouds WHERE project_id = ?", (project_id,)) or {}).get("n", 0)
-        row["element_count"] = (one("SELECT COUNT(*) AS n FROM elements WHERE project_id = ?", (project_id,)) or {}).get("n", 0)
+        row["element_count"] = (one(
+            "SELECT COUNT(*) AS n FROM elements WHERE project_id = ? AND source != ?",
+            (project_id, "invalidated_synthetic_ground_truth"),
+        ) or {}).get("n", 0)
         return row
 
     @api.delete("/projects/{project_id}")
@@ -576,7 +1034,14 @@ def create_app() -> FastAPI:
         return rcs_guidance(path or "")
 
     # ------------------------------------------------------------ clouds
-    @api.post("/projects/{project_id}/clouds/import-path", response_model=CloudOut)
+    @api.post(
+        "/projects/{project_id}/clouds/import-path",
+        response_model=CloudOut,
+        responses={
+            507: {"description": "Полный импорт RCP не помещается на целевом диске."},
+            503: {"description": "Не удалось проверить доступность целевого хранилища."},
+        },
+    )
     def import_path(project_id: str, payload: CloudImportPath):
         _project(project_id)
         source = Path(payload.path).expanduser()
@@ -588,6 +1053,7 @@ def create_app() -> FastAPI:
             raise HTTPException(409, detail=exc.guidance) from exc
         except Exception as exc:
             raise HTTPException(415, str(exc)) from exc
+        name = payload.name or source.name
         import_metadata: dict[str, Any] = {}
         if fmt == "rcp":
             try:
@@ -600,7 +1066,7 @@ def create_app() -> FastAPI:
                     {
                         "summary": "Этот RCP содержит несколько станций.",
                         "node_count": len(manifest["nodes"]),
-                        "message": "Пакетный импорт станций из многосканового RCP ещё не поддержан; выберите отдельные RCS-файлы.",
+                        "message": "Для этого RCP используйте пакетный маршрут /projects/{project_id}/rcp/import-path: он импортирует все станции отдельными облаками последовательно.",
                     },
                 )
             node = manifest["nodes"][0]
@@ -634,15 +1100,129 @@ def create_app() -> FastAPI:
 
             if not native_available()["dll_exists"]:
                 raise HTTPException(409, detail=rcs_guidance(source))
-        if not import_metadata:
-            name = payload.name or source.name
+        if payload.max_points == 0 and import_metadata.get("recap_project"):
+            _preflight_full_resolution_rcp_storage(
+                import_metadata["recap_project"].get("nodes", [])
+            )
+        _validate_ingest_limit(source, payload.max_points)
+        if payload.max_points is not None:
+            import_metadata["max_points"] = payload.max_points
         cloud_id = _cloud_row_from_import(project_id, name, source.resolve(), fmt, metadata=import_metadata)
         job_id = create_job("ingest", project_id, cloud_id, f"чтение {name}")
-        submit(job_id, _ingest_work(project_id, cloud_id))
+        submit_ingest_task(job_id, "ingest", {"project_id": project_id, "cloud_id": cloud_id})
         return _cloud_out(_cloud(cloud_id), job_id)
 
+    @api.post(
+        "/projects/{project_id}/rcp/import-path",
+        response_model=RcpImportBatchOut,
+        responses={
+            507: {"description": "Полный импорт RCP не помещается на целевом диске."},
+            503: {"description": "Не удалось проверить доступность целевого хранилища."},
+        },
+    )
+    def import_rcp_path(project_id: str, payload: RcpImportPath):
+        """Import each scan node linked from an RCP as a separate cloud.
+
+        All links are validated before database rows are created. Ingestion is
+        sequential under one cancellable job to bound memory and preserve the
+        node identity and raw transform without guessing at coordinate rules.
+        """
+        _project(project_id)
+        project_file = Path(payload.path).expanduser().resolve()
+        try:
+            manifest = read_rcp_manifest(project_file)
+        except RcpManifestError as exc:
+            raise HTTPException(415, str(exc)) from exc
+        if not manifest["nodes"]:
+            raise HTTPException(422, "RCP project contains no scan nodes")
+
+        nodes: list[tuple[dict[str, Any], Path]] = []
+        seen_paths: set[str] = set()
+        unresolved: list[dict[str, Any]] = []
+        for node in manifest["nodes"]:
+            linked = Path(node["resolved_rcs_path"]) if node["resolved_rcs_path"] else None
+            if linked is None or not linked.is_file():
+                unresolved.append({"node_id": node.get("node_id"), "node_name": node["name"]})
+                continue
+            key = str(linked.resolve()).casefold()
+            if key in seen_paths:
+                raise HTTPException(
+                    409,
+                    {"summary": "Несколько узлов RCP ссылаются на один RCS-файл.",
+                     "node_id": node.get("node_id"), "node_name": node["name"]},
+                )
+            seen_paths.add(key)
+            nodes.append((node, linked.resolve()))
+        if unresolved:
+            raise HTTPException(
+                409,
+                {"summary": "Не все станции RCP имеют доступные RCS-файлы.",
+                 "unresolved_nodes": unresolved,
+                 "message": "Импорт не начат; восстановите ссылки на исходные RCS и повторите."},
+            )
+        for _node, linked in nodes:
+            _validate_ingest_limit(linked, payload.max_points)
+
+        from scan2bim.formats.rcs_native import native_available
+
+        availability = native_available()
+        if not availability.get("dll_exists"):
+            raise HTTPException(409, detail=rcs_guidance(str(project_file)))
+        if payload.max_points == 0:
+            _preflight_full_resolution_rcp_storage([node for node, _linked in nodes])
+        project_sha256 = sha256_file(project_file)
+        prefix = (payload.name_prefix or project_file.stem).strip() or project_file.stem
+        stations: list[dict[str, Any]] = []
+        for node, linked in nodes:
+            station_name = f"{prefix} — {node['name']}"
+            node_metadata = {
+                key: value for key, value in node.items()
+                if key != "resolved_rcs_path"
+            }
+            metadata = {"recap_project": {
+                "project_id": manifest.get("project_id"),
+                "project_file": str(project_file),
+                "manifest_member": manifest.get("manifest_member"),
+                "unit_type_raw": manifest.get("unit_type_raw"),
+                "node_count": len(nodes),
+                "project_sha256": project_sha256,
+                "selected_node": node_metadata,
+                "declared_point_count_difference": None,
+                "transform_applied": False,
+                "transform_note": (
+                    "RCP node translation/rotation/scale are preserved as provenance. "
+                    "No transform is auto-applied until its coordinate convention is verified."
+                ),
+            }}
+            if payload.max_points is not None:
+                metadata["max_points"] = payload.max_points
+            cloud_id = _cloud_row_from_import(project_id, station_name, linked, "rcs", metadata=metadata)
+            stations.append({"node_id": node.get("node_id"), "node_name": node["name"], "cloud_id": cloud_id})
+
+        job_id = create_job("rcp_batch_ingest", project_id, None,
+                            f"импорт станций RCP: {len(stations)}")
+
+        submit_ingest_task(job_id, "rcp_batch_ingest", {"project_id": project_id, "stations": stations})
+        return {
+            "project_id": project_id,
+            "project_file": str(project_file),
+            "project_sha256": project_sha256,
+            "import_job_id": job_id,
+            "node_count": len(stations),
+            "stations": [
+                {"node_id": station["node_id"], "node_name": station["node_name"],
+                 "cloud": _cloud_out(_cloud(station["cloud_id"]), job_id)}
+                for station in stations
+            ],
+        }
+
     @api.post("/projects/{project_id}/clouds/upload", response_model=CloudOut)
-    def upload_cloud(project_id: str, file: UploadFile = File(...), name: str | None = None):
+    def upload_cloud(
+        project_id: str,
+        file: UploadFile = File(...),
+        name: str | None = None,
+        max_points: int | None = Form(default=None, ge=0, le=2_000_000_000),
+    ):
         _project(project_id)
         filename = safe_filename(file.filename or "cloud.ply")
         ext = Path(filename).suffix.lower().lstrip(".")
@@ -665,11 +1245,17 @@ def create_app() -> FastAPI:
         except Exception as exc:
             shutil.rmtree(dest_dir.parent, ignore_errors=True)
             raise HTTPException(415, str(exc)) from exc
+        try:
+            _validate_ingest_limit(dest, max_points)
+        except HTTPException:
+            shutil.rmtree(dest_dir.parent, ignore_errors=True)
+            raise
+        metadata = dumps({"max_points": max_points}) if max_points is not None else dumps({})
         now = utcnow()
         execute(
             """
-            INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            INSERT INTO clouds (id, project_id, name, source_path, source_format, size_bytes, status, metadata_json, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 cloud_id,
@@ -679,12 +1265,13 @@ def create_app() -> FastAPI:
                 fmt,
                 total,
                 "processing",
+                metadata,
                 now,
                 now,
             ),
         )
         job_id = create_job("ingest", project_id, cloud_id, f"чтение {filename}")
-        submit(job_id, _ingest_work(project_id, cloud_id))
+        submit_ingest_task(job_id, "ingest", {"project_id": project_id, "cloud_id": cloud_id})
         return _cloud_out(_cloud(cloud_id), job_id)
 
     @api.get("/clouds/{cloud_id}", response_model=CloudOut)
@@ -702,7 +1289,7 @@ def create_app() -> FastAPI:
             (utcnow(), cloud_id),
         )
         job_id = create_job("ingest", project_id, cloud_id, f"возобновление {cloud['name']}")
-        submit(job_id, _ingest_work(project_id, cloud_id))
+        submit_ingest_task(job_id, "ingest", {"project_id": project_id, "cloud_id": cloud_id})
         return _cloud_out(_cloud(cloud_id), job_id)
 
     @api.delete("/clouds/{cloud_id}")
@@ -869,139 +1456,10 @@ def create_app() -> FastAPI:
         job_id = create_job("recognition", project_id, cloud_id, "распознавание конструкций")
         project = _project(project_id)
 
-        def work(progress):
-            source_snapshot = point_cloud_snapshot(
-                cloud_id, geom.positions_path, geom.count, geom.origin,
-            )
-            result = detect_structures(geom, progress)
-            current_snapshot = point_cloud_snapshot(
-                cloud_id, geom.positions_path, geom.count, geom.origin,
-            )
-            if current_snapshot["snapshot_id"] != source_snapshot["snapshot_id"]:
-                raise RuntimeError("cloud positions changed during recognition; no candidates were saved")
-            candidates = []
-            for el in result.elements:
-                element = {
-                    "id": new_id(),
-                    "project_id": project_id,
-                    "cloud_id": cloud_id,
-                    "class_name": el.class_name,
-                    "geometry": el.geometry,
-                    "bbox": el.bbox,
-                    "confidence": el.confidence,
-                    "confidence_kind": "heuristic",
-                    "measured": 1 if el.measured else 0,
-                    "inferred": 1 if el.inferred else 0,
-                    "source": el.source,
-                    "dimensions": el.dimensions,
-                    "metadata": {
-                        **el.metadata,
-                        "bbox_coordinate_frame": "source_cloud_world",
-                        "source_cloud_snapshot": source_snapshot,
-                    },
-                }
-                element["features"] = features_from_element(element)
-                candidates.append(element)
-            apply_learned_prior(candidates)
-            existing_geometric = rows(
-                """SELECT id, class_name, geometry_json, bbox_json, review_status FROM elements
-                   WHERE cloud_id = ? AND source = 'geometric'""",
-                (cloud_id,),
-            )
-            reviewed = [
-                item for item in existing_geometric
-                if item["review_status"] in {"confirmed", "corrected", "rejected"}
-            ]
-            reusable = [item for item in existing_geometric if item["review_status"] == "unreviewed"]
-            reconciliation = protect_reviewed_candidates(candidates, reviewed, reusable)
-            reused_ids = reconciliation.reused_candidate_ids
-            if reused_ids:
-                placeholders = ",".join("?" for _ in reused_ids)
-                execute(
-                    f"DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' "
-                    f"AND review_status = 'unreviewed' AND id NOT IN ({placeholders})",
-                    (cloud_id, *reused_ids),
-                )
-            else:
-                execute(
-                    "DELETE FROM elements WHERE cloud_id = ? AND source = 'geometric' AND review_status = 'unreviewed'",
-                    (cloud_id,),
-                )
-            created = []
-            conflicts = []
-            for element in reconciliation.candidates:
-                if element.get("dimensions", {}).get("review_conflict_with"):
-                    conflicts.append({
-                        "candidate_id": element["id"],
-                        "protected_ids": element["dimensions"]["review_conflict_with"],
-                    })
-                created.append(element)
-            now = utcnow()
-            for element in created:
-                execute(
-                    """
-                    INSERT INTO elements
-                    (id, project_id, cloud_id, parent_id, class_name, geometry_json, bbox_json,
-                     confidence, confidence_kind, measured, inferred, source, review_status,
-                     dimensions_json, metadata_json, created_at, updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        class_name=excluded.class_name,
-                        geometry_json=excluded.geometry_json,
-                        bbox_json=excluded.bbox_json,
-                        confidence=excluded.confidence,
-                        confidence_kind=excluded.confidence_kind,
-                        measured=excluded.measured,
-                        inferred=excluded.inferred,
-                        dimensions_json=excluded.dimensions_json,
-                        metadata_json=excluded.metadata_json,
-                        updated_at=excluded.updated_at
-                    """,
-                    (
-                        element["id"],
-                        project_id,
-                        cloud_id,
-                        None,
-                        element["class_name"],
-                        dumps(element["geometry"]),
-                        dumps(element["bbox"]),
-                        element["confidence"],
-                        element["confidence_kind"],
-                        element["measured"],
-                        element["inferred"],
-                        element["source"],
-                        "unreviewed",
-                        dumps(element["dimensions"]),
-                        dumps({**element["metadata"], "features": element["features"]}),
-                        now,
-                        now,
-                    ),
-                )
-            meta = loads(cloud.get("metadata_json"), {})
-            meta["recognition"] = {
-                "levels": result.levels,
-                "stats": result.stats,
-                "warnings": result.warnings,
-                "recognised_at": now,
-            }
-            execute(
-                "UPDATE clouds SET metadata_json = ?, updated_at = ? WHERE id = ?",
-                (dumps(meta), utcnow(), cloud_id),
-            )
-            return {
-                "cloud_id": cloud_id,
-                "element_count": len(created),
-                "levels": result.levels,
-                "stats": result.stats,
-                "warnings": result.warnings,
-                "review_reconciliation": {
-                    "preserved_manual_element_ids": reconciliation.preserved_ids,
-                    "reused_candidate_ids": reconciliation.reused_candidate_ids,
-                    "conflicts": conflicts,
-                },
-            }
-
-        submit(job_id, work)
+        if os.environ.get("S2B_INGEST_MODE", "local").strip().lower() == "worker":
+            submit_job_task(job_id, "recognition", {"project_id": project_id, "cloud_id": cloud_id})
+        else:
+            submit(job_id, _recognition_work(project_id, cloud_id))
         dispatch_event("recognition.started", {"job_id": job_id, "cloud_id": cloud_id})
         return get_job(job_id)
 
@@ -1389,6 +1847,108 @@ def create_app() -> FastAPI:
             "catalog_reuse": reuse,
         }
 
+    @api.get("/projects/{project_id}/column-reference-types")
+    def project_column_reference_types(project_id: str):
+        """Summarize reviewer-entered column marks and field sides across current scans."""
+        _project(project_id)
+        physical_instances: dict[str, dict[str, Any]] = {}
+        current_cloud_count = 0
+        reviewed_cloud_count = 0
+        annotation_count = 0
+        for cloud in rows("SELECT id FROM clouds WHERE project_id=? ORDER BY id", (project_id,)):
+            cloud_id = cloud["id"]
+            elements = _column_reference_candidates(cloud_id)
+            if not elements:
+                continue
+            current_cloud_count += 1
+            cloud_row = _cloud(cloud_id)
+            try:
+                snapshot = column_snapshot_sha256(elements, cloud_row)
+            except ValueError:
+                continue
+            records = rows(
+                "SELECT element_id,revision,payload_json FROM column_annotations "
+                "WHERE cloud_id=? AND source_snapshot_sha256=? ORDER BY element_id,revision",
+                (cloud_id, snapshot),
+            )
+            latest: dict[str, dict[str, Any]] = {}
+            for record in records:
+                latest[record["element_id"]] = loads(record["payload_json"], {})
+            if latest:
+                reviewed_cloud_count += 1
+            for element_id, annotation in latest.items():
+                if annotation.get("state") != "labeled":
+                    continue
+                physical_id = annotation.get("physical_instance_id")
+                type_label = annotation.get("type_label")
+                if not isinstance(physical_id, str) or not physical_id.strip():
+                    continue
+                if not isinstance(type_label, str) or not type_label.strip():
+                    continue
+                physical_id = physical_id.strip()
+                type_label = type_label.strip()
+                key = type_label.casefold()
+                instance = physical_instances.setdefault(physical_id, {
+                    "physical_instance_id": physical_id,
+                    "type_labels": {},
+                    "cloud_ids": set(),
+                    "measurements": [],
+                })
+                instance["type_labels"].setdefault(key, type_label)
+                instance["cloud_ids"].add(cloud_id)
+                if annotation.get("sides_m") is not None:
+                    instance["measurements"].append({
+                        "sides_m": annotation["sides_m"],
+                        "source": annotation.get("measurement_source"),
+                        "cloud_id": cloud_id,
+                        "element_id": element_id,
+                    })
+                annotation_count += 1
+
+        conflicts = []
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for instance in physical_instances.values():
+            labels = instance["type_labels"]
+            if len(labels) != 1:
+                conflicts.append({
+                    "physical_instance_id": instance["physical_instance_id"],
+                    "type_labels": sorted(labels.values(), key=str.casefold),
+                    "source_cloud_ids": sorted(instance["cloud_ids"]),
+                })
+                continue
+            normalized, display_label = next(iter(labels.items()))
+            grouped.setdefault(normalized, []).append({**instance, "display_label": display_label})
+
+        groups = []
+        for normalized, instances in sorted(grouped.items(), key=lambda pair: pair[0]):
+            label = instances[0]["display_label"]
+            measurements = [row for item in instances for row in item["measurements"]]
+            side_ranges: dict[str, dict[str, float] | None] = {}
+            for side in ("long", "short"):
+                values = [float(row["sides_m"][side]) for row in measurements]
+                side_ranges[side] = {"min": min(values), "max": max(values)} if values else None
+            groups.append({
+                "type_label": label,
+                "physical_instance_count": len(instances),
+                "physical_instance_ids": sorted(item["physical_instance_id"] for item in instances),
+                "source_cloud_ids": sorted({cloud_id for item in instances for cloud_id in item["cloud_ids"]}),
+                "measurement_count": len(measurements),
+                "measurement_sources": sorted({row["source"] for row in measurements if row["source"]}),
+                "measured_sides_range_m": side_ranges,
+            })
+        return {
+            "schema": "scan.column-reference-types/1",
+            "project_id": project_id,
+            "annotation_origin": "independent_manual",
+            "tolerance_status": "not_applied",
+            "current_column_cloud_count": current_cloud_count,
+            "reviewed_column_cloud_count": reviewed_cloud_count,
+            "labeled_annotation_count": annotation_count,
+            "unique_physical_instance_count": sum(len(items) for items in grouped.values()),
+            "groups": groups,
+            "conflicts": sorted(conflicts, key=lambda item: item["physical_instance_id"]),
+        }
+
     @api.post("/column-types/{proposal_key}/confirm")
     def column_type_confirm(proposal_key: str, payload: ColumnTypeConfirm):
         cloud = _cloud(payload.cloud_id)
@@ -1514,6 +2074,7 @@ def create_app() -> FastAPI:
         point_query = PointQuery(tuple(np.r_[lower, upper]))
         point_source, query_strategy = select_query_provider(
             point_source, paths["dir"] / "spatial-index-v1", point_query,
+            build_missing_index=True,
         )
         xyz_parts, row_parts = [], []
         selected_count = 0
@@ -1669,6 +2230,7 @@ def create_app() -> FastAPI:
         point_query = PointQuery(tuple(np.r_[lower, upper]))
         point_source, query_strategy = select_query_provider(
             point_source, paths["dir"] / "spatial-index-v1", point_query,
+            build_missing_index=True,
         )
         xyz_parts: list[np.ndarray] = []
         row_parts: list[np.ndarray] = []
@@ -2057,26 +2619,14 @@ def create_app() -> FastAPI:
         job_id = create_job("cleanup", project_id, cloud_id, "очистка облака")
         params = request.model_dump()
         method = params.pop("method")
-        derived_dir = paths["dir"] / "derived" / derived_id
-
-        def work(progress):
-            result = apply_cleanup(
-                paths["positions"],
-                derived_dir,
-                method,
-                params,
-                colors_path=paths["colors"],
-                progress=progress,
-            )
-            result["derived_id"] = derived_id
-            result["cloud_id"] = cloud_id
-            dispatch_event(
-                "cleanup.completed",
-                {"job_id": job_id, "cloud_id": cloud_id, "derived_id": derived_id},
-            )
-            return result
-
-        submit(job_id, work)
+        submit_job_task(job_id, "cleanup", {
+            "job_id": job_id,
+            "project_id": project_id,
+            "cloud_id": cloud_id,
+            "derived_id": derived_id,
+            "method": method,
+            "params": params,
+        })
         dispatch_event("cleanup.started", {"job_id": job_id, "cloud_id": cloud_id})
         return get_job(job_id)
 
@@ -2160,28 +2710,15 @@ def create_app() -> FastAPI:
         out_path = folder / f"cloud.{payload.format}"
         job_id = create_job("cloud_export", project_id, cloud_id, f"экспорт облака в {payload.format.upper()}")
 
-        def work(progress):
-            try:
-                meta = export_cloud(
-                    positions_path,
-                    out_path,
-                    payload.format,
-                    colors_path=colors_path,
-                    intensity_path=intensity_path,
-                    progress=progress,
-                    verify=payload.verify,
-                )
-            except CloudExportError as exc:
-                raise ValueError(str(exc)) from exc
-            meta.update({"export_id": export_id, "cloud_id": cloud_id, "path": str(out_path)})
-            write_json_atomic(folder / "meta.json", meta)
-            dispatch_event(
-                "cloud.exported",
-                {"job_id": job_id, "cloud_id": cloud_id, "export_id": export_id},
-            )
-            return meta
-
-        submit(job_id, work)
+        submit_job_task(job_id, "cloud_export", {
+            "job_id": job_id,
+            "project_id": project_id,
+            "cloud_id": cloud_id,
+            "derived_id": payload.derived_id,
+            "export_id": export_id,
+            "format": payload.format,
+            "verify": payload.verify,
+        })
         dispatch_event("cloud.export.started", {"job_id": job_id, "cloud_id": cloud_id})
         return get_job(job_id)
 
@@ -2345,6 +2882,72 @@ def create_app() -> FastAPI:
         # present them through the ordinary engineer-sample endpoint.
         return [sample for sample in list_samples(project_id)
                 if sample.get("source") != INVALIDATED_SOURCE]
+
+    @api.get("/projects/{project_id}/learning-manifest/preview")
+    def preview_learning_manifest(project_id: str):
+        _project(project_id)
+        return _learning_manifest_preview(project_id)
+
+    @api.post("/projects/{project_id}/learning-manifests/export")
+    def export_learning_manifest(project_id: str, payload: LearningManifestExportRequest):
+        _project(project_id)
+        if not payload.confirmed:
+            raise HTTPException(422, "explicit confirmation is required to export a learning manifest")
+        manifest = _learning_manifest_preview(project_id)
+        if not hmac.compare_digest(manifest["manifest_sha256"], payload.expected_manifest_sha256):
+            raise HTTPException(409, "eligible samples changed; preview the learning manifest again")
+        if manifest["eligible_sample_count"] == 0:
+            raise HTTPException(409, "there are no current, independently labeled samples to export")
+
+        # Keep the on-disk filename short for Windows installations without
+        # long-path support; the full digest remains inside the JSON document.
+        relative_path = f"catalog/learning/learning-manifest-{manifest['manifest_sha256'][:24]}.json"
+        artifact_path = (project_dir(project_id) / relative_path).resolve()
+        try:
+            artifact_path.relative_to(project_dir(project_id).resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "learning manifest path escaped project directory") from exc
+        already_exists = artifact_path.is_file()
+        if already_exists:
+            try:
+                existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise HTTPException(409, "existing learning manifest artifact is unreadable") from exc
+            if existing.get("manifest_sha256") != manifest["manifest_sha256"]:
+                raise HTTPException(409, "existing learning manifest artifact does not match its content address")
+            document = existing
+        else:
+            document = {
+                **manifest,
+                "export_confirmation": {
+                    "confirmed": True,
+                    "confirmed_at": utcnow(),
+                    "training_started": False,
+                },
+            }
+            try:
+                write_json_atomic(artifact_path, document)
+            except FileExistsError:
+                # Another confirmation can race this request. The content address
+                # makes that safe; validate the winner before returning success.
+                try:
+                    existing = json.loads(artifact_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise HTTPException(409, "concurrent learning manifest export is incomplete") from exc
+                if existing.get("manifest_sha256") != manifest["manifest_sha256"]:
+                    raise HTTPException(409, "concurrent learning manifest export has different content")
+                document = existing
+                already_exists = True
+        return JSONResponse(
+            status_code=200 if already_exists else 201,
+            content={
+                "manifest_sha256": manifest["manifest_sha256"],
+                "relative_path": relative_path,
+                "eligible_sample_count": manifest["eligible_sample_count"],
+                "training_started": False,
+                "model_activated": False,
+            },
+        )
 
     @api.post("/projects/{project_id}/samples", response_model=SampleOut)
     def add_sample(project_id: str, payload: SampleCreate):
@@ -2548,7 +3151,7 @@ def create_app() -> FastAPI:
         truth = write_room_ply(demo_path, spacing=0.04)
         cloud_id = _cloud_row_from_import(project_id, "Demo room PLY", demo_path, "ply")
         job_id = create_job("ingest", project_id, cloud_id, "создание демонстрационного облака")
-        submit(job_id, _ingest_work(project_id, cloud_id))
+        submit_ingest_task(job_id, "ingest", {"project_id": project_id, "cloud_id": cloud_id})
         return {"project": get_project(project_id), "cloud": _cloud_out(_cloud(cloud_id)), "truth": truth}
 
     app.include_router(api, prefix=f"/api/{API_VERSION}")
@@ -2560,6 +3163,12 @@ def create_app() -> FastAPI:
     app.include_router(expert_agent_router, prefix=f"/api/{API_VERSION}")
     from .lod import router as lod_router
     app.include_router(lod_router, prefix=f"/api/{API_VERSION}")
+    from .panoramas import router as panorama_router
+    app.include_router(
+        panorama_router,
+        prefix=f"/api/{API_VERSION}",
+        dependencies=[Depends(require_auth)],
+    )
 
     # Serve a production frontend build when present (python backend/run.py).
     dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"

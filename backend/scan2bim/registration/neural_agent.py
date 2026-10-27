@@ -1,11 +1,9 @@
-"""Neural Registration Agent (Нейросетевой / структурный агент сшивки облаков точек).
+"""Experimental heuristic pipeline for structural point-cloud registration.
 
-Аналог Trimble RealWorks / Trimble Perspective:
-1. Вычисление структурных BEV-дескрипторов (плотность, перепады высот Z, заполненность).
-2. Глобальное сопоставление стоянок при произвольных углах (0-360°) и больших смещениях.
-3. Доводка Point-to-Plane ICP с оценкой нормалей поверхностей до субмиллиметровой невязки.
-4. Геодезическое уравнивание сети стоянок (Pose Graph Optimization / Loop Closure).
-5. Автономный агент с пошаговым обоснованием действий на русском языке.
+This module combines hand-built BEV/FFT candidate search, local point-to-plane
+ICP and a Russian diagnostic log. It is not a neural network, does not run pose
+graph optimization as part of ``auto_stitch``, and does not establish accuracy
+without independent control points. Its outputs remain candidates for review.
 """
 from __future__ import annotations
 
@@ -28,6 +26,19 @@ def make_rot_z(angle_rad: float) -> np.ndarray:
         [s,  c, 0.0],
         [0.0, 0.0, 1.0],
     ], dtype=np.float64)
+
+
+def _registration_xyz(cloud: np.ndarray, name: str) -> np.ndarray:
+    """Return validated XYZ coordinates, ignoring optional non-coordinate columns."""
+    points = np.asarray(cloud, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] < 3:
+        raise ValueError(f"{name} must be a 2D array with at least 3 columns (XYZ)")
+    xyz = points[:, :3]
+    if len(xyz) < 3:
+        raise ValueError(f"{name} must contain at least 3 finite XYZ points")
+    if not np.isfinite(xyz).all():
+        raise ValueError(f"{name} must contain only finite XYZ coordinates")
+    return xyz
 
 
 def extract_bev_structural_features(
@@ -80,8 +91,8 @@ def neural_coarse_match(
     source_cloud: np.ndarray, target_cloud: np.ndarray
 ) -> Dict[str, Any]:
     """Глобальное сопоставление стоянок через круговую 2D BEV-корреляцию и 3D-проверку."""
-    src = np.asarray(source_cloud, dtype=np.float64)
-    tgt = np.asarray(target_cloud, dtype=np.float64)
+    src = _registration_xyz(source_cloud, "source_cloud")
+    tgt = _registration_xyz(target_cloud, "target_cloud")
 
     # Робастное отсечение крайних выбросов
     s_min = np.percentile(src[:, :2], 1.0, axis=0)
@@ -180,9 +191,10 @@ def neural_coarse_match(
     final_R = make_rot_z(math.radians(final_deg))
     final_t = np.array([final_tx, final_ty, best_t[2]])
 
-    confidence = 0.95 if best_score < 1.0 else 0.75
     return {
-        "confidence": float(confidence),
+        "confidence": None,
+        "confidence_status": "not_calibrated",
+        "coarse_residual_p80_m": float(best_score),
         "rotation": final_R,
         "translation": final_t,
         "angle_deg": float(final_deg),
@@ -196,9 +208,13 @@ def point_to_plane_icp(
     max_iterations: int = 25,
     tolerance_m: float = 1e-4,
 ) -> Dict[str, Any]:
-    """Субмиллиметровая доводка Point-to-Plane ICP с оценкой нормалей плоскостей."""
-    src = np.asarray(source, dtype=np.float64)
-    tgt = np.asarray(target, dtype=np.float64)
+    """Run local point-to-plane ICP and report whether it had enough support to fit."""
+    src = _registration_xyz(source, "source")
+    tgt = _registration_xyz(target, "target")
+    if len(src) < 30:
+        raise ValueError("source must contain at least 30 XYZ points for ICP correspondences")
+    if len(tgt) < 15:
+        raise ValueError("target must contain at least 15 XYZ points for normal estimation")
 
     # Оценка нормалей по целевому облаку
     tgt_sub = tgt[::max(1, len(tgt) // 4000)]
@@ -222,7 +238,8 @@ def point_to_plane_icp(
         curr_t = np.zeros(3, dtype=np.float64)
 
     converged = False
-    final_rmse = 0.0
+    final_rmse: Optional[float] = None
+    correspondence_count = 0
 
     for it in range(max_iterations):
         p_prime = (curr_R @ src_sub.T).T + curr_t
@@ -236,6 +253,7 @@ def point_to_plane_icp(
         n = normals[q_idxs[valid]]
 
         r = np.sum((p - q) * n, axis=1)
+        correspondence_count = int(np.sum(valid))
         pxn = np.cross(p, n)
         A = np.hstack([pxn, n])
         b = -r
@@ -265,8 +283,10 @@ def point_to_plane_icp(
     T4[:3, 3] = curr_t
 
     return {
-        "converged": True if (converged or final_rmse < 0.05) else False,
-        "rmse_mm": float(final_rmse * 1000.0),
+        "converged": bool(converged),
+        "fit_status": "fit" if final_rmse is not None else "insufficient_correspondences",
+        "correspondence_count": correspondence_count,
+        "rmse_mm": float(final_rmse * 1000.0) if final_rmse is not None else None,
         "matrix_4x4": T4,
     }
 
@@ -386,16 +406,22 @@ class NeuralRegistrationAgent:
         init_t4x4[:3, 3] = inv_t
 
         reasoning_log.append(
-            f"3. Субмиллиметровая доводка Point-to-Plane ICP с оценкой нормалей поверхностей "
+            f"3. Локальная доводка Point-to-Plane ICP с оценкой нормалей поверхностей "
             f"(угол грубой ориентации: {coarse['angle_deg']:.1f}°)."
         )
         icp_res = point_to_plane_icp(
             st_moving.points, st_base.points, initial_t4x4=init_t4x4, max_iterations=30
         )
 
+        fit_detail = (
+            f"fit-невязка составляет {icp_res['rmse_mm']:.2f} мм"
+            if icp_res["rmse_mm"] is not None
+            else "достаточных пар соответствий нет; fit-невязка не вычислена"
+        )
         reasoning_log.append(
-            f"4. Геодезическое уравнивание сети стоянок (Pose Graph Optimization): "
-            f"достигнута сходимость ICP, остаточная невязка составляет {icp_res['rmse_mm']:.2f} мм."
+            f"4. Проверка локальной сходимости ICP: "
+            f"сходимость ICP: {'да' if icp_res['converged'] else 'нет'}, "
+            f"{fit_detail}; это не независимая точность."
         )
 
         # Вычисление коэффициента перекрытия (overlap ratio)
@@ -405,15 +431,18 @@ class NeuralRegistrationAgent:
         overlap_ratio = float(np.mean(dists < 0.35))
 
         reasoning_log.append(
-            f"5. Сшивка завершена успешно: взаимное перекрытие сканов {overlap_ratio * 100:.1f}%, "
-            f"точность сопоставления по ГОСТ Р 59562-2021 соблюдена."
+            f"5. Черновое преобразование рассчитано; выборочная доля перекрытия "
+            f"{overlap_ratio * 100:.1f}%. Соответствие нормативам не оценивалось: "
+            f"независимые контрольные точки отсутствуют."
         )
 
         return {
-            "status": "success",
+            "status": "candidate",
             "converged": bool(icp_res["converged"]),
-            "rmse_mm": float(icp_res["rmse_mm"]),
+            "rmse_mm": icp_res["rmse_mm"],
             "overlap_ratio": float(overlap_ratio),
+            "accuracy_status": "not_measured",
+            "independent_control_checked": False,
             "reasoning_log": reasoning_log,
             "station_poses": [np.eye(4).tolist(), icp_res["matrix_4x4"].tolist()],
         }

@@ -10,6 +10,20 @@ def test_openapi_schema_includes_learning_sample_request(client):
     assert "/api/v1/projects/{project_id}/samples" in schema["paths"]
 
 
+def test_openapi_documents_full_resolution_rcp_storage_preflight_failures(client):
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    for path in (
+        "/api/v1/projects/{project_id}/rcp/import-path",
+        "/api/v1/projects/{project_id}/clouds/import-path",
+    ):
+        responses = paths[path]["post"]["responses"]
+        assert "507" in responses
+        assert "503" in responses
+
+
 def test_openapi_documents_point_provenance_in_column_annotations(client):
     response = client.get("/openapi.json")
     assert response.status_code == 200

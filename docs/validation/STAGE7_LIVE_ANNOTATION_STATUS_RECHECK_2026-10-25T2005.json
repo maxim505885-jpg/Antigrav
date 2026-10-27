@@ -1,0 +1,20 @@
+{
+  "checked_at_local": "2026-10-25T20:05:15+03:00",
+  "stage": 7,
+  "method": "Read-only GET from the running local SCAN API",
+  "endpoint": "GET /api/v1/clouds/workshop_cloud/column-annotations",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+  "candidate_count": 376,
+  "states": {
+    "pending": 376,
+    "labeled": 0,
+    "unknown": 0,
+    "excluded": 0
+  },
+  "history_count": 0,
+  "api_health": "HTTP 200",
+  "writes_performed": false,
+  "interpretation": "The annotation UI and API are available, but independent physical labels have not yet been entered. This is not training or accuracy evidence; Stage 7 remains open."
+}

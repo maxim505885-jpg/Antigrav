@@ -1,0 +1,311 @@
+{
+  "check": "station_panorama_real_cloud",
+  "started_at": "2026-10-26T19:38:12.488562+00:00",
+  "cloud": {
+    "id": "1c8f6d596518476b8b74055d5414609b",
+    "project_id": "workshop_project",
+    "source_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+    "source_format": "rcs",
+    "point_count": 297873927,
+    "stored_points": 297873927,
+    "has_color": true,
+    "decimated": false,
+    "source_point_count": 297873927,
+    "origin": [
+      -20.587620384843184,
+      48.07819339743968,
+      2.7485725990488463
+    ],
+    "bbox_min": [
+      -93.80296611791275,
+      4.720156864266897,
+      -5.265863800916749
+    ],
+    "bbox_max": [
+      52.62772534822638,
+      91.43622993061246,
+      10.763008999014442
+    ],
+    "station_metadata_present": false
+  },
+  "limits": {
+    "max_render_points": 4000000,
+    "note": "Станции берутся из метаданных импорта. У этого облака их нет: RCS импортирован одним куском, поэтому каталог честно отдаёт одну станцию station_source='cloud', а не выдуманные стоянки сканера."
+  },
+  "health": {
+    "status": "ok",
+    "version": "0.1.0",
+    "api": "v1",
+    "auth_required": false,
+    "max_ingest_points": 40000000
+  },
+  "catalogue_cache_existed_before": true,
+  "stations": {
+    "count": 1,
+    "station_id": "cloud",
+    "station_source": "cloud",
+    "name": "Единое облако",
+    "anchor": [
+      -21.456254336868422,
+      50.67092725584091,
+      3.62071270802074
+    ],
+    "anchor_kind": "point_centroid",
+    "point_count": 297873927
+  },
+  "depth_sheet": {
+    "width": 2048,
+    "height": 1024
+  },
+  "picks": {
+    "grid": [
+      24,
+      9
+    ],
+    "resolved": 150
+  },
+  "pixel_to_ray_roundtrip": {
+    "samples": 150,
+    "pixel_offset_median_px": 0.0,
+    "pixel_offset_max_px": 0.0,
+    "depth_vs_point_median_mm": 8.882e-13,
+    "depth_vs_point_max_mm": 7.105e-12,
+    "note": "pixel_offset - возвращённая точка лежит на луче центра пикселя; глубина сверена с расстоянием от центра обзора до этой точки."
+  },
+  "depth_recomputation": {
+    "pixels_compared": 1549072,
+    "pixel_set_identical": true,
+    "max_abs_difference_m": 0.0,
+    "median_abs_difference_m": 0.0,
+    "points_reprojected": 228401937,
+    "max_range_m": 60.0,
+    "note": "Карта глубин пересчитана с нуля по всему облаку независимым кодом; совпадение означает, что каждая дистанция — измеренная точка, а не сглаженная поверхность."
+  },
+  "sampled_baseline": {
+    "note": "Тот же рендер до потоковой реализации: облако прореживалось до 4000000 точек, поэтому лист был заметно разряжён.",
+    "2048": {
+      "coverage": 0.269,
+      "projected_points": 3045404,
+      "stride": 1,
+      "seconds": 1.84
+    },
+    "4096": {
+      "coverage": 0.1224,
+      "projected_points": 3045404,
+      "stride": 1,
+      "seconds": 2.0
+    }
+  },
+  "render": {
+    "2048": {
+      "width": 2048,
+      "status": 200,
+      "seconds": 48.85,
+      "bytes": 4073510,
+      "png": true,
+      "coverage_header": "0.7387",
+      "source_header": "point_cloud",
+      "peak_server_rss_gb": 5.0,
+      "peak_server_uss_gb": 1.32
+    },
+    "2048_cached": {
+      "width": 2048,
+      "status": 200,
+      "seconds": 0.04,
+      "bytes": 4073510,
+      "png": true,
+      "coverage_header": "0.7387",
+      "source_header": "point_cloud",
+      "peak_server_rss_gb": 0.19,
+      "peak_server_uss_gb": 0.15
+    },
+    "4096": {
+      "width": 4096,
+      "status": 200,
+      "seconds": 50.59,
+      "bytes": 7677636,
+      "png": true,
+      "coverage_header": "0.6979",
+      "source_header": "point_cloud",
+      "peak_server_rss_gb": 5.16,
+      "peak_server_uss_gb": 1.38
+    },
+    "memory_note": "peak_server_rss_gb включает страницы отображённых в память файлов облака (positions.npy + colors.npy), которые система может вытеснить; peak_server_uss_gb — память, реально выделенная процессом рендера."
+  },
+  "render_meta": {
+    "source": "point_cloud",
+    "is_photograph": false,
+    "renderer": "streaming",
+    "renderer_version": "streaming-1",
+    "full_resolution": true,
+    "width": 2048,
+    "height": 1024,
+    "coverage": 0.7386550903320312,
+    "points_examined": 297873927,
+    "station_points": 297873927,
+    "rendered_points": 228401937,
+    "beyond_range_points": 69471990,
+    "render_seconds": 48.65,
+    "color_source": "cloud_rgb",
+    "anchor_kind": "point_centroid",
+    "stride": 1,
+    "max_range_m": 60.0
+  },
+  "measurement": {
+    "pairs": 12,
+    "distance_range_m": [
+      6.332,
+      31.518
+    ],
+    "all_pairs": {
+      "resolution_delta_median_mm": 88.536,
+      "resolution_delta_max_mm": 11418.121
+    },
+    "continuous_surface_pairs": {
+      "count": 3,
+      "resolution_delta_median_mm": 35.345,
+      "resolution_delta_max_mm": 131.1
+    },
+    "discontinuity_pairs": {
+      "count": 9,
+      "resolution_delta_median_mm": 279.069,
+      "resolution_delta_max_mm": 11418.121,
+      "note": "замеры, где хотя бы один пиксель стоит на разрыве глубин: API помечает их reliable=false"
+    },
+    "closure_error_max_mm": 0.0,
+    "reported_precision_median_mm": 32.54,
+    "note": "delta — расхождение одного и того же замера на листах 2048 и 4096 px; closure — сверка отданного расстояния с евклидовым расстоянием между возвращёнными точками; precision — оценка из углового разрешения листа.",
+    "samples": [
+      {
+        "distance_2048_m": 22.819443982876702,
+        "distance_4096_m": 22.95054427131353,
+        "delta_mm": 131.10028843682642,
+        "closure_error_mm": 0.0,
+        "precision_mm": 85.640517134731,
+        "reliable": true,
+        "unstable_endpoints": []
+      },
+      {
+        "distance_2048_m": 10.442727996844985,
+        "distance_4096_m": 10.458328570474649,
+        "delta_mm": 15.600573629663828,
+        "closure_error_mm": 0.0,
+        "precision_mm": 24.00004006686144,
+        "reliable": true,
+        "unstable_endpoints": []
+      },
+      {
+        "distance_2048_m": 12.32528007974584,
+        "distance_4096_m": 12.322725268982333,
+        "delta_mm": -2.5548107635060546,
+        "closure_error_mm": 0.0,
+        "precision_mm": 33.5272894725644,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 14.657812683994553,
+        "distance_4096_m": 14.693157997120604,
+        "delta_mm": 35.345313126050826,
+        "closure_error_mm": 0.0,
+        "precision_mm": 54.214340960701115,
+        "reliable": true,
+        "unstable_endpoints": []
+      },
+      {
+        "distance_2048_m": 6.331789003638544,
+        "distance_4096_m": 6.3259667004169895,
+        "delta_mm": -5.822303221554748,
+        "closure_error_mm": 0.0,
+        "precision_mm": 25.192053476495914,
+        "reliable": false,
+        "unstable_endpoints": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 16.849122978660894,
+        "distance_4096_m": 17.128192028897573,
+        "delta_mm": 279.0690502366786,
+        "closure_error_mm": 0.0,
+        "precision_mm": 54.92375588805593,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 6.800102845063423,
+        "distance_4096_m": 6.815056353945792,
+        "delta_mm": 14.953508882369348,
+        "closure_error_mm": 0.0,
+        "precision_mm": 29.70359442038508,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 8.364362135064388,
+        "distance_4096_m": 8.410333366366,
+        "delta_mm": 45.97123130161229,
+        "closure_error_mm": 0.0,
+        "precision_mm": 20.116115053934415,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 10.243775117470324,
+        "distance_4096_m": 12.292909835518138,
+        "delta_mm": 2049.1347180478137,
+        "closure_error_mm": 0.0,
+        "precision_mm": 30.437167814107486,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 12.60382942171526,
+        "distance_4096_m": 14.395391494188939,
+        "delta_mm": 1791.5620724736793,
+        "closure_error_mm": 0.0,
+        "precision_mm": 31.5489970877719,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      },
+      {
+        "distance_2048_m": 9.751484150398015,
+        "distance_4096_m": 10.120494704451879,
+        "delta_mm": 369.01055405386353,
+        "closure_error_mm": 0.0,
+        "precision_mm": 39.620262868490755,
+        "reliable": false,
+        "unstable_endpoints": [
+          "a"
+        ]
+      },
+      {
+        "distance_2048_m": 31.51824148449535,
+        "distance_4096_m": 42.93636257304927,
+        "delta_mm": 11418.121088553924,
+        "closure_error_mm": 0.0,
+        "precision_mm": 78.71921295147885,
+        "reliable": false,
+        "unstable_endpoints": [
+          "b"
+        ]
+      }
+    ]
+  },
+  "preview_file": "docs\\validation\\STATION_PANORAMA_REAL_1c8f6d59.jpg",
+  "result": "passed",
+  "finished_at": "2026-10-26T19:41:38.477859+00:00"
+}

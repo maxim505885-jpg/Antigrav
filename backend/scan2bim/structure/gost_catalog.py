@@ -1,10 +1,10 @@
 """Cited, partial I-beam assortment used only for review suggestions.
 
 Dimensions below are transcribed from the base edition of ГОСТ 35087-2024.
-The standard is active, but the corrections listed by Rosstandart after the
-base edition (including the October 2026 correction) have not been checked
-against their full text. Results therefore remain provisional candidates and
-must never set a project type, mark, tolerance, or engineering acceptance.
+The public text of the 2025 and February 2026 corrections was reviewed; none
+changes the fields in this dimensional excerpt. The October 2026 correction is
+still behind an authenticated viewer. Results remain provisional candidates
+and must never set a project type, mark, tolerance, or engineering acceptance.
 """
 from __future__ import annotations
 

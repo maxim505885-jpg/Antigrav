@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "change": "Manual Kabsch response separates fit residuals from independent accuracy acceptance.",
+  "api_contract": {
+    "accuracy_status": "not_measured",
+    "independent_control_count": 0,
+    "fit_residuals_are_independent": false
+  },
+  "frontend": [
+    "Split-screen registration labels selected correspondences as fitting pairs and states independent controls: 0.",
+    "Legacy registration panel explains that RMSE is computed from the same pairs used for fitting."
+  ],
+  "verification": {
+    "test_first_red": "test_pair_align_endpoint failed because accuracy_status was absent.",
+    "backend_focused": "11 passed: test_manual_registration_svd.py and test_registration_api.py; broader registration/packing propagation set passed 45/45.",
+    "frontend_tests": "passed",
+    "typescript": "passed",
+    "production_build": "passed; Vite transformed 1977 modules",
+    "live_browser": {
+      "url": "http://127.0.0.1:8000/",
+      "registration_panel_opened": true,
+      "fitting_pair_label_visible": true,
+      "zero_independent_controls_visible": true,
+      "console_errors": 0
+    },
+    "live_api": {
+      "process_id": 31432,
+      "health": "ok",
+      "ui_http": 200,
+      "synthetic_read_only_pair_align": "200",
+      "returned_accuracy_status": "not_measured",
+      "returned_independent_control_count": 0,
+      "clouds_or_projects_written": false
+    }
+  },
+  "broader_registration_regression": {
+    "status": "passed",
+    "reason": "The sandbox denied pytest temporary-directory access; rerunning the same command with approved access to its isolated test folders passed.",
+    "tests_passed": 45,
+    "modules_attempted": [
+      "test_stitching.py",
+      "test_stitching_export.py",
+      "test_recap_decap.py",
+      "test_registration_extended_api.py"
+    ]
+  },
+  "acceptance": {
+    "stage_status": "in_progress",
+    "independent_survey_controls_available": false,
+    "rmse_under_10mm_verified": false,
+    "overall_completed_stages": 3,
+    "stage_6": "parked_until_last"
+  },
+  "source_clouds_modified": false,
+  "database_records_modified": false
+}

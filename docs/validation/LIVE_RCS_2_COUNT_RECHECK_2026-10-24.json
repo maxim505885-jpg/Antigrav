@@ -1,0 +1,45 @@
+{
+  "recorded_at": "2026-10-24",
+  "purpose": "Read-only full-stream recount of the original Workshop 2.rcs using the installed Autodesk ReCap DLL.",
+  "source": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\2.rcs",
+    "size_bytes_before_and_after": 13906332111,
+    "last_write_time_utc_before_and_after": "2026-10-16T09:14:28.2322579Z",
+    "sha256_from_prior_matching_source_audit": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "sha256_recomputed_during_this_pass": false,
+    "modified": false
+  },
+  "reader": {
+    "implementation": "scan2bim.formats.rcs_native",
+    "dll": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\AdskRcExport.dll",
+    "dll_file_version": "24.0.0.240",
+    "read_mode": "full sequential pass; --max 1 retained point",
+    "process_exit_code": 0,
+    "points_seen": 574367742,
+    "points_retained": 1
+  },
+  "comparison": {
+    "matches_previous_full_stream_dll_audit": true,
+    "previous_full_stream_dll_count": 574367742,
+    "legacy_workshop_cloud_02_metadata_count": 576820490,
+    "difference_points": 2452748,
+    "difference_percent_of_dll_count": 0.426818,
+    "legacy_cloud_stored_sample_points": 3500000,
+    "source_cloud_id": "workshop_cloud_02",
+    "source_cloud_reader_label": "rcs_native_stream",
+    "metadata_rewritten": false,
+    "cause_of_legacy_count_difference": "unresolved"
+  },
+  "safety": {
+    "original_rcs_opened_for_write": false,
+    "project_database_modified": false,
+    "api_health_during_check": "ok",
+    "probe_scratch_removed_after_verifying_exact_generated_files": true
+  },
+  "acceptance": {
+    "current_adsk_dll_full_stream_count_reproduced": true,
+    "legacy_cloud_metadata_count_reconciled": false,
+    "stage_2_closed": false,
+    "overall_closed_stages": "3/12"
+  }
+}

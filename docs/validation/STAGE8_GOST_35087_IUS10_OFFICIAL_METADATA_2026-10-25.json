@@ -1,0 +1,22 @@
+{
+  "checked_at_local": "2026-10-25T15:16:00+03:00",
+  "stage": 8,
+  "standard": "ГОСТ 35087-2024",
+  "official_source": "https://protect.gost.ru/gost/changesdetails/84820a23-1fb3-4f1b-9bcb-b5677c57ed8f",
+  "official_registry": {
+    "change_type": "Поправка",
+    "registration_date": "2026-10-13",
+    "effective_date": "2026-10-13",
+    "publication": "ИУС 10-2026",
+    "pages": 1,
+    "change_content_field": "-",
+    "previous_value_field": "-"
+  },
+  "finding": "The official Rosstandart change card confirms that a correction exists and is effective, but does not disclose the correction text or identify the changed standard clause/table. The public secondary copy of the base standard is not sufficient evidence for deciding whether the provisional section catalog needs an update.",
+  "action": "No catalog dimensions or recognition thresholds were changed. Keep the catalog provisional until the official correction page or controlled text is available.",
+  "acceptance": {
+    "stage_8": "open; current catalog cannot be signed off against the undisclosed IUS 10-2026 correction, and workshop physical labels/measurements and an agreed tolerance are also missing",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

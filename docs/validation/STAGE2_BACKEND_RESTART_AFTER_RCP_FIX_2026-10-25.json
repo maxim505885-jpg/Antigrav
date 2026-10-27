@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Restart the user's local SCAN Studio after the moved-support RCP resolver fix",
+  "server": {
+    "url": "http://127.0.0.1:8000/",
+    "bind": "127.0.0.1",
+    "previous_pid": 24208,
+    "current_pid": 33636,
+    "health_http": 200,
+    "health": "ok",
+    "ui_http": 200,
+    "project_list_http": 200,
+    "project_count": 12
+  },
+  "pre_restart_safety": {
+    "project_count": 12,
+    "active_jobs": 0,
+    "port_listener_pid_verified": 24208
+  },
+  "implementation_loaded_from_current_worktree": true,
+  "database": "repository data/scan2bim.sqlite3",
+  "test_validation_project_present": false,
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  }
+}

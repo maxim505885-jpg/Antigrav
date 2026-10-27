@@ -61,3 +61,8 @@ $env:S2B_DATA_DIR = Join-Path $PWD 'data/validation/pytest-revit-fixtures'
 ```
 
 Код provenance через Revit Extensible Storage сохраняет источник, систему координат, review status, dimensions и recognition metadata на DirectShape. Плагин собран с 0 ошибками и 3 предупреждениями; policy harness: 7 проверок сечения и 2 проверки полного/legacy provenance payload прошли. Запись и повторное чтение Entity ещё не проверялись в открытом Revit/RVT и остаются host-level приёмкой.
+
+
+## Повторный host launch после восстановления Identity Manager — 25 октября 2026
+
+Revit 2027 запущен без модели после подтверждённой установки Autodesk Identity Manager 1.21.1.5. В окне Revit read-only UI Automation наблюдала модальный диалог «Ошибка системы лицензирования 6» с кнопкой «ОК». Диалог не закрывался, проекты не открывались; сборка и manifest add-in не менялись. Поэтому импорт фикстур, rollback и RVT round-trip не выполнялись. Это host licensing blocker, а не доказательство отказа самого импорта. Этап 10 остаётся открытым до восстановления лицензирования и проверки сценариев этой страницы. Протокол: [STAGE10_REVIT_LAUNCH_RECHECK_2026-10-25.json](STAGE10_REVIT_LAUNCH_RECHECK_2026-10-25.json).

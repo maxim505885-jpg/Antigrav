@@ -1,0 +1,44 @@
+{
+  "recorded_at": "2026-10-25T09:24:21+03:00",
+  "stage": 12,
+  "purpose": "Refresh the Windows installer after the CPU voxel aggregation change and verify current release inputs.",
+  "release_preflight": {
+    "command": "python scripts/verify_release_bundle.py",
+    "result": "passed; four production frontend assets referenced"
+  },
+  "build": {
+    "compiler": "Inno Setup 7.1.0",
+    "compiler_path": "%LOCALAPPDATA%/Programs/Inno/ISCC.exe",
+    "source": "installer/scan_studio_setup.iss",
+    "artifact": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170010478,
+    "sha256": "DA70E1A25834A88D1C0B5D927CA056355F32CB53B0308411B607DE1A3A8D7B05",
+    "authenticode": "NotSigned",
+    "compiler_process_observation": "ISCC completed and the full-size output artifact was present; the shell session did not preserve the process exit code"
+  },
+  "previous_artifact": {
+    "preserved_at": "data/.tools/SCAN_Studio_pre_cpu_voxel_20261025_092216.exe",
+    "sha256": "4B994451B33DB665A66A7E8D617BB85DFE2D8DD59BD005D5CC0B38033EAA3653"
+  },
+  "install_smoke": {
+    "result": "not run",
+    "reason": "Only 742326272 bytes (0.691 GiB) were free on C:, less than the measured 1012996945-byte (0.943 GiB) project virtual environment alone; a temporary install could exhaust the volume.",
+    "current_package_source_manifest": "not verified by installing this new artifact",
+    "prior_package_smoke_applies_to_current_artifact": false
+  },
+  "release_tests": {
+    "release_preflight_tests_passed": 2,
+    "installed_source_manifest_pytest": "blocked during tmp_path fixture setup/cleanup by Windows permission errors enumerating pytest basetemp; the source-manifest functions were not exercised in this run"
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "remaining": [
+      "isolated install/API/UI/security/uninstall smoke of this artifact after sufficient disk space is available",
+      "clean independent Windows 11 acceptance",
+      "Authenticode code signing",
+      "user acceptance"
+    ],
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

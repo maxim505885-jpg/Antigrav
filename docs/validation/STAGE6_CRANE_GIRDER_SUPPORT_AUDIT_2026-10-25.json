@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "purpose": "Audit whether live crane-girder role hypotheses are supported by detected column context and make that uncertainty visible in the active Studio inspector",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "cloud_source_snapshot_sha256": "5703f3db30ce1d134ca40444ad61e05732f78f927f21afb202b8b9d2cfe5ff1c",
+  "live_api": {
+    "endpoint": "/api/v1/clouds/workshop_cloud/elements",
+    "http_status": 200,
+    "element_count": 1684,
+    "column_candidate_count": 376,
+    "beam_candidate_count": 846,
+    "crane_girder_role_hypothesis_count": 99,
+    "all_99_review_status": "unreviewed",
+    "all_99_role_status": "proposed"
+  },
+  "column_support_context": {
+    "method": "Read-only reproduction of backend _runway_column_context geometric filters against live candidate geometry and candidate column footprints; beam endpoint margin 0.6 m, candidate-height and strip-overlap checks retained.",
+    "support_candidate_count_distribution": {
+      "0": 70,
+      "1": 20,
+      "2": 6,
+      "3": 1,
+      "4": 2
+    },
+    "distinct_columns_near_both_endpoints": 1,
+    "interpretation": "98/99 candidates lack a distinct two-column endpoint pair under current geometric rules. This indicates missing support evidence, not proof that a physical beam or column is absent."
+  },
+  "implementation": {
+    "files": [
+      "frontend/src/elementRoleSummary.ts",
+      "frontend/src/StudioReferenceLayout.tsx",
+      "frontend/src/elementRoleSummary.test.ts",
+      "frontend/package.json"
+    ],
+    "behavior": "The right-hand inspector now displays the candidate's structural role and whether it is a recognizer hypothesis or a human-reviewed label. For beams it explains whether columns are paired at both ends, only nearby supports were found, or no column relationship was established.",
+    "does_not_confirm_physical_support": true
+  },
+  "verification": {
+    "new_role_summary_regressions": 5,
+    "frontend_test_cases_passed": 117,
+    "typescript": "passed",
+    "production_build": {
+      "status": "passed",
+      "vite_modules": 1977,
+      "bundle_served_by_live_api": true,
+      "asset": "/assets/index-Bj4tiJ1e.js",
+      "role_summary_string_present": true,
+      "support_reason_string_present": true
+    },
+    "live_api_or_point_data_written": false
+  },
+  "stage_6": "in_progress",
+  "remaining": [
+    "Independent physical labels for the 99 beam hypotheses and 376 columns",
+    "Field precision/recall and dimensional accuracy on a holdout",
+    "Agreed engineering tolerance"
+  ]
+}

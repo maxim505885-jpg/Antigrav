@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-10-24",
+  "stage": 11,
+  "purpose": "Check whether this workstation can run or validate a real distributed headless SCAN worker pipeline.",
+  "repository_runtime": {
+    "database_layer": "SQLite",
+    "job_execution": "process-local ThreadPoolExecutor",
+    "thread_pool_max_workers": 2,
+    "jobs_rehydrated_after_api_restart": false,
+    "restart_behavior": "persisted queued/running jobs are marked failed because their in-memory workers do not survive"
+  },
+  "local_services": {
+    "postgresql_12_service": "running",
+    "localhost_5432_tcp_reachable": true,
+    "postgresql_configured_for_scan": false,
+    "postgres_python_driver_available_in_global_and_project_python": false,
+    "redis_server_available": false,
+    "rabbitmq_server_available": false,
+    "docker_or_podman_available": false,
+    "celery_or_redis_python_client_available": false,
+    "scan_database_or_broker_environment_variables_present": false,
+    "unconfigured_postgresql_service_used_or_modified": false
+  },
+  "gpu_runtime": {
+    "nvidia_smi_available": false,
+    "torch_available": false,
+    "cupy_available": false,
+    "numba_available": false,
+    "open3d_available_in_current_python_environments": false,
+    "cuda_voxel_and_normal_estimation_verified": false
+  },
+  "changes_made": false,
+  "acceptance": {
+    "distributed_worker_pipeline_implemented": false,
+    "distributed_worker_pipeline_live_verified": false,
+    "stage_11_closed": false,
+    "overall_closed_stages": "3/12"
+  }
+}

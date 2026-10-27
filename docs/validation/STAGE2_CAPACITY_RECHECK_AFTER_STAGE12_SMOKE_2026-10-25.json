@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Recheck available storage after the current installer acceptance run",
+  "observed_after": "Stage 12 isolated install/runtime/uninstall smoke; temporary install and data root removed",
+  "storage": {
+    "c_free_bytes": 19572674560,
+    "c_free_gib": 18.22,
+    "full_rcp_estimated_bytes": 14782617889,
+    "estimated_remaining_bytes": 4790056671,
+    "r_drive_accessible": false
+  },
+  "source": {
+    "rcp_path": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/10.rcp",
+    "rcp_sha256": "3D3A00ACD971B42BEE11A8FB73F43356EA162D10855EDEFDE84AAA83D27918FD",
+    "manifest_link": "Support/10.rcs",
+    "linked_rcs_expected_path_exists": false,
+    "repository_root_rcs_files": ["1.rcs", "2.rcs"],
+    "r_projects_search_found_linked_source": false
+  },
+  "writes": {
+    "full_import_started": false,
+    "database_modified": false,
+    "faro_sources_modified": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass",
+    "reason": "Estimated disk capacity currently exceeds the RCP preflight estimate, but the exact linked 10.rcs source is missing and the mapped R: volume is inaccessible.",
+    "next_action": "Restore the exact RCP-linked Support/10.rcs file or reconnect the volume that contains it before full-resolution import."
+  }
+}

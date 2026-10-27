@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, waitForCloud, waitForJob, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud, type ElementAnnotation } from "./api";
+import { api, waitForCloud, waitForJob, type CloudExportFormat, type CloudExportMeta, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud, type ElementAnnotation } from "./api";
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
@@ -10,6 +10,7 @@ import ElementAnnotationPanel from "./components/ElementAnnotationPanel";
 import SectionCanvas from "./components/SectionCanvas";
 import Viewer3D from "./components/Viewer3D";
 import { sliceElementPositions, toLocalElementPositions } from "./elementPointGeometry";
+import { detailText } from "./errorMessage";
 import { columnGroupLinePositions } from "./columnGroupGeometry";
 import { buildOrientedBoxGeometry, orientedBoxDraft, type OrientedBoxDraft } from "./orientedBoxEditor";
 import { classLabel, REVIEW_LABELS, statusLabel, type Cloud, type Element, type ModelInfo, type Project, type Section, type SectionResult } from "./types";
@@ -21,7 +22,7 @@ const TAB_LABELS: Record<Tab, string> = {
   recognition: "РАСПОЗНАВАНИЕ",
   learning: "ОБУЧЕНИЕ",
   export: "ЭКСПОРТ",
-  registration: "Сшивка ReCap",
+  registration: "СШИВКА СТАНЦИЙ",
   expert: "Агент-Конструктор",
 };
 
@@ -57,16 +58,6 @@ const CLASSES = [
   "other",
   "unknown",
 ];
-
-function detailText(error: any): string {
-  const detail = error?.detail;
-  if (detail?.detail) {
-    if (typeof detail.detail === "string") return detail.detail;
-    return detail.detail.summary || JSON.stringify(detail.detail);
-  }
-  if (typeof detail === "string") return detail;
-  return error?.message || String(error);
-}
 
 function rcsDetail(error: any): any {
   const detail = error?.detail;
@@ -110,6 +101,9 @@ export default function App() {
 
   const [elements, setElements] = useState<Element[]>([]);
   const [derivedClouds, setDerivedClouds] = useState<DerivedCloud[]>([]);
+  const [cloudExports, setCloudExports] = useState<CloudExportMeta[]>([]);
+  const [exportFormat, setExportFormat] = useState<CloudExportFormat>("e57");
+  const [exportDerived, setExportDerived] = useState("");
   const [elementReferenceStates, setElementReferenceStates] = useState<Record<string, string>>({});
   const [columnSurfaceAnalysis, setColumnSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
@@ -159,11 +153,15 @@ export default function App() {
     let current = true;
     if (!cloud) {
       setDerivedClouds([]);
+      setCloudExports([]);
       return;
     }
     api.derivedClouds(cloud.id)
       .then((items) => { if (current) setDerivedClouds(items); })
       .catch(() => { if (current) setDerivedClouds([]); });
+    api.cloudExports(cloud.id)
+      .then((items) => { if (current) setCloudExports(items); })
+      .catch(() => { if (current) setCloudExports([]); });
     return () => { current = false; };
   }, [cloud?.id]);
 
@@ -316,6 +314,50 @@ export default function App() {
     }
   };
 
+  const trackRcpImportBatch = async (batch: Awaited<ReturnType<typeof api.importRcpPath>>) => {
+    setBusy(true);
+    setImportJobId(batch.import_job_id);
+    setCancelingImport(false);
+    setImportCancellationRequested(false);
+    setJobLabel(`Импорт станций RCP: ${batch.node_count}`);
+    setJobProgress(0.02);
+    const initialClouds = batch.stations.map((station) => station.cloud);
+    setClouds((list) => [...initialClouds, ...list.filter((item) =>
+      !initialClouds.some((incoming) => incoming.id === item.id))]);
+    setCloud(initialClouds[0] ?? null);
+    try {
+      const job = await waitForJob(batch.import_job_id, (update) => {
+        setJobProgress(update.progress || 0.03);
+        setJobLabel(update.message ? `Импорт RCP: ${update.message}` : "Импорт станций RCP");
+      }, 30 * 60 * 1000);
+      const updated = await api.listClouds(batch.project_id);
+      const ids = new Set(initialClouds.map((item) => item.id));
+      const imported = updated.filter((item) => ids.has(item.id));
+      setClouds((list) => [...imported, ...list.filter((item) => !ids.has(item.id))]);
+      const selected = imported.find((item) => item.status === "ready") ?? imported[0] ?? null;
+      setCloud(selected);
+      if (job.status === "cancelled") {
+        setJobLabel("Импорт станций RCP отменён");
+        setJobProgress(0);
+      } else if (job.status === "failed") {
+        setError(job.error || "Не удалось выполнить импорт станций RCP");
+      } else if (job.result?.failed_count) {
+        const failures = (job.result.failures || []).map((item: any) => `${item.node_name}: ${item.error}`).join("; ");
+        setError(`Готово ${job.result.ready_count}/${job.result.node_count} станций. Ошибки: ${failures}`);
+      }
+      await refreshProjects();
+    } catch (err) {
+      setError(detailText(err));
+    } finally {
+      setBusy(false);
+      setImportJobId(null);
+      setCancelingImport(false);
+      setImportCancellationRequested(false);
+      setJobLabel(null);
+      setJobProgress(0);
+    }
+  };
+
   const cancelImport = async () => {
     if (!importJobId || cancelingImport || importCancellationRequested) return;
     setCancelingImport(true);
@@ -348,6 +390,12 @@ export default function App() {
     setError(null);
     setRcsInfo(null);
     try {
+      if (pathInput.trim().toLowerCase().endsWith(".rcp")) {
+        const batch = await api.importRcpPath(project.id, pathInput.trim());
+        setPathInput("");
+        await trackRcpImportBatch(batch);
+        return;
+      }
       const incoming = await api.importPath(project.id, pathInput.trim());
       setClouds((list) => [incoming, ...list]);
       setCloud(incoming);
@@ -452,6 +500,35 @@ export default function App() {
         setError(finished.error || "очистка завершилась ошибкой");
       } else {
         setDerivedClouds(await api.derivedClouds(cloud.id));
+      }
+    } catch (err) {
+      setError(detailText(err));
+    } finally {
+      setBusy(false);
+      setJobLabel(null);
+      setJobProgress(0);
+    }
+  };
+
+  const runCloudExport = async () => {
+    if (!cloud) return;
+    setError(null);
+    setBusy(true);
+    setJobLabel(`Экспорт облака в ${exportFormat.toUpperCase()}`);
+    setJobProgress(0.02);
+    try {
+      const job = await api.exportCloud(cloud.id, exportFormat, {
+        derivedId: exportDerived || null,
+        verify: true,
+      });
+      const finished = await waitForJob(job.id, (update) => {
+        setJobProgress(update.progress || 0.05);
+        setJobLabel(`Экспорт ${exportFormat.toUpperCase()}: ${update.message || statusLabel(update.status)}`);
+      });
+      if (finished.status === "failed") {
+        setError(finished.error || "экспорт завершился ошибкой");
+      } else {
+        setCloudExports(await api.cloudExports(cloud.id));
       }
     } catch (err) {
       setError(detailText(err));
@@ -646,11 +723,17 @@ export default function App() {
     const index = splitAxis === "x" ? 0 : splitAxis === "y" ? 1 : 2;
     return (selectedBBox.min[index] + selectedBBox.max[index]) / 2;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedElement?.id, splitAxis]);
+  }, [selectedElement?.id, selectedElement?.geometry?.sizes?.length, splitAxis]);
 
   useEffect(() => {
     setSplitValue(splitDefault);
   }, [splitDefault]);
+
+  useEffect(() => {
+    if (splitAxis === "member" && selectedElement?.geometry?.kind !== "oriented_box") {
+      setSplitAxis("x");
+    }
+  }, [selectedElement?.id, selectedElement?.geometry?.kind, splitAxis]);
 
   const sectionResult: SectionResult | null = section?.result || null;
   const cloudBBox = cloud?.bbox_min && cloud?.bbox_max ? [...cloud.bbox_min, ...cloud.bbox_max] : null;
@@ -1546,47 +1629,20 @@ export default function App() {
                 <ManualRegistrationPanel
                   clouds={clouds}
                   onAligned={(res) => {
-                    alert(`Совмещение по маркам выполнено! RMSE: ${res.rmse_mm} мм, пар: ${res.pairs_count}`);
+                    alert(`Предварительная матрица пары станций рассчитана. RMSE подгоночных реперов: ${res.rmse_mm} мм; пар: ${res.pairs_count}. Независимая точность не измерена; матрица не применена.`);
                   }}
                 />
                 <div className="panel-title" style={{ marginTop: 24 }}>
                   <span>360° Панорамный просмотр (Bubble-View станций)</span>
                 </div>
-                <BubblePanoramaViewer
-                  stationName={cloud ? cloud.name : "Станция 01"}
-                  stationPosition={[0, 0, 1.5]}
-                />
+                <BubblePanoramaViewer cloudId={cloud ? cloud.id : null} />
                 <div className="panel-title" style={{ marginTop: 24 }}>
-                  <span>Сшивка сканов и экспорт в Autodesk ReCap</span>
+                  <span>Проверка и передача станций в Autodesk ReCap</span>
                 </div>
                 <p className="hint">
-                  Совмещение нескольких стоянок сканера по алгоритму жесткого ICP (Kabsch SVD + KDTree) с контролем среднеквадратичной ошибки (RMSE в мм) и формированием проекта ReCap.
+                  SCAN рассчитывает предварительные преобразования выбранных станций по реперам или ICP. Для подтверждения точности нужны независимые геодезические контроли; расчёт сам по себе не перемещает станции и не создаёт RCP.
                 </p>
                 <div className="button-row" style={{ marginTop: 12 }}>
-                  <button
-                    className="primary-button"
-                    onClick={async () => {
-                      if (!cloud) {
-                        alert("Сначала выберите опорное облако проекта слева.");
-                        return;
-                      }
-                      try {
-                        setBusy(true);
-                        const res = await api.matchCloudsIcp(cloud.id, cloud.id, 10000, 25);
-                        const residual = res.rmse_mm === null
-                          ? "не оценена: недостаточно соответствий"
-                          : `${res.rmse_mm.toFixed(2)} мм`;
-                        alert(`Сшивка выполнена! Сходимость: ${res.converged ? "ДА" : "НЕТ"}\nНевязка RMSE: ${residual}\nИтераций: ${res.iterations}`);
-                      } catch (e: any) {
-                        alert("Ошибка сшивки: " + e.message);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                    disabled={busy || !cloud}
-                  >
-                    🔗 Запустить сшивку ICP (Kabsch SVD)
-                  </button>
                   <button
                     onClick={async () => {
                       try {
@@ -1601,7 +1657,7 @@ export default function App() {
                     }}
                     disabled={busy}
                   >
-                    🚀 Запустить Autodesk ReCap
+                    🚀 Открыть Autodesk ReCap
                   </button>
                 </div>
               </div>
@@ -1617,12 +1673,16 @@ export default function App() {
                     </div>
                     <p className="hint">
                       Фильтры создают отдельную копию облака: исходные точки не изменяются.
-                      Воксель прореживает равномерно, SOR/ROR убирают выбросы по соседям.
+                      Обычный воксель сохраняет исходные точки-представители; режим центроидов усредняет координаты и цвет внутри ячеек, используя CUDA при наличии или CPU.
+                      SOR/ROR убирают выбросы по соседям.
                       Ограничение этой сборки — 5 млн точек; результат скачивается как PLY/XYZ.
                     </p>
                     <div className="button-row">
                       <button onClick={() => runCleanup({ method: "voxel", voxel_m: 0.05 })} disabled={busy}>
                         Воксель 5 см
+                      </button>
+                      <button onClick={() => runCleanup({ method: "voxel", voxel_m: 0.05, voxel_mode: "centroid" })} disabled={busy}>
+                        Центроиды 5 см (CPU/GPU)
                       </button>
                       <button onClick={() => runCleanup({ method: "statistical", k: 16, std_ratio: 2.0 })} disabled={busy}>
                         Шумовой фильтр (SOR)
@@ -1639,7 +1699,7 @@ export default function App() {
                         <tbody>
                           {derivedClouds.map((item) => (
                             <tr key={item.derived_id}>
-                              <td>{CLEANUP_LABELS[item.method] || item.method}</td>
+                              <td>{item.stats?.voxel_mode === "centroid" ? "воксельные центроиды" : CLEANUP_LABELS[item.method] || item.method}{item.stats?.compute_backend ? ` · ${item.stats.compute_backend.toUpperCase()}` : ""}</td>
                               <td>{item.output_count} из {item.input_count}</td>
                               <td>{item.removed_count}</td>
                               <td className="actions">
@@ -1648,6 +1708,75 @@ export default function App() {
                                 </button>
                                 <button onClick={() => download(() => api.downloadDerived(cloud.id, item.derived_id, "xyz"), "Скачивание XYZ")} disabled={busy}>
                                   XYZ
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    <div className="panel-title">
+                      <span>ЭКСПОРТ ОБЛАКА В ОБМЕННЫЕ ФОРМАТЫ</span>
+                    </div>
+                    <p className="hint">
+                      Каждый файл читается обратно и сравнивается с исходными точками: в результате указана
+                      измеренная максимальная невязка и допуск формата. Экспорт создаёт копию и не меняет
+                      импортированное облако.
+                    </p>
+                    <div className="button-row">
+                      <label>Формат
+                        <select
+                          value={exportFormat}
+                          disabled={busy}
+                          onChange={(event) => setExportFormat(event.target.value as CloudExportFormat)}
+                        >
+                          <option value="e57">E57</option>
+                          <option value="las">LAS</option>
+                          <option value="laz">LAZ</option>
+                          <option value="ply">PLY</option>
+                          <option value="xyz">XYZ</option>
+                        </select>
+                      </label>
+                      <label>Источник
+                        <select
+                          value={exportDerived}
+                          disabled={busy}
+                          onChange={(event) => setExportDerived(event.target.value)}
+                        >
+                          <option value="">Исходное облако</option>
+                          {derivedClouds.map((item) => (
+                            <option key={item.derived_id} value={item.derived_id}>
+                              {item.method} · {item.output_count.toLocaleString("ru-RU")} точек
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button onClick={() => void runCloudExport()} disabled={busy}>
+                        Экспортировать и проверить
+                      </button>
+                    </div>
+                    {cloudExports.length > 0 && (
+                      <table className="element-table">
+                        <thead>
+                          <tr><th>формат</th><th>точек</th><th>размер</th><th>проверка</th><th /></tr>
+                        </thead>
+                        <tbody>
+                          {[...cloudExports].reverse().map((item) => (
+                            <tr key={`${item.export_id}-${item.format}`}>
+                              <td>{item.format.toUpperCase()}</td>
+                              <td>{item.point_count.toLocaleString("ru-RU")}</td>
+                              <td>{(item.size_bytes / (1024 * 1024)).toFixed(1)} МБ</td>
+                              <td>
+                                {item.verified
+                                  ? `прочитано обратно, невязка ${(item.max_deviation_m ?? 0) < 1e-6 ? "< 0.001 мм" : `${((item.max_deviation_m ?? 0) * 1000).toFixed(3)} мм`}, допуск ${((item.tolerance_m ?? 0) * 1000).toFixed(3)} мм`
+                                  : "без проверки чтением"}
+                              </td>
+                              <td className="actions">
+                                <button
+                                  onClick={() => download(() => api.downloadCloudExport(cloud.id, item.export_id, item.format), `Скачивание ${item.format.toUpperCase()}`)}
+                                  disabled={busy}
+                                >
+                                  Скачать
                                 </button>
                               </td>
                             </tr>

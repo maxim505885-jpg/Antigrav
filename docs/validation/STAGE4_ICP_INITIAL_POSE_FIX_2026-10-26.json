@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-26",
+  "stage": 4,
+  "scope": "Preserve tie-point SVD transform as ICP refinement initialization",
+  "live_read_only_baseline": {
+    "project": "Завод №1 (Цех 1.rcs + 2.rcs)",
+    "source_cloud": "workshop_cloud_01",
+    "target_cloud": "workshop_cloud_02",
+    "stored_source_points": 40000000,
+    "source_file_points": 297873927,
+    "stored_target_points": 3500000,
+    "target_file_points": 574367742,
+    "both_stored_clouds_decimated": true,
+    "sample_points_per_cloud": 10000,
+    "method": "existing point-to-point ICP with centroid initialization",
+    "http_status": 200,
+    "iterations": 6,
+    "converged": true,
+    "inlier_count": 40,
+    "inlier_fraction": 0.004,
+    "rmse_mm": 313.345,
+    "read_only": true
+  },
+  "coarse_initializer_audit": {
+    "method": "existing structural BEV yaw search",
+    "sample_points_per_cloud": 10000,
+    "angle_deg": 194.1963,
+    "p80_residual_m": 9.1687858,
+    "accepted_as_registration": false,
+    "reason": "Residual is too large to use as a plausible scan-pair initialization"
+  },
+  "implementation": {
+    "rigid_icp": "Accepts an optional finite affine 4x4 rigid initial pose; rejects malformed matrices and non-rigid rotations. When supplied, ICP starts at that pose without centroid recentering.",
+    "manual_pair_align": "Passes the SVD tie-point pose directly to ICP and composes the returned ICP delta with that pose.",
+    "quality_fields": ["icp_rmse_mm", "icp_inlier_count", "icp_inlier_fraction", "icp_iterations", "icp_converged"]
+  },
+  "verification": {
+    "focused_tests": "34 stitching and manual-registration tests passed",
+    "full_backend_regression": "860 tests passed, exit code 0; one existing Starlette/httpx deprecation warning",
+    "coverage": [
+      "large translation and rotation succeed when an initial pose is supplied",
+      "initial pose remains the output when exact overlap needs no correction",
+      "malformed, non-finite, non-affine, and non-rigid initial matrices are rejected",
+      "manual pair-align sends the original untransformed samples and SVD pose to ICP",
+      "manual refinement exposes ICP quality separately"
+    ],
+    "data_root": "isolated repository-local test root",
+    "build": "not applicable; backend-only change"
+  },
+  "not_accepted": [
+    "No real tie-point refinement was run because independently identified corresponding controls are not available in this session.",
+    "Automatic registration for the raw workshop station pair remains poor without a suitable global pose or verified overlap.",
+    "No cloud coordinates, transforms, project database rows, or RCP files were changed.",
+    "Stage 4 remains in progress and is not accepted."
+  ],
+  "acceptance": {
+    "accepted_roadmap_stages": [1, 3, 5],
+    "stage_4": "in_progress",
+    "stage_6_order": "penultimate",
+    "stage_9_order": "last"
+  }
+}

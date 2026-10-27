@@ -1,0 +1,26 @@
+{
+  "schema": "scan2bim.validation/revit-post-reopen-audit-live-source/1.0",
+  "created_at": "2026-10-25T21:33:01.0187189Z",
+  "source_model": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\output\\unified_stitched_release\\revit_bim_model.json",
+  "source_model_sha256": "6D130A006A589C3978691DA9FFF23BB1106CA4199F859B0D029F5563AB66C0F8",
+  "source_element_count": 808,
+  "expected_imported_ids": 807,
+  "intentionally_skipped_source_ids": 1,
+  "geometry_policy": {
+    "axis_only_unknown_sections": 194,
+    "live_slabs_passed": 4,
+    "live_member_axes_passed": 194
+  },
+  "isolated_plugin_candidate_sha256": "F0EF6C780942B847C8FDB5B0007C98F7B458FC3D706BBBFA64295D87A31C94F4",
+  "policy_checks": {
+    "result": "PASS",
+    "provenance_serialization": 2,
+    "member_axis": 4,
+    "member_section": 7,
+    "audit_inclusion": 6,
+    "slab_geometry": 8
+  },
+  "result": "PASS_FOR_OFFLINE_SOURCE_POLICY_ONLY",
+  "revit_host_import_save_reopen": "PENDING",
+  "note": "The model JSON was read only. This validates audit inclusion against the production BIM snapshot, not the contents of a Revit RVT document."
+}

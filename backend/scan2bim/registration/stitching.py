@@ -203,6 +203,32 @@ def kabsch_fit(source: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.n
     return r, t
 
 
+def convert_local_transform_to_world(
+    local_transform: np.ndarray,
+    source_origin: np.ndarray,
+    target_origin: np.ndarray,
+) -> np.ndarray:
+    """Convert source-local → target-local to source-world → target-world.
+
+    Stored/displayed points are relative to each cloud's saved world origin:
+    ``world = local + origin``. The rotation is unchanged and translation is
+    ``t_world = t_local + target_origin - R @ source_origin``.
+    """
+    transform = np.asarray(local_transform, dtype=np.float64)
+    source = np.asarray(source_origin, dtype=np.float64)
+    target = np.asarray(target_origin, dtype=np.float64)
+    if transform.shape != (4, 4) or not np.isfinite(transform).all():
+        raise ValueError("local transform must be a finite 4×4 matrix")
+    if source.shape != (3,) or target.shape != (3,) or not np.isfinite(source).all() or not np.isfinite(target).all():
+        raise ValueError("source and target origins must be finite 3D vectors")
+    if not np.allclose(transform[3], [0.0, 0.0, 0.0, 1.0], atol=1e-10):
+        raise ValueError("local transform must be an affine 4×4 matrix")
+
+    world = transform.copy()
+    world[:3, 3] += target - transform[:3, :3] @ source
+    return world
+
+
 def compute_pairwise_svd_alignment(
     source_points: np.ndarray,
     target_points: np.ndarray,
@@ -281,6 +307,7 @@ def rigid_icp(
     max_correspondence_distance_m: float = 0.5,
     sample_size: int = 10000,
     random_seed: int | None = 0,
+    initial_t4x4: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Align source point cloud to target point cloud.
 
@@ -308,6 +335,20 @@ def rigid_icp(
     if not np.isfinite(max_correspondence_distance_m) or max_correspondence_distance_m <= 0:
         raise ValueError("max_correspondence_distance_m must be finite and positive")
 
+    initial = None
+    if initial_t4x4 is not None:
+        initial = np.asarray(initial_t4x4, dtype=np.float64)
+        if initial.shape != (4, 4) or not np.isfinite(initial).all():
+            raise ValueError("initial_t4x4 must be a finite 4×4 matrix")
+        if not np.allclose(initial[3], [0.0, 0.0, 0.0, 1.0], atol=1e-8):
+            raise ValueError("initial_t4x4 must be an affine rigid transform")
+        rotation = initial[:3, :3]
+        if (
+            not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-3)
+            or not np.isclose(np.linalg.det(rotation), 1.0, atol=1e-3)
+        ):
+            raise ValueError("initial_t4x4 rotation must be orthonormal with determinant +1")
+
     # Fixed-seed sampling without replacement keeps large-cloud registration
     # bounded and makes each run auditable. Returned indices refer to the
     # caller's input arrays; callers can map them back to persisted source rows.
@@ -327,9 +368,17 @@ def rigid_icp(
         raise ValueError("sampled source_points and target_points must contain only finite values")
 
     tree = cKDTree(tgt)
-    current_r = np.eye(3, dtype=np.float64)
-    # Remove bulk translation before nearest-neighbour matching
-    current_t = np.mean(tgt, axis=0) - np.mean(src, axis=0)
+    if initial is None:
+        current_r = np.eye(3, dtype=np.float64)
+        # Remove bulk translation before nearest-neighbour matching when no
+        # measured/manual or algorithmic initial pose is available.
+        current_t = np.mean(tgt, axis=0) - np.mean(src, axis=0)
+    else:
+        # A supplied pose is already an informed initialization. Re-centering
+        # here would silently overwrite its translation and can move a valid
+        # tie-point fit away from the actual overlap.
+        current_r = initial[:3, :3].copy()
+        current_t = initial[:3, 3].copy()
     prev_rmse = float("inf")
 
     converged = False
@@ -373,6 +422,8 @@ def rigid_icp(
     final_points = (current_r @ src.T).T + current_t
     final_distances, _ = tree.query(final_points, k=1)
     final_valid = final_distances < max_correspondence_distance_m
+    inlier_count = int(np.count_nonzero(final_valid))
+    inlier_fraction = float(inlier_count / len(src))
     final_rmse = (
         None
         if not np.any(final_valid)
@@ -384,6 +435,10 @@ def rigid_icp(
         "translation": current_t.tolist(),
         "matrix_4x4": t4x4.tolist(),
         "rmse_mm": final_rmse,
+        "inlier_count": inlier_count,
+        "source_sample_count": int(len(src)),
+        "target_sample_count": int(len(tgt)),
+        "inlier_fraction": round(inlier_fraction, 6),
         "iterations": iteration + 1,
         "converged": converged,
         "source_sample_indices": source_sample_indices.tolist(),

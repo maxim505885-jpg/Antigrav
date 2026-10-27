@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "title": "Independent review warnings for sparse section profiles",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "live_api": {
+    "health": "ok",
+    "elements": 1684,
+    "column_candidates": 376,
+    "independent_annotation_rows": 376,
+    "independently_reviewed_rows": 0,
+    "section_coverage_available": 376,
+    "coverage_below_0_5": 229,
+    "below_spatial_resolution": 59,
+    "section_status_counts": {
+      "coarse_grid_only": 35,
+      "measured_2_axes": 2,
+      "measured_3_sides": 5,
+      "partial_one_axis": 61,
+      "unconfirmed": 241,
+      "unique_section": 32
+    }
+  },
+  "coverage_semantics": "Fraction of sampled height bands containing at least one point inside the candidate footprint; it is not the fraction of observed cross-section faces.",
+  "implementation": {
+    "low_profile_threshold": 0.5,
+    "low_profile_label": "Reports the percent of height intervals with points when valid coverage is available.",
+    "warnings": [
+      "More than half of sampled height intervals are empty.",
+      "Cross-section dimension is below spatial-grid resolution."
+    ],
+    "recognition_outputs_changed": false,
+    "annotation_data_changed": false,
+    "source_faro_files_changed": false
+  },
+  "verification": {
+    "element_evidence_suite": "passed (20 tests)",
+    "frontend_test_suite": "passed",
+    "typescript_and_production_build": "passed (1977 modules transformed)",
+    "git_diff_check": "passed"
+  },
+  "acceptance": {
+    "stage_6": "in_progress",
+    "reason_open": "No independent physical labels, holdout accuracy, or agreed engineering tolerance.",
+    "accepted_stages": "3/12"
+  }
+}

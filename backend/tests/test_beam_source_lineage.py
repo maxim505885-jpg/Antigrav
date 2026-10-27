@@ -43,6 +43,25 @@ def test_band_sampling_reports_full_count_and_marks_downsampling(monkeypatch):
     assert full_count == 5
 
 
+def test_band_sampling_caps_before_collecting_uncapped_chunks(monkeypatch):
+    xyz = np.array([[float(i), 0.0, 1.0] for i in range(5)], dtype=np.float32)
+    chunks = [xyz[:2], xyz[2:]]
+    monkeypatch.setattr(steel, "_iter_positions", lambda _path: iter(chunks))
+    monkeypatch.setattr(steel, "BAND_CAP_POINTS", 2)
+
+    def fail_concatenate(*_args, **_kwargs):
+        raise AssertionError("band sampling must not concatenate all uncapped points")
+
+    monkeypatch.setattr(steel.np, "concatenate", fail_concatenate)
+    cloud = CloudGeometry(Path("derived.npy"), np.zeros(3), xyz.min(0), xyz.max(0), len(xyz))
+
+    (points, source_rows, full_count), = steel._bands_points_with_source_ids(cloud, [(0.0, 2.0)])
+
+    assert points.tolist() == xyz[[0, 3]].tolist()
+    assert source_rows.tolist() == [0, 3]
+    assert full_count == 5
+
+
 def test_strip_measurement_can_return_exact_local_support_rows():
     xy = np.array([
         [-2.0, 0.0], [-1.0, 0.0], [0.0, 0.0], [1.0, 0.0], [2.0, 0.0],

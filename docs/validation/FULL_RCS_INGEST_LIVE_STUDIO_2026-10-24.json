@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-24",
+  "stage": 2,
+  "purpose": "Live full-resolution FARO RCS import through the main SCAN Studio API",
+  "project_id": "workshop_project",
+  "cloud_id": "1c8f6d596518476b8b74055d5414609b",
+  "job_id": "2b793863c4ae4b34b174603e8a5ad29c",
+  "job_status": "succeeded",
+  "cloud_status": "ready",
+  "source": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+    "size_bytes": 7196593757,
+    "last_write_utc": "2026-10-13T13:25:39.956361Z",
+    "sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+    "unchanged": true
+  },
+  "cloud": {
+    "source_point_count": 297873927,
+    "stored_point_count": 297873927,
+    "decimated": false,
+    "dropped_non_finite": 0,
+    "all_positions_finite_independent_chunk_scan": true,
+    "colors_present": true,
+    "positions": {
+      "shape": [297873927, 3],
+      "dtype": "float32",
+      "size_bytes": 3574487252
+    },
+    "colors": {
+      "shape": [297873927, 3],
+      "dtype": "uint8",
+      "size_bytes": 893621909
+    },
+    "preview_points": 2500000,
+    "preview_size_bytes": 37500000
+  },
+  "resource_trace": {
+    "sample_interval_seconds": 2,
+    "sample_count": 437,
+    "started_utc": "2026-10-24T17:31:47.2617471Z",
+    "ended_utc": "2026-10-24T17:47:04.2823379Z",
+    "started_after_source_points": 78250000,
+    "started_after_source_fraction": 0.2627,
+    "peak_working_set_bytes": 12612169728,
+    "peak_private_bytes": 1797079040,
+    "peak_message": "writing full-resolution RCS points",
+    "peak_progress": 0.8931,
+    "limitations": "Trace began during native parsing at 78.25M of 297.87M points. It includes the array-writing peak and terminal success, but does not measure the entire job continuously from submission."
+  },
+  "acceptance": {
+    "passed": [
+      "Production API job completed successfully",
+      "Cloud reopened from the main project API as ready",
+      "Stored and source point counts match",
+      "XYZ and RGB memory-mapped array shapes and dtypes verified",
+      "All stored XYZ points independently checked finite in chunks",
+      "No decimation or non-finite point drops",
+      "Source checksum and recorded file identity preserved"
+    ],
+    "still_open_for_stage_2": [
+      "Real multi-node FARO RCP route and station identity acceptance",
+      "Resolve the 10.rcp declared-count mismatch of 244259 points",
+      "Continuous whole-job resource trace from job submission",
+      "Full-route native-reader cancellation and restart acceptance",
+      "FARO/ReCap round-trip acceptance"
+    ]
+  }
+}

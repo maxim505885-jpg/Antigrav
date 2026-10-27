@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-24",
+  "stage": 2,
+  "purpose": "Exercise a real ReCap RCP manifest and linked FARO station in the main SCAN project",
+  "project_id": "workshop_project",
+  "rcp": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "size_bytes": 2741,
+    "sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "manifest_project_id": "1307a42e-3076-48d5-8ce9-4fa377dbef3d",
+    "node_count": 1
+  },
+  "station": {
+    "node_id": "{08a15dac_f04b_4de2_876c_6b5fa500c63d}",
+    "node_name": "10",
+    "linked_rcs_path": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+    "rcs_size_bytes": 7130808277,
+    "rcs_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "rcs_source_points": 295591803,
+    "rcp_declared_points": 295836062,
+    "declared_minus_reader_points": 244259,
+    "transform_applied": false,
+    "transform_note": "Node translation/rotation/scale preserved as provenance; not applied before coordinate convention validation."
+  },
+  "live_cloud": {
+    "cloud_id": "52370d1f13a147518dd2458886dafee5",
+    "name": "Live 10.rcp validation — 10",
+    "status": "ready",
+    "import_job_id": "cdb0b967587f4b308da2e5f7ef0ea28f",
+    "stored_point_count": 5000000,
+    "decimated": true,
+    "positions_shape": [5000000, 3],
+    "positions_dtype": "float32",
+    "colors_shape": [5000000, 3],
+    "colors_dtype": "uint8",
+    "all_stored_positions_finite": true,
+    "has_color": true,
+    "source_unchanged": true,
+    "max_points": 5000000
+  },
+  "resource_trace": {
+    "sample_interval_seconds": 2,
+    "sample_count": 177,
+    "started_utc": "2026-10-24T18:10:18.5355597Z",
+    "ended_utc": "2026-10-24T18:16:18.5338445Z",
+    "peak_working_set_bytes": 438886400,
+    "peak_private_bytes": 1957453824,
+    "sampled_min_free_disk_bytes": 8222081024
+  },
+  "import_history": {
+    "first_rcp_batch_job_id": "6a068093a4164fefa1a92ebd3ac55ad4",
+    "first_job_recorded_status": "succeeded",
+    "first_job_result_status": "completed_with_failures",
+    "first_failure": "The native RCS reader wrote its limited-resolution temporary arrays to restricted system TEMP. The native error was initially hidden by a generic conversion-required fallback.",
+    "fixes": [
+      "Limited native-reader scratch files now use the application data directory and explicit cleanup.",
+      "The native-reader failure is preserved in the reported error when no converter is available.",
+      "Background jobs with partial RCP station failures now end failed and preserve the per-station result details."
+    ],
+    "retry_job_id": "cdb0b967587f4b308da2e5f7ef0ea28f",
+    "retry_status": "succeeded"
+  },
+  "acceptance": {
+    "passed": [
+      "Real one-node RCP manifest parsed and linked RCS resolved",
+      "Separate station cloud kept RCP project and node identity",
+      "Limited-resolution RCS reader completed in the main API after scratch-path fix",
+      "Stored sample arrays, RGB, finite coordinates and source provenance verified",
+      "Raw RCP and RCS size, modification time and recorded checksums remained unchanged"
+    ],
+    "still_open_for_stage_2": [
+      "A real multi-node FARO RCP project",
+      "Cause of the 244259-point RCP declaration/reader mismatch",
+      "RCP node transform/units validated against pointwise controls",
+      "Full-resolution RCP station import and cancellation/restart acceptance",
+      "Round-trip through Autodesk ReCap"
+    ]
+  }
+}

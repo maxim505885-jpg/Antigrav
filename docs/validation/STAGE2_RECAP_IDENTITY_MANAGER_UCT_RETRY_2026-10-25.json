@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Retry Autodesk Identity Manager installation after the user freed disk space",
+  "user_action": "User freed space on C: and had previously approved installation/UAC.",
+  "storage": {
+    "c_free_bytes_after_cleanup": 30415384576,
+    "c_free_gib_after_cleanup": 28.33,
+    "full_rcp_estimated_bytes": 14782617889,
+    "estimated_c_headroom_after_full_import_bytes": 15632766687,
+    "r_drive_accessible": false
+  },
+  "installer": {
+    "product": "Autodesk Identity Manager 1.21.1.5",
+    "source": "https://up1.autodesk.com/Windows/1.21.1.5/AdskIdentityManager-UCT-Installer.exe",
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA",
+    "authenticode": "Valid",
+    "signer": "Autodesk, Inc.",
+    "zone_identifier_removed_from_verified_temp_copy": true,
+    "unprivileged_silent_attempt": "UCT launched and started Autodesk ODIS Installer, then both processes exited; no Identity Manager files/registry path remained and ODIS logs did not update.",
+    "elevated_attempt": "Start-Process -Verb RunAs failed with Windows status 0xc0000142 before installation.",
+    "post_attempt_identity_executable_present": false,
+    "post_attempt_identity_registry_path_present": false,
+    "recap_executable_present": true,
+    "recap_gui_retested": false
+  },
+  "full_rcp": {
+    "manifest_source_sha256": "3D3A00ACD971B42BEE11A8FB73F43356EA162D10855EDEFDE84AAA83D27918FD",
+    "manifest_link": "Support/10.rcs",
+    "linked_source_present_at_expected_path": false,
+    "accessible_copy_found_in_repository_data": false,
+    "full_import_started": false,
+    "reason": "The linked RCS source is not present at the RCP-relative Support/10.rcs path or under repository data; mapped R: remains access denied. The app API is not currently running."
+  },
+  "safety": {
+    "faro_source_modified": false,
+    "project_database_modified": false,
+    "sample_rcp_modified": false,
+    "temporary_installer_copy_created": true
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass",
+    "reason": "Disk capacity is no longer the blocker, but Autodesk Identity Manager did not persist, the linked full-resolution RCS is inaccessible, and ReCap round-trip remains unverified.",
+    "next_action": "Restore access to the matching Support/10.rcs source (or the volume containing it), then retry Identity Manager using Autodesk's interactive installation flow/resolve Windows 0xc0000142 before ReCap launch. Keep the import preflight enabled and process only derived output."
+  }
+}

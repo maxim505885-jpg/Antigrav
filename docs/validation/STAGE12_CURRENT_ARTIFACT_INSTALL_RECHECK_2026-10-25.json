@@ -1,0 +1,56 @@
+{
+  "checked_at_local": "2026-10-25T17:58:21+03:00",
+  "stage": 12,
+  "purpose": "Install smoke of the exact current SCAN installer artifact after the previous sandbox registry denial",
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170034581,
+    "sha256": "8f785525f34b546c0f213049fcd6931ab96f0acc7891f1d89a702bd171182fa4",
+    "authenticode": "NotSigned",
+    "installer_log": "%TEMP%/scanstudio-stage12-5957720408344e4aa4dac96a95787695.install.log",
+    "install_log_result": "Installation process succeeded; HKCU uninstall key was written"
+  },
+  "host": {
+    "windows_build": "10.0.19045",
+    "clean_windows_11": false
+  },
+  "install": {
+    "target": "unique directory under %TEMP%",
+    "installer_exit": 0,
+    "user_installation_overwritten": false
+  },
+  "runtime_smoke": {
+    "script": "scripts/smoke_installed_bundle.ps1",
+    "result": "passed against the installed exact current artifact",
+    "source_manifest": "no missing, unexpected, or mismatched files",
+    "production_assets_and_registration_csv": "matched current source build",
+    "health_http": 200,
+    "ui_http": 200,
+    "remote_protected_api_without_key_http": 401,
+    "python_bytecode_files": 0,
+    "isolated_data_root_under_temp": true,
+    "relocated_python_and_required_contract_files": "verified",
+    "developer_data_and_dependency_tests": "absent"
+  },
+  "cleanup": {
+    "temporary_install_directory_remaining": false,
+    "uninstall_registration_remaining": false,
+    "temporary_runtime_processes_remaining": false,
+    "exact_uninstaller_exit_code": "not captured by the parent shell; final absence of target/registration/process was verified"
+  },
+  "safety": {
+    "production_database_modified": false,
+    "faro_sources_modified": false,
+    "user_installation_overwritten": false
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "remaining": [
+      "clean independent Windows 11 acceptance",
+      "Authenticode signing",
+      "native desktop window and user acceptance"
+    ],
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

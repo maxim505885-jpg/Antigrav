@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "title": "Training and independent annotation safety regression suite",
+  "command": "pytest backend/tests/test_learning_split.py backend/tests/test_learning_registry.py backend/tests/test_ground_truth_learning.py backend/tests/test_feedback_undo.py backend/tests/test_element_annotations.py backend/tests/test_recognition_evaluation.py backend/tests/test_recognition_evaluation_api.py backend/tests/test_column_type_evaluation.py backend/tests/test_column_type_api.py backend/tests/test_openapi_schema.py -q",
+  "verification": {
+    "focused_backend_tests": "110 passed",
+    "frontend_tests": "passed in the same work session",
+    "typescript_and_production_build": "passed; 1,977 modules",
+    "source_clouds_modified": false,
+    "annotations_written": false
+  },
+  "acceptance": {
+    "stage_7": "in_progress",
+    "missing": "Independent real physical labels and a leakage-safe holdout score. Latest recorded live queue is 0/376 reviewed; no model accuracy is claimed.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

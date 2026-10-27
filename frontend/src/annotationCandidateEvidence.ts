@@ -86,6 +86,19 @@ export function annotationCandidateEvidence(element: AnnotationCandidate, locali
     : Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 && confidenceKind
     ? `${Math.round(confidence * 100)}% · ${CONFIDENCE_LABELS[confidenceKind] || confidenceKind}`
     : "не задана или не калибрована";
+  const profileCoverage = dimensions.section_coverage;
+  const validProfileCoverage = typeof profileCoverage === "number"
+    && Number.isFinite(profileCoverage)
+    && profileCoverage >= 0
+    && profileCoverage <= 1;
+  const sectionProfileCoverageLabel = validProfileCoverage
+    ? `Точки найдены в ${Math.round(profileCoverage * 100)}% высотных интервалов профиля.`
+    : "";
+  const sectionProfileWarning = dimensions.below_resolution === true
+    ? "Поперечный размер ниже разрешения пространственной сетки; проверь его по исходным точкам."
+    : validProfileCoverage && profileCoverage < 0.5
+      ? "Более половины высотных интервалов профиля пусты; тип и размеры требуют проверки по исходному облаку."
+      : "";
 
   return {
     classLabel: localizeClass(element.class_name),
@@ -94,5 +107,7 @@ export function annotationCandidateEvidence(element: AnnotationCandidate, locali
     sourceLabel: SOURCE_LABELS[element.source] || element.source || "не указан",
     bboxLabel: bboxLabel(element),
     confidenceLabel,
+    sectionProfileCoverageLabel,
+    sectionProfileWarning,
   };
 }

@@ -1,0 +1,40 @@
+{
+  "checked_at_local": "2026-10-25T15:20:00+03:00",
+  "stage": 2,
+  "scope": "Read-only diagnosis after Autodesk ODIS/Identity Manager repair",
+  "observations": {
+    "recap_version": "24.0.0.240",
+    "recap_executable_signature": "Valid; Autodesk, Inc.",
+    "identity_manager_version": "1.21.1.5",
+    "identity_manager_executable_signature": "Valid; Autodesk, Inc.",
+    "idsdk_plugin_signature": "Valid; Autodesk, Inc.",
+    "recap_log_last_write": "2026-10-25T10:57:14+03:00",
+    "recap_log_identity_error": "3005 (sign-in component failed to load)",
+    "identity_services_cache": "%LOCALAPPDATA%/Autodesk/Identity Services/idservices.db",
+    "identity_services_cache_bytes": 0,
+    "identity_services_cache_last_write": "2026-10-25T14:38:21+03:00",
+    "autodesk_apps_running": [
+      {"process": "acad", "pid": 6520},
+      {"process": "acad", "pid": 7148, "window_title": "Autodesk AutoCAD 2026 - [01_plan_kolonn_SPDS.dxf]"},
+      {"process": "acad", "pid": 13888},
+      {"process": "AdskIdentityManager", "pid": 21540}
+    ],
+    "recap_process_running": false
+  },
+  "interpretation": "The installed Autodesk executables and Identity Manager plugin are validly signed, but ReCap logs Identity Manager initialization error 3005 and the local Identity Services database is zero bytes. Autodesk's published 3005 troubleshooting identifies a missing, damaged, incomplete, inaccessible, or incorrectly registered sign-in component; its current cache-reset guidance specifically removes idservices.db.",
+  "action_taken": "No files or processes were changed. The idservices.db reset was withheld because AutoCAD sessions and AdskIdentityManager were still running; touching the cache while an Autodesk application is active could interrupt sign-in state.",
+  "next_safe_step": "After all Autodesk desktop applications and AdskIdentityManager are closed, preserve the zero-byte idservices.db under a backup name so Identity Services can regenerate it; then the user must launch ReCap and sign in if prompted.",
+  "source": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Autodesk-How-to-resolve-error-code---3005-3201-3203-3204-3205-Sign-in-Component-Failed-to-Load.html",
+  "safety": {
+    "faro_sources_modified": false,
+    "recap_project_opened_or_modified": false,
+    "identity_cache_modified": false,
+    "autodesk_processes_terminated": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "recap_gui_round_trip": "not_verified",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

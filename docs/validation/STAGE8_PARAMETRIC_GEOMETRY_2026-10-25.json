@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-25",
+  "stage": 8,
+  "title": "Parametric column section and geometry review regressions",
+  "command": "pytest backend/tests/test_column_section_series.py backend/tests/test_section_series.py backend/tests/test_column_section_fit_api.py backend/tests/test_column_surface_assignment.py backend/tests/test_column_type_api.py backend/tests/test_column_type_evaluation.py backend/tests/test_fit_column_track_sections_cli.py -q",
+  "verification": {
+    "focused_backend_tests": "88 passed",
+    "source_point_lineage": "covered by section-series and surface-assignment regressions",
+    "unknown_or_occluded_geometry": "remains explicitly unknown in tested sparse/unsupported cases",
+    "source_clouds_modified": false,
+    "physical_annotations_written": false
+  },
+  "acceptance": {
+    "stage_8": "in_progress",
+    "missing": "Independent FARO section measurements and project-approved dimensional tolerance; candidate/profile tests do not prove field accuracy.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

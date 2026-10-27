@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Refresh the local SCAN API with the storage guard and verify it against the real full-resolution RCP without creating partial project state.",
+  "service_refresh": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "repository_process_verified": true,
+    "active_jobs_before_restart": 0,
+    "database": "data/scan2bim.sqlite3",
+    "database_backup": "data/.tools/scan2bim_before_storage_guard_refresh_20261025.sqlite3",
+    "backup_bytes": 55816192,
+    "backup_integrity_check": "ok",
+    "projects_in_backup": 12,
+    "workshop_clouds_in_backup": 5,
+    "new_process_id": 32908,
+    "health": "ok",
+    "project_count_after_restart": 12,
+    "openapi_rcp_responses": ["200", "422", "503", "507"]
+  },
+  "real_rcp_preflight": {
+    "path": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/10.rcp",
+    "sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "full_resolution_requested": true,
+    "http_status": 507,
+    "required_bytes": 14782617889,
+    "available_bytes": 3121627136,
+    "cloud_rows_before": 1,
+    "cloud_rows_after": 1,
+    "job_rows_before": 1,
+    "job_rows_after": 1,
+    "active_jobs_after": 0,
+    "import_worker_started": false
+  },
+  "environment": {
+    "mapped_R_drive_or_unc_readable_in_current_session": false,
+    "source_rcp_modified": false,
+    "working_database_preserved": true
+  },
+  "acceptance": {
+    "storage_guard_live": "verified",
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": "A readable destination with at least 13.77 GiB of headroom and full-resolution FARO RCP/ReCap acceptance are still required."
+  }
+}

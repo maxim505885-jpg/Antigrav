@@ -55,6 +55,25 @@ def test_reads_single_station_metadata_and_resolves_moved_support_path(tmp_path:
     assert linked.read_bytes() == b"source stays untouched"
 
 
+def test_prefers_named_support_copy_over_same_basename_workspace_file(tmp_path: Path):
+    rcp = tmp_path / "10.rcp"
+    support_copy = tmp_path / "10 Support" / "10.rcs"
+    unrelated_copy = tmp_path / "10.rcs"
+    support_copy.parent.mkdir()
+    support_copy.write_bytes(b"manifest-linked station")
+    unrelated_copy.write_bytes(b"unrelated same-name station")
+    _write_rcp(
+        rcp,
+        [_node("10", r"C:\\old-project\\10 Support\\10.rcs")],
+    )
+
+    result = read_rcp_manifest(rcp)
+
+    assert result["nodes"][0]["resolved_rcs_path"] == str(support_copy.resolve())
+    assert support_copy.read_bytes() == b"manifest-linked station"
+    assert unrelated_copy.read_bytes() == b"unrelated same-name station"
+
+
 def test_rejects_non_finite_transform_values(tmp_path: Path):
     rcp = tmp_path / "invalid.rcp"
     _write_rcp(rcp, [_node("bad", "missing.rcs").replace('x="1.25"', 'x="nan"')])

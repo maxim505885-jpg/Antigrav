@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "verification": "isolated FastAPI TestClient against SQLite backup; current repository code",
+  "source_database_modified": false,
+  "project_point_arrays": "shared read-only by route; no files written",
+  "candidate_id": "cba9c8d015ac4322aa056f8b7511b289",
+  "input_point_count": 25587,
+  "surface_count": 6,
+  "candidate_edge_count": 2,
+  "tracks": [
+    {
+      "track_id": "track:V1",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V2",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "track_boundary_delta_exceeds_limit",
+        "track_span_exceeds_candidate_face"
+      ]
+    },
+    {
+      "track_id": "track:V3",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V4",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V5",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "track_boundary_delta_exceeds_limit",
+        "track_span_exceeds_candidate_face"
+      ]
+    },
+    {
+      "track_id": "track:V6",
+      "candidate_edge_id": null,
+      "exclusion_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    }
+  ],
+  "excluded_tracks": [
+    {
+      "track_id": "track:V1",
+      "reason": "association_outside_candidate_boundary",
+      "detail_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V2",
+      "reason": "track_boundary_delta_exceeds_limit",
+      "detail_reasons": [
+        "track_boundary_delta_exceeds_limit",
+        "track_span_exceeds_candidate_face"
+      ]
+    },
+    {
+      "track_id": "track:V3",
+      "reason": "association_outside_candidate_boundary",
+      "detail_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V4",
+      "reason": "association_outside_candidate_boundary",
+      "detail_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    },
+    {
+      "track_id": "track:V5",
+      "reason": "track_boundary_delta_exceeds_limit",
+      "detail_reasons": [
+        "track_boundary_delta_exceeds_limit",
+        "track_span_exceeds_candidate_face"
+      ]
+    },
+    {
+      "track_id": "track:V6",
+      "reason": "association_outside_candidate_boundary",
+      "detail_reasons": [
+        "association_outside_candidate_boundary"
+      ]
+    }
+  ],
+  "section_status_counts": {
+    "unknown": 31
+  },
+  "persisted": false,
+  "source_geometry_modified": false,
+  "annotations_before": {
+    "pending": 376,
+    "reviewed": 0
+  },
+  "annotations_after": {
+    "pending": 376,
+    "reviewed": 0
+  }
+}

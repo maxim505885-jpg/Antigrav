@@ -1,0 +1,81 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 12,
+  "purpose": "Build, install, and smoke-test the current SCAN source bundle, then confirm the desktop launcher opens a native app window.",
+  "builder": {
+    "product": "Inno Setup",
+    "version": "7.1.0 x64",
+    "official_publisher": "Pyrsys B.V.",
+    "authenticode_status": "Valid",
+    "installer_sha256": "0362A383ED217D4C4239B5933866DD96D3EB2102737DA92F80F6057A4B40DF2F",
+    "release_preflight": "passed",
+    "compile_exit_code": 0,
+    "compile_seconds": 123.984
+  },
+  "artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170010757,
+    "sha256": "51452B892A788AD09697B73366CFE1B5CD265F334AA6D6DDB636AEEEDBD2C235",
+    "authenticode_status": "NotSigned",
+    "previous_output_saved_as": "data/.tools/SCAN_Studio_Windows11_Setup_pre-centroid-cleanup_20261025.exe"
+  },
+  "temporary_install_smoke": {
+    "install_exit_code": 0,
+    "uninstall_exit_code": 0,
+    "api_health_http": 200,
+    "ui_http": 200,
+    "python_bytecode_files": 0,
+    "data_directory_isolated_under_temp": true,
+    "frontend_assets_match_source": true,
+    "backend_source_files_verified": [
+      "backend/scan2bim/processing/cleanup.py",
+      "backend/scan2bim/processing/gpu_voxel.py",
+      "backend/scan2bim/schemas.py"
+    ],
+    "all_verified_backend_hashes_match": true,
+    "test_install_and_profile_removed": true
+  },
+  "native_window": {
+    "launcher_source": "temporary installed bundle",
+    "browser": "Microsoft Edge app mode",
+    "url": "http://127.0.0.1:8000/",
+    "isolated_profile_used": true,
+    "window_handle": 30802002,
+    "window_title": "127.0.0.1_/",
+    "observed_window_handle_nonzero": true,
+    "window_closed_after_test": true,
+    "test_process_tree_closed": true
+  },
+  "host": {
+    "windows_version": "10.0.19045",
+    "clean_windows_11": false
+  },
+  "acceptance": {
+    "stage_12_closed": false,
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction",
+    "remaining": [
+      "clean Windows 11 host acceptance",
+      "code-sign the release package",
+      "user acceptance"
+    ]
+  },
+  "signing": {
+    "code_signing_certificate_found": false,
+    "available_certificate": "CN=localhost",
+    "available_certificate_usage": "server authentication only"
+  },
+  "isolated_service_process": {
+    "installed_python": true,
+    "bind_address": "127.0.0.1",
+    "port": 8001,
+    "health_http": 200,
+    "health_status": "ok",
+    "ui_http": 200,
+    "ui_title_present": true,
+    "temporary_data_root_used": true,
+    "existing_user_server_port_8000_touched": false,
+    "uninstall_exit_code": 0,
+    "temporary_install_and_data_removed": true
+  }
+}

@@ -16,6 +16,19 @@ internal static class ElementProvenanceStorage
         element.SetEntity(entity);
     }
 
+    public static bool TryRead(Element element, out string payloadJson)
+    {
+        payloadJson = string.Empty;
+        var schema = Schema.Lookup(SchemaId);
+        if (schema is null)
+            return false;
+        var entity = element.GetEntity(schema);
+        if (!entity.IsValid())
+            return false;
+        payloadJson = entity.Get<string>(schema.GetField(FieldName));
+        return !string.IsNullOrWhiteSpace(payloadJson);
+    }
+
     private static Schema CreateSchema()
     {
         var builder = new SchemaBuilder(SchemaId);

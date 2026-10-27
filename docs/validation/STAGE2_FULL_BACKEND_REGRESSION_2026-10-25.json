@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Run the complete backend regression suite through the repository's isolated pytest runner.",
+  "command": ".\\scripts\\run_pytest.ps1",
+  "exit_code": 0,
+  "result": {
+    "passed": 768,
+    "failed": 0,
+    "warnings": 1,
+    "duration_seconds": 106.73,
+    "warning": "Starlette deprecation notice for its httpx TestClient integration."
+  },
+  "environment": {
+    "isolated_temp_database": true,
+    "existing_project_database_used": false,
+    "original_faro_sources_modified": false,
+    "cleanup_note": "Pytest passed; the runner could not remove its empty uniquely named data/.t directory because Windows reported it in use. The exact empty directory remains isolated under data/.t/98b0500da920."
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass",
+    "remaining": [
+      "full original RCP import with resource trace and adequate disk capacity",
+      "full-resolution cancellation and restart acceptance",
+      "ReCap GUI round-trip"
+    ]
+  }
+}

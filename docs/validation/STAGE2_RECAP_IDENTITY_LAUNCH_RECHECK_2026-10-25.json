@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Read-only diagnosis after the signed Autodesk Identity Manager installer failed to start.",
+  "installer": {
+    "path": "C:/Users/maxim/AppData/Local/Temp/AdskIdentityManager-UCT-Installer-verified.exe",
+    "bytes": 220700072,
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA",
+    "authenticode": "Valid",
+    "publisher": "Autodesk, Inc.",
+    "launch_attempt": "Start-Process -Verb RunAs",
+    "result": "failed before installer UI; Windows error 0xc0000142"
+  },
+  "read_only_system_diagnosis": {
+    "odIS_remove_utility_exists": true,
+    "odIS_installer_copy_at_program_files_exists": false,
+    "identity_manager_executable_exists": false,
+    "identity_manager_uninstaller_exists": false,
+    "identity_sdk_programdata_directory_exists": false,
+    "identity_services_user_directory_exists": true,
+    "autodesk_ifeo_blocked_debugger_found": false,
+    "temp_and_tmp_use_default_user_temp": true,
+    "processes_running": []
+  },
+  "system_changes_performed": false,
+  "odIS_removed_or_reinstalled": false,
+  "reboot_performed": false,
+  "recap_gui_acceptance": "blocked; Identity Manager executable and SDK registration are absent",
+  "next_safe_step": "A repair of ODIS followed by Identity Manager reinstall is recommended by Autodesk support. Removing/reinstalling ODIS requires administrator interaction and may affect other Autodesk desktop products; no such system change has been made.",
+  "official_references": [
+    "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Latest-Autodesk-M-E-product-installation-fails-at-Preparing-for-installation.html",
+    "https://www.autodesk.com/support/technical/article/caas/tsarticles/ts/7zbgTemIhA3ltRs4eACL0g.html"
+  ],
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass",
+  "faro_source_files_modified": false
+}

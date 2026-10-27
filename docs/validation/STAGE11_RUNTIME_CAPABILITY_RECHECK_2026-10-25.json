@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-25",
+  "stage": 11,
+  "purpose": "Recheck current point-normal and worker runtime capabilities after the earlier infrastructure audit.",
+  "normal_estimation": {
+    "library": "Open3D",
+    "version": "0.20.0",
+    "synthetic_points": 20000,
+    "selected_device": "CPU:0",
+    "cuda_available": false,
+    "cuda_device_count": 0,
+    "normal_output_shape": [20000, 3],
+    "all_normals_finite": true,
+    "source_scan_accessed": false
+  },
+  "worker_runtime": {
+    "postgresql_service": "running",
+    "postgresql_configured_for_scan": false,
+    "postgres_driver_installed": false,
+    "redis_available": false,
+    "rabbitmq_available": false,
+    "celery_or_redis_client_installed": false,
+    "docker_or_podman_available": false,
+    "scan_database_or_broker_environment_configured": false
+  },
+  "acceptance": {
+    "cpu_normal_estimation_smoke": "passed on synthetic data only",
+    "cuda_normal_estimation": "not verified; no CUDA device",
+    "distributed_worker_pipeline": "not implemented or live verified",
+    "stage_11": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

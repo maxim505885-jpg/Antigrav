@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "installer": {
+    "product": "Autodesk Identity Manager",
+    "version": "1.21.1.5",
+    "official_source": "https://up1.autodesk.com/Windows/1.21.1.5/AdskIdentityManager-UCT-Installer.exe",
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA",
+    "authenticode": "Valid",
+    "signer": "CN=Autodesk, Inc., O=Autodesk, Inc., L=San Francisco, S=California, C=US",
+    "size_bytes": 220700072
+  },
+  "attempts": [
+    {
+      "mode": "silent_non_elevated",
+      "outcome": "failed",
+      "odis_exit_code": 43,
+      "log_evidence": "ODIS DDA.log: Installation does not have admin privilege",
+      "identity_manager_installed": false
+    },
+    {
+      "mode": "silent_elevated_via_windows_uac",
+      "outcome": "cancelled_by_user",
+      "consent_process_observed": true,
+      "shell_error": "The operation was canceled by the user.",
+      "identity_manager_installed_at_last_check": false
+    }
+  ],
+  "safety": {
+    "recap_launched": false,
+    "project_opened": false,
+    "faro_source_modified": false,
+    "project_database_modified": false,
+    "source_installer_signature_rechecked_before_launch": true
+  },
+  "acceptance": {"stage_2": "in_progress", "closed_stages": "3/12", "stage_6": "parked_until_final_pass"}
+}

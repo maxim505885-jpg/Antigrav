@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "status": "candidate_build_succeeded_install_failed_not_promoted",
+  "source": {
+    "repository": "intelligent-scan-to-bim",
+    "release_preflight": "passed; 4 frontend assets referenced"
+  },
+  "candidate": {
+    "compiler": "Inno Setup 6.7.3 x64",
+    "path": "%TEMP%/scan-stage12-build-20261025/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170009501,
+    "sha256": "CE93E36D748839146A13376E8D89D662BB3584D8C17A4B3B45C6A8F9B12084B5",
+    "compile_exit_code": 0
+  },
+  "install_smoke": {
+    "install_exit_code": 4,
+    "destination_created": false,
+    "installer_log": "%TEMP%/scan-stage12-install-20261025.log",
+    "log_reports_rollback": true,
+    "root_cause": "historical sandboxed attempt: RegCreateKeyEx was denied while creating the per-user Inno uninstall key (error 5); a later sandbox-approved run of the same candidate succeeded under the same Windows user, identifying the managed sandbox restriction as the cause",
+    "smoke_script_reached": false,
+    "temporary_install_remains": false
+  },
+  "preserved_release_artifact": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "sha256_after_recheck": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+    "modified_by_candidate_run": false
+  },
+  "faro_source_files_modified": false,
+  "acceptance": "Do not replace the existing artifact with this candidate. Reproduce and fix the installer failure, then rerun isolated install/source/API/UI/uninstall checks. Clean Windows 11, signing, and user acceptance remain separate open gates."
+}

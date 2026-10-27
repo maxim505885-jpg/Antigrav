@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "feature": "Import independent survey-control pairs from CSV",
+  "format": {
+    "required_headers": ["source_x", "source_y", "source_z", "target_x", "target_y", "target_z"],
+    "optional_header": "label",
+    "units": "metres in the local coordinates of station A (source) and station B (target)",
+    "delimiters": [",", ";", "tab"],
+    "decimal_comma": "accepted with semicolon-delimited files",
+    "template": "frontend/public/templates/registration-controls-template.csv"
+  },
+  "safety": [
+    "requires at least three complete control pairs",
+    "rejects missing headers, duplicate headers, invalid coordinates and malformed rows",
+    "invalid files do not replace currently entered controls",
+    "successful import clears the prior independence attestation and previous result",
+    "imported controls remain in the dialog and are not persisted to the project"
+  ],
+  "tests": {
+    "csv_parser": "3 passed",
+    "frontend_suite": "passed",
+    "production_build": "passed; 1,979 modules transformed"
+  },
+  "live_smoke": {
+    "page": "http://127.0.0.1:8000/",
+    "production_bundle": "index-CsbJjF0H.js",
+    "synthetic_upload": "3 control rows displayed with expected labels and coordinates",
+    "independence_checkbox_after_import": false,
+    "template_link": "served and visible",
+    "project_rows_written": false,
+    "live_survey_data_used": false
+  },
+  "limits": [
+    "browser upload smoke used a temporary synthetic CSV and proves UI wiring only",
+    "no field control coordinates were available",
+    "Stage 4 accuracy and 10 mm criterion remain unverified"
+  ],
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass"
+}

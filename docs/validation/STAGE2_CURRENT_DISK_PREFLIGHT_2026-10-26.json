@@ -1,0 +1,44 @@
+{
+  "schema": "scan2bim.validation/stage2-current-disk-preflight/1.0",
+  "date": "2026-10-26",
+  "stage": 2,
+  "data_root": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data",
+  "volume": "C:",
+  "available_bytes": 17960439808,
+  "sources": [
+    {
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+      "bytes": 7196593757,
+      "metadata_only": true
+    },
+    {
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\2.rcs",
+      "bytes": 13906332111,
+      "metadata_only": true
+    }
+  ],
+  "declared_point_counts": [
+    297873927,
+    574367742
+  ],
+  "estimator": "scan2bim.formats.rcs_native.estimate_full_resolution_batch_disk_bytes",
+  "estimate": {
+    "durable_bytes": 13158625035,
+    "raw_stream_peak_bytes": 8615516130,
+    "safety_margin_bytes": 2177414117,
+    "reserve_bytes": 1073741824,
+    "required_bytes": 25025297106,
+    "shortfall_bytes": 7064857298
+  },
+  "decision": "do_not_start_full_resolution_two_station_import",
+  "reasons": [
+    "available space is below the current product preflight estimate"
+  ],
+  "source_contents_opened": false,
+  "source_files_modified": false,
+  "production_database_used": false,
+  "project_rows_written": false,
+  "accepted_stages": "3/12",
+  "stage6_order": "penultimate",
+  "stage9_order": "last"
+}

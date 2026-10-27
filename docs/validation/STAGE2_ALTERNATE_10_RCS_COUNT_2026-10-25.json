@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Determine whether the sibling 10.rcs is the source counted by the 10.rcp manifest, without modifying either RCS",
+  "rcp": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "size_bytes": 2741
+  },
+  "manifest_linked_rcs": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+    "size_bytes": 7130808277,
+    "sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a"
+  },
+  "alternate_rcs_before": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcs",
+    "size_bytes": 6517882379,
+    "sha256": "ca6cf60ec2d271660f2661ca390dbcdf7237365bfda6c71e0b8bfbe6e92419a8"
+  },
+  "reader": {
+    "dll_exists": true,
+    "dll_path": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\AdskRcExport.dll",
+    "recap_dir": "C:\\Program Files\\Autodesk\\Autodesk ReCap",
+    "abi": "undocumented Autodesk internal (RCRcsDataSource), subprocess-isolated",
+    "verified_file": "1.rcs (ADOCT v3, 7.2 GB, 297,873,927 points, 2026-10-20)"
+  },
+  "method": "Autodesk ReCap native reader reservoir sample max_points=1; full sequential pass reports source count",
+  "start_utc": "2026-10-25T10:23:43.117605+00:00",
+  "reader_result": {
+    "sample_points_returned": 1,
+    "source_point_count": 270320098,
+    "sample_has_rgb": true
+  },
+  "count_comparison": {
+    "rcp_declared_point_count": 295836062,
+    "manifest_linked_rcs_reader_count": 295591803,
+    "sibling_rcs_reader_count": 270320098,
+    "sibling_matches_rcp_declaration": false
+  },
+  "acceptance": {
+    "diagnostic_only": true,
+    "rcp_count_discrepancy_resolved": false,
+    "original_files_modified": false
+  },
+  "duration_seconds": 252.76,
+  "alternate_rcs_after": {
+    "size_bytes": 6517882379,
+    "sha256": "ca6cf60ec2d271660f2661ca390dbcdf7237365bfda6c71e0b8bfbe6e92419a8"
+  },
+  "cleanup": {
+    "isolated_reader_scratch": "removed"
+  }
+}

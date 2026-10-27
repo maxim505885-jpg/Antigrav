@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-25",
+  "stage": 10,
+  "purpose": "Rebuild the current Revit 2027 adapter in an isolated directory and verify the registered add-in was not overwritten while Revit is running",
+  "host": {
+    "revit_version": "2027",
+    "revit_pid": 9100,
+    "revit_running": true,
+    "sdk_version": "10.0.100",
+    "target_framework": "net10.0-windows"
+  },
+  "build": {
+    "command": "data/.tools/dotnet10/dotnet.exe build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release --no-restore -p:OutputPath=%TEMP%\\scan-stage10-revit-build-20261025\\ -v:diag",
+    "exit_code": 0,
+    "errors": 0,
+    "warnings": 3,
+    "warning_detail": "MSB3277: Revit API dependency metadata references Microsoft.VisualBasic 10.1.0.0 while the .NET 10.0 reference pack provides 10.0.0.0; the plugin has no direct Microsoft.VisualBasic reference.",
+    "isolated_output": "%TEMP%\\scan-stage10-revit-build-20261025\\Scan.Revit.Plugin.dll",
+    "isolated_output_sha256": "0EFA98DAC11AAEDE520003CE8C69B209CFDF73C9BFADA4F0D2C933F554B394DF"
+  },
+  "registered_addin": {
+    "manifest": "%APPDATA%\\Autodesk\\Revit\\Addins\\2027\\SCAN.StructuralModel.addin",
+    "assembly": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\integrations\\revit\\Scan.Plugin\\bin\\Release\\net10.0-windows\\Scan.Revit.Plugin.dll",
+    "assembly_sha256": "B4FDC8FE6B4199337C91C52C20638525BA031BCADC0402F8CDD26DC74A3F65CE",
+    "matches_current_isolated_build": false
+  },
+  "current_source_policy_checks": {
+    "command": "dotnet build integrations/revit/Scan.PolicyTests/Scan.PolicyTests.csproj -c Release --no-restore -p:OutputPath=%TEMP%\\scan-stage10-revit-policy-20261025\\ followed by dotnet Scan.PolicyTests.dll",
+    "result": "passed",
+    "member_section_and_provenance": 9,
+    "member_axis": 4,
+    "slab_geometry": 8,
+    "total": 21,
+    "policy_build_errors": 0,
+    "policy_build_warnings": 0
+  },
+  "safety": {
+    "registered_plugin_replaced": false,
+    "revit_model_modified": false,
+    "project_database_modified": false,
+    "faro_sources_modified": false
+  },
+  "acceptance": "The current source compiles, but it is not the DLL currently registered by Revit. Do not mark Stage 10 accepted until the current-source add-in is loaded and a real import/save/reopen is verified in Revit 2027."
+}

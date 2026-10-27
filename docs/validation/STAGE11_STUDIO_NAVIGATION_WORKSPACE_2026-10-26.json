@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-26",
+  "stage": 11,
+  "scope": "Current rendered StudioReferenceLayout navigation and workspace screens",
+  "implementation": {
+    "navigation": [
+      "Top tabs now switch between projects, processing, recognition, drawings, BIM and reports.",
+      "Sidebar buttons now switch between project data, processing, recognition results, drawings, BIM, reports and project information.",
+      "Sidebar navigation uses native buttons for keyboard and accessibility semantics.",
+      "Project/cloud page uses existing project, cloud selection, import and project creation handlers.",
+      "Header search lists project, cloud and candidate matches; selecting a match opens its project/cloud or selects the candidate in the 3D processing view.",
+      "Sidebar source rows open the corresponding page and filter current project clouds to all, ready, or FARO/RCS sources.",
+      "The 360 toolbar and data source now open the existing station panorama viewer for the selected cloud.",
+      "3D toolbar toggles point-cloud visibility, structural candidate geometry and point-pick mode; the picked point is reported in metres.",
+      "Drawing screen connects DXF, PDF and SPDS album download controls to existing API functions.",
+      "BIM screen connects IFC, JSON and DXF download controls to existing API functions.",
+      "Reports and project information are populated from loaded application state."
+    ],
+    "production_build": "passed; Vite 6.4.4, 1,981 modules",
+    "frontend_tests": "passed",
+    "browser_smoke": {
+      "environment": "http://127.0.0.1:8000/",
+      "sidebar_routes_passed": 6,
+      "sidebar_routes_checked": 6,
+      "processing_return_passed": true,
+      "project_search_results_checked": true,
+      "faro_filter_clouds_shown": 4,
+      "panorama_station_catalog_http": 200,
+      "panorama_image_http": 200,
+      "panorama_canvas_mounted": true,
+      "viewport_cloud_and_model_toggles_checked": true,
+      "point_pick_mode_toggle_checked": true,
+      "console_errors": 0
+    }
+  },
+  "not_performed": [
+    "No point-pick coordinate was accepted by a user click; only the mode toggle was checked.",
+    "No export button was clicked, so no drawing/model files were generated during browser smoke.",
+    "This verifies the UI, panorama image delivery, and control wiring, not the AutoCAD/Revit host acceptance criteria."
+  ],
+  "acceptance": {
+    "accepted_roadmap_stages": [1, 3, 5],
+    "stage_11": "in_progress",
+    "stage_6_order": "penultimate",
+    "stage_9_order": "last"
+  }
+}

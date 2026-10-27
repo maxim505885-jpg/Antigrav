@@ -1,0 +1,30 @@
+{
+  "checked_at_local": "2026-10-25T19:57:36+03:00",
+  "stage": 12,
+  "scope": "Read-only diagnosis of the isolated Inno Setup candidate rollback",
+  "installer_log": {
+    "path": "%TEMP%/scan-stage12-install-20261025.log",
+    "setup_version": "Inno Setup 6.7.3",
+    "failure": "Fatal exception during installation process",
+    "operation": "Create uninstall registry key",
+    "registry_key": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{5E973B90-E57A-4543-8473-A3FE9DF3289E}_is1",
+    "result": "RegCreateKeyEx error 5: Access is denied",
+    "setup_exit_code": 4,
+    "rollback_succeeded": true
+  },
+  "read_only_acl_check": {
+    "parent_key_exists": true,
+    "parent_owner": "DESKTOP-N62EKS6\\maxim",
+    "inherited_user_acl": "FullControl",
+    "exact_child_key_exists": false
+  },
+  "write_probe": {
+    "attempt": "Open the parent Uninstall key with write access using the current process token",
+    "result": "Windows/.NET rejected the write-capable open with Requested registry access is not allowed",
+    "temporary_probe_key_created": false,
+    "registry_modified": false
+  },
+  "interpretation": "The initial ordinary sandbox run was denied while creating the per-user uninstall entry. A later sandbox-approved rerun installed and uninstalled the same candidate under the same Windows user, confirming that the denial came from the managed sandbox boundary rather than a defective Windows user-profile ACL. No ACL or registry value was changed manually.",
+  "follow_up_evidence": "STAGE12_CURRENT_SOURCE_CANDIDATE_SANDBOX_SMOKE_2026-10-25.json",
+  "acceptance": "The sandbox-specific registry-write blocker is resolved for this isolated smoke. The candidate remains unpromoted pending native window launch, clean Windows 11 acceptance, code signing, and user acceptance."
+}

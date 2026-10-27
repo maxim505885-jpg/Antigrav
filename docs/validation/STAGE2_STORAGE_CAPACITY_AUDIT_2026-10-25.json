@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Recheck whether a full-resolution RCP validation can safely run on an available local or mapped volume.",
+  "available_storage": [
+    {
+      "volume": "C:",
+      "free_bytes": 5799206912,
+      "free_gib": 5.401,
+      "access": "available"
+    },
+    {
+      "volume": "R:",
+      "type": "mapped network drive",
+      "free_space_bytes": null,
+      "access": "denied to this session"
+    }
+  ],
+  "full_resolution_rcp_preflight": {
+    "required_bytes": 14782617889,
+    "required_gib": 13.77,
+    "available_on_data_volume_bytes": 5799206912,
+    "shortfall_bytes": 8983410977,
+    "shortfall_gib": 8.367,
+    "result": "cannot safely run; preflight must reject before rows or jobs are created"
+  },
+  "regression": {
+    "backend_full_suite": "746 passed, 1 existing Starlette/httpx deprecation warning, 103.74 seconds",
+    "runner_cleanup_warning": "Windows reported one empty isolated pytest folder busy during cleanup; exit code was 0 and no test failed"
+  },
+  "safety": {
+    "original_faro_scans_modified": false,
+    "production_database_modified": false,
+    "full_resolution_import_started": false
+  },
+  "acceptance": "Stage 2 remains open until a permitted volume has sufficient headroom for full-resolution multi-node RCP import, cancellation/restart and ReCap round-trip. This audit did not alter the original sources or workspace database."
+}

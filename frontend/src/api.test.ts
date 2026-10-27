@@ -2,6 +2,119 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { api, waitForCloud } from "./api.ts";
+import { detailText } from "./errorMessage.ts";
+
+test("structured storage errors show both the headline and recovery guidance", () => {
+  const message = detailText({ detail: { detail: {
+    summary: "Недостаточно места.",
+    message: "Освободите диск или выберите ограниченный импорт.",
+    available_bytes: 100,
+    required_bytes: 200,
+  } } });
+  assert.equal(message, "Недостаточно места. Освободите диск или выберите ограниченный импорт.");
+});
+
+test("unavailable storage preflight explains why a full RCP import did not start", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: false,
+    statusText: "Service Unavailable",
+    json: async () => ({ detail: {
+      summary: "Не удалось проверить хранилище данных.",
+      storage_check: "unavailable",
+      message: "Полный импорт RCP не запущен. Проверьте подключение и права доступа.",
+    } }),
+  }) as Response) as typeof fetch;
+  try {
+    await assert.rejects(
+      api.importRcpPath("project-1", "C:/scans/plant.rcp", undefined, 0),
+      (error: any) => {
+        assert.equal(
+          detailText(error),
+          "Не удалось проверить хранилище данных. Полный импорт RCP не запущен. Проверьте подключение и права доступа.",
+        );
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("learning manifest preview is read-only and export requires the reviewed content hash", async () => {
+  const originalFetch = globalThis.fetch;
+  const requested: Array<{ url: string; method: string; body?: any }> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requested.push({
+      url: String(input),
+      method: init?.method || "GET",
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return { ok: true, json: async () => ({ manifest_sha256: "a".repeat(64) }) } as Response;
+  }) as typeof fetch;
+  try {
+    await api.learningManifestPreview("project / 1");
+    await api.exportLearningManifest("project / 1", "a".repeat(64));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.deepEqual(requested, [
+    { url: "/api/v1/projects/project%20%2F%201/learning-manifest/preview", method: "GET", body: undefined },
+    {
+      url: "/api/v1/projects/project%20%2F%201/learning-manifests/export",
+      method: "POST",
+      body: { confirmed: true, expected_manifest_sha256: "a".repeat(64) },
+    },
+  ]);
+});
+
+test("project column reference summary uses project-scoped independent labels", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return { ok: true, json: async () => ({ schema: "scan.column-reference-types/1", groups: [] }) } as Response;
+  }) as typeof fetch;
+  try {
+    await api.projectColumnReferenceTypes("project / 1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrl, "/api/v1/projects/project%20%2F%201/column-reference-types");
+});
+
+test("independent registration controls use the separate validation endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let body: any;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    body = JSON.parse(String(init?.body));
+    return { ok: true, json: async () => ({ status: "controls_evaluated", criterion_passed: true }) } as Response;
+  }) as typeof fetch;
+  try {
+    await api.evaluateRegistrationControls(
+      "source 1", "target 2", [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+      [{ source_point: [0, 0, 0], target_point: [0, 0, 0], label: "Control A" }], true,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrl, "/api/v1/registration/evaluate-controls");
+  assert.deepEqual(body, {
+    source_cloud_id: "source 1",
+    target_cloud_id: "target 2",
+    matrix_4x4: [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]],
+    controls: [{ source_point: [0, 0, 0], target_point: [0, 0, 0], label: "Control A" }],
+    independent_of_fit: true,
+    acceptance_rmse_mm: 10,
+  });
+});
+
+test("plain API error details remain readable", () => {
+  assert.equal(detailText({ detail: { detail: "Import rejected" } }), "Import rejected");
+  assert.equal(detailText({ detail: "Server unavailable" }), "Server unavailable");
+});
 
 test("canceling an import uses the cloud processing job endpoint", async () => {
   const originalFetch = globalThis.fetch;
@@ -17,6 +130,48 @@ test("canceling an import uses the cloud processing job endpoint", async () => {
     assert.equal(requestedUrl, "/api/v1/jobs/job%20%2F%201/cancel");
     assert.equal(method, "POST");
     assert.equal(result.cancel_requested, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("RCP batch import sends project path and decodes station cloud response", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let body: any;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    body = JSON.parse(String(init?.body));
+    return { ok: true, json: async () => ({
+      project_id: "project-1", project_file: "plant.rcp", project_sha256: "abc",
+      import_job_id: "job-1", node_count: 1,
+      stations: [{ node_id: "station-1", node_name: "Station 1", cloud: { id: "cloud-1" } }],
+    }) } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.importRcpPath("project / 1", "C:/scans/plant.rcp", undefined, 0);
+    assert.equal(requestedUrl, "/api/v1/projects/project%20%2F%201/rcp/import-path");
+    assert.deepEqual(body, { path: "C:/scans/plant.rcp", max_points: 0 });
+    assert.equal(result.import_job_id, "job-1");
+    assert.equal(result.stations[0].cloud.id, "cloud-1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("single cloud import sends an explicit full-resolution request", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let body: any;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    body = JSON.parse(String(init?.body));
+    return { ok: true, json: async () => ({ id: "cloud-1" }) } as Response;
+  }) as typeof fetch;
+  try {
+    await api.importPath("project-1", "C:/scans/station.rcs", undefined, 0);
+    assert.equal(requestedUrl, "/api/v1/projects/project-1/clouds/import-path");
+    assert.deepEqual(body, { path: "C:/scans/station.rcs", max_points: 0 });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -221,6 +376,23 @@ test("independent element role annotations use versioned cloud-scoped endpoints"
   assert.equal(calls[2].method, "POST");
   assert.equal(calls[2].body.role_label, "crane_girder");
   assert.equal(calls[3].url, "/api/v1/clouds/cloud%20%2F%201/element-annotations/export");
+});
+
+test("project activity is loaded from the project jobs API", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return { ok: true, json: async () => [{ id: "job-1", type: "recognize", status: "succeeded" }] } as Response;
+  }) as typeof fetch;
+  try {
+    const jobs = await api.projectJobs("shop / 1");
+    assert.equal(jobs[0].id, "job-1");
+    assert.equal(jobs[0].status, "succeeded");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrl, "/api/v1/projects/shop%20%2F%201/jobs");
 });
 
 test("recognition evaluation submits independent physical references to the cloud-scoped endpoint", async () => {

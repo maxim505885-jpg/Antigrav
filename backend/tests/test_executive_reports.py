@@ -7,7 +7,7 @@ from scan2bim.reports.executive_reports import (
 )
 
 
-def test_generate_registration_passport():
+def test_registration_passport_does_not_call_fit_residual_independent_accuracy():
     stations = [
         {"id": "ST_01", "point_count": 1000000},
         {"id": "ST_02", "point_count": 1200000},
@@ -25,9 +25,29 @@ def test_generate_registration_passport():
     assert passport["report_title"] == "Паспорт лазерного сканирования и сшивки станций"
     assert passport["summary"]["total_stations"] == 3
     assert passport["summary"]["total_points"] == 3150000
-    assert passport["summary"]["mean_rmse_mm"] == 2.3
-    assert "СООТВЕТСТВУЕТ" in passport["summary"]["registration_status"]
+    assert passport["summary"]["fit_rmse_mm"] == 2.3
+    assert "mean_rmse_mm" not in passport["summary"]
+    assert "max_error_mm" not in passport["summary"]
+    assert passport["summary"]["registration_status"] == "НЕ ИЗМЕРЕНО ПО НЕЗАВИСИМЫМ КОНТРОЛЬНЫМ ТОЧКАМ"
+    assert passport["pairwise_error_matrix"][0]["errors_mm"][1] is None
+    assert passport["instrument"]["scanner_model"] is None
+    assert passport["instrument"]["serial_number"] is None
     assert len(passport["pairwise_error_matrix"]) == 3
+
+
+def test_registration_passport_leaves_missing_measurements_unknown():
+    passport = generate_registration_passport(
+        project_name="Цех",
+        project_id="prj_002",
+        stations=[{"id": "ST_01", "point_count": 100}],
+        registration_results={},
+    )
+
+    assert passport["summary"]["fit_rmse_mm"] is None
+    assert passport["summary"]["max_fit_error_mm"] is None
+    assert passport["summary"]["registration_status"] == "НЕ ИЗМЕРЕНО ПО НЕЗАВИСИМЫМ КОНТРОЛЬНЫМ ТОЧКАМ"
+    assert passport["pairwise_error_matrix"][0]["errors_mm"] == [0.0]
+    assert passport["instrument"]["ranging_accuracy_mm"] is None
 
 
 def test_generate_deformation_bulletin_pdf(tmp_path):

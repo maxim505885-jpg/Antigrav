@@ -1,10 +1,29 @@
 from pathlib import Path
 from types import SimpleNamespace
 import locale
+import zipfile
+from xml.sax.saxutils import escape
 
 import pytest
 
 from scan2bim.formats import recap_decap
+
+
+def _write_rcp(path: Path, scans: list[tuple[str, str]]) -> None:
+    nodes = []
+    for index, (name, source_path) in enumerate(scans):
+        nodes.append(
+            f'<VoxelTreeRunTime Id="{{scan-{index}}}">'
+            '<Translation x="0" y="0" z="0"/><Rotation x="0" y="0" z="0"/>'
+            '<Scale x="1" y="1" z="1"/><Registered Value="0"/>'
+            f'<NodeName Value="{escape(name)}"/><Path Value="{escape(source_path)}"/>'
+            '<RelativePath Value=""/><NumPoints Value="50000"/>'
+            '<HasRGB Value="1"/><HasIntensity Value="0"/><HasNormals Value="1"/>'
+            '</VoxelTreeRunTime>'
+        )
+    xml = '<Autodesk><ProjectId UUID="test-project"/><Nodes>' + ''.join(nodes) + '</Nodes></Autodesk>'
+    with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('project.xml', xml)
 
 
 def test_decap_path_uses_ascii_short_path_for_unicode_windows_paths(tmp_path, monkeypatch):
@@ -23,10 +42,11 @@ def test_calls_autodesk_decap_and_requires_linked_rcs(tmp_path, monkeypatch):
     def run(command, **_kwargs):
         root = Path(command[2])
         name = command[3]
-        (root / f"{name}.rcp").write_bytes(b"native-project")
         support = root / f"{name} Support"
         support.mkdir()
-        (support / "station.rcs").write_bytes(b"indexed-scan")
+        linked = support / "station.rcs"
+        linked.write_bytes(b"indexed-scan")
+        _write_rcp(root / f"{name}.rcp", [("station", str(linked))])
         assert "--importWithLicense" in command
         assert "--controlFile" in command
         control = Path(command[command.index("--controlFile") + 1])
@@ -39,9 +59,92 @@ def test_calls_autodesk_decap_and_requires_linked_rcs(tmp_path, monkeypatch):
     assert result["status"] == "created_by_autodesk_decap"
     assert result["linked_rcs_count"] == 1
     assert result["package_verified"] is True
-    assert result["rcp_size_bytes"] == len(b"native-project")
+    assert result["project_verified"] is True
+    assert result["rcp_node_count"] == 1
+    assert result["external_rcs_count"] == 0
+    assert result["rcp_size_bytes"] > 0
     assert result["linked_rcs_size_bytes"] == len(b"indexed-scan")
+    from scan2bim.formats.rcp_manifest import read_rcp_manifest
+    manifest = read_rcp_manifest(result["rcp_path"])
+    assert manifest["node_count"] == 1
+    assert Path(manifest["nodes"][0]["resolved_rcs_path"]).is_file()
     assert source.read_bytes() == b"source"
+
+
+def test_accepts_autodesk_rcp_that_references_existing_source_rcs_without_copying_it(tmp_path, monkeypatch):
+    decap = tmp_path / "DeCap.exe"
+    decap.touch()
+    source = tmp_path / "station.rcs"
+    source.write_bytes(b"original indexed station")
+    monkeypatch.setattr(recap_decap, "find_decap", lambda: decap)
+
+    def run(command, **_kwargs):
+        root, name = Path(command[2]), command[3]
+        support = root / f"{name} Support"
+        support.mkdir()
+        _write_rcp(root / f"{name}.rcp", [("station", str(source))])
+        return SimpleNamespace(returncode=0, stdout="linked input RCS", stderr="")
+
+    monkeypatch.setattr(recap_decap.subprocess, "run", run)
+    result = recap_decap.create_recap_project(tmp_path / "out", "Hall", [{"path": str(source)}])
+
+    assert result["status"] == "created_by_autodesk_decap"
+    assert result["project_verified"] is True
+    assert result["package_verified"] is False
+    assert result["rcp_node_count"] == 1
+    assert result["linked_rcs_count"] == 0
+    assert result["external_rcs_count"] == 1
+    assert result["external_rcs_paths"] == [str(source.resolve())]
+    from scan2bim.formats.rcp_manifest import read_rcp_manifest
+    node = read_rcp_manifest(result["rcp_path"])["nodes"][0]
+    assert node["resolved_rcs_path"] == str(source.resolve())
+    assert source.read_bytes() == b"original indexed station"
+
+
+def test_decap_disk_preflight_rejects_before_starting_import(tmp_path, monkeypatch):
+    decap = tmp_path / "DeCap.exe"
+    decap.touch()
+    source = tmp_path / "station.rcs"
+    source.write_bytes(b"source station")
+    monkeypatch.setattr(recap_decap, "find_decap", lambda: decap)
+    monkeypatch.setattr(recap_decap.shutil, "disk_usage", lambda _path: SimpleNamespace(free=1024))
+    started = False
+
+    def should_not_run(*_args, **_kwargs):
+        nonlocal started
+        started = True
+        raise AssertionError("DeCap must not run when the output volume lacks space")
+
+    monkeypatch.setattr(recap_decap.subprocess, "run", should_not_run)
+    with pytest.raises(recap_decap.InsufficientStorageError) as exc_info:
+        recap_decap.create_recap_project(tmp_path / "out", "Hall", [{"path": str(source)}])
+    assert started is False
+    assert exc_info.value.source_bytes == source.stat().st_size
+    assert exc_info.value.required_bytes == source.stat().st_size + recap_decap.RCP_OUTPUT_FREE_SPACE_RESERVE_BYTES
+    assert list((tmp_path / "out").iterdir()) == []
+
+
+def test_decap_unresolved_source_error_includes_bounded_diagnostics_and_cleans_staging(tmp_path, monkeypatch):
+    decap = tmp_path / "DeCap.exe"
+    decap.touch()
+    source = tmp_path / "station.rcs"
+    source.write_bytes(b"source")
+    output = tmp_path / "out"
+    monkeypatch.setattr(recap_decap, "find_decap", lambda: decap)
+
+    def run(command, **_kwargs):
+        root, name = Path(command[2]), command[3]
+        support = root / f"{name} Support"
+        support.mkdir()
+        _write_rcp(root / f"{name}.rcp", [("missing", str(tmp_path / "missing.rcs"))])
+        return SimpleNamespace(returncode=0, stdout="No indexed scans were produced", stderr="diagnostic detail")
+
+    monkeypatch.setattr(recap_decap.subprocess, "run", run)
+    with pytest.raises(RuntimeError, match="No indexed scans were produced") as exc_info:
+        recap_decap.create_recap_project(output, "Hall", [{"path": str(source)}])
+
+    assert "diagnostic detail" in str(exc_info.value)
+    assert list(output.iterdir()) == []
 
 
 def test_rejects_missing_sources_and_never_claims_empty_decap_output(tmp_path, monkeypatch):

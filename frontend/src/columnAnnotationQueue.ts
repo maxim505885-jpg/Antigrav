@@ -10,6 +10,15 @@ export interface ColumnAnnotationQueueStats {
   excluded: number;
 }
 
+export function upsertColumnAnnotation<T extends Pick<ColumnAnnotation, "element_id">>(
+  annotations: readonly T[],
+  saved: T,
+): T[] {
+  const index = annotations.findIndex((item) => item.element_id === saved.element_id);
+  if (index < 0) return [...annotations, saved];
+  return annotations.map((item, itemIndex) => itemIndex === index ? saved : item);
+}
+
 export function columnAnnotationQueueStats(
   columns: readonly Element[],
   annotations: readonly Pick<ColumnAnnotation, "element_id" | "state">[],

@@ -9,6 +9,7 @@ Produces official executive survey reports (Исполнительная гео�
 from __future__ import annotations
 
 import datetime
+import math
 from pathlib import Path
 from typing import Any, Mapping
 import numpy as np
@@ -21,37 +22,45 @@ def generate_registration_passport(
     registration_results: dict[str, Any],
     instrument_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Generate registration quality passport data according to GOST R 58973-2020."""
+    """Generate a registration report without inferring accuracy from fit residuals."""
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
 
-    inst = instrument_info or {
-        "scanner_model": "FARO Focus Premium / Leica RTC360",
-        "serial_number": "SN-2026-X8841",
-        "angular_accuracy_sec": 19.0,
-        "ranging_accuracy_mm": 1.0,
-        "calibration_date": "15.01.2026",
+    inst = {
+        "scanner_model": None,
+        "serial_number": None,
+        "angular_accuracy_sec": None,
+        "ranging_accuracy_mm": None,
+        "calibration_date": None,
+        **(instrument_info or {}),
     }
+
+    def optional_finite_number(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
 
     n_stations = len(stations)
     total_pts = sum(s.get("point_count", 0) for s in stations)
-    mean_rmse_mm = float(registration_results.get("final_rmse_mm", 2.1))
+    fit_rmse_mm = optional_finite_number(registration_results.get("final_rmse_mm"))
+    max_fit_error_mm = optional_finite_number(registration_results.get("max_error_mm"))
 
     # Pairwise station error matrix
     matrix_rows = []
     for i, st_a in enumerate(stations):
         row = {"station_id": st_a.get("id", f"ST_{i+1:02d}"), "errors_mm": []}
-        for j, st_b in enumerate(stations):
-            if i == j:
-                row["errors_mm"].append(0.0)
-            else:
-                # Simulated or measured residual distance
-                dist = abs(i - j) * (mean_rmse_mm * 0.8 + 0.4)
-                row["errors_mm"].append(round(dist, 2))
+        for j, _st_b in enumerate(stations):
+            # No pairwise residual is available in the registration contract.
+            # A fit RMSE cannot be projected into invented station-to-station errors.
+            row["errors_mm"].append(0.0 if i == j else None)
         matrix_rows.append(row)
 
     return {
         "report_title": "Паспорт лазерного сканирования и сшивки станций",
-        "standard": "ГОСТ Р 58973-2020 / СП 317.1325800.2017",
+        "standard_references": ["ГОСТ Р 58973-2020", "СП 317.1325800.2017"],
         "generated_at": now_str,
         "project": {
             "name": project_name,
@@ -61,9 +70,10 @@ def generate_registration_passport(
         "summary": {
             "total_stations": n_stations,
             "total_points": total_pts,
-            "mean_rmse_mm": mean_rmse_mm,
-            "max_error_mm": float(registration_results.get("max_error_mm", mean_rmse_mm * 1.6)),
-            "registration_status": "СООТВЕТСТВУЕТ СП 317" if mean_rmse_mm <= 5.0 else "ТРЕБУЕТ ДОПОЛНИТЕЛЬНОГО УРАВНИВАНИЯ",
+            "fit_rmse_mm": fit_rmse_mm,
+            "max_fit_error_mm": max_fit_error_mm,
+            "accuracy_status": "not_measured",
+            "registration_status": "НЕ ИЗМЕРЕНО ПО НЕЗАВИСИМЫМ КОНТРОЛЬНЫМ ТОЧКАМ",
         },
         "pairwise_error_matrix": matrix_rows,
     }

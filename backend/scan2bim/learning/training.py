@@ -104,6 +104,37 @@ def _validate_physical_instance_labels(samples: list[dict[str, Any]]) -> None:
         )
 
 
+def _physical_holdout_status(
+    train: list[dict[str, Any]], test: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify every scored example belongs to a disjoint physical-instance split."""
+    all_samples = [*train, *test]
+    missing_ids = sum(
+        not str(sample.get("physical_instance_id") or "").strip()
+        for sample in all_samples
+    )
+    train_ids = {
+        str(sample.get("physical_instance_id") or "").strip()
+        for sample in train
+        if str(sample.get("physical_instance_id") or "").strip()
+    }
+    test_ids = {
+        str(sample.get("physical_instance_id") or "").strip()
+        for sample in test
+        if str(sample.get("physical_instance_id") or "").strip()
+    }
+    overlap = sorted(train_ids & test_ids)
+    verified = bool(train) and bool(test) and missing_ids == 0 and not overlap
+    return {
+        "status": "independent_physical_holdout" if verified else "not_verified",
+        "verified": verified,
+        "training_physical_instance_count": len(train_ids),
+        "held_out_physical_instance_count": len(test_ids),
+        "samples_missing_physical_instance_id": missing_ids,
+        "overlapping_physical_instance_ids": overlap,
+    }
+
+
 def _metrics(y_true: list[str], y_pred: list[str]) -> dict[str, Any]:
     labels = sorted(set(y_true) | set(y_pred))
     per_class: dict[str, Any] = {}
@@ -150,21 +181,43 @@ def train_candidate(
     train, test = _split_samples_by_element(samples, test_fraction)
 
     model = KNNModel.fit(train, version=1, name=name, notes=notes)
+    holdout = _physical_holdout_status(train, test)
     y_true = [str(s["class_name"]) for s in test]
-    y_pred = [str(model.predict(s["features"])["predicted_class"]) for s in test]
-    metrics = _metrics(y_true, y_pred)
+    if holdout["verified"]:
+        y_pred = [str(model.predict(s["features"])["predicted_class"]) for s in test]
+        metrics = _metrics(y_true, y_pred)
+    else:
+        # Candidate models may still be prepared for engineering review, but a
+        # candidate-ID split is not a physical holdout and must not emit scores.
+        metrics = {
+            "accuracy": None,
+            "macro_f1": None,
+            "per_class": {},
+            "test_support": len(test),
+            "classes_in_test": [],
+        }
+    metrics["evaluation_status"] = holdout["status"]
+    metrics["physical_holdout"] = holdout
     metrics["train_support"] = len(train)
     metrics["thresholds"] = {
         "min_test_samples": min_test_samples,
         "min_macro_f1": min_macro_f1,
     }
     eligible = (
-        metrics["test_support"] >= min_test_samples
+        holdout["verified"]
+        and metrics["accuracy"] is not None
+        and metrics["macro_f1"] is not None
+        and metrics["test_support"] >= min_test_samples
         and metrics["macro_f1"] >= min_macro_f1
         and len(set(y_true)) >= 2
     )
     metrics["eligible_for_activation"] = bool(eligible)
-    if metrics["test_support"] < min_test_samples:
+    if not holdout["verified"]:
+        metrics["blocking_reason"] = (
+            f"physical holdout is not verified: {holdout['samples_missing_physical_instance_id']} "
+            "training/holdout samples are missing physical instance IDs, or the holdout is empty/overlapping"
+        )
+    elif metrics["test_support"] < min_test_samples:
         metrics["blocking_reason"] = (
             f"held-out set has {metrics['test_support']} samples, "
             f"minimum is {min_test_samples}; collect more reviewed examples"

@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-25",
+  "stage": 11,
+  "change": "CPU voxel centroid and RGB aggregation uses sortable collision-free mixed-radix uint64 voxel keys when the bounded coordinate ranges fit; wide ranges retain the exact tuple-based fallback. Grouped sums use NumPy bincount.",
+  "verification": {
+    "test_command": "python -m pytest -p no:cacheprovider backend/tests/test_gpu_voxel.py -q",
+    "result": "11 passed",
+    "benchmark": {
+      "points": 300000,
+      "voxel_size_m": 0.05,
+      "input": "uniform random XYZ in [-100, 100] m with seeded RGB",
+      "occupied_voxels": 300000,
+      "runs_per_implementation": 3,
+      "median_previous_numpy_axis_unique_add_at_seconds": 0.388,
+      "median_optimized_numpy_seconds": 0.0773,
+      "speedup": 5.02,
+      "output_point_count_equal": true,
+      "centroids_bitwise_equal": true,
+      "rgb_means_bitwise_equal": true
+    }
+  },
+  "limitations": [
+    "Benchmark uses a synthetic in-memory sample and does not establish end-to-end full-scan performance or a GPU speedup.",
+    "CUDA hardware and distributed worker pipeline remain unavailable/unverified.",
+    "Stage 11 remains open; overall accepted stages remain 3/12; Stage 6 remains parked until the final pass."
+  ]
+}

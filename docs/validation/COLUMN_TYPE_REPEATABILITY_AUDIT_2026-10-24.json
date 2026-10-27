@@ -1,0 +1,223 @@
+{
+  "acceptance": {
+    "stage_6_closed": false,
+    "stage_8_closed": false
+  },
+  "audit_date": "2026-10-24",
+  "audit_type": "read_only_column_type_repeatability_sensitivity",
+  "clouds": [
+    {
+      "candidate_columns": 376,
+      "cloud_id": "workshop_cloud",
+      "cloud_name": "Сводное облако цеха (43.5 млн точек)",
+      "eligible_measured_sections": 39,
+      "eligible_morphology_counts": {
+        "other_section": 9,
+        "rectangular_solid": 16,
+        "stepped": 14
+      },
+      "eligible_section_coverage": {
+        "count": 39,
+        "maximum": 0.875,
+        "median": 0.5,
+        "minimum": 0.167
+      },
+      "independent_column_annotation_count": 0,
+      "ineligible_reason_counts": {
+        "incomplete_section_measurement": 337
+      },
+      "section_status_counts": {
+        "coarse_grid_only": 35,
+        "measured_2_axes": 2,
+        "measured_3_sides": 5,
+        "partial_one_axis": 61,
+        "unconfirmed": 241,
+        "unique_section": 32
+      },
+      "source_format": "ply",
+      "stored_point_count": 43500000,
+      "type_grouping_sensitivity": [
+        {
+          "columns_in_repeated_groups": 0,
+          "exploratory_only": false,
+          "group_size_histogram": {
+            "1": 39
+          },
+          "groups": 39,
+          "largest_group": 1,
+          "linear_tolerance_m": 0.005,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 0
+        },
+        {
+          "columns_in_repeated_groups": 0,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 39
+          },
+          "groups": 39,
+          "largest_group": 1,
+          "linear_tolerance_m": 0.01,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 0
+        },
+        {
+          "columns_in_repeated_groups": 4,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 35,
+            "2": 2
+          },
+          "groups": 37,
+          "largest_group": 2,
+          "linear_tolerance_m": 0.02,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 2
+        },
+        {
+          "columns_in_repeated_groups": 17,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 22,
+            "2": 7,
+            "3": 1
+          },
+          "groups": 30,
+          "largest_group": 3,
+          "linear_tolerance_m": 0.05,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 8
+        },
+        {
+          "columns_in_repeated_groups": 28,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 11,
+            "2": 6,
+            "3": 2,
+            "4": 1,
+            "6": 1
+          },
+          "groups": 21,
+          "largest_group": 6,
+          "linear_tolerance_m": 0.1,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 10
+        }
+      ]
+    },
+    {
+      "candidate_columns": 267,
+      "cloud_id": "2621e5a320df49949d04aa1b7399539e",
+      "cloud_name": "1.rcs (real, 7.2 GB)",
+      "eligible_measured_sections": 33,
+      "eligible_morphology_counts": {
+        "other_section": 5,
+        "rectangular_solid": 25,
+        "stepped": 3
+      },
+      "eligible_section_coverage": {
+        "count": 33,
+        "maximum": 0.833,
+        "median": 0.222,
+        "minimum": 0.111
+      },
+      "independent_column_annotation_count": 0,
+      "ineligible_reason_counts": {
+        "element_rejected": 1,
+        "incomplete_section_measurement": 231,
+        "inferred_geometry": 2,
+        "not_measured": 2
+      },
+      "section_status_counts": {
+        "coarse_grid_only": 34,
+        "measured_2_axes": 14,
+        "measured_3_sides": 13,
+        "measured_4_sides": 6,
+        "missing": 3,
+        "partial_one_axis": 34,
+        "unconfirmed": 163
+      },
+      "source_format": "rcs",
+      "stored_point_count": 40000000,
+      "type_grouping_sensitivity": [
+        {
+          "columns_in_repeated_groups": 0,
+          "exploratory_only": false,
+          "group_size_histogram": {
+            "1": 33
+          },
+          "groups": 33,
+          "largest_group": 1,
+          "linear_tolerance_m": 0.005,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 0
+        },
+        {
+          "columns_in_repeated_groups": 2,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 31,
+            "2": 1
+          },
+          "groups": 32,
+          "largest_group": 2,
+          "linear_tolerance_m": 0.01,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 1
+        },
+        {
+          "columns_in_repeated_groups": 2,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 31,
+            "2": 1
+          },
+          "groups": 32,
+          "largest_group": 2,
+          "linear_tolerance_m": 0.02,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 1
+        },
+        {
+          "columns_in_repeated_groups": 16,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 17,
+            "2": 3,
+            "3": 2,
+            "4": 1
+          },
+          "groups": 23,
+          "largest_group": 4,
+          "linear_tolerance_m": 0.05,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 6
+        },
+        {
+          "columns_in_repeated_groups": 26,
+          "exploratory_only": true,
+          "group_size_histogram": {
+            "1": 7,
+            "2": 2,
+            "3": 3,
+            "4": 2,
+            "5": 1
+          },
+          "groups": 15,
+          "largest_group": 5,
+          "linear_tolerance_m": 0.1,
+          "relative_tolerance": 0.01,
+          "repeated_groups": 8
+        }
+      ]
+    }
+  ],
+  "database": "scan2bim.sqlite3",
+  "database_mode": "read_only",
+  "implementation": "production column_descriptor/propose_column_types",
+  "interpretation": "Type proposals compare only eligible stored measured dimensions. They do not prove that two candidates are the same physical column. No tolerance is calibrated here; wider thresholds are sensitivity analysis only. Independent field labels remain required.",
+  "production_default_tolerance_m": 0.005,
+  "production_relative_tolerance": 0.01,
+  "wider_tolerances_are_exploratory_only": true
+}

@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "purpose": "Make native-window startup failure bounded and verify the updated current-source installer candidate in isolation",
+  "launcher_change": {
+    "file": "desktop_app.py",
+    "behavior": "Wait up to eight seconds for a visible Windows top-level window owned by the launched browser process; if the process exits or no visible window appears, log the failure and open the app URL in the default browser instead of waiting indefinitely.",
+    "focused_tests": {
+      "file": "backend/tests/test_desktop_app.py",
+      "passed": 12,
+      "failed": 0,
+      "warning": "One existing Starlette/httpx TestClient deprecation warning.",
+      "sandbox_note": "The managed sandbox denied pytest basetemp cleanup; the same focused suite passed in an isolated elevated TEMP root."
+    },
+    "live_window_detector_probe": {
+      "visible_revit_pid": 9100,
+      "revit_window_detected": true,
+      "previous_edge_pid_without_window": 11380,
+      "edge_window_detected": false
+    }
+  },
+  "candidate": {
+    "compiler": "Inno Setup 6.7.3",
+    "installer_path": "%TEMP%\\scan-stage12-installer-output-20261025\\SCAN_Studio_Windows11_Setup_Stage12_20261025.exe",
+    "sha256": "7A6A6B791B60A9D5D1787D57888CC8A28A274E775EFE60AEB3C767716DD82E0D",
+    "size_bytes": 170013300,
+    "isolated_install_exit_code": 0,
+    "smoke": {
+      "installed_source_manifest": "exact match; no missing or unexpected files",
+      "api_health_http": 200,
+      "ui_http": 200,
+      "remote_api_without_key_http": 401,
+      "pyc_files": 0,
+      "test_data_isolated_under_temp": true
+    },
+    "isolated_uninstall_exit_code": 0,
+    "install_directory_removed": true,
+    "uninstall_registry_entry_removed": true
+  },
+  "release": {
+    "release_installer_sha256_before_and_after": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+    "release_installer_modified": false,
+    "faro_sources_modified": false,
+    "production_project_data_modified": false
+  },
+  "acceptance": "The install/source/API/UI/security/uninstall software gate passed for this candidate. The packaged native-window launch was not rerun after the fallback change; actual visible-window launch, clean independent Windows 11 acceptance, signing and user acceptance remain open. Do not promote this candidate yet."
+}

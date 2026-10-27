@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-25",
+  "stage": 11,
+  "scope": "Read-only capability snapshot of the current development workstation",
+  "host": {
+    "os": "Windows 10.0.19045",
+    "python": "3.13.15"
+  },
+  "gpu_capability_tools": {
+    "nvidia_smi_on_path": false,
+    "python_modules": {
+      "torch": false,
+      "cupy": false,
+      "numba": false,
+      "open3d": false
+    },
+    "cuda_acceptance": "not verified on this host"
+  },
+  "release_host_implication": "This workstation is Windows 10, so it cannot establish acceptance on a separate clean Windows 11 machine.",
+  "safety": {
+    "source_scans_modified": false,
+    "project_database_modified": false,
+    "system_configuration_modified": false
+  },
+  "acceptance": "Capability snapshot only. CUDA, multi-host and independent clean Windows 11 acceptance remain open; no roadmap stage is closed by this check."
+}

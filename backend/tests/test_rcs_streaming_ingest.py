@@ -12,6 +12,7 @@ import pytest
 from scan2bim import ingest
 from scan2bim.formats import rcs_native
 from scan2bim.db import execute, new_id, one, utcnow
+from scan2bim.jobs import JobCancelled
 from scan2bim.storage import cloud_paths
 
 
@@ -21,6 +22,16 @@ def _block_record(xyz: np.ndarray, rgb: np.ndarray) -> dict[str, object]:
         "xyz_sha256": hashlib.sha256(np.ascontiguousarray(xyz, dtype="<f8").tobytes()).hexdigest(),
         "rgb_sha256": hashlib.sha256(np.ascontiguousarray(rgb, dtype="u1").tobytes()).hexdigest(),
     }
+
+
+def test_full_resolution_batch_estimator_uses_packed_raw_stream_size():
+    estimate = rcs_native.estimate_full_resolution_batch_disk_bytes(
+        [297_873_927, 574_367_742], max_preview_points=2_500_000,
+    )
+
+    assert estimate is not None
+    assert estimate["raw_stream_peak_bytes"] == 574_367_742 * 15
+    assert estimate["required_bytes"] == 25_025_297_106
 
 
 def test_stream_checkpoint_retries_temporary_windows_replace_lock(tmp_path, monkeypatch):
@@ -69,7 +80,9 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
     )
     rgb = np.array([[i, 20 + i, 200 - i] for i in range(7)], dtype=np.uint8)
     original_source_sha256 = rcs_native._stream_source_identity(source)["sha256"]
-    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 0)
+    # A per-import zero must override the deployment's bounded default while
+    # still selecting the disk-streamed native RCS reader.
+    monkeypatch.setattr(ingest, "MAX_INGEST_POINTS", 40_000_000)
     stage_dir = cloud_paths(project["id"], cloud_id)["dir"] / ".ingest-stage"
     raw_dir = stage_dir / "raw"
     raw_dir.mkdir(parents=True)
@@ -99,9 +112,11 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
             np.fromfile(out_dir / "rgb.u8", dtype="u1").reshape(-1, 3), partial_rgb
         )
         out_dir.mkdir(parents=True, exist_ok=True)
-        xyz_path = out_dir / "xyz.f64"
+        block_origin = (xyz.min(axis=0) + xyz.max(axis=0)) / 2.0
+        packed_xyz = (xyz - block_origin).astype("<f4")
+        xyz_path = out_dir / "xyz.local.f32"
         rgb_path = out_dir / "rgb.u8"
-        xyz.tofile(xyz_path)
+        packed_xyz.tofile(xyz_path)
         rgb.tofile(rgb_path)
         if replace_source_during_read:
             source_stat = source.stat()
@@ -111,6 +126,9 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
             "point_count": len(xyz),
             "xyz_path": xyz_path,
             "rgb_path": rgb_path,
+            "xyz_dtype": "<f4",
+            "blocks": [{"points": len(xyz), "origin": block_origin.tolist()}],
+            "block_local_coordinates": True,
             "reader": {
                 "reader": "synthetic-stream",
                 "reader_abi": "test",
@@ -124,11 +142,11 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
 
     if replace_source_during_read:
         with pytest.raises(RuntimeError, match="source content changed"):
-            ingest.ingest_cloud(project["id"], cloud_id, source)
+            ingest.ingest_cloud(project["id"], cloud_id, source, max_points=0)
         assert not (stage_dir / "raw").exists()
         return
 
-    result = ingest.ingest_cloud(project["id"], cloud_id, source)
+    result = ingest.ingest_cloud(project["id"], cloud_id, source, max_points=0)
 
     paths = cloud_paths(project["id"], cloud_id)
     origin = (xyz.min(axis=0) + xyz.max(axis=0)) / 2
@@ -138,6 +156,78 @@ def test_unlimited_rcs_ingest_uses_disk_stream_and_preserves_all_points(
     assert result["decimated"] is False
     assert one("SELECT ingested_count FROM clouds WHERE id = ?", (cloud_id,))["ingested_count"] == len(xyz)
     assert one("SELECT status FROM clouds WHERE id = ?", (cloud_id,))["status"] == "ready"
+    assert not (paths["dir"] / ".ingest-stage").exists()
+
+
+def test_full_resolution_rcs_ingest_resumes_from_native_stream_checkpoint(
+    client, tmp_path, monkeypatch,
+):
+    monkeypatch.setattr(ingest, "MIN_INGEST_DISK_RESERVE_BYTES", 0)
+    monkeypatch.setattr(ingest, "MAX_PREVIEW_POINTS", 2)
+    monkeypatch.setattr(ingest, "native_available", lambda: {"dll_exists": True})
+    source = tmp_path / "synthetic-faro-resume.rcs"
+    source.write_bytes(b"synthetic FARO marker; native stream is simulated")
+    source_sha256 = rcs_native._stream_source_identity(source)["sha256"]
+    project = client.post("/api/v1/projects", json={"name": "full RCS resume"}).json()
+    cloud_id = new_id()
+    now = utcnow()
+    execute(
+        """INSERT INTO clouds
+        (id, project_id, name, source_path, source_format, size_bytes, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?)""",
+        (cloud_id, project["id"], source.name, str(source), "rcs", source.stat().st_size,
+         "processing", now, now),
+    )
+    xyz = np.array(
+        [[100.0 + i, 200.0 - i, 3.0 + 2 * i] for i in range(6)], dtype="<f8",
+    )
+    rgb = np.array([[i, 20 + i, 200 - i] for i in range(6)], dtype="u1")
+    calls = 0
+
+    def simulated_native_reader(_source, raw_dir: Path, progress=None):
+        nonlocal calls
+        calls += 1
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint = raw_dir / "stream.json"
+        if calls == 1:
+            xyz[:2].tofile(raw_dir / "xyz.f64")
+            rgb[:2].tofile(raw_dir / "rgb.u8")
+            checkpoint.write_text(json.dumps({"committed_count": 2, "complete": False}), encoding="utf-8")
+            raise JobCancelled("simulated cancellation during full-resolution native stream")
+
+        assert checkpoint.is_file(), "resume must retain the committed native stream checkpoint"
+        np.asarray(xyz, dtype="<f8").tofile(raw_dir / "xyz.f64")
+        rgb.tofile(raw_dir / "rgb.u8")
+        checkpoint.write_text(json.dumps({"committed_count": len(xyz), "complete": True}), encoding="utf-8")
+        return {
+            "point_count": len(xyz),
+            "xyz_path": raw_dir / "xyz.f64",
+            "rgb_path": raw_dir / "rgb.u8",
+            "reader": {"reader": "simulated-native-RCS", "source_sha256": source_sha256},
+        }
+
+    monkeypatch.setattr(ingest, "extract_rcs_native", simulated_native_reader)
+    with pytest.raises(JobCancelled, match="during full-resolution native stream"):
+        ingest.ingest_cloud(project["id"], cloud_id, source, max_points=0)
+
+    paths = cloud_paths(project["id"], cloud_id)
+    raw_dir = paths["dir"] / ".ingest-stage" / "raw"
+    assert (raw_dir / "stream.json").is_file()
+    assert not paths["positions"].exists()
+
+    result = ingest.ingest_cloud(project["id"], cloud_id, source, max_points=0)
+
+    origin = (xyz.min(axis=0) + xyz.max(axis=0)) / 2
+    np.testing.assert_array_equal(np.load(paths["positions"]), (xyz - origin).astype(np.float32))
+    np.testing.assert_array_equal(np.load(paths["colors"]), rgb)
+    cloud = client.get(f"/api/v1/clouds/{cloud_id}").json()
+    assert calls == 2
+    assert result["ingested_count"] == len(xyz)
+    assert result["decimated"] is False
+    assert cloud["status"] == "ready"
+    assert cloud["point_count"] == cloud["ingested_count"] == len(xyz)
+    assert cloud["metadata"]["source_unchanged"] is True
+    assert cloud["metadata"]["checksum_sha256"] == source_sha256
     assert not (paths["dir"] / ".ingest-stage").exists()
 
 
@@ -205,6 +295,72 @@ def test_native_rcs_child_writes_every_point_in_bounded_blocks(tmp_path, monkeyp
     rgb._mmap.close()
 
 
+def test_packed_full_resolution_rcs_stream_preserves_points_with_block_origins(tmp_path, monkeypatch):
+    monkeypatch.setattr(rcs_native, "MIN_FREE_DISK_BYTES", 0)
+    monkeypatch.setattr(rcs_native, "CHUNK", 2)
+    source = tmp_path / "synthetic-packed.rcs"
+    source.write_bytes(b"synthetic")
+    out_dir = tmp_path / "packed-raw"
+    xyz_expected = np.array([
+        [1_000_000_000.125, 2_000_000_000.25, -3_000_000_000.5],
+        [1_000_000_001.125, 2_000_000_002.25, -2_999_999_997.5],
+        [1_000_000_010.125, 2_000_000_020.25, -2_999_999_990.5],
+        [1_000_000_011.125, 2_000_000_021.25, -2_999_999_989.5],
+        [1_000_000_100.125, 2_000_000_100.25, -2_999_999_900.5],
+    ], dtype=np.float64)
+    rgb_expected = np.arange(15, dtype=np.uint8).reshape(5, 3)
+    state = {"index": 0}
+
+    def advance(_this):
+        if state["index"] >= len(xyz_expected):
+            return 0
+        state["index"] += 1
+        return 1
+
+    def write_position(_this, address):
+        target = (rcs_native.ctypes.c_double * 3).from_address(address)
+        target[:] = xyz_expected[state["index"] - 1]
+
+    def write_color(_this, address):
+        target = (rcs_native.ctypes.c_ubyte * 4).from_address(address)
+        target[:3] = rgb_expected[state["index"] - 1]
+        target[3] = 255
+
+    implementations = {
+        rcs_native.M_CTOR: lambda *_args: 1,
+        rcs_native.M_DTOR: lambda *_args: 1,
+        rcs_native.M_OPEN: lambda *_args: 1,
+        rcs_native.M_ADV: advance,
+        rcs_native.M_POS: write_position,
+        rcs_native.M_COLOR: write_color,
+        rcs_native.M_CLOSE: lambda *_args: 1,
+    }
+    monkeypatch.setattr(rcs_native, "RECAP_DIR", tmp_path)
+    monkeypatch.setattr(rcs_native.os, "add_dll_directory", lambda *_args: None, raising=False)
+    monkeypatch.setattr(rcs_native.ctypes, "CDLL", lambda *_args: type("Lib", (), {"_handle": 1})())
+    monkeypatch.setattr(rcs_native, "_resolve", lambda _handle, symbol, _nargs: implementations[symbol])
+
+    kept = rcs_native._stream(source, out_dir, max_points=0, packed_all=True)
+
+    checkpoint = json.loads((out_dir / "stream.json").read_text(encoding="utf-8"))
+    assert kept == len(xyz_expected)
+    assert checkpoint["version"] == rcs_native.PACKED_STREAM_CHECKPOINT_VERSION
+    packed_path = out_dir / "xyz.local.f32"
+    assert packed_path.stat().st_size == len(xyz_expected) * 3 * 4
+    packed = np.memmap(packed_path, mode="r", dtype="<f4", shape=(kept, 3))
+    restored = np.empty_like(xyz_expected)
+    cursor = 0
+    for block in checkpoint["blocks"]:
+        end = cursor + block["points"]
+        restored[cursor:end] = packed[cursor:end].astype(np.float64) + block["origin"]
+        cursor = end
+    np.testing.assert_allclose(restored, xyz_expected, rtol=0, atol=2e-6)
+    np.testing.assert_array_equal(np.fromfile(out_dir / "rgb.u8", dtype="u1").reshape(-1, 3), rgb_expected)
+    assert max(np.abs(packed).max(axis=1)) < 100
+    rcs_native._verify_stream_files(out_dir, checkpoint, exact_size=True)
+    packed._mmap.close()
+
+
 def test_native_rcs_parent_requires_all_stream_and_validates_raw_file_sizes(tmp_path, monkeypatch):
     source = tmp_path / "synthetic.rcs"
     source.write_bytes(b"synthetic")
@@ -219,16 +375,24 @@ def test_native_rcs_parent_requires_all_stream_and_validates_raw_file_sizes(tmp_
             calls.append(command)
             out_dir = Path(command[4])
             out_dir.mkdir(parents=True, exist_ok=True)
-            xyz.tofile(out_dir / "xyz.f64")
+            packed_xyz = xyz.astype("<f4")
+            packed_xyz.tofile(out_dir / "xyz.local.f32")
             rgb.tofile(out_dir / "rgb.u8")
             (out_dir / "stream.json").write_text(
                 json.dumps(
                     {
-                        "version": rcs_native.STREAM_CHECKPOINT_VERSION,
+                        "version": rcs_native.PACKED_STREAM_CHECKPOINT_VERSION,
                         "source_identity": rcs_native._stream_source_identity(source),
                         "committed_count": len(xyz),
                         "chunk_size": rcs_native.CHUNK,
-                        "blocks": [_block_record(xyz, rgb)],
+                        "blocks": [
+                            {
+                                "points": len(xyz),
+                                "origin": [0.0, 0.0, 0.0],
+                                "xyz_sha256": hashlib.sha256(packed_xyz.tobytes()).hexdigest(),
+                                "rgb_sha256": hashlib.sha256(rgb.tobytes()).hexdigest(),
+                            }
+                        ],
                         "complete": True,
                     }
                 ),
@@ -246,9 +410,12 @@ def test_native_rcs_parent_requires_all_stream_and_validates_raw_file_sizes(tmp_
 
     stream = rcs_native.extract_rcs_native(source, tmp_path / "out")
 
-    assert "--all" in calls[0]
+    assert "--packed-all" in calls[0]
     assert stream["point_count"] == 6
-    assert stream["xyz_path"].stat().st_size == 6 * 3 * 8
+    assert stream["xyz_dtype"] == "<f4"
+    assert stream["block_local_coordinates"] is True
+    assert stream["xyz_path"].name == "xyz.local.f32"
+    assert stream["xyz_path"].stat().st_size == 6 * 3 * 4
     assert stream["rgb_path"].stat().st_size == 6 * 3
 
 
@@ -411,7 +578,7 @@ def test_native_rcs_stream_resumes_after_last_committed_chunk(tmp_path, monkeypa
     rgb._mmap.close()
 
 
-def test_native_rcs_stream_pauses_at_disk_reserve_and_resumes(tmp_path, monkeypatch):
+def test_native_rcs_stream_preserves_finalization_headroom_and_resumes(tmp_path, monkeypatch):
     source = tmp_path / "synthetic-low-disk.rcs"
     source.write_bytes(b"synthetic")
     out_dir = tmp_path / "low-disk-raw"
@@ -451,6 +618,7 @@ def test_native_rcs_stream_pauses_at_disk_reserve_and_resumes(tmp_path, monkeypa
     monkeypatch.setattr(rcs_native.ctypes, "CDLL", lambda *_args: type("Lib", (), {"_handle": 1})())
     monkeypatch.setattr(rcs_native, "_resolve", lambda _handle, symbol, _nargs: implementations[symbol])
     monkeypatch.setattr(rcs_native, "CHUNK", 2)
+    monkeypatch.setattr(rcs_native, "MIN_FREE_DISK_BYTES", 100)
 
     class Usage:
         def __init__(self, free):
@@ -458,10 +626,13 @@ def test_native_rcs_stream_pauses_at_disk_reserve_and_resumes(tmp_path, monkeypa
 
     def low_disk_after_one_block(_path):
         state["disk_checks"] += 1
-        return Usage(10**12 if state["disk_checks"] == 1 else 0)
+        # Two chunks contain four points. Raw rows have already been streamed,
+        # so stop before consuming the 120 bytes needed for derived XYZ/RGB and
+        # preview arrays, even though the legacy 100-byte reserve remains.
+        return Usage(10**12 if state["disk_checks"] == 1 else 219)
 
     monkeypatch.setattr(rcs_native.shutil, "disk_usage", low_disk_after_one_block)
-    with pytest.raises(RuntimeError, match="preserve disk reserve"):
+    with pytest.raises(RuntimeError, match="preserve disk reserve for derived arrays and preview"):
         rcs_native._stream(source, out_dir, max_points=0, stream_all=True)
 
     paused = json.loads((out_dir / "stream.json").read_text(encoding="utf-8"))

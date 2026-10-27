@@ -1,0 +1,27 @@
+{
+  "schema": "scan2bim.validation/revit-post-reopen-audit-build/1.0",
+  "created_at": "2026-10-25T20:02:23.7314564Z",
+  "candidate_dll": "C:\\Users\\maxim\\AppData\\Local\\Temp\\scan-revit-verify-audit-build\\Scan.Revit.Plugin.dll",
+  "candidate_sha256": "F0EF6C780942B847C8FDB5B0007C98F7B458FC3D706BBBFA64295D87A31C94F4",
+  "current_project_output": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\integrations\\revit\\Scan.Plugin\\bin\\Release\\net10.0-windows\\Scan.Revit.Plugin.dll",
+  "current_project_output_sha256": "B4FDC8FE6B4199337C91C52C20638525BA031BCADC0402F8CDD26DC74A3F65CE",
+  "revit_process": 9100,
+  "build": {
+    "output_isolated": true,
+    "exit_code": 0,
+    "errors": 0,
+    "warnings": 3
+  },
+  "policy_checks": {
+    "member_section": 7,
+    "provenance_serialization": 2,
+    "member_axis": 4,
+    "slab_geometry": 8,
+    "audit_inclusion": 6,
+    "result": "PASS"
+  },
+  "installer_script_syntax": "PASS",
+  "installed_or_loaded": false,
+  "host_execution": "PENDING_REQUIRES_REVIT_RESTART",
+  "acceptance": "PARTIAL"
+}

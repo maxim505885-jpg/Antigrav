@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-25",
+  "stage": 8,
+  "standard": "ГОСТ 35087-2024",
+  "official_status": "in_force",
+  "official_standard_card": "https://protect.gost.ru/gost/details/63278470-4edb-4de1-88ca-2da45c12d7d4",
+  "official_correction_notices": [
+    {"registered": "2024-12-24", "effective": "2025-01-14", "publication": "ИУС 4-2025", "card": "https://protect.gost.ru/gost/changesdetails/02783391-4b4e-4d22-bfc5-e07cb44a7f17"},
+    {"registered": "2025-12-12", "effective": "2025-12-16", "publication": "ИУС 12-2025", "card": "https://protect.gost.ru/gost/changesdetails/8fbcc064-72a2-46fa-a6e7-3edbc931c984"},
+    {"registered": "2026-01-14", "effective": "2026-02-02", "publication": "ИУС 4-2026", "card": "https://protect.gost.ru/gost/changesdetails/43793f40-d562-4993-8f95-573a8f946110"},
+    {"registered": "2026-10-13", "effective": "2026-10-13", "publication": "ИУС 10-2026", "card": "https://protect.gost.ru/gost/changesdetails/84820a23-1fb3-4f1b-9bcb-b5677c57ed8f"}
+  ],
+  "content_review": {
+    "official_cards_publish_change_metadata_only": true,
+    "full_texts_available_from_official_cards": false,
+    "public_secondary_text_review": [
+      {
+        "publication": "ИУС 4-2025",
+        "changes": [
+          "Таблица 2, допуск размера: '290 и ширине b от 220' исправлено на '290 и ширине b до 220'.",
+          "Пункт 9.10.1: марки С245, С255, С345, С355, С390, С440 уточнены до С245Б, С255Б, С345Б, С355Б, С390Б, С440Б.",
+          "Приложение А: пример профиля 20 уточнён до 20У."
+        ],
+        "source": "https://base.garant.ru/411318665/",
+        "impact_on_current_excerpt": "The excerpt stores nominal profile dimensions only; it has no delivery-tolerance, steel-grade or order-designation fields. No current row requires alteration."
+      },
+      {
+        "publication": "ИУС 12-2025",
+        "changes": ["Предисловие, таблица согласования: исправлена строка Азербайджана (Азстандарт)."],
+        "source": "https://gostam.ru/pdfs/gost-35087.pdf",
+        "impact_on_current_excerpt": "No effect on profile dimensions or geometry."
+      },
+      {
+        "publication": "ИУС 4-2026",
+        "changes": ["Для профиля 90Ш1 значение Sy исправлено с 270.94 до 441.85 см3."],
+        "source": "https://base.garant.ru/413783136/",
+        "impact_on_current_excerpt": "The current 11-row catalog has no 90Ш1 and stores no Sy property; no current row requires alteration."
+      }
+    ],
+    "official_viewer_probe": {
+      "correction_card": "https://protect.gost.ru/gost/changesdetails/84820a23-1fb3-4f1b-9bcb-b5677c57ed8f",
+      "viewer_page_count": 1,
+      "access_result": "document preview displays an authorization-required lock notice; correction text is not visible without an authorized account",
+      "correction_content_obtained": false
+    },
+    "secondary_confirmation": {
+      "correction": "ИУС 4-2026 corrects the Sy table value for profile 90Ш1 from 270.94 to 441.85 cm3.",
+      "source": "https://base.garant.ru/413783136/",
+      "impact_on_current_excerpt": "The current 11-row catalog has no 90Ш1 and stores no Sy property; this known correction does not change its current rows."
+    },
+    "unknown_effects": ["ИУС 10-2026"]
+  },
+  "catalog_decision": {
+    "rows_changed": 0,
+    "status_remains": "base_edition_only_latest_corrections_unverified",
+    "why": "Public secondary texts resolve the contents of ИУС 4-2025, ИУС 12-2025 and ИУС 4-2026; none requires changing the current 11-row dimensional excerpt. The latest ИУС 10-2026 text remains locked behind an authorized official viewer, so the catalog stays a provisional excerpt until that correction is reviewed.",
+    "no_engineering_acceptance_claim": true
+  },
+  "acceptance": {"stage_8": "in_progress", "overall_closed_stages": "3/12", "stage_6": "parked until the final pass"}
+}

@@ -1,0 +1,29 @@
+{
+  "recorded_at": "2026-10-25T09:00:00+03:00",
+  "stage": 2,
+  "check": "Read-only free-space recheck after rebuilding and uninstalling the latest release package.",
+  "target": "10.rcp full-resolution estimated requirement",
+  "required_bytes": 14782617889,
+  "required_gib": 13.767,
+  "volumes": {
+    "C": {
+      "free_bytes": 2183434240,
+      "free_gib": 2.033,
+      "ready": true
+    },
+    "R": {
+      "ready": false,
+      "probe": "PowerShell access denied for mapped volume path"
+    }
+  },
+  "deficit_bytes": 12599183649,
+  "deficit_gib": 11.734,
+  "full_import_started": false,
+  "faro_sources_modified": false,
+  "production_database_modified": false,
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-25",
+  "stage": 12,
+  "scope": "Isolated native-window launch attempt for the current-source installer candidate",
+  "candidate": {
+    "installer_sha256": "CE93E36D748839146A13376E8D89D662BB3584D8C17A4B3B45C6A8F9B12084B",
+    "temporary_install_root": "%TEMP%\\scan-stage12-native-smoke-20261025",
+    "data_root": "%TEMP%\\scan-stage12-native-data-20261025"
+  },
+  "launch": {
+    "url": "http://127.0.0.1:8000",
+    "browser": "Microsoft Edge",
+    "pid_reported_by_launcher": 11380,
+    "visible_top_level_window_found": false,
+    "process_main_window_handle": 0,
+    "process_main_window_title": "",
+    "launch_report": "%TEMP%\\scan-stage12-native-launch-report-20261025.json"
+  },
+  "isolation": {
+    "port_8000_owner_pid": 24280,
+    "port_owner_is_candidate_runtime": false,
+    "candidate_runtime_processes_stopped": [7788, 20752],
+    "candidate_uninstaller_exit_code": 0,
+    "candidate_install_files_removed": true,
+    "candidate_uninstall_registry_entry_removed": true,
+    "release_installer_modified": false,
+    "production_data_modified": false,
+    "faro_source_modified": false
+  },
+  "acceptance": "Native desktop-window launch is not verified: Edge had no visible top-level window, and port 8000 belonged to the pre-existing source API process. The candidate was not promoted. Stage 12 remains open."
+}

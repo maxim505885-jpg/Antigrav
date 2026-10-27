@@ -1,0 +1,50 @@
+{
+  "checked_at_local": "2026-10-25T20:09:10+03:00",
+  "stage": 12,
+  "status": "isolated_candidate_install_source_api_ui_uninstall_smoke_passed_not_promoted",
+  "candidate": {
+    "path": "%TEMP%/scan-stage12-build-20261025/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170009501,
+    "sha256": "CE93E36D748839146A13376E8D89D662BB3584D8C17A4B3B45C6A8F9B12084B5",
+    "compiler": "Inno Setup 6.7.3 x64"
+  },
+  "execution": {
+    "scope": "Codex sandbox escalation for an isolated install under the same Windows user; Inno ran in non-administrative, per-user mode",
+    "destination": "%TEMP%/scan-stage12-elevated-smoke-20261025",
+    "setup_log": "%TEMP%/scan-stage12-elevated-smoke-20261025-setup.log",
+    "uninstall_log": "%TEMP%/scan-stage12-elevated-smoke-20261025-uninstall.log"
+  },
+  "results": {
+    "install_exit_code": 0,
+    "installed_python_source_manifest": {
+      "hash_mismatches": 0,
+      "missing_installed": 0,
+      "unexpected_installed": 0
+    },
+    "runtime_smoke_exit_code": 0,
+    "api_health_http": 200,
+    "ui_http": 200,
+    "remote_api_without_key_http": 401,
+    "python_bytecode_files": 0,
+    "runtime_data_isolated_under_temp": true,
+    "uninstall_exit_code": 0,
+    "install_directory_removed": true,
+    "uninstall_registry_key_removed": true,
+    "runtime_smoke_data_directories_remaining": 0,
+    "scan_start_menu_directories_remaining": 0
+  },
+  "preservation": {
+    "current_release_path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "current_release_sha256_before_and_after": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+    "current_release_modified": false,
+    "faro_source_files_modified": false
+  },
+  "diagnosis": "The earlier ordinary sandbox attempt failed because the managed sandbox denied the per-user uninstall registry write. The same candidate then installed and uninstalled successfully when that sandbox restriction was lifted; the underlying Windows user profile ACL was not defective.",
+  "remaining_acceptance": [
+    "native desktop window launch from the installed bundle",
+    "clean independent Windows 11 acceptance",
+    "code signing",
+    "final release promotion and user acceptance"
+  ],
+  "decision": "Do not replace the current release artifact yet; the listed acceptance gates remain open."
+}

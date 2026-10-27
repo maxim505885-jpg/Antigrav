@@ -1,0 +1,48 @@
+{
+  "recorded_at": "2026-10-25T08:58:00+03:00",
+  "stage": 12,
+  "purpose": "Rebuild the current SCAN package, verify all installed Python runtime sources, test the packaged API/UI/security boundary, and uninstall the isolated current-user installation.",
+  "release_preflight": "passed",
+  "focused_source_manifest_tests": {
+    "passed": 2,
+    "failed": 0
+  },
+  "installer": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "bytes": 170022638,
+    "sha256": "4B994451B33DB665A66A7E8D617BB85DFE2D8DD59BD005D5CC0B38033EAA3653",
+    "compiler": "Inno Setup 6.7.3",
+    "authenticode": "NotSigned",
+    "previous_build_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre_rcp_count_warning_ui_20261025.exe",
+    "previous_build_sha256": "79A6AC17D35D6E138C51E2B05F82F02C356537AF6F3E38567BA640DB9CD9593A",
+    "compiler_seconds": 133.359,
+    "included_frontend_asset": "frontend/dist/assets/index-CWQ2jZ9v.js",
+    "included_frontend_asset_sha256": "EA816D7AEE5507E9DE91108960220EF8C63E0594A580C2CA9B28F290672B9F9C"
+  },
+  "isolated_install": {
+    "host_os": "Windows 10.0.19045",
+    "install_exit_code": 0,
+    "runtime_source_manifest": "all desktop_app.py and backend/scan2bim Python sources match working tree by SHA-256; no missing, extra or changed files",
+    "python_bytecode_before_startup": 0,
+    "api_health_http": 200,
+    "api_health": "ok",
+    "production_ui_http": 200,
+    "ui_title_present": true,
+    "remote_protected_api_without_key_http": 401,
+    "test_data_root": "unique path under TEMP",
+    "uninstall_exit_code": 0,
+    "temporary_install_removed": true,
+    "source_faro_files_modified": false,
+    "production_database_modified": false,
+    "installed_frontend_assets_match_current_build": true,
+    "install_log_reports_success": true
+  },
+  "acceptance": {
+    "stage_12": "in_progress",
+    "overall_closed_stages": "3/12",
+    "clean_windows_11_acceptance": "not_verified",
+    "code_signing": "not_signed",
+    "native_window_and_user_acceptance": "still_required",
+    "stage_6": "parked_until_final_pass"
+  }
+}

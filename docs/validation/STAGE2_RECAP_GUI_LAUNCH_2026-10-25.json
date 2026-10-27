@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-10-25T04:06:00Z",
+  "stage": 2,
+  "scope": "ReCap GUI launch preflight for sampled two-station native RCP",
+  "application": {
+    "path": "C:/Program Files/Autodesk/Autodesk ReCap/ReCap.exe",
+    "version": "24.0.0.240",
+    "publisher": "Autodesk, Inc."
+  },
+  "project": {
+    "path": "C:/Users/maxim/.codex/visualizations/2026/10/21/01a15bf8-9fe1-7a11-973a-78493d211b69/scan_recap_pilot_20261024/deCap_output/SCAN_FARO_two_scan_pilot_20261024/SCAN_FARO_two_scan_pilot_20261024.rcp",
+    "bytes": 2202,
+    "sha256": "46dd7f26300e66a919776eb52744fd1b6ad91e7049e6d86fa5d27e6d77da84af",
+    "linked_sample_rcs_count": 2,
+    "linked_sample_rcs_total_bytes": 4258510
+  },
+  "launch_attempts": [
+    {"arguments": ["C:/Users/maxim/.codex/visualizations/2026/10/21/01a15bf8-9fe1-7a11-973a-78493d211b69/scan_recap_pilot_20261024/deCap_output/SCAN_FARO_two_scan_pilot_20261024/SCAN_FARO_two_scan_pilot_20261024.rcp"], "exit_code": 1, "window_observed": false},
+    {"arguments": [], "working_directory_set": true, "exit_code": 1, "window_observed": false}
+  ],
+  "project_opened": false,
+  "project_modified": false,
+  "round_trip_status": "unverified",
+  "acceptance_status": "open",
+  "note": "Both the direct project launch and a launch without arguments exited before a ReCap window appeared. The sampled RCP package and linked RCS files were only read for identity and size checks."
+}

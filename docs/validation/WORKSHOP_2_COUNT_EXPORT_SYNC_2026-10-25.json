@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-25",
+  "stages": [2, 10],
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud_02",
+  "verified_source_point_count": 574367742,
+  "stored_sample_point_count": 3500000,
+  "legacy_unverified_point_count": 576820490,
+  "source_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+  "reader_version": "24.0.0.240",
+  "repeatability_basis": "Two full sequential passes through installed Autodesk AdskRcExport.dll",
+  "changes": [
+    "Added a shared verified Workshop 2 count and idempotent provenance normalizer.",
+    "Preparation script writes the verified source count to SQLite and metadata even when the derived sample already exists.",
+    "Preparation script checks source path, size, mtime and full SHA-256 against the stream manifest and audited source before writing any output or database changes.",
+    "Metadata normalization rejects a missing/mismatched actual source SHA or conflicting declared source identity.",
+    "Synchronized the existing research-only RCP XML draft and JSON sidecar to the verified count.",
+    "Corrected generator docstrings to state that the XML is not a native or openable ReCap project."
+  ],
+  "verification": {
+    "direct_unit_checks_passed": 4,
+    "python_compile": "passed",
+    "draft_xml_parse": "passed",
+    "draft_manifest_parse": "passed",
+    "draft_xml_and_manifest_count": 574367742,
+    "live_api_http_status": 200,
+    "live_api_source_point_count": 574367742,
+    "fresh_studio_view": "574,367,742 points",
+    "source_sha_guard_test": "passed for mismatched actual hash and conflicting metadata identity",
+    "pytest_export_bundle_case": "not verified; Windows Access denied creating nested test directory",
+    "source_rcs_modified": false,
+    "point_arrays_modified": false,
+    "database_modified_in_this_change": false
+  },
+  "acceptance": {
+    "stage_2_closed": false,
+    "stage_10_closed": false,
+    "overall_closed_stages": "3/12"
+  }
+}

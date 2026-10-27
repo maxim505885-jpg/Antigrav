@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ColumnAnnotation, type ColumnAnnotationArchiveResponse, type ColumnAnnotationDataset, type ColumnAnnotationDraft, type ColumnSurfaceTrackAnalysisResponse } from "../api";
 import { restoreAnnotationAsDraft } from "../annotationRecovery";
 import { buildColumnAnnotationHeightSuggestions } from "../columnAnnotationSuggestions";
-import { columnAnnotationQueueStats, nextPendingColumn } from "../columnAnnotationQueue";
+import { validateColumnAnnotationSurfaceAnalysis } from "../columnAnnotationSurfaceAnalysis";
+import { columnAnnotationQueueStats, nextPendingColumn, upsertColumnAnnotation } from "../columnAnnotationQueue";
 import type { Element } from "../types";
 
 interface Props {
@@ -29,6 +30,23 @@ const SHAPES: [NonNullable<ColumnAnnotationDraft["shape_label"]>, string][] = [
   ["rectangular_solid", "Сплошное прямоугольное"], ["built_up", "Составное / двутавровое"],
   ["stepped", "Ступенчатое"], ["circular", "Круглое"], ["other", "Другое"], ["unknown", "Не определено"],
 ];
+const TRACK_EXCLUSION_LABELS: Record<string, string> = {
+  association_outside_candidate_boundary: "Поверхность находится вне границы кандидатной грани",
+  association_outside_candidate_span: "Поверхность находится вне продольного пролёта кандидатной грани",
+  association_outside_candidate_vertical_extent: "Поверхность находится выше или ниже границ колонны",
+  association_no_candidate_edge: "Для поверхности не найдена подходящая грань колонны",
+  association_insufficient_vertical_support: "Поверхность не имеет достаточной вертикальной опоры для привязки к грани",
+  outside_candidate_vertical_extent: "Высотный диапазон поверхности не пересекается с колонной",
+  track_boundary_delta_exceeds_limit: "Смещение поверхности от кандидатной грани превышает установленный предел",
+  track_span_exceeds_candidate_face: "Длина поверхности выходит за пределы кандидатной грани",
+  track_normal_deviation_exceeds_limit: "Направление поверхности не совпадает с гранью колонны",
+  insufficient_vertical_support: "Вертикальная опора поверхности недостаточна",
+  no_supported_candidate_edge: "Поверхность не удалось связать с гранью колонны",
+};
+
+function trackExclusionLabel(reason: string) {
+  return TRACK_EXCLUSION_LABELS[reason] || `Причина требует проверки: ${reason}`;
+}
 
 function initial(annotation?: ColumnAnnotation): Omit<ColumnAnnotationDraft, "source_snapshot_sha256"> {
   return {
@@ -58,11 +76,13 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
   const [notice, setNotice] = useState("");
   const [algorithmDraftPending, setAlgorithmDraftPending] = useState(false);
   const [algorithmDraftVerified, setAlgorithmDraftVerified] = useState(false);
+  const [liveSurfaceAnalysis, setLiveSurfaceAnalysis] = useState<ColumnSurfaceTrackAnalysisResponse | null>(null);
+  const [surfaceAnalysisLoading, setSurfaceAnalysisLoading] = useState(false);
   const current = dataset?.annotations.find((item) => item.element_id === element.id);
-  const analysisSuggestions = useMemo(() => {
-    if (!surfaceAnalysis || surfaceAnalysis.cloud_id !== cloudId || surfaceAnalysis.candidate_id !== element.id) return [];
-    return buildColumnAnnotationHeightSuggestions(surfaceAnalysis);
-  }, [surfaceAnalysis, cloudId, element.id]);
+  const activeSurfaceAnalysis = surfaceAnalysis?.cloud_id === cloudId && surfaceAnalysis.candidate_id === element.id
+    ? surfaceAnalysis
+    : liveSurfaceAnalysis?.cloud_id === cloudId && liveSurfaceAnalysis.candidate_id === element.id ? liveSurfaceAnalysis : null;
+  const analysisSuggestions = useMemo(() => activeSurfaceAnalysis ? buildColumnAnnotationHeightSuggestions(activeSurfaceAnalysis) : [], [activeSurfaceAnalysis]);
 
   useEffect(() => {
     let active = true;
@@ -95,6 +115,18 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
   const queueStats = useMemo(() => columnAnnotationQueueStats(columns, dataset?.annotations || []), [columns, dataset?.annotations]);
   const nextColumn = useMemo(() => nextPendingColumn(columns, dataset?.annotations || [], element.id), [columns, dataset?.annotations, element.id]);
 
+  async function analyzeSourceSections() {
+    setSurfaceAnalysisLoading(true); setError(""); setNotice(""); setLiveSurfaceAnalysis(null);
+    try {
+      const analysis = validateColumnAnnotationSurfaceAnalysis(await api.analyzeColumnSurfaceTracks(element.id), cloudId, element.id);
+      setLiveSurfaceAnalysis(analysis);
+      const suggestions = buildColumnAnnotationHeightSuggestions(analysis);
+      setNotice(`Исходные точки прочитаны без записи: ${analysis.input_points.count.toLocaleString("ru-RU")} точек, ${analysis.section_series.section_slices.length} высот. Полных наблюдаемых сечений для черновика: ${suggestions.length}.`);
+    } catch (reason) {
+      setError(String(reason instanceof Error ? reason.message : reason));
+    } finally { setSurfaceAnalysisLoading(false); }
+  }
+
   function updateHeights(update: (previous: HeightDraft[]) => HeightDraft[]) {
     const next = update(heights);
     setHeights(update);
@@ -115,8 +147,8 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
     return { long: a / 1000, short: b / 1000 };
   };
 
-  async function save() {
-    if (!dataset) return;
+  async function save(): Promise<ColumnAnnotation | null> {
+    if (!dataset) return null;
     setSaving(true); setError(""); setNotice("");
     try {
       const sides = parseSides(longMm, shortMm, "Сечение");
@@ -148,15 +180,30 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
       onAnnotationSaved(saved);
       setDataset((previous) => previous ? {
         ...previous,
-        annotations: previous.annotations.map((item) => item.element_id === element.id ? saved : item),
+        annotations: upsertColumnAnnotation(previous.annotations, saved),
         history: [...previous.history, saved],
       } : previous);
       setDraft((previous) => ({ ...previous, algorithm_suggestions_verified: saved.algorithm_suggestions_verified }));
       setAlgorithmDraftPending(false); setAlgorithmDraftVerified(false);
       setNotice(`Сохранена ревизия ${saved.revision}; распознанная геометрия не менялась.`);
+      return saved;
     } catch (reason) {
       setError(String(reason instanceof Error ? reason.message : reason));
+      return null;
     } finally { setSaving(false); }
+  }
+
+  async function saveAndSelectNextPending() {
+    if (!dataset || !onSelectColumn) return;
+    const saved = await save();
+    if (!saved) return;
+    const annotationsAfterSave = [
+      ...dataset.annotations.filter((item) => item.element_id !== saved.element_id),
+      saved,
+    ];
+    const next = nextPendingColumn(columns, annotationsAfterSave, element.id);
+    if (next) onSelectColumn(next);
+    else setNotice(`Сохранена ревизия ${saved.revision}; ожидающих колонн больше нет.`);
   }
 
   function addAnalysisSuggestions() {
@@ -246,12 +293,40 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
     {loading && <p role="status">Загружаю набор эталонов…</p>}
     {error && <p role="alert" className="column-type-error">{error}</p>}
     {notice && <p role="status" className="column-fit-status">{notice}</p>}
-    {surfaceAnalysis && surfaceAnalysis.cloud_id === cloudId && surfaceAnalysis.candidate_id === element.id && <div className="annotation-suggestion">
-      <p className="hint">Из анализа сечений можно перенести только полностью наблюдаемые контуры (4 видимые грани) в черновик. Неизвестные, частичные и достроенные контуры пропускаются.</p>
-      <button type="button" disabled={busy || saving || loading || analysisSuggestions.length === 0} onClick={addAnalysisSuggestions}>
-        Добавить полные сечения в черновик · {analysisSuggestions.length}
+    <div className="annotation-suggestion">
+      <p className="hint">Проверь вертикальные срезы по точкам этого кандидата. Расчёт только читает исходное производное облако; гипотезы не считаются эталоном.</p>
+      <button type="button" disabled={busy || saving || loading || surfaceAnalysisLoading} onClick={analyzeSourceSections}>
+        {surfaceAnalysisLoading ? "Анализирую точки по высоте…" : activeSurfaceAnalysis ? "Повторить анализ точек" : "Показать сечения по исходным точкам"}
       </button>
-    </div>}
+      {activeSurfaceAnalysis && <>
+        <p className="hint">Запрос: {activeSurfaceAnalysis.point_query.strategy}; найдено {activeSurfaceAnalysis.input_points.count.toLocaleString("ru-RU")} точек; геометрия не менялась.</p>
+        <details>
+          <summary>Срезы по высоте · {activeSurfaceAnalysis.section_series.section_slices.length}</summary>
+          {activeSurfaceAnalysis.section_series.section_slices.map((slice) => {
+            const sides = slice.hypotheses.length === 1 ? slice.hypotheses[0].side_lengths_m : [];
+            return <p className="hint" key={slice.z_m}>
+              Z {slice.z_m.toFixed(3)} м · {slice.status} · {slice.source_point_row_id_count.toLocaleString("ru-RU")} связанных точек
+              {sides.length === 2 ? ` · гипотеза ${mm(Math.max(...sides))} × ${mm(Math.min(...sides))} мм` : " · размеры не определены однозначно"}
+            </p>;
+          })}
+        </details>
+        {activeSurfaceAnalysis.excluded_tracks.length > 0 && <details>
+          <summary>Почему поверхности не вошли в сечение · {activeSurfaceAnalysis.excluded_tracks.length}</summary>
+          {activeSurfaceAnalysis.excluded_tracks.map((track) => {
+            const reasons = track.detail_reasons?.length ? track.detail_reasons : [track.reason];
+            return <p className="hint" key={track.track_id}>
+              {track.track_id}: {reasons.map(trackExclusionLabel).join("; ")}
+            </p>;
+          })}
+        </details>}
+      </>}
+      {activeSurfaceAnalysis && <>
+        <p className="hint">Перенос в черновик доступен только для сечений с четырьмя наблюдаемыми гранями и привязкой к строкам источника. Проверь каждую гипотезу по точкам перед сохранением эталона.</p>
+        <button type="button" disabled={busy || saving || loading || analysisSuggestions.length === 0} onClick={addAnalysisSuggestions}>
+        Добавить полные сечения в черновик · {analysisSuggestions.length}
+        </button>
+      </>}
+    </div>
     {dataset && <>
       <div className="column-fit-fields">
         <label><span className="field-label">Разметчик</span><input value={draft.annotator} onChange={(e) => setDraft({ ...draft, annotator: e.target.value })} /></label>
@@ -294,6 +369,7 @@ export default function ColumnAnnotationPanel({ cloudId, element, busy, surfaceA
       {(draft.state === "unknown" || draft.state === "excluded") && <label className="annotation-wide-field"><span className="field-label">Почему неизвестно / исключено</span><textarea value={draft.reason_unknown} onChange={(e) => setDraft({ ...draft, reason_unknown: e.target.value })} rows={2} /></label>}
       <label className="annotation-wide-field"><span className="field-label">Примечание разметчика</span><textarea value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} rows={2} /></label>
       <div className="annotation-actions"><button type="button" disabled={busy || saving || loading} onClick={save}>{saving ? "Сохраняю ревизию…" : "Сохранить независимую разметку"}</button>
+        <button type="button" disabled={busy || saving || loading || !onSelectColumn || !nextColumn} onClick={saveAndSelectNextPending}>Сохранить и выбрать следующую</button>
         <button type="button" disabled={loading || history.length === 0} onClick={downloadReference}>Скачать эталон JSON</button></div>
       {history.length > 0 && <details className="column-type-card"><summary>История разметки · {history.length}</summary>
         {history.map((item) => <p key={`${item.element_id}:${item.revision}`} className="hint">v{item.revision} · {item.annotator} · {item.state}{item.type_label ? ` · ${item.type_label}` : ""}{item.sides_m ? ` · ${mm(item.sides_m.long)} × ${mm(item.sides_m.short)} мм` : ""} · {item.created_at}</p>)}

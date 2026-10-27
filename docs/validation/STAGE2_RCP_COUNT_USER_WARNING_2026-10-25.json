@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "change": "Expose RCP-declared versus linked-RCS reader point-count mismatch in the cloud response warning",
+  "source": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "rcs_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "manifest_declared_points": 295836062,
+    "linked_rcs_full_reader_points": 295591803,
+    "difference_points": 244259,
+    "stored_sample_points": 5000000,
+    "source_files_modified": false
+  },
+  "implementation": {
+    "file": "backend/scan2bim/api/app.py",
+    "behavior": "Preserves existing sampling warning and appends both RCP and full RCS reader counts, signed delta, and caveat that the discrepancy alone does not establish point loss.",
+    "test_file": "backend/tests/test_api_pipeline.py",
+    "tests": [
+      "test_cloud_output_warns_when_rcp_manifest_and_linked_rcs_counts_differ",
+      "test_cloud_output_uses_persisted_decimation_metadata_and_explains_sample"
+    ],
+    "targeted_pytest": "2 passed; complete backend/tests/test_api_pipeline.py module: 5 passed; one existing Starlette/httpx deprecation warning",
+    "downstream_rcp_batch_and_export_functions": "7 passed by direct invocation with isolated TestClient/fixture paths after standard pytest's Windows temp-directory ACL failure",
+    "related_test_functions_passed": 12,
+    "py_compile": "passed"
+  },
+  "live_acceptance": {
+    "api_health": "ok",
+    "port": 8000,
+    "loaded_code_includes_change": true,
+    "server_process_id": 30744,
+    "observed_source_points": 295591803,
+    "observed_stored_sample_points": 5000000,
+    "observed_warning": "В источнике ~295,591,803 точек, в проект загружено 5,000,000 (лимит точек: 5,000,000). Выберите полный импорт или задайте больший лимит. Манифест RCP указывает 295,836,062 точек, а связанный RCS reader прочитал 295,591,803 (разница +244,259). Проверьте источник в ReCap; эта разница сама по себе не доказывает потерю точек.",
+    "ui_warning_render_path": "The existing cloud detail panel renders the API warning in its warn-box; a selected-cloud browser visual assertion was not run.",
+    "acceptance_claimed": true
+  },
+  "investigation": {
+    "rcp_container": "ZIP with one XML manifest node; NumPoints is 295836062",
+    "autodesk_documentation": [
+      "https://help.autodesk.com/cloudhelp/ENU/Reality-Capture/files/Edit_Point_Clouds/delete_points_optimize_scan.html",
+      "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Information-about-RCS-file-format-in-ReCap-Pro.html"
+    ],
+    "finding": "Autodesk documents optimization/deletion operations and directs RCS/RCP format inspection to the Reality Solutions SDK. Available evidence does not establish which mechanism, if any, explains this station's mismatch.",
+    "root_cause": "unresolved"
+  },
+  "stage_status": "in_progress",
+  "accepted_stages": 3,
+  "total_stages": 12,
+    "next": "Load the updated API in a supervised local process and compare the station count inside ReCap/official SDK without modifying source files."
+}

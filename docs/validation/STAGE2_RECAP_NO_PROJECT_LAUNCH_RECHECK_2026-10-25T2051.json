@@ -1,0 +1,28 @@
+{
+  "stage": 2,
+  "checked_at_local": "2026-10-25T20:51:18+03:00",
+  "executable": "C:/Program Files/Autodesk/Autodesk ReCap/ReCap.exe",
+  "version": "24.0.0.240",
+  "launch": {
+    "project_argument": null,
+    "process_id": 7276,
+    "observed_for_seconds": 12,
+    "process_exited": true,
+    "exit_code": 1,
+    "visible_window": false
+  },
+  "environment": {
+    "free_bytes_on_c": 18644938752,
+    "autocad_processes_still_open": [6520, 7148, 18816, 25928],
+    "revit_process_still_open": 9100,
+    "recap_process_remains_open": false,
+    "autodesk_licensing_services_restarted": false
+  },
+  "diagnostics": {
+    "matching_application_error_events_in_following_three_minutes": 0,
+    "fresh_recap_log_created": false,
+    "project_root_recap_log_last_write": "2026-10-24T01:59:15+03:00"
+  },
+  "source_data_modified": false,
+  "acceptance": "ReCap still exits before presenting a window even without a project argument. This attempt does not identify the cause or verify a ReCap GUI round-trip; Stage 2 remains open. Do not restart Autodesk licensing services while AutoCAD/Revit remain open."
+}

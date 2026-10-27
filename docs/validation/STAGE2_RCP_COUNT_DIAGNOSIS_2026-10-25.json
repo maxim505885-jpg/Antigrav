@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Investigate the 10.rcp point-count difference using local source comparison and official Autodesk project-edit documentation",
+  "local_evidence": {
+    "rcp_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "rcp_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "manifest_declared_points": 295836062,
+    "manifest_linked_rcs_points": 295591803,
+    "difference": 244259,
+    "manifest_linked_rcs_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "same_name_sibling_rcs": {
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcs",
+      "bytes": 6517882379,
+      "sha256_before_and_after": "ca6cf60ec2d271660f2661ca390dbcdf7237365bfda6c71e0b8bfbe6e92419a8",
+      "reader_points": 270320098,
+      "matches_manifest_declaration": false
+    },
+    "manifest_structure_audit": {
+      "layer_visible_and_not_removed": true,
+      "regions_empty": true,
+      "spatial_filters_empty": true,
+      "save_information_records": 2,
+      "save_information_count_values": [0, 0]
+    },
+    "files_modified": false,
+    "isolated_reader_scratch": "removed"
+  },
+  "official_autodesk_context": [
+    {
+      "title": "How to export and save parts of a ReCap Pro project",
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-export-and-save-parts-of-a-Recap-Pro-project.html",
+      "documented_behavior": "Save keeps deleted points invisible and recoverable; Save As can permanently remove deleted points and reduce file size while retaining scan locations."
+    },
+    {
+      "title": "Project is empty when opening in ReCap",
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Project-is-empty-when-reopening-in-ReCap.html",
+      "documented_behavior": "An RCP project links associated RCS scan data and expects its support folder and scan files to remain available."
+    }
+  ],
+  "interpretation": {
+    "status": "unconfirmed hypothesis",
+    "hypothesis": "A project manifest can retain a count from an earlier scan state while a saved or exported linked RCS has a different physical point count; ReCap edit history or stale metadata could contribute.",
+    "not_proven": "The Autodesk articles do not specify NumPoints semantics or explain this exact +244259 difference. The nearby 10.rcs is not the source that matches the RCP declaration.",
+    "next_acceptance": "Open the exact RCP and linked support folder in ReCap, inspect project history/scan status, and compare the displayed scan count or export a non-destructive copy for reader comparison."
+  },
+  "acceptance": {
+    "count_discrepancy_resolved": false,
+    "stage_2": "in_progress",
+    "closed_stages": "3/12",
+    "stage_6": "parked_until_final_pass"
+  }
+}

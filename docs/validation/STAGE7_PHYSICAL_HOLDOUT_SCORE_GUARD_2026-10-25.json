@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "scope": "Prevent model evaluation metrics and activation eligibility from being reported on non-independent candidate-ID splits.",
+  "implementation": {
+    "physical_instance_id_required_for_every_train_and_test_sample": true,
+    "train_and_test_physical_instance_ids_must_be_disjoint": true,
+    "unverified_evaluation_metrics": {
+      "accuracy": null,
+      "macro_f1": null,
+      "eligible_for_activation": false
+    }
+  },
+  "verification": {
+    "command": ".venv\\Scripts\\python.exe -m pytest -p no:cacheprovider backend/tests/test_learning_split.py backend/tests/test_learning_registry.py backend/tests/test_ground_truth_learning.py backend/tests/test_element_annotations.py backend/tests/test_api_pipeline.py -q --tb=short --basetemp <isolated-temp>",
+    "result": "36 tests passed with exit code 0",
+    "checks": [
+      "valid physical holdout is recognized only when all rows have physical IDs and train/test IDs are disjoint",
+      "missing physical IDs make evaluation unverified",
+      "overlapping physical IDs make evaluation unverified",
+      "empty training split makes evaluation unverified",
+      "end-to-end training without physical IDs returns null accuracy and macro-F1 and cannot activate the candidate"
+    ],
+    "data_root": "isolated temporary test directory",
+    "production_database_used": false,
+    "faro_source_files_modified": false,
+    "warning": "one existing Starlette/httpx deprecation warning"
+  },
+  "live_annotation_queue_read_only_recheck": {
+    "api": "http://127.0.0.1:8000/api/v1/clouds/workshop_cloud/column-annotations",
+    "http_status": 200,
+    "snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+    "candidate_count": 376,
+    "pending": 376,
+    "labeled": 0,
+    "history_count": 0,
+    "annotation_write_performed": false
+  },
+  "acceptance": {
+    "stage_7_closed": false,
+    "reason": "The current independent physical annotation queue still has no verified engineer labels or real held-out physical instances."
+  },
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass"
+}

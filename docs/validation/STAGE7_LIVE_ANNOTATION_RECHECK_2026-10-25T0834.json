@@ -1,0 +1,15 @@
+{
+  "recorded_at": "2026-10-25T08:34:32+03:00",
+  "stage": 7,
+  "scope": "Read-only recheck of the active independent physical-column annotation set.",
+  "api": "http://127.0.0.1:8000/api/v1",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud",
+  "api_health": "ok",
+  "source_snapshot_sha256": "3a7765e2b090cb65233741ee7483cdac966eda88e85297a0a619be6b1726e293",
+  "candidates": 376,
+  "latest_annotation_states": { "pending": 376, "labeled": 0, "unknown": 0, "excluded": 0 },
+  "history_entries": 0,
+  "annotation_write_performed": false,
+  "acceptance": { "stage_7": "in_progress", "physical_labels_available": false, "independent_holdout_available": false, "closed_stages": "3/12", "stage_6": "parked_until_final_pass" }
+}

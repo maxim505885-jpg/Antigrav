@@ -1,0 +1,70 @@
+{
+  "recorded_at": "2026-10-25",
+  "stage": 8,
+  "purpose": "Cross-check the eleven provisional profile rows and refresh official status/corrigenda metadata.",
+  "official_metadata": {
+    "standard": "ГОСТ 35087-2024",
+    "status": "in_force",
+    "effective_from": "2024-12-01",
+    "latest_correction": {
+      "publication": "ИУС 10-2026",
+      "registered": "2026-10-13",
+      "effective": "2026-10-13",
+      "pages": 1,
+      "correction_text_available_from_official_card": false,
+      "official_card": "https://protect.gost.ru/gost/changesdetails/84820a23-1fb3-4f1b-9bcb-b5677c57ed8f"
+    },
+    "official_standard_card": "https://protect.gost.ru/gost/details/63278470-4edb-4de1-88ca-2da45c12d7d4"
+  },
+  "row_crosscheck": {
+    "source": "https://allgosts.ru/77/140/gost_35087-2024",
+    "source_type": "Public secondary transcription of the standard; not the controlled official document",
+    "fields_compared": [
+      "designation",
+      "height_mm",
+      "width_mm",
+      "web_thickness_mm",
+      "flange_thickness_mm",
+      "mass_kg_m"
+    ],
+    "catalog_rows": 11,
+    "all_compared_fields_match": true,
+    "mismatches": [],
+    "transcribed_rows": {
+      "20К1": [196.0, 199.0, 6.5, 10.0, 41.4],
+      "25К1": [246.0, 249.0, 8.0, 12.0, 62.6],
+      "30К1": [298.0, 299.0, 9.0, 14.0, 87.0],
+      "30К2": [300.0, 300.0, 10.0, 15.0, 94.0],
+      "35К1": [342.0, 348.0, 10.0, 15.0, 109.1],
+      "40К1": [394.0, 398.0, 11.0, 18.0, 146.7],
+      "20Ш1": [194.0, 150.0, 6.0, 9.0, 30.6],
+      "25Ш1": [244.0, 175.0, 7.0, 11.0, 44.2],
+      "25Б1": [248.0, 124.0, 5.0, 8.0, 25.7],
+      "30Б1": [298.0, 149.0, 5.5, 8.0, 32.0],
+      "35Б1": [346.0, 174.0, 6.0, 9.0, 41.4]
+    },
+    "examples": {
+      "20К1": [196.0, 199.0, 6.5, 10.0, 41.4],
+      "30К1": [298.0, 299.0, 9.0, 14.0, 87.0],
+      "35К1": [342.0, 348.0, 10.0, 15.0, 109.1],
+      "30Б1": [298.0, 149.0, 5.5, 8.0, 32.0]
+    }
+  },
+  "catalog_decision": {
+    "rows_changed": 0,
+    "status_remains": "base_edition_only_latest_corrections_unverified",
+    "reason": "All current dimensions match the public transcription, but the official text of the October 2026 correction is not visible. A secondary cross-check cannot establish that the current catalog reflects the latest controlled edition.",
+    "engineering_acceptance_claim": false
+  },
+  "acceptance": {
+    "stage_8": "in_progress",
+    "still_missing": [
+      "authorized or otherwise controlled text of ИУС 10-2026",
+      "independent FARO physical section measurements",
+      "project-approved dimensional tolerance",
+      "independent manual physical labels"
+    ],
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

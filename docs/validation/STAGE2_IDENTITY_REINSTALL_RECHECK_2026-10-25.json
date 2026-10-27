@@ -1,0 +1,43 @@
+{
+  "checked_at_local": "2026-10-25T17:52:23+03:00",
+  "stage": 2,
+  "scope": "Post-repair Identity Manager registration and ReCap launch recheck",
+  "identity_installer": {
+    "version": "1.21.1.5",
+    "signature": "Valid",
+    "signer": "Autodesk, Inc.",
+    "sha256": "CEAA17452FB0DB6D70476448E7EA5BA517ED445B78B4ED041920A52CB72A4BFA"
+  },
+  "observations": {
+    "identity_manager_executable": "C:/Program Files/Autodesk/AdskIdentityManager/1.21.1.5/AdskIdentityManager.exe",
+    "identity_manager_registry_location": "HKLM/SOFTWARE/Autodesk/AdskIdentityManager/1.21.1.5/Location",
+    "identity_manager_process_running": true,
+    "licensing_agent_processes_running": 2,
+    "recap_process_running_after_launch_attempt": false,
+    "recap_window_confirmed": false,
+    "recap_log_last_write": "2026-10-25T10:57:14+03:00",
+    "latest_captured_recap_identity_error": "3005 (from existing Autodesk licensing-agent log; log did not refresh during launch recheck)",
+    "identity_services_cache_bytes": 0,
+    "identity_services_cache_modified": false,
+    "autocad_processes_left_running": 3
+  },
+  "action_taken": "Re-ran the Autodesk-signed Identity Manager installer already authorized by the user. Verified installation by locating the 1.21.1.5 executable and matching HKLM registry Location. ReCap was launched without a project; no live ReCap window persisted. No Autodesk processes were terminated and no scan, project, cache or database was modified.",
+  "interpretation": "Identity Manager is now installed and registered, but the currently running Autodesk licensing-agent processes predate this repair. ReCap still did not reach a verified interactive window. The prior 3005 log may reflect the older agent state; a fresh log is required after Autodesk applications close and licensing services reload.",
+  "next_safe_step": "After the user closes AutoCAD and other Autodesk desktop apps, restart/reload the Autodesk licensing agent through a supported repair/reboot path, then launch ReCap and inspect a fresh log. Only reset idservices.db if ReCap continues to report 3005 and Autodesk apps are closed; preserve it under a backup name before regeneration.",
+  "safety": {
+    "faro_sources_modified": false,
+    "recap_project_opened_or_modified": false,
+    "identity_cache_modified": false,
+    "autodesk_processes_terminated": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "recap_gui_round_trip": "not_verified",
+    "stage_6": "parked until final pass per user instruction"
+  },
+  "official_autodesk_guidance": {
+    "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Autodesk-How-to-resolve-error-code---3005-3201-3203-3204-3205-Sign-in-Component-Failed-to-Load.html",
+    "summary": "Autodesk directs users to close Autodesk apps and Identity Manager and relaunch; if needed, reinstall Identity Manager and reboot. No cache reset or process termination was performed in this check."
+  }
+}

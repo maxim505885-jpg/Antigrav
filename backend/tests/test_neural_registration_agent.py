@@ -115,7 +115,9 @@ def test_neural_coarse_matching_large_rotation_and_offset():
     # Run neural coarse match
     match = neural_coarse_match(station_2_noisy, station_1)
 
-    assert match["confidence"] > 0.5
+    assert match["confidence"] is None
+    assert match["confidence_status"] == "not_calibrated"
+    assert np.isfinite(match["coarse_residual_p80_m"])
     est_r = np.array(match["rotation"], dtype=np.float64)
     est_t = np.array(match["translation"], dtype=np.float64)
 
@@ -129,6 +131,98 @@ def test_neural_coarse_matching_large_rotation_and_offset():
     # Verify recovered translation within 0.8m
     trans_error_m = np.linalg.norm(est_t[:2] - true_t[:2])
     assert trans_error_m < 1.0, f"Coarse translation error too large: {trans_error_m:.2f} m"
+
+
+@pytest.mark.parametrize(
+    ("cloud", "message"),
+    [
+        (np.empty((0, 3)), "at least 3 finite XYZ points"),
+        (np.zeros((2, 3)), "at least 3 finite XYZ points"),
+        (np.zeros((3, 2)), "at least 3 columns"),
+        (np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [np.nan, 1.0, 0.0]]), "finite XYZ coordinates"),
+    ],
+)
+def test_neural_coarse_match_rejects_invalid_clouds(cloud, message):
+    valid = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        dtype=np.float64,
+    )
+    with pytest.raises(ValueError, match=message):
+        neural_coarse_match(cloud, valid)
+
+
+def test_neural_coarse_match_rejects_invalid_target_cloud():
+    valid = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        dtype=np.float64,
+    )
+    invalid = valid.copy()
+    invalid[1, 2] = np.inf
+    with pytest.raises(ValueError, match="finite XYZ coordinates"):
+        neural_coarse_match(valid, invalid)
+
+
+def test_neural_coarse_match_ignores_optional_non_xyz_columns():
+    xyz = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.5], [1.0, 1.0, 1.0]],
+        dtype=np.float64,
+    )
+    with_attributes = np.column_stack([xyz, np.full(len(xyz), 255.0)])
+    match = neural_coarse_match(with_attributes, xyz)
+    assert np.asarray(match["rotation"]).shape == (3, 3)
+    assert np.asarray(match["translation"]).shape == (3,)
+
+
+def test_point_to_plane_icp_rejects_target_too_small_for_normal_estimation():
+    source = np.zeros((30, 3), dtype=np.float64)
+    target = np.zeros((14, 3), dtype=np.float64)
+    with pytest.raises(ValueError, match="at least 15 XYZ points"):
+        point_to_plane_icp(source, target)
+
+
+def test_point_to_plane_icp_rejects_source_too_small_for_correspondences():
+    source = np.zeros((29, 3), dtype=np.float64)
+    target = np.zeros((30, 3), dtype=np.float64)
+    with pytest.raises(ValueError, match="at least 30 XYZ points"):
+        point_to_plane_icp(source, target)
+
+
+def test_point_to_plane_icp_does_not_report_success_without_correspondences():
+    rng = np.random.default_rng(221)
+    target = rng.normal(0.0, 0.05, size=(60, 3))
+    source = rng.normal(10.0, 0.05, size=(60, 3))
+    result = point_to_plane_icp(source, target)
+    assert result["converged"] is False
+    assert result["rmse_mm"] is None
+    assert result["correspondence_count"] == 0
+    assert result["fit_status"] == "insufficient_correspondences"
+
+
+def test_agent_reports_missing_fit_without_zero_rmse(monkeypatch):
+    import scan2bim.registration.neural_agent as registration_module
+
+    monkeypatch.setattr(
+        registration_module,
+        "neural_coarse_match",
+        lambda _source, _target: {
+            "rotation": np.eye(3),
+            "translation": np.zeros(3),
+            "angle_deg": 0.0,
+        },
+    )
+    rng = np.random.default_rng(992)
+    base = rng.normal(0.0, 0.05, size=(60, 3))
+    moving = rng.normal(10.0, 0.05, size=(60, 3))
+    result = NeuralRegistrationAgent().auto_stitch(
+        [
+            RegistrationStation(id="base", points=base, name="base"),
+            RegistrationStation(id="moving", points=moving, name="moving"),
+        ]
+    )
+    assert result["status"] == "candidate"
+    assert result["converged"] is False
+    assert result["rmse_mm"] is None
+    assert any("невязка не вычислена" in item for item in result["reasoning_log"])
 
 
 def test_point_to_plane_icp_millimeter_refinement():
@@ -188,12 +282,16 @@ def test_neural_registration_agent_autonomous_pipeline():
 
     result = agent.auto_stitch(stations)
 
-    assert result["status"] == "success"
+    assert result["status"] == "candidate"
     assert result["converged"] is True
     assert result["rmse_mm"] < 10.0
     assert result["overlap_ratio"] > 0.4
+    assert result["accuracy_status"] == "not_measured"
+    assert result["independent_control_checked"] is False
     assert len(result["reasoning_log"]) >= 4
     # Ensure agent log contains clear engineering explanations in Russian
     log_text = " ".join(result["reasoning_log"])
     assert "Станция" in log_text or "стоянк" in log_text.lower()
     assert "сходимость" in log_text.lower() or "icp" in log_text.lower() or "невязк" in log_text.lower()
+    assert "не оценивалось" in log_text.lower()
+    assert "гост" not in log_text.lower()

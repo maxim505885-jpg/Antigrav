@@ -1,12 +1,14 @@
 """Surface-to-OBB matching is evidence for review, never structural confirmation."""
 import math
 
+import numpy as np
 import pytest
 
 from scan2bim.structure.column_surface_assignment import (
     associate_surfaces_to_column,
     cluster_column_surface_tracks,
 )
+from scan2bim.structure.column_section_series import fit_column_track_sections
 
 
 def box(center=(1_000_000.0, -1_000_000.0, 5.0), angle=0.35):
@@ -253,6 +255,13 @@ def test_nearby_touching_wall_inside_loose_match_but_outside_track_boundary_stay
     assert result["surface_associations"][0]["association_status"] == "candidate_face"
     assert tracks[0]["candidate_edge_id"] is None
     assert tracks[0]["track_status"] == "unassigned_surface_track"
+    assert tracks[0]["exclusion_reasons"] == ["track_boundary_delta_exceeds_limit"]
+    report = fit_column_track_sections(geometry, tracks, np.empty((0, 3)), np.empty(0, dtype=np.int64))
+    assert report["excluded_tracks"] == [{
+        "track_id": tracks[0]["track_id"],
+        "reason": "track_boundary_delta_exceeds_limit",
+        "detail_reasons": ["track_boundary_delta_exceeds_limit"],
+    }]
 
 
 def test_coplanar_wall_match_remains_unowned_and_unconfirmed():

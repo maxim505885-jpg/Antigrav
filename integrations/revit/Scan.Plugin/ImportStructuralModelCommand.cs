@@ -54,7 +54,7 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                 }
 
                 var hasPriorShape = existing.Remove(id, out var prior);
-                if (!TryCreateShape(item, out var category, out var solid))
+                if (!TryCreateShape(item, out var category, out var shapeGeometry, out var axisOnly))
                 {
                     if (hasPriorShape && prior is not null)
                     {
@@ -62,6 +62,8 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                         counts.RemovedUnsupported++;
                     }
                     counts.Unsupported++;
+                    if (RequiredString(item, "class_name") == "truss")
+                        counts.TrussEnvelopesSkipped++;
                     continue;
                 }
 
@@ -81,10 +83,12 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                     counts.Created++;
                 }
 
-                shape.SetShape(new List<GeometryObject> { solid });
+                shape.SetShape(new List<GeometryObject> { shapeGeometry });
                 shape.ApplicationId = ApplicationId;
                 shape.ApplicationDataId = id;
-                SetComments(shape, item, id);
+                SetComments(shape, item, id, axisOnly);
+                if (axisOnly)
+                    counts.MembersWithoutSection++;
                 JsonElement? coordinateFrame = root.TryGetProperty("coordinate_frame", out var frame)
                     ? frame
                     : null;
@@ -99,6 +103,8 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                 $"Импорт завершён.\nСоздано: {counts.Created}\nОбновлено: {counts.Updated}\n" +
                 $"Старые элементы сохранены: {counts.Unchanged}\n" +
                 $"Удалено ставших неподдержанными: {counts.RemovedUnsupported}\n" +
+                $"Оси без сечения (контур не придуман): {counts.MembersWithoutSection}\n" +
+                $"Огибающие ферм без подтверждённых стержней: {counts.TrussEnvelopesSkipped}\n" +
                 $"Неподдержанные: {counts.Unsupported}\n\n" +
                 "Формы созданы как DirectShape. Сложные элементы не преобразуются в параметрические семейства."
             );
@@ -162,16 +168,18 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
         }
     }
 
-    private static bool TryCreateShape(JsonElement item, out ElementId category, out Solid solid)
+    private static bool TryCreateShape(JsonElement item, out ElementId category, out GeometryObject shapeGeometry, out bool axisOnly)
     {
         var className = RequiredString(item, "class_name");
         category = new ElementId(className switch
         {
             "column" => BuiltInCategory.OST_StructuralColumns,
             "beam" or "girder" or "brace" or "truss" => BuiltInCategory.OST_StructuralFraming,
+            "slab" => BuiltInCategory.OST_Floors,
             _ => BuiltInCategory.OST_GenericModel,
         });
-        solid = null!;
+        shapeGeometry = null!;
+        axisOnly = false;
 
         if (!item.TryGetProperty("geometry", out var geometry))
             return false;
@@ -200,15 +208,13 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                 baseCenter + localX * (length / 2) + localY * (width / 2),
                 baseCenter - localX * (length / 2) + localY * (width / 2),
             };
-            solid = ExtrudeRectangle(corners, XYZ.BasisZ, height);
+            shapeGeometry = ExtrudeRectangle(corners, XYZ.BasisZ, height);
             return true;
         }
 
         if (kind == "member")
         {
-            // The exchange schema allows a missing section for unknown members.
-            // Do not fabricate a 150 mm solid: keep the item reported as unsupported.
-            if (!MemberSectionPolicy.TryGetPositiveSectionMetres(geometry, out var sectionMetres))
+            if (!MemberAxisPolicy.TryRead(geometry, out _, out _))
                 return false;
 
             var geometryStart = Vector(geometry.GetProperty("p0"));
@@ -217,6 +223,14 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
             var length = delta.GetLength();
             if (length < 1e-6)
                 return false;
+            if (!MemberSectionPolicy.TryGetPositiveSectionMetres(geometry, out var sectionMetres))
+            {
+                // Preserve the measured/proposed centerline without pretending
+                // the cross-section was observed. DirectShape accepts Curves.
+                shapeGeometry = Line.CreateBound(geometryStart, geometryEnd);
+                axisOnly = true;
+                return true;
+            }
             var axis = delta / length;
             var helper = Math.Abs(axis.DotProduct(XYZ.BasisZ)) > 0.9 ? XYZ.BasisY : XYZ.BasisZ;
             var localX = axis.CrossProduct(helper).Normalize();
@@ -229,11 +243,29 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
                 geometryStart + localX * (section / 2) + localY * (section / 2),
                 geometryStart - localX * (section / 2) + localY * (section / 2),
             };
-            solid = ExtrudeRectangle(corners, axis, length);
+            shapeGeometry = ExtrudeRectangle(corners, axis, length);
+            return true;
+        }
+
+        if (className == "slab" && kind == "slab"
+            && SlabGeometryPolicy.TryRead(geometry, out var polygon, out var elevation, out var thickness))
+        {
+            var baseZ = ToInternal(elevation - thickness / 2.0);
+            var corners = polygon.Select(point => new XYZ(ToInternal(point.X), ToInternal(point.Y), baseZ)).ToArray();
+            shapeGeometry = ExtrudePolygon(corners, thickness);
             return true;
         }
 
         return false;
+    }
+
+    private static Solid ExtrudePolygon(IReadOnlyList<XYZ> corners, double thicknessMetres)
+    {
+        var loop = new CurveLoop();
+        for (var index = 0; index < corners.Count; index++)
+            loop.Append(Line.CreateBound(corners[index], corners[(index + 1) % corners.Count]));
+        return GeometryCreationUtilities.CreateExtrusionGeometry(
+            new List<CurveLoop> { loop }, XYZ.BasisZ, ToInternal(thicknessMetres));
     }
 
     private static Solid ExtrudeRectangle(IReadOnlyList<XYZ> corners, XYZ direction, double depth)
@@ -245,13 +277,14 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
             new List<CurveLoop> { loop }, direction.Normalize(), depth);
     }
 
-    private static void SetComments(DirectShape shape, JsonElement item, string id)
+    private static void SetComments(DirectShape shape, JsonElement item, string id, bool axisOnly)
     {
         if (shape.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS) is not { IsReadOnly: false } comments)
             return;
         var className = RequiredString(item, "class_name");
         var status = item.TryGetProperty("review_status", out var review) ? review.GetString() : "unreviewed";
-        comments.Set($"SCAN_ID={id}; CLASS={className}; REVIEW={status}");
+        var geometryNote = axisOnly ? "; GEOMETRY=AXIS_ONLY; SECTION=UNKNOWN" : string.Empty;
+        comments.Set($"SCAN_ID={id}; CLASS={className}; REVIEW={status}{geometryNote}");
     }
 
     private static XYZ Vector(JsonElement value)
@@ -288,6 +321,8 @@ public sealed class ImportStructuralModelCommand : IExternalCommand
         public int Unchanged { get; set; }
         public int RemovedUnsupported { get; set; }
         public int Unsupported { get; set; }
+        public int MembersWithoutSection { get; set; }
+        public int TrussEnvelopesSkipped { get; set; }
         public int LevelsCreated { get; set; }
         public int LevelsReused { get; set; }
     }

@@ -505,19 +505,30 @@ def _slab_elements(
         return []
     arr = np.load(geom.positions_path, mmap_mode="r")
     elements: list[DetectedElement] = []
-    for level in levels:
+    chunks_per_level = max(1, math.ceil(arr.shape[0] / CHUNK))
+    total_chunks = max(1, len(levels) * chunks_per_level)
+    completed_chunks = 0
+    for level_index, level in enumerate(levels, start=1):
         z_local = float(level["z_local"])
         half = 0.10
         u_parts: list[np.ndarray] = []
         v_parts: list[np.ndarray] = []
         row_parts: list[np.ndarray] = []
-        for start in range(0, arr.shape[0], CHUNK):
+        for chunk_index, start in enumerate(range(0, arr.shape[0], CHUNK), start=1):
             chunk = np.asarray(arr[start : start + CHUNK])
             mask = np.abs(chunk[:, 2] - z_local) <= half
             if np.any(mask):
                 u_parts.append(chunk[mask, 0])
                 v_parts.append(chunk[mask, 1])
                 row_parts.append(start + np.flatnonzero(mask))
+            completed_chunks += 1
+            if progress:
+                fraction = completed_chunks / total_chunks
+                progress(
+                    0.75 + 0.09 * fraction,
+                    f"контуры плит: уровень {level_index}/{len(levels)}, "
+                    f"чанк {chunk_index}/{chunks_per_level}",
+                )
         if not u_parts:
             continue
         u = np.concatenate(u_parts)

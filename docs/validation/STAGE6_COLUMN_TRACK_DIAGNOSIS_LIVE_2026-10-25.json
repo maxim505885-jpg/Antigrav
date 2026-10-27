@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "check": "live read-only surface-track analysis and active annotation API",
+  "base_url": "http://127.0.0.1:8000",
+  "candidate_id": "cba9c8d015ac4322aa056f8b7511b289",
+  "cloud_id": "workshop_cloud",
+  "response_schema": "scan.column-surface-track-analysis/1",
+  "response_status": 200,
+  "query_strategy": "spatial_index",
+  "candidate_rows_estimate": 557753,
+  "input_points": 25587,
+  "detected_surface_tracks": 6,
+  "extracted_surfaces": 6,
+  "candidate_edges": 2,
+  "excluded_tracks": 6,
+  "exclusion_reason_counts": [
+    {
+      "reason": "association_outside_candidate_boundary",
+      "count": 4
+    },
+    {
+      "reason": "track_boundary_delta_exceeds_limit",
+      "count": 2
+    },
+    {
+      "reason": "track_span_exceeds_candidate_face",
+      "count": 2
+    }
+  ],
+  "section_slices": 31,
+  "measured_slices": 0,
+  "proposed_slices": 0,
+  "unknown_slices": 31,
+  "suggestion_count": 0,
+  "annotation_reviewed": 0,
+  "annotation_pending": 376,
+  "persisted": false,
+  "source_geometry_modified": false,
+  "confirmed": false,
+  "engineering_status": "not_assessed",
+  "interpretation": "The endpoint correctly diagnoses candidate surfaces rejected by geometric association/track limits. It did not produce any complete or measured section. This is diagnostic evidence for one candidate, not recognition acceptance.",
+  "annotation_state_counts": [
+    {
+      "state": "pending",
+      "count": 376
+    }
+  ],
+  "browser_smoke": {
+    "page": "http://127.0.0.1:8000/",
+    "panel": "Независимая разметка конструкций",
+    "candidate_id": "00e0fe96d3444247ae247045dff64ee7",
+    "annotation_status": "Ожидает независимой проверки",
+    "exclusion_summary_visible": true,
+    "visible_message": "Поверхность находится вне границы кандидатной грани",
+    "suggestion_button_disabled_at_zero_complete_sections": true,
+    "console_errors": 0
+  }
+}

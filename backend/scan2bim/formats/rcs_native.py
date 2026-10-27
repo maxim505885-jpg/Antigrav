@@ -41,9 +41,10 @@ any point is touched, so getPosition/getColor run only for survivors.
 
 Protocol: parent runs ``python -m scan2bim.formats.rcs_native <rcs> <out_dir>
 --max N`` for a uniform reservoir sample, writing ``xyz.npy`` (float32 Nx3)
-and ``rgb.npy`` (uint8 Nx3). In full-resolution mode, ``--all`` writes every
-point sequentially to ``xyz.f64`` and ``rgb.u8`` in bounded chunks. The child
-prints::
+and ``rgb.npy`` (uint8 Nx3). In full-resolution mode, ``--packed-all`` writes
+every point sequentially as block-local float32 XYZ plus uint8 RGB; each block
+records its float64 world-coordinate origin and checksums. Legacy ``--all``
+continues to read/write version-2 checkpoints with float64 XYZ. The child prints::
 
     PROGRESS 0 <seen> read (<rate> pts/s, <kept> kept)
     DONE <kept> SEEN <seen>
@@ -55,18 +56,20 @@ import argparse
 import ctypes
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import numpy as np
 
-from ..config import MAX_INGEST_POINTS
+from ..config import DATA_DIR, MAX_INGEST_POINTS, MAX_PREVIEW_POINTS
 
 RECAP_DIR = Path(
     os.environ.get("S2B_RECAP_DIR", r"C:\Program Files\Autodesk\Autodesk ReCap")
@@ -86,6 +89,68 @@ CHUNK = 250_000
 RNG_SEED = 20261020
 MIN_FREE_DISK_BYTES = int(os.environ.get("S2B_INGEST_DISK_RESERVE_BYTES", str(1024**3)))
 STREAM_CHECKPOINT_VERSION = 2
+PACKED_STREAM_CHECKPOINT_VERSION = 3
+RCS_DERIVED_BYTES_PER_POINT = 15  # float32 XYZ plus uint8 RGB
+RCS_PREVIEW_BYTES_PER_POINT = 15  # float32 XYZ plus uint8 RGB
+RCS_RAW_STREAM_BYTES_PER_POINT = 15  # block-local float32 XYZ plus uint8 RGB checkpoint stream
+
+
+def estimate_full_resolution_batch_disk_bytes(
+    declared_point_counts: list[int], *, max_preview_points: int
+) -> dict[str, int] | None:
+    """Conservatively estimate RCP batch peak disk use before creating clouds.
+
+    RCP point counts are metadata and can be stale, so this is an early warning
+    only; the streaming writer's per-chunk disk-reserve guard remains authoritative.
+    """
+    counts = [int(value) for value in declared_point_counts]
+    if not counts or any(value <= 0 for value in counts):
+        return None
+    durable = sum(
+        count * RCS_DERIVED_BYTES_PER_POINT
+        + min(count, max_preview_points) * RCS_PREVIEW_BYTES_PER_POINT
+        for count in counts
+    )
+    # Stations are processed sequentially, so only one raw RCS stream is staged
+    # at a time while earlier stations' finalized arrays remain on disk.
+    raw_peak = max(counts) * RCS_RAW_STREAM_BYTES_PER_POINT
+    payload = durable + raw_peak
+    margin = (payload * 10 + 99) // 100
+    required = payload + margin + MIN_FREE_DISK_BYTES
+    return {
+        "durable_bytes": durable,
+        "raw_stream_peak_bytes": raw_peak,
+        "safety_margin_bytes": margin,
+        "reserve_bytes": MIN_FREE_DISK_BYTES,
+        "required_bytes": required,
+    }
+
+
+def _finalization_reserve_bytes(point_count: int) -> int:
+    """Reserve enough space for derived arrays and preview of points read so far."""
+    if point_count <= 0:
+        return MIN_FREE_DISK_BYTES
+    derived = point_count * RCS_DERIVED_BYTES_PER_POINT
+    preview = min(point_count, MAX_PREVIEW_POINTS) * RCS_PREVIEW_BYTES_PER_POINT
+    return MIN_FREE_DISK_BYTES + derived + preview
+
+
+@contextmanager
+def _application_scratch_dir() -> Iterator[Path]:
+    """Create child-process scratch beside app data and clean files explicitly.
+
+    ``TemporaryDirectory`` uses Windows ACL resets while removing its tree;
+    managed app sandboxes can deny that operation even when they allow normal
+    file creation and deletion. The native worker writes only flat .npy files.
+    """
+    path = DATA_DIR / f"s2b_rcs_{uuid.uuid4().hex}"
+    path.mkdir()
+    try:
+        yield path
+    finally:
+        for name in ("xyz.npy", "rgb.npy"):
+            (path / name).unlink(missing_ok=True)
+        path.rmdir()
 
 
 def _stream_source_identity(path: Path, source_sha256: str | None = None) -> dict[str, Any]:
@@ -111,9 +176,10 @@ def _write_stream_checkpoint(
     blocks: list[dict[str, Any]],
     *,
     complete: bool,
+    version: int = STREAM_CHECKPOINT_VERSION,
 ) -> None:
     checkpoint = {
-        "version": STREAM_CHECKPOINT_VERSION,
+        "version": version,
         "source_identity": source_identity,
         "committed_count": committed_count,
         "chunk_size": CHUNK,
@@ -149,7 +215,8 @@ def _read_stream_checkpoint(out_dir: Path, source_identity: dict[str, Any]) -> d
         raise RuntimeError(f"RCS stream checkpoint is unreadable: {exc}") from exc
     if not isinstance(checkpoint, dict):
         raise RuntimeError("RCS stream checkpoint root must be a JSON object")
-    if checkpoint.get("version") != STREAM_CHECKPOINT_VERSION:
+    version = checkpoint.get("version")
+    if version not in {STREAM_CHECKPOINT_VERSION, PACKED_STREAM_CHECKPOINT_VERSION}:
         raise RuntimeError("RCS stream checkpoint version is unsupported")
     if checkpoint.get("source_identity") != source_identity:
         raise RuntimeError("RCS source identity changed; refusing to resume its stream checkpoint")
@@ -171,6 +238,19 @@ def _read_stream_checkpoint(out_dir: Path, source_identity: dict[str, Any]) -> d
             or not isinstance(block.get("rgb_sha256"), str)
         ):
             raise RuntimeError("RCS stream checkpoint contains a corrupt block record")
+        if version == PACKED_STREAM_CHECKPOINT_VERSION:
+            origin = block.get("origin")
+            if (
+                not isinstance(origin, list)
+                or len(origin) != 3
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(float(value))
+                    for value in origin
+                )
+            ):
+                raise RuntimeError("packed RCS stream block has an invalid coordinate origin")
         block_points += block["points"]
     if block_points != committed:
         raise RuntimeError("RCS stream checkpoint block records do not match its point count")
@@ -181,9 +261,11 @@ def _read_stream_checkpoint(out_dir: Path, source_identity: dict[str, Any]) -> d
 
 def _verify_stream_files(out_dir: Path, checkpoint: dict[str, Any], *, exact_size: bool) -> None:
     count = int(checkpoint["committed_count"])
-    xyz_path = out_dir / "xyz.f64"
+    packed = checkpoint["version"] == PACKED_STREAM_CHECKPOINT_VERSION
+    xyz_dtype = np.dtype("<f4" if packed else "<f8")
+    xyz_path = out_dir / ("xyz.local.f32" if packed else "xyz.f64")
     rgb_path = out_dir / "rgb.u8"
-    expected_xyz = count * 3 * np.dtype("<f8").itemsize
+    expected_xyz = count * 3 * xyz_dtype.itemsize
     expected_rgb = count * 3 * np.dtype("u1").itemsize
     if not xyz_path.is_file() or not rgb_path.is_file():
         raise RuntimeError("RCS stream checkpoint is missing its raw data files")
@@ -196,7 +278,7 @@ def _verify_stream_files(out_dir: Path, checkpoint: dict[str, Any], *, exact_siz
     with xyz_path.open("rb") as xyz_file, rgb_path.open("rb") as rgb_file:
         for block in checkpoint["blocks"]:
             points = block["points"]
-            xyz_bytes = xyz_file.read(points * 3 * np.dtype("<f8").itemsize)
+            xyz_bytes = xyz_file.read(points * 3 * xyz_dtype.itemsize)
             rgb_bytes = rgb_file.read(points * 3 * np.dtype("u1").itemsize)
             if hashlib.sha256(xyz_bytes).hexdigest() != block["xyz_sha256"]:
                 raise RuntimeError("RCS coordinate stream block checksum does not match checkpoint")
@@ -204,11 +286,18 @@ def _verify_stream_files(out_dir: Path, checkpoint: dict[str, Any], *, exact_siz
                 raise RuntimeError("RCS color stream block checksum does not match checkpoint")
 
 
-def _prepare_stream_files(out_dir: Path, checkpoint: dict[str, Any] | None) -> tuple[Any, Any, int]:
-    xyz_path = out_dir / "xyz.f64"
+def _prepare_stream_files(
+    out_dir: Path,
+    checkpoint: dict[str, Any] | None,
+    version: int = STREAM_CHECKPOINT_VERSION,
+) -> tuple[Any, Any, int]:
+    version = int(checkpoint["version"]) if checkpoint else version
+    packed = version == PACKED_STREAM_CHECKPOINT_VERSION
+    xyz_dtype = np.dtype("<f4" if packed else "<f8")
+    xyz_path = out_dir / ("xyz.local.f32" if packed else "xyz.f64")
     rgb_path = out_dir / "rgb.u8"
     committed = int(checkpoint["committed_count"]) if checkpoint else 0
-    expected_xyz = committed * 3 * np.dtype("<f8").itemsize
+    expected_xyz = committed * 3 * xyz_dtype.itemsize
     expected_rgb = committed * 3 * np.dtype("u1").itemsize
     if checkpoint is None:
         xyz_out = xyz_path.open("w+b")
@@ -267,8 +356,10 @@ def _stream(
     max_points: int,
     stream_all: bool = False,
     source_sha256: str | None = None,
+    packed_all: bool = False,
 ) -> int:
     """Read RCS in bounded chunks; optionally stream every point to raw files."""
+    stream_all = stream_all or packed_all
     if max_points <= 0 and not stream_all:
         max_points = MAX_INGEST_POINTS
     if max_points <= 0 and not stream_all:
@@ -279,14 +370,18 @@ def _stream(
     )
     checkpoint = None
     committed = 0
+    stream_version = STREAM_CHECKPOINT_VERSION
     if stream_all:
         out_dir.mkdir(parents=True, exist_ok=True)
         checkpoint = _read_stream_checkpoint(out_dir, source_identity)
+        stream_version = (
+            int(checkpoint["version"])
+            if checkpoint
+            else PACKED_STREAM_CHECKPOINT_VERSION if packed_all else STREAM_CHECKPOINT_VERSION
+        )
         if checkpoint and checkpoint["complete"]:
             count = int(checkpoint["committed_count"])
             _verify_stream_files(out_dir, checkpoint, exact_size=True)
-            xyz_path = out_dir / "xyz.f64"
-            rgb_path = out_dir / "rgb.u8"
             if (
                 count > 0
             ):
@@ -331,12 +426,14 @@ def _stream(
 
     rng = np.random.default_rng(RNG_SEED)
     if stream_all:
-        xyz_out, rgb_out, committed = _prepare_stream_files(out_dir, checkpoint)
+        xyz_out, rgb_out, committed = _prepare_stream_files(out_dir, checkpoint, stream_version)
         blocks = list(checkpoint["blocks"]) if checkpoint else []
         keep_xyz = np.empty((CHUNK, 3), dtype=np.float64)
         keep_rgb = np.empty((CHUNK, 3), dtype=np.uint8)
         if checkpoint is None:
-            _write_stream_checkpoint(out_dir, source_identity, 0, blocks, complete=False)
+            _write_stream_checkpoint(
+                out_dir, source_identity, 0, blocks, complete=False, version=stream_version,
+            )
     else:
         xyz_out = rgb_out = None
         keep_xyz = np.empty((max_points, 3), dtype=np.float32)
@@ -394,29 +491,49 @@ def _stream(
                 n += 1
 
             if stream_all and n:
-                if shutil.disk_usage(out_dir).free < MIN_FREE_DISK_BYTES:
+                required_reserve = _finalization_reserve_bytes(seen + n)
+                free_bytes = shutil.disk_usage(out_dir).free
+                if free_bytes < required_reserve:
                     raise RuntimeError(
-                        f"full-resolution RCS import paused to preserve disk reserve "
-                        f"({MIN_FREE_DISK_BYTES:,} bytes)"
+                        "full-resolution RCS import paused to preserve disk reserve for "
+                        f"derived arrays and preview (need {required_reserve:,} bytes, "
+                        f"have {free_bytes:,})"
                     )
-                keep_xyz[:n].tofile(xyz_out)
+                if stream_version == PACKED_STREAM_CHECKPOINT_VERSION:
+                    finite = np.isfinite(keep_xyz[:n]).all(axis=1)
+                    origin = np.zeros(3, dtype=np.float64)
+                    if finite.any():
+                        finite_xyz = keep_xyz[:n][finite]
+                        origin = (finite_xyz.min(axis=0) + finite_xyz.max(axis=0)) / 2.0
+                    # Keep only small block-local float32 offsets on disk. The
+                    # double origin restores world coordinates before the final
+                    # centered float32 arrays are produced.
+                    packed_xyz = (keep_xyz[:n] - origin).astype("<f4")
+                    xyz_bytes = memoryview(packed_xyz).cast("B")
+                else:
+                    origin = None
+                    xyz_bytes = memoryview(keep_xyz[:n]).cast("B")
+                xyz_out.write(xyz_bytes)
                 keep_rgb[:n].tofile(rgb_out)
                 xyz_out.flush()
                 rgb_out.flush()
                 os.fsync(xyz_out.fileno())
                 os.fsync(rgb_out.fileno())
-                blocks.append(
-                    {
-                        "points": n,
-                        "xyz_sha256": hashlib.sha256(memoryview(keep_xyz[:n]).cast("B")).hexdigest(),
-                        "rgb_sha256": hashlib.sha256(memoryview(keep_rgb[:n]).cast("B")).hexdigest(),
-                    }
-                )
+                block = {
+                    "points": n,
+                    "xyz_sha256": hashlib.sha256(xyz_bytes).hexdigest(),
+                    "rgb_sha256": hashlib.sha256(memoryview(keep_rgb[:n]).cast("B")).hexdigest(),
+                }
+                if origin is not None:
+                    block["origin"] = [float(value) for value in origin]
+                blocks.append(block)
 
             seen += n
             kept = seen if stream_all else min(seen, max_points)
             if stream_all:
-                _write_stream_checkpoint(out_dir, source_identity, seen, blocks, complete=False)
+                _write_stream_checkpoint(
+                    out_dir, source_identity, seen, blocks, complete=False, version=stream_version,
+                )
             # The true total is unknown (sentinel count), so no honest fraction
             # exists: report absolute progress with the measured rate instead.
             if stream_all or seen % (CHUNK * 40) < CHUNK or n < CHUNK:
@@ -427,7 +544,10 @@ def _stream(
                 )
             if n < CHUNK:
                 if stream_all:
-                    _write_stream_checkpoint(out_dir, source_identity, seen, blocks, complete=seen > 0)
+                    _write_stream_checkpoint(
+                        out_dir, source_identity, seen, blocks, complete=seen > 0,
+                        version=stream_version,
+                    )
                 break
     finally:
         try:
@@ -458,6 +578,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("out_dir")
     ap.add_argument("--max", type=int, default=0)
     ap.add_argument("--all", action="store_true", help="write every point to bounded raw disk streams")
+    ap.add_argument("--packed-all", action="store_true", help="write every point using block-local float32 offsets")
     ap.add_argument("--source-sha256", help="precomputed source digest for checkpoint identity")
     args = ap.parse_args(argv)
     try:
@@ -467,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
             args.max,
             stream_all=args.all,
             source_sha256=args.source_sha256,
+            packed_all=args.packed_all,
         )
     except Exception as exc:  # reported to the parent
         print(f"ERROR {exc}", flush=True)
@@ -490,7 +612,8 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
     if checkpoint and checkpoint["complete"]:
         count = int(checkpoint["committed_count"])
         _verify_stream_files(out_dir, checkpoint, exact_size=True)
-        xyz_path = out_dir / "xyz.f64"
+        packed = checkpoint["version"] == PACKED_STREAM_CHECKPOINT_VERSION
+        xyz_path = out_dir / ("xyz.local.f32" if packed else "xyz.f64")
         rgb_path = out_dir / "rgb.u8"
         if count > 0:
             if progress:
@@ -499,22 +622,36 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
                 "point_count": count,
                 "xyz_path": xyz_path,
                 "rgb_path": rgb_path,
+                "xyz_dtype": "<f4" if packed else "<f8",
+                "blocks": checkpoint["blocks"],
+                "block_local_coordinates": packed,
                 "reader": {
                     "reader": "recap-adskrcexport-dll",
                     "reader_abi": info["abi"],
                     "dll": info["dll_path"],
                     "native_rcs_verified": True,
                     "sampling": "none; full sequential RCS stream",
+                        "source_sha256": source_identity["sha256"],
                 },
             }
         raise FormatError("completed RCS stream checkpoint has invalid raw file sizes")
+    stream_version = (
+        int(checkpoint["version"])
+        if checkpoint
+        else PACKED_STREAM_CHECKPOINT_VERSION
+    )
+    stream_mode = (
+        "--packed-all"
+        if stream_version == PACKED_STREAM_CHECKPOINT_VERSION
+        else "--all"
+    )
     cmd = [
         sys.executable,
         "-m",
         "scan2bim.formats.rcs_native",
         str(path),
         str(out_dir),
-        "--all",
+        stream_mode,
         "--source-sha256",
         source_identity["sha256"],
     ]
@@ -573,7 +710,8 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
                 proc.wait()
         raise
 
-    xyz_path = out_dir / "xyz.f64"
+    packed = stream_version == PACKED_STREAM_CHECKPOINT_VERSION
+    xyz_path = out_dir / ("xyz.local.f32" if packed else "xyz.f64")
     rgb_path = out_dir / "rgb.u8"
     if code != 0 or count <= 0 or not xyz_path.is_file() or not rgb_path.is_file():
         detail = last or (" | ".join(stray[-4:]) if stray else f"exit {code}")
@@ -583,7 +721,8 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
         raise FormatError("native RCS child exited without completing its durable stream checkpoint")
     if checkpoint["committed_count"] != count:
         raise FormatError("native RCS stream count differs from its durable checkpoint")
-    if xyz_path.stat().st_size != count * 3 * np.dtype("<f8").itemsize:
+    xyz_dtype = np.dtype("<f4" if packed else "<f8")
+    if xyz_path.stat().st_size != count * 3 * xyz_dtype.itemsize:
         raise FormatError("native RCS coordinate stream has an invalid byte count")
     if rgb_path.stat().st_size != count * 3 * np.dtype("u1").itemsize:
         raise FormatError("native RCS color stream has an invalid byte count")
@@ -593,6 +732,9 @@ def extract_rcs_native(path: Path, out_dir: Path, progress=None) -> dict[str, An
         "point_count": count,
         "xyz_path": xyz_path,
         "rgb_path": rgb_path,
+        "xyz_dtype": xyz_dtype.str,
+        "blocks": checkpoint["blocks"],
+        "block_local_coordinates": packed,
         "reader": {
             "reader": "recap-adskrcexport-dll",
             "reader_abi": info["abi"],
@@ -612,8 +754,9 @@ def read_rcs_native(path: Path, max_points: int, progress=None):
     if not info["dll_exists"]:
         raise FormatError(f"ReCap DLL not found: {info['dll_path']}")
 
-    with tempfile.TemporaryDirectory(prefix="s2b_rcs_") as tmp:
-        out_dir = Path(tmp)
+    # Keep bounded-mode samples beside application data. System TEMP can be a
+    # restricted or low-space volume in packaged/managed Windows deployments.
+    with _application_scratch_dir() as out_dir:
         cmd = [
             sys.executable,
             "-m",

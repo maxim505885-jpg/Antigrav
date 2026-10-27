@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-25",
+  "work": "Stage 2 configurable persistent data root; Stage 12 rebuilt installer acceptance",
+  "status": "partial_acceptance_only",
+  "stage_acceptance": {
+    "stage_2": "open",
+    "stage_12": "open",
+    "accepted_stages": [
+      1,
+      3,
+      5
+    ],
+    "accepted_total": "3/12",
+    "stage_6_order": "parked_until_last"
+  },
+  "data_root": {
+    "default": "%LOCALAPPDATA%\\ScanStudio\\data",
+    "configuration_file": "%LOCALAPPDATA%\\ScanStudio\\data-root.txt",
+    "environment_override": "S2B_DATA_DIR takes precedence over data-root.txt",
+    "existing_projects_moved_automatically": false,
+    "unavailable_target_behavior": "clear startup error before API launch",
+    "tests": {
+      "desktop_app_and_release_bundle": "9 passed",
+      "cases": [
+        "default path",
+        "absolute path from data-root.txt",
+        "S2B_DATA_DIR override",
+        "invalid target",
+        "release bundle excludes base Python site-packages"
+      ]
+    }
+  },
+  "release_bundle": {
+    "path": "installer/Output/SCAN_Studio_Windows11_Setup.exe",
+    "size_bytes": 170008836,
+    "sha256": "55CCFCB4C00411C11FA37534A755D1760CF0C8CC9D06D01217EA9994A1A1E2F5",
+    "previous_release_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre-jedi-typeshed-trim_20261025.exe",
+    "previous_release_sha256": "C783166AE69AC72910E3AA9D0B04ACF09442BA2BA92E83C982F190D051CF9969",
+    "release_bundle_preflight": "passed; four frontend assets referenced",
+    "installer_log": {
+      "path": "%TEMP%\\ScanStage2-install.log (removed after test)",
+      "installation_process_succeeded": true
+    },
+    "installed_runtime_smoke": {
+      "api_health_status": 200,
+      "ui_status": 200,
+      "ui_title_present": true,
+      "bytecode_files": 0,
+      "test_dependency_files": 0,
+      "data_directory_isolated_under_temp": true,
+      "jedi_typeshed_files": 0,
+      "python_stdlib_test_files": 0,
+      "scikit_image_imported": true
+    },
+    "installed_data_root_test": {
+      "data_root_file_resolved_to": "%TEMP%\\ScanStage2-from-file",
+      "S2B_DATA_DIR_override_resolved_to": "%TEMP%\\ScanStage2-from-env",
+      "passed": true
+    },
+    "cleanup": {
+      "uninstall_registry_entry_absent": true,
+      "installation_root_absent_after_cleanup": true,
+      "temporary_probe_data_removed": true,
+      "uninstaller_exit_code_captured": true,
+      "candidate_staging_directory_removed_after_hash_verification": true,
+      "uninstaller_exit_code": 0
+    },
+    "110_character_path_recheck": {
+      "path_length": 110,
+      "install_exit_code": 0,
+      "api_health_status": 200,
+      "ui_status": 200,
+      "bytecode_files": 0,
+      "data_directory_isolated_under_temp": true,
+      "uninstall_exit_code": 0,
+      "install_root_absent_after_uninstall": true,
+      "hkcu_uninstall_entry_absent": true,
+      "status": "passed"
+    },
+    "earlier_release_backup": "data/.tools/SCAN_Studio_Windows11_Setup_pre-data-root_20261025.exe",
+    "earlier_release_sha256": "E06A0CA913D4628BB63B47AD1582668CB322F0629B11AF9BD39DAE7F413F41EF",
+    "installer_exclusions": [
+      "Jedi third-party typeshed database from the app venv",
+      "Python standard-library test files"
+    ],
+    "deep_path_recheck": {
+      "path_length": 120,
+      "install_exit_code": 0,
+      "install_location_matches_requested_path": true,
+      "api_health_status": 200,
+      "ui_status": 200,
+      "bytecode_files": 0,
+      "scikit_image_imported": true,
+      "jedi_typeshed_files": 0,
+      "python_stdlib_test_files": 0,
+      "uninstall_exit_code": 0,
+      "install_root_absent_after_uninstall": true,
+      "hkcu_uninstall_entry_absent": true,
+      "status": "passed"
+    }
+  },
+  "known_limits": {
+    "full_recap_import": "not run; current C: free 3716976640 bytes (3.46 GiB), mapped R: is not ready; estimated requirement 14782617889 bytes (13.77 GiB)",
+    "deep_install_path": "one attempt in the deeply nested Cyrillic project path failed with Windows MoveFile error code 3 in a Jedi typeshed file and rolled back; short TEMP installation passed; deep-path acceptance remains open",
+    "native_window_clean_windows11_and_signature": "not verified in this acceptance block"
+  },
+  "source_scan_modified_or_uploaded": false
+}

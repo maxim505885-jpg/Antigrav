@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "action": "Corrected derived Workshop 2 source-count metadata after two full sequential ReCap DLL recounts",
+  "project_id": "workshop_project",
+  "cloud_id": "workshop_cloud_02",
+  "before": {
+    "point_count": 576820490,
+    "ingested_count": 3500000,
+    "decimated": true,
+    "legacy_reader_label": "rcs_native_stream",
+    "legacy_value_origin": "hard-coded in scripts/prepare_both_workshop_clouds.py; this constant was not calculated from the stored sample and no independent reader log was recorded"
+  },
+  "after": {
+    "point_count": 574367742,
+    "ingested_count": 3500000,
+    "decimated": true,
+    "reader": "recap-adskrcexport-dll",
+    "reader_version": "24.0.0.240",
+    "legacy_unverified_source_point_count": 576820490
+  },
+  "recount": {
+    "full_sequential_passes": 2,
+    "count": 574367742,
+    "source_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+    "source_size_bytes": 13906332111,
+    "source_mtime_utc": "2026-10-16T09:14:28.2322579Z",
+    "sha256_recomputed_during_metadata_correction": false
+  },
+  "safety": {
+    "active_jobs_before_correction": 0,
+    "database_integrity_check": "ok",
+    "database_backup": "scan2bim.sqlite3.before-workshop-2-count-20261024T225244Z.bak",
+    "metadata_backup": "meta.json.before-count-20261024T225244Z.bak",
+    "source_modified": false,
+    "point_arrays_modified": false,
+    "stored_sample_count_unchanged": true
+  },
+  "acceptance": {
+    "stage_2_closed": false,
+    "overall_closed_stages": "3/12",
+    "remaining": "10.rcp declared-count difference, full-resolution native cancellation/restart and resource profile, original full-resolution multi-station RCP round-trip"
+  }
+}

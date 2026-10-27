@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-24",
+  "route": "POST /api/v1/projects/{project_id}/clouds/import-path; POST /api/v1/jobs/{job_id}/cancel; POST /api/v1/clouds/{cloud_id}/resume",
+  "project_id": "a37849541e614f9082b9f1b9a7d414f7",
+  "source": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/1.rcs",
+  "source_point_count": 297873927,
+  "max_points": 1000000,
+  "cancelled_run": {
+    "job_id": "6cd20d6484f64bf2bbcc493920fa7075",
+    "status": "cancelled",
+    "cloud_status_after_cancel": "cancelled",
+    "ingested_count_after_cancel": 0,
+    "cancel_trigger": "Observed streaming RCS progress at 10,000,000 points; cancellation request returned HTTP 200; job reached cancelled."
+  },
+  "resumed_run": {
+    "job_id": "6d3af844534243a587c512725bef5bf6",
+    "status": "succeeded",
+    "duration_seconds": 313,
+    "cloud_id": "ae9aa08039c744dbb7a2ac1c95dbc609",
+    "cloud_status": "ready",
+    "source_point_count": 297873927,
+    "stored_point_count": 1000000,
+    "decimated": true,
+    "has_rgb": true,
+    "positions_shape": [
+      1000000,
+      3
+    ],
+    "positions_dtype": "float32",
+    "colors_shape": [
+      1000000,
+      3
+    ],
+    "colors_dtype": "uint8",
+    "all_xyz_finite": true,
+    "source_sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+    "source_size_bytes": 7196593757,
+    "source_mtime_ns": 1791897939956361000
+  },
+  "result": "PASS for live cancellation and successful full-stream resume on a real FARO RCS; imported cloud is a sampled derivative, not a full-resolution output."
+}

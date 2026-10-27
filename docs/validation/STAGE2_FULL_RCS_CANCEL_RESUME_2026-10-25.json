@@ -1,0 +1,399 @@
+{
+  "date": "2026-10-25",
+  "stage": 2,
+  "purpose": "Exercise the Studio API import, cancel, and resume routes against a full-resolution native RCS stream in isolated data",
+  "method": {
+    "source": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+    "cancel_after_committed_points": 20000000,
+    "import_route": "POST /api/v1/projects/{project_id}/clouds/import-path",
+    "cancel_route": "POST /api/v1/jobs/{job_id}/cancel",
+    "resume_route": "POST /api/v1/clouds/{cloud_id}/resume",
+    "reader": {
+      "dll_exists": true,
+      "dll_path": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\AdskRcExport.dll",
+      "recap_dir": "C:\\Program Files\\Autodesk\\Autodesk ReCap",
+      "abi": "undocumented Autodesk internal (RCRcsDataSource), subprocess-isolated",
+      "verified_file": "1.rcs (ADOCT v3, 7.2 GB, 297,873,927 points, 2026-10-20)"
+    },
+    "data_root": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.t\\rcs-cancel-resume-bb2aa65110a0\\app-data",
+    "production_data_used": false
+  },
+  "capacity": {
+    "free_before_bytes": 29845798912,
+    "estimate": {
+      "durable_bytes": 4505608905,
+      "raw_stream_peak_bytes": 4468108905,
+      "safety_margin_bytes": 897371781,
+      "reserve_bytes": 1073741824,
+      "required_bytes": 10944831415
+    }
+  },
+  "resource_trace": {
+    "minimum_free_bytes": 20866736128,
+    "started_utc": "2026-10-25T09:57:53.510941+00:00",
+    "duration_seconds": 1255.0,
+    "ended_utc": "2026-10-25T10:18:48.506640+00:00"
+  },
+  "cancel": {
+    "status": "cancelled",
+    "cloud_status": "cancelled",
+    "job_id": "1be77a4a53464719bb51ab71f3af2702",
+    "checkpoint_complete": false,
+    "committed_points": 20250000,
+    "block_count": 81,
+    "stream_bytes": 303750000,
+    "checkpoint_retained": true,
+    "cancel_response": {
+      "job_id": "1be77a4a53464719bb51ab71f3af2702",
+      "cancel_requested": true,
+      "status": "cancellation_requested"
+    },
+    "cloud_id": "33c4e6b772374495a61d73e923dba029"
+  },
+  "resume": {
+    "job_id": "177adcfa78084d2ca8b5f3720fbcdfc7",
+    "api_http": 200,
+    "job_status": "succeeded",
+    "cloud_status": "ready",
+    "duration_seconds": 1160.35,
+    "cloud": {
+      "id": "33c4e6b772374495a61d73e923dba029",
+      "status": "ready",
+      "point_count": 297873927,
+      "ingested_count": 297873927,
+      "decimated": false,
+      "has_color": true
+    },
+    "fresh_process": {
+      "health_http": 200,
+      "clouds_http": 200,
+      "clouds": [
+        {
+          "id": "33c4e6b772374495a61d73e923dba029",
+          "name": "FARO 1.rcs full-resolution resume",
+          "status": "ready",
+          "point_count": 297873927,
+          "ingested_count": 297873927,
+          "decimated": false,
+          "has_color": true
+        }
+      ]
+    }
+  },
+  "acceptance": {
+    "stage_2": "passed_for_full_resolution_cancel_resume",
+    "cancel_preserves_checkpoint": "passed",
+    "full_resolution_after_resume": "passed",
+    "fresh_process_reopen": "passed",
+    "source_unchanged": true
+  },
+  "cleanup": {
+    "isolated_derived_data": "removed after successful fresh-process verification",
+    "original_source": "retained unchanged"
+  },
+  "progress_trace": [
+    {
+      "phase": "import",
+      "progress": 0.0,
+      "message": "waiting for durable RCS checkpoint",
+      "elapsed_seconds": 30.5,
+      "free_bytes": 29746286592
+    },
+    {
+      "phase": "import",
+      "progress": 0.0,
+      "message": "waiting for durable RCS checkpoint",
+      "elapsed_seconds": 60.8,
+      "free_bytes": 29599260672
+    },
+    {
+      "phase": "resume",
+      "progress": 0.01,
+      "message": "запущено",
+      "elapsed_seconds": 91.1,
+      "free_bytes": 29540085760
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 24,500,000",
+      "elapsed_seconds": 121.5,
+      "free_bytes": 29469126656
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 32,500,000",
+      "elapsed_seconds": 151.6,
+      "free_bytes": 29350690816
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 40,750,000",
+      "elapsed_seconds": 181.7,
+      "free_bytes": 29226209280
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 49,000,000",
+      "elapsed_seconds": 211.8,
+      "free_bytes": 29101760512
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 57,000,000",
+      "elapsed_seconds": 242.0,
+      "free_bytes": 28957687808
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 65,250,000",
+      "elapsed_seconds": 272.1,
+      "free_bytes": 28834295808
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 73,500,000",
+      "elapsed_seconds": 302.2,
+      "free_bytes": 28736806912
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 81,750,000",
+      "elapsed_seconds": 332.3,
+      "free_bytes": 28606550016
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 90,000,000",
+      "elapsed_seconds": 362.4,
+      "free_bytes": 28470628352
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 98,000,000",
+      "elapsed_seconds": 392.5,
+      "free_bytes": 28351459328
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 106,250,000",
+      "elapsed_seconds": 422.6,
+      "free_bytes": 28244639744
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 114,500,000",
+      "elapsed_seconds": 452.7,
+      "free_bytes": 28123484160
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 122,500,000",
+      "elapsed_seconds": 482.9,
+      "free_bytes": 27989069824
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 130,750,000",
+      "elapsed_seconds": 513.1,
+      "free_bytes": 27855798272
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 138,750,000",
+      "elapsed_seconds": 543.2,
+      "free_bytes": 27738271744
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 147,000,000",
+      "elapsed_seconds": 573.3,
+      "free_bytes": 27614605312
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 155,000,000",
+      "elapsed_seconds": 603.4,
+      "free_bytes": 27488133120
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 163,250,000",
+      "elapsed_seconds": 633.5,
+      "free_bytes": 27367350272
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 171,250,000",
+      "elapsed_seconds": 663.6,
+      "free_bytes": 27264176128
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 179,500,000",
+      "elapsed_seconds": 693.8,
+      "free_bytes": 27142094848
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 187,500,000",
+      "elapsed_seconds": 723.9,
+      "free_bytes": 27018153984
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 195,750,000",
+      "elapsed_seconds": 754.0,
+      "free_bytes": 26889846784
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 203,750,000",
+      "elapsed_seconds": 784.1,
+      "free_bytes": 26778681344
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 212,000,000",
+      "elapsed_seconds": 814.2,
+      "free_bytes": 26651242496
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 220,000,000",
+      "elapsed_seconds": 844.3,
+      "free_bytes": 26511859712
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 228,250,000",
+      "elapsed_seconds": 874.5,
+      "free_bytes": 26397773824
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 236,500,000",
+      "elapsed_seconds": 904.6,
+      "free_bytes": 26291679232
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 244,500,000",
+      "elapsed_seconds": 934.7,
+      "free_bytes": 26166980608
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 252,750,000",
+      "elapsed_seconds": 964.8,
+      "free_bytes": 26035097600
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 260,750,000",
+      "elapsed_seconds": 995.0,
+      "free_bytes": 25912262656
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 268,750,000",
+      "elapsed_seconds": 1025.0,
+      "free_bytes": 25801916416
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 277,000,000",
+      "elapsed_seconds": 1055.2,
+      "free_bytes": 25675374592
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 285,000,000",
+      "elapsed_seconds": 1085.3,
+      "free_bytes": 25563111424
+    },
+    {
+      "phase": "resume",
+      "progress": 0.05,
+      "message": "RCS: 293,000,000",
+      "elapsed_seconds": 1115.4,
+      "free_bytes": 25427410944
+    },
+    {
+      "phase": "resume",
+      "progress": 0.55,
+      "message": "RCS points staged: 297,873,927",
+      "elapsed_seconds": 1145.6,
+      "free_bytes": 25374674944
+    },
+    {
+      "phase": "resume",
+      "progress": 0.6907346232421343,
+      "message": "writing full-resolution RCS points",
+      "elapsed_seconds": 1175.9,
+      "free_bytes": 20905897984
+    },
+    {
+      "phase": "resume",
+      "progress": 0.8740336469260701,
+      "message": "writing full-resolution RCS points",
+      "elapsed_seconds": 1206.2,
+      "free_bytes": 20904812544
+    },
+    {
+      "phase": "resume",
+      "progress": 0.9,
+      "message": "writing full-resolution RCS points",
+      "elapsed_seconds": 1236.6,
+      "free_bytes": 20866772992
+    }
+  ],
+  "source_after": {
+    "sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+    "size_bytes": 7196593757
+  },
+  "source_before": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+    "size_bytes": 7196593757,
+    "sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a"
+  },
+  "verification": {
+    "post_run_source_hash_recheck": "matches source_before and prior independent two-station pre/post hashes",
+    "focused_tests": {
+      "command": ".venv/Scripts/python.exe -m pytest backend/tests/test_ingest_restart.py backend/tests/test_rcs_streaming_ingest.py -q",
+      "result": "24 passed"
+    }
+  }
+}

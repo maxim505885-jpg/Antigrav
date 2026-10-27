@@ -36,6 +36,9 @@ interface Props {
   onToggleLimitBox?: (active: boolean) => void;
   measureModeActive?: boolean;
   onToggleMeasureMode?: (active: boolean) => void;
+  pointPickModeActive?: boolean;
+  onPointPicked?: (point: [number, number, number]) => void;
+  onPointPickMiss?: () => void;
   showBim?: boolean;
   pointCloudVisible?: boolean;
   cameraPreset?: CameraPreset | null;
@@ -84,6 +87,9 @@ export default function Viewer3D({
   onToggleLimitBox,
   measureModeActive,
   onToggleMeasureMode,
+  pointPickModeActive = false,
+  onPointPicked,
+  onPointPickMiss,
   showBim = false,
   pointCloudVisible,
   cameraPreset,
@@ -134,6 +140,12 @@ export default function Viewer3D({
   const isMeasureActive = measureModeActive !== undefined ? measureModeActive : measureMode;
   const measureModeRef = useRef(false);
   measureModeRef.current = isMeasureActive;
+  const pointPickModeRef = useRef(false);
+  pointPickModeRef.current = pointPickModeActive;
+  const onPointPickedRef = useRef(onPointPicked);
+  onPointPickedRef.current = onPointPicked;
+  const onPointPickMissRef = useRef(onPointPickMiss);
+  onPointPickMissRef.current = onPointPickMiss;
   const [measurePoints, setMeasurePoints] = useState<THREE.Vector3[]>([]);
   const measurePointsRef = useRef<THREE.Vector3[]>([]);
   measurePointsRef.current = measurePoints;
@@ -350,7 +362,7 @@ export default function Viewer3D({
     };
     const onPointerUp = (e: PointerEvent) => {
       if (Math.hypot(e.clientX - startX, e.clientY - startY) > 5) return;
-      if (!measureModeRef.current) return;
+      if (!measureModeRef.current && !pointPickModeRef.current) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
@@ -358,8 +370,19 @@ export default function Viewer3D({
         -((e.clientY - rect.top) / rect.height) * 2 + 1
       );
       const raycaster = new THREE.Raycaster();
-      raycaster.params.Points = { threshold: 0.25 };
+      raycaster.params.Points = { threshold: pointPickModeRef.current ? 0.1 : 0.25 };
       raycaster.setFromCamera(mouse, camera);
+
+      if (pointPickModeRef.current) {
+        const hits = pointsRef.current ? raycaster.intersectObject(pointsRef.current) : [];
+        if (hits.length > 0) {
+          const point = hits[0].point;
+          onPointPickedRef.current?.([point.x, point.y, point.z]);
+        } else {
+          onPointPickMissRef.current?.();
+        }
+        return;
+      }
 
       let clickedPoint: THREE.Vector3 | null = null;
       if (pointsRef.current) {
@@ -1080,6 +1103,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "all"}
             style={{
               cursor: "pointer",
               background: activePreset === "all" ? "#2563eb" : "#f0ebe4",
@@ -1106,6 +1130,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "columns_beams"}
             style={{
               cursor: "pointer",
               background: activePreset === "columns_beams" ? "#0284c7" : "#f0ebe4",
@@ -1123,6 +1148,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "walls_only"}
             style={{
               cursor: "pointer",
               background: activePreset === "walls_only" ? "#475569" : "#f0ebe4",
@@ -1140,6 +1166,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "trusses_braces"}
             style={{
               cursor: "pointer",
               background: activePreset === "trusses_braces" ? "#7c3aed" : "#f0ebe4",
@@ -1156,6 +1183,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "clean_bim"}
             style={{
               cursor: "pointer",
               background: activePreset === "clean_bim" ? "#059669" : "#f0ebe4",
@@ -1172,6 +1200,7 @@ export default function Viewer3D({
           <button
             type="button"
             className="hud-chip"
+            aria-pressed={activePreset === "cloud_only"}
             style={{
               cursor: "pointer",
               background: activePreset === "cloud_only" ? "#4b5563" : "#f0ebe4",

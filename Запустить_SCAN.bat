@@ -15,8 +15,7 @@ if exist "frontend\dist\index.html" (
 )
 
 if not defined LOCALAPPDATA set "LOCALAPPDATA=%USERPROFILE%\AppData\Local"
-set "S2B_DATA_DIR=%LOCALAPPDATA%\ScanStudio\data"
-if not exist "%S2B_DATA_DIR%" mkdir "%S2B_DATA_DIR%"
+set "PYTHONDONTWRITEBYTECODE=1"
 set "PYTHONPATH=%~dp0backend;%~dp0"
 if exist ".venv\Scripts\python.exe" (
   ".venv\Scripts\python.exe" desktop_app.py

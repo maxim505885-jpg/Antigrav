@@ -265,11 +265,15 @@ def cluster_column_surface_tracks(
         association = association_by_id.get(plane_id)
         if association is None:
             raise ValueError(f"surface {plane_id!r} has no matching association")
+        exclusion_reasons: list[str] = []
         edge_id = association.get("candidate_edge_id")
         if association.get("association_status") == "insufficient_vertical_support":
             potential = association.get("potential_candidate_edges", [])
             edge_id = potential[0] if len(potential) == 1 else None
         if edge_id not in edge_geometry:
+            exclusion_reasons.append(
+                "association_" + str(association.get("association_status", "no_candidate_edge"))
+            )
             edge_id = None
 
         normal = _finite_vector(surface.get("normal_xy"), 2, "surface normal")
@@ -304,6 +308,7 @@ def cluster_column_surface_tracks(
                 vertical_bins = set(range(math.floor(z_bounds[0] / vertical_bin_m),
                                           math.ceil(z_bounds[1] / vertical_bin_m)))
         if not vertical_bins.intersection(candidate_bins):
+            exclusion_reasons.append("outside_candidate_vertical_extent")
             edge_id = None
         if edge_id is not None:
             edge_normal, edge_offset, edge_tangent, edge_length = edge_geometry[edge_id]
@@ -314,10 +319,13 @@ def cluster_column_surface_tracks(
             projected = endpoints @ edge_tangent
             edge_center = float(np.dot(edge_tangent, center[:2]))
             edge_low, edge_high = edge_center - edge_length / 2, edge_center + edge_length / 2
-            if (deviation > max_track_normal_deviation_degrees
-                    or boundary_delta > max_track_boundary_delta_m
-                    or projected.min() < edge_low - max_track_boundary_delta_m
-                    or projected.max() > edge_high + max_track_boundary_delta_m):
+            if deviation > max_track_normal_deviation_degrees:
+                exclusion_reasons.append("track_normal_deviation_exceeds_limit")
+            if boundary_delta > max_track_boundary_delta_m:
+                exclusion_reasons.append("track_boundary_delta_exceeds_limit")
+            if projected.min() < edge_low - max_track_boundary_delta_m or projected.max() > edge_high + max_track_boundary_delta_m:
+                exclusion_reasons.append("track_span_exceeds_candidate_face")
+            if exclusion_reasons:
                 edge_id = None
             else:
                 edge_position = sorted((float(projected.min()), float(projected.max())))
@@ -330,6 +338,7 @@ def cluster_column_surface_tracks(
             "vertical_bins": vertical_bins,
             "point_indices": point_indices,
             "association_status": str(association.get("association_status", "unknown")),
+            "exclusion_reasons": exclusion_reasons,
         })
 
     parent = list(range(len(observations)))
@@ -416,6 +425,7 @@ def cluster_column_surface_tracks(
             "occupied_z_bin_ids": sorted(bins),
             "association_statuses": sorted({member["association_status"] for member in members}),
             "track_status": track_status,
+            "exclusion_reasons": sorted({reason for member in members for reason in member["exclusion_reasons"]}),
             "structural_role": "unknown",
             "confirmed": False,
             "review_required": True,

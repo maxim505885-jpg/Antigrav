@@ -11,6 +11,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import uvicorn  # noqa: E402
+from scan2bim.config import API_KEY  # noqa: E402
+from scan2bim.server import require_api_key_for_remote_bind  # noqa: E402
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -18,4 +20,8 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
+    try:
+        require_api_key_for_remote_bind(args.host, API_KEY)
+    except ValueError as exc:
+        parser.error(str(exc))
     uvicorn.run("scan2bim.main:app", host=args.host, port=args.port, reload=args.reload)

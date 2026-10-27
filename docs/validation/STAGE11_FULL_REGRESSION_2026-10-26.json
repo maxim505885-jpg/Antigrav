@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-26",
+  "stage": 11,
+  "command": "python -m pytest backend/tests -q --tb=short",
+  "exit_code": 0,
+  "passed": 861,
+  "failed": 0,
+  "data_root": "isolated temporary directory inside the repository",
+  "temporary_root": "isolated temporary directory inside the repository",
+  "warning": "One existing Starlette/httpx TestClient deprecation warning.",
+  "scope": "Full backend regression after durable panorama-render worker integration. No FARO source cloud or production project database was used.",
+  "acceptance": "Software regression passed. CUDA hardware and distributed worker infrastructure remain unverified; Stage 11 remains open."
+}

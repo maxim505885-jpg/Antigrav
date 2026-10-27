@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "title": "Expose local and world-coordinate registration transforms",
+  "coordinate_definition": {
+    "stored_points": "world = local + saved cloud origin",
+    "local_transform": "target_local = R * source_local + t_local",
+    "world_translation": "t_world = t_local + target_origin - R * source_origin",
+    "local_matrix_field": "matrix_4x4 (kept for existing viewer behavior)",
+    "world_matrix_field": "world_matrix_4x4 (null when either origin is unavailable or an RCP transform is explicitly unapplied)"
+  },
+  "implementation": {
+    "manual_kabsch": true,
+    "icp": true,
+    "ui_labels_both_frames": true,
+    "source_clouds_modified": false,
+    "transform_applied": false,
+    "unapplied_rcp_transform_suppresses_world_matrix": true
+  },
+  "verification": {
+    "focused_backend_tests": "7 passed; includes a real RCP metadata guard regression proving local transform remains available while world transform is null until the RCP transform is applied",
+    "frontend_tests": "passed (full npm test suite)",
+    "typescript_and_production_build": "passed (1,977 modules; bundle index-r-w-t4At.js)",
+    "live_api": {
+      "status": "ok",
+      "source_cloud_id": "workshop_cloud_01",
+      "target_cloud_id": "workshop_cloud_02",
+      "request": "POST pair-align with three synthetic non-collinear tie pairs; no write route or persistence",
+      "source_origin_m": [
+        -20.814119338989258,
+        48.029191970825195,
+        2.7110726833343506
+      ],
+      "target_origin_m": [
+        -82.19015407953727,
+        26.53976772872099,
+        12.108239750148874
+      ],
+      "local_translation_m": [
+        4.0,
+        5.0,
+        6.0
+      ],
+      "world_translation_m": [
+        -57.37603474054802,
+        -16.489424242104178,
+        15.397167066814523
+      ],
+      "fit_rmse_mm": 0.0,
+      "interpretation": "Arithmetic check only; synthetic tie pairs do not measure station accuracy.",
+      "served_frontend_bundle": "index-r-w-t4At.js",
+      "rcp_unapplied_transform_guard": {
+        "status": "passed",
+        "source_cloud_id": "52370d1f13a147518dd2458886dafee5",
+        "target_cloud_id": "workshop_cloud_02",
+        "request": "POST pair-align with three synthetic non-collinear tie pairs; no persistence",
+        "http_status": 200,
+        "local_matrix_present": true,
+        "world_matrix_4x4": null,
+        "source_origin_world_m": null,
+        "metadata_transform_applied": false
+      }
+    }
+  },
+  "acceptance": {
+    "stage_4": "in_progress",
+    "remaining": "Independent surveyed control points must verify multi-station FARO RMSE < 10 mm.",
+    "accepted_stages": "3/12",
+    "current_focus": "Stage 7; Stage 6 parked until the final pass"
+  }
+}

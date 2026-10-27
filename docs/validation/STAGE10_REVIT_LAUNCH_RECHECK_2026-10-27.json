@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-27",
+  "stage": 10,
+  "scope": "Read-only Revit 2027 startup and registered SCAN add-in recheck",
+  "revit": {
+    "version": "2027.0.2",
+    "executable": "C:\\Program Files\\Autodesk\\Revit 2027\\Revit.exe",
+    "startup_process_observed": true,
+    "process_id_at_recheck": 21004,
+    "latest_journal": "journal.0022.txt",
+    "journal_timestamp": "2026-10-27T09:37:41",
+    "journal_evidence": [
+      "Identity SDK initialization failed with error #3005",
+      "ADLM license checkout failed: VendorCode 20, Generic license checkout error"
+    ]
+  },
+  "registered_addin": {
+    "user_manifest_relative_path": "%APPDATA%/Autodesk/Revit/Addins/2027/SCAN.StructuralModel.addin",
+    "manifest_parse": "valid XML",
+    "commands_declared": [
+      "Scan.Revit.Plugin.ImportStructuralModelCommand",
+      "Scan.Revit.Plugin.VerifyImportedModelCommand"
+    ],
+    "assembly_relative_path": "data/.tools/scan-revit-audit-candidate/Scan.Revit.Plugin.dll",
+    "assembly_bytes": 38400,
+    "assembly_sha256": "F0EF6C780942B847C8FDB5B0007C98F7B458FC3D706BBBFA64295D87A31C94F4",
+    "matches_previous_registered_candidate": true
+  },
+  "verification": {
+    "native_window_capture": "not available; two computer-use capture attempts timed out",
+    "add_in_loaded_in_host": "not verified",
+    "project_opened_or_modified": false,
+    "registered_assembly_changed": false,
+    "stage_10": "in_progress"
+  },
+  "conclusion": "Revit host acceptance remains blocked by the observed Autodesk license checkout failure. The registered DLL identity is intact, but this launch does not prove either Revit UI readiness or add-in command loading."
+}

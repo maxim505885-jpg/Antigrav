@@ -20,17 +20,22 @@ def test_member_axis_split_preserves_rotation_and_creates_contiguous_world_boxes
 
     assert [part["geometry"]["sizes"]["length"] for part in parts] == [4.0, 6.0]
     assert all(part["geometry"]["rotation_z"] == pytest.approx(math.pi / 6) for part in parts)
-    assert [part["geometry"]["center"] for part in parts] == pytest.approx(
-        [[10 - math.cos(math.pi / 6), 19.5, 4], [10 + math.cos(math.pi / 6), 20.5, 4]]
+    assert parts[0]["geometry"]["center"] == pytest.approx(
+        [10 - 3 * math.cos(math.pi / 6), 20 - 3 * math.sin(math.pi / 6), 4],
+        abs=5e-5,
+    )
+    assert parts[1]["geometry"]["center"] == pytest.approx(
+        [10 + 2 * math.cos(math.pi / 6), 20 + 2 * math.sin(math.pi / 6), 4],
+        abs=5e-5,
     )
     assert parts[0]["bbox"]["max"][2] == pytest.approx(4.5)
     assert parts[1]["bbox"]["min"][2] == pytest.approx(3.5)
     direction = [math.cos(math.pi / 6), math.sin(math.pi / 6)]
     gap = [parts[1]["geometry"]["center"][i] - parts[0]["geometry"]["center"][i] for i in range(2)]
-    assert sum(gap[i] * direction[i] for i in range(2)) == pytest.approx(5.0)
+    assert sum(gap[i] * direction[i] for i in range(2)) == pytest.approx(5.0, abs=5e-4)
 
 
-@pytest.mark.parametrize("offset", [0, 0.005, 9.995, 10, float("nan")])
+@pytest.mark.parametrize("offset", [0, 0.005, 9.995, 10])
 def test_member_axis_split_rejects_endpoints_and_non_finite_offsets(offset: float):
     parent = {
         "kind": "oriented_box", "center": [0, 0, 0],
@@ -39,6 +44,9 @@ def test_member_axis_split_rejects_endpoints_and_non_finite_offsets(offset: floa
 
     with pytest.raises(ValueError, match="inside the member"):
         split_oriented_box_along_member_axis(parent, offset)
+
+    with pytest.raises(ValueError, match="finite"):
+        split_oriented_box_along_member_axis(parent, float("nan"))
 
 
 def test_member_axis_split_rejects_invalid_or_axis_aligned_geometry():

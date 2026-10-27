@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-25",
+  "stage": 9,
+  "title": "SPDS drawing and album regression suite",
+  "command": "pytest backend/tests/test_spds_drawings.py backend/tests/test_spds_tables.py backend/tests/test_spds_endpoints.py backend/tests/test_spds_full_set.py backend/tests/test_spds_full_set_safety.py backend/tests/test_structural_drawings.py backend/tests/test_structural_dxf.py backend/tests/test_spds_album_api.py -q",
+  "verification": {
+    "focused_tests": "43 passed",
+    "covered": "five-sheet generation, tables, DXF geometry, API album and full-set safety",
+    "source_project_modified": false
+  },
+  "acceptance": {
+    "stage_9": "testing",
+    "missing": "Open, edit, verify Cyrillic text/lineweights, and print in AutoCAD 2026.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

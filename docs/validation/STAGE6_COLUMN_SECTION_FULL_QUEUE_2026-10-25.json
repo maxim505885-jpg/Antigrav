@@ -1,0 +1,5309 @@
+{
+  "date": "2026-10-25",
+  "stage": 6,
+  "cloud_id": "workshop_cloud",
+  "total_columns": 376,
+  "sample_method": "all 376 column candidate IDs in stable lexical order; read-only surface-track analysis",
+  "elapsed_seconds": 128.405,
+  "before_annotation_counts": {
+    "pending": 376,
+    "reviewed": 0
+  },
+  "after_annotation_counts": {
+    "pending": 376,
+    "reviewed": 0
+  },
+  "read_only_route_post_reports": true,
+  "summary": {
+    "successful": 376,
+    "errors": 0,
+    "total_candidate_edges": 13.0,
+    "total_supported_surfaces": 13.0,
+    "by_association_status": [
+      {
+        "status": "no_candidate_faces",
+        "count": 364
+      },
+      {
+        "status": "partial_candidate_faces",
+        "count": 12
+      }
+    ],
+    "with_any_proposed_or_measured_slices": 0,
+    "with_all_unknown_slices": 21
+  },
+  "results": [
+    {
+      "element_id": "00e0fe96d3444247ae247045dff64ee7",
+      "input_points": 424,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0184fd919d73459b92a9c87b7b20878f",
+      "input_points": 6444,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "01c9802abd31418ca29419c283f806c9",
+      "input_points": 319,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "020255dee7bb4fa98e5d7d5da3e464a9",
+      "input_points": 502,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:71"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0243e4d77fa248d28df5176d892eeeae",
+      "input_points": 1625,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "03bd546fcc3f44e1821a3f0af8a6e96f",
+      "input_points": 920,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0405340c5e9845218ff9e0be18498f95",
+      "input_points": 1617,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "04df48e9e0c24a86ad1426b04400f548",
+      "input_points": 1205,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "05c2161676064d188ea4c6a33de9ab54",
+      "input_points": 1039,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "077812c418174a9f8cae573974b00eef",
+      "input_points": 430,
+      "surface_count": 3,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "078d32fa6e734907aad87cd9f266ff7d",
+      "input_points": 173,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "084d3ec35cbe4e5184ee76c5b6e8ad92",
+      "input_points": 1112,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "091437b0183f4ceba4a1dc36a6ed5eef",
+      "input_points": 1020,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0972af8e2afe4d8db95c2954a3027a9f",
+      "input_points": 139,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0987f3eee748432f94d65255bebabaa0",
+      "input_points": 1023,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0bca8aaa92364fbca1c4dd5c9436a963",
+      "input_points": 449,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0d96419906dc450388c1f255d6d23e2d",
+      "input_points": 1157,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0da2da07bcd040a8ae00dd17e9d22574",
+      "input_points": 789,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0db01c2fbe3548a08be50038971acc6f",
+      "input_points": 1087,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0ece90b393b44a878fae7d8e9aa3c489",
+      "input_points": 3627,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0f40433eda2742769179aa2a7983d617",
+      "input_points": 5290,
+      "surface_count": 8,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0f6f3ae348c6449f8fdf41cc5560b121",
+      "input_points": 2057,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "0f81df3160f94fad982cd228f733c175",
+      "input_points": 416,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "11ff550e110a43099d326d920fac7daa",
+      "input_points": 1301,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "123948d0613148e5b3394a9e1dc28be9",
+      "input_points": 673,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1444fa3cabab4f888bfd788cda28d3e0",
+      "input_points": 956,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "14469b8b22b5403eb3f90ef2cd7d7804",
+      "input_points": 704,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "150f88424f2a4de29716f83c6ccbf93a",
+      "input_points": 2748,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1567fe661ec240b6b570fdd55ca6915f",
+      "input_points": 405,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "157263a326ff417594e6aec265dc3fa9",
+      "input_points": 317,
+      "surface_count": 3,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "15a7ba3d70d84db796814058bd6d1ddf",
+      "input_points": 7159,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "15c20f072bab4671920305602f95fb04",
+      "input_points": 769,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "16448867863a48698f029c2ef27aabce",
+      "input_points": 380,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "171623d1c3194b2daa92faf377318bb6",
+      "input_points": 338,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:65"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1756fa62bac34139a424bdff14d48779",
+      "input_points": 552,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "17d356ed16644db6a33decc161260d45",
+      "input_points": 2781,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "180338407fea405c9b6c6148e06294fa",
+      "input_points": 5673,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "18299ba043e34d1b98ecf1637d6c0f3d",
+      "input_points": 329,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "18954a55694b4e44a141be212288d43f",
+      "input_points": 967,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:29"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "18d337f42f27490999b41399a8e55323",
+      "input_points": 1197,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "19327959c36e42e3ba1d64230e9e4bbd",
+      "input_points": 842,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1b44c7f2e76d489eb836029c64a496eb",
+      "input_points": 3225,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1b920acb50684b01b059b5960606e3f0",
+      "input_points": 6455,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1be4eed1dbb4428495e756126b2dcb5f",
+      "input_points": 285,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:79"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1db0ce68fef34b72a0777329205c716e",
+      "input_points": 1596,
+      "surface_count": 7,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1f0ac8b1c97946d6bd78c6f3c9f60348",
+      "input_points": 1750,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "1f3fd2f8ba6546c8b07bb71798f9084c",
+      "input_points": 2395,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "20151a3207ed46778090d373a2f03291",
+      "input_points": 900,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:75"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "203c29c1fbf34ffaa7a619bc3bf3d9a6",
+      "input_points": 3864,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "210d33713dd24433bd0fb26e4366abb6",
+      "input_points": 5442,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "220d6a9bb4fc46c5bda7b519daab7515",
+      "input_points": 1985,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "22bc5eb632b242188168004af2cc3a5b",
+      "input_points": 7002,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "22bcd99d67ba4e928fee8d7d2ac23ddf",
+      "input_points": 317,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "231de93f5c87487d990b29b245a39228",
+      "input_points": 8573,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "23b0bdef45c849d8b6d188ca58deade3",
+      "input_points": 813,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2492c448ffc946d89b249a712ae0d23f",
+      "input_points": 827,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:69"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "24a3f115909a4a95b5cdbfeb64cfb251",
+      "input_points": 4400,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "25e1526ec2c74031bd9cf9d42117ed30",
+      "input_points": 991,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "26159ed62eb440ae9b6fc68262a6ef72",
+      "input_points": 686,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2615f0f41fe441c594bce72f0e10a62f",
+      "input_points": 893,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2624651c72e5478d864023a79ed1b927",
+      "input_points": 455,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "26cdb0bc4fe64b5ba3ef9f1a182f1183",
+      "input_points": 1079,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "26d599481d824a17bca85327b1dd9da6",
+      "input_points": 994,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:73"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2720195d354243d0afd484be64756d03",
+      "input_points": 834,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "27574591f2dd40e6aa43d41d3adafdd7",
+      "input_points": 697,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "28defc23834c453e80b299539df3863c",
+      "input_points": 3385,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2a7470a5e4244e7cb18d11c27a09c9f1",
+      "input_points": 2051,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2aea1ec4b401405193bd78d73538ae65",
+      "input_points": 8985,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2bc10b1b16ce40ec8dbd341f0fecaef6",
+      "input_points": 714,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2c93c6b8202f43449edd047c523ea04d",
+      "input_points": 308,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2caa6104fa84406bb3a4ca0da9fe6dda",
+      "input_points": 456,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2d0e7bf9c2eb485ab1be4c9b9c52c3a6",
+      "input_points": 381,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2e136fd3fdb84c72a4f3c1d9cd2da60e",
+      "input_points": 290,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2edfcf8818cd412ca850578119f32995",
+      "input_points": 775,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "2f21da754a10426ab4f8611a77499d77",
+      "input_points": 13717,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "300b20bf30a34d9cbcc49f60e6ca46e9",
+      "input_points": 6612,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "317682a0fbe64bfba7977c990d6d814a",
+      "input_points": 632,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "317ec1d9df6b4a8f859d53c195e0ec1b",
+      "input_points": 114,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "318d622bc0224e78bfd061bfd38067c1",
+      "input_points": 196,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "32ca37552045458e8a757132a4dabef6",
+      "input_points": 11761,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "33516d75d27948489e93fd5d67b193a8",
+      "input_points": 207,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3366f3f7608c4788b61aee5381201a6e",
+      "input_points": 313,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "343639d644f44161b848d2cff0e44b80",
+      "input_points": 938,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "34391d4af3974cdba916fe318e4ab426",
+      "input_points": 1705,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "34d69849e71145c9979944bc392e2cbb",
+      "input_points": 773,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "354e32508db442bdb1ef0e2fde11ea3f",
+      "input_points": 1961,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "361569e9eee34aad9ca825e05ca5733c",
+      "input_points": 1049,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "369480bbcd3f4226aecd2e07fc179e27",
+      "input_points": 1731,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "36fb872b05d5418e9aaa168a5cc47932",
+      "input_points": 1005,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3704e2b0a46b4114ad34b4e96b34ee0c",
+      "input_points": 2949,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "37138268a1164ed59bb6b44cf7dfb2f1",
+      "input_points": 1221,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3808af35755b416d9523c5d3c69d0c71",
+      "input_points": 145,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:59"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "389e65359a0b47da96d6f4d67ae8aa05",
+      "input_points": 938,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "39a239f4e5a44935af14a1f8f6042916",
+      "input_points": 362,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "39b5616d054745c696e579c4a874fc33",
+      "input_points": 488,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "39f34f445b6740b0aabde03037ef662e",
+      "input_points": 241,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "39f827f26a8b492d8e29c610bfc5328b",
+      "input_points": 574,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3aa53970a00f42998d8ecabce000c485",
+      "input_points": 6022,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3b96e1996a354fb58ace88a1b83b2308",
+      "input_points": 2257,
+      "surface_count": 4,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3c08fb56967b4198bd2a9dfb7d3da8c4",
+      "input_points": 373,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3c62e00bb4444296b2f7ac52d93e44fc",
+      "input_points": 3983,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:29"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3ca200b7b665411c83472a960602a5da",
+      "input_points": 489,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3dd69d0f6533470ca6e5fde767c21937",
+      "input_points": 3355,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3debe218efa24744bc31f9c45b77082e",
+      "input_points": 90,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "3e5b9a872a2c42b8a21940dd90b2088d",
+      "input_points": 3453,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4077d475d11a427a8435b10aeb06d3b2",
+      "input_points": 4384,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "40f167b80c3240a9a594958d192de092",
+      "input_points": 2793,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "410468b43f3c4a08a27f7e2913b3afd2",
+      "input_points": 1980,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "417e0d8730114f348ea3ac28d6d87b8d",
+      "input_points": 7679,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "42c5e6fd67aa44ac9008e500afb99eb4",
+      "input_points": 1112,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "42d733e0ff804fcc8569c0c2c08b4e62",
+      "input_points": 2196,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "440d4faae3db4a44b7e3704d125bd7a1",
+      "input_points": 1303,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "440d56b627b24ef5906c28575b736e17",
+      "input_points": 246,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4483bc807d3f4c258efae2816964af2a",
+      "input_points": 2230,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "464cd0cf907f4c6ebfd661410b842e42",
+      "input_points": 467,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "472bf5e4852e4d85a5c981aec7b0b7f1",
+      "input_points": 4259,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4763bde938dc46ff917558f52e9568fc",
+      "input_points": 217,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "47dd6e98279b450ea3e18a25674205b7",
+      "input_points": 3453,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "48380c38435c4db188d98f1fba45c7cc",
+      "input_points": 257,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "48b409700b1944ecbfb04343bae7dc24",
+      "input_points": 308,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:65"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4a92ee40a05b407bb514cf420ff8c3f1",
+      "input_points": 226,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4aca7fede33545e19dca2b800ba572e0",
+      "input_points": 6401,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4b2177e115a842cfaba28f3d170341d1",
+      "input_points": 170,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4b9fe37129c2417a9faa5f44aecc5380",
+      "input_points": 2006,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4bf851569339484396bb77acda7a8dd5",
+      "input_points": 3900,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4c2e60e5f7f2405aa33cdfe0290d8e00",
+      "input_points": 3070,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4ccf2ab11dee4bf2aa7e0925e6bbc2aa",
+      "input_points": 811,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4da25b6b78504cc7bfe1641afb29f8fc",
+      "input_points": 1321,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4deb55f616d34c9f8e08a25a9b0a7439",
+      "input_points": 962,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4deccaafcb4e48c8b4bd0ebed1801301",
+      "input_points": 973,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4ec36735e5b642d185c4db861b5a8827",
+      "input_points": 1945,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4f3b53fa104e4a9fa24a9583fd0e4e0e",
+      "input_points": 2462,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4f3b6d02afba414b9d81a0fcff9fa0cf",
+      "input_points": 1315,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "4f69b710568141d8bab22a7b91bb5b07",
+      "input_points": 3446,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "50c1d6c8138c47d2b5907bbf96cb7516",
+      "input_points": 1573,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "51184fcaba8442af9f9543c7e7aaae05",
+      "input_points": 2683,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "51fde53de3bb4da392ee323da3d31a73",
+      "input_points": 702,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5284753ffe3a4b5fba6acf896e4812cd",
+      "input_points": 5688,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:59"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "52f1e100fc844354942cb9d04706dabf",
+      "input_points": 339,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "537fe357abe84b17b18b89200b418a55",
+      "input_points": 184,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "54e619f58e044bda8e62e5a8a61100bb",
+      "input_points": 5530,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "559328ad317c494c99a6f20afcbdc4d4",
+      "input_points": 4916,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "58615c5b3b8249b2bd37dcdbd7f9a4d3",
+      "input_points": 2568,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "58ca1aa2bdf04aa1a0594946f866c43b",
+      "input_points": 2665,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "59720e9fcb20408ab7d17c630f5ecee4",
+      "input_points": 2047,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "59833eddef35492b8fa6966b3a748763",
+      "input_points": 1458,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "59da244dd0ee4216995dcce7da084063",
+      "input_points": 1149,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5a6b0015d1944d6f929f92ee656e86dd",
+      "input_points": 537,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5ab92c95680d4736aac60c66a8df7556",
+      "input_points": 1134,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5af25e00a6af47cab5798771a86f8ce8",
+      "input_points": 172,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5cf742c3223c4c2789e6bd2c1cef88de",
+      "input_points": 314,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:59"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5d2397eb9b03406baa62a85076ea0b6a",
+      "input_points": 1250,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:29"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5d407a6adba54d6d8849decbee71843d",
+      "input_points": 4186,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5db581ebe844453bb4edae39e3be64e4",
+      "input_points": 1809,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5ec2cb0a002a4fa88e0447c4faf86d01",
+      "input_points": 1366,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "5f1a77590fc24913ad9ad78750e197fa",
+      "input_points": 112,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "602d370e53e34461869d198244db9a6e",
+      "input_points": 148,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "615b7b3d6356480b9f2b6fe6afae7368",
+      "input_points": 295,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6203c5d2312642f1b8c3d9e177ff7cfd",
+      "input_points": 1334,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "621a704ed2cc479096b8bfece981d4f1",
+      "input_points": 1768,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "62573e582f29433f828d2020a809fdd2",
+      "input_points": 1559,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "64d912f4b578457789acabdce3b95cca",
+      "input_points": 996,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "64dc4456d3994292aca40dead9f05abd",
+      "input_points": 1762,
+      "surface_count": 8,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "64f2b5d910bd42658a42590be14c11e1",
+      "input_points": 2526,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "65abcc00525048d2a1629a936d70951e",
+      "input_points": 783,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "65e349c0b0dc426484d9280248191d70",
+      "input_points": 779,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6618a2de56354706a3e2d665250698ba",
+      "input_points": 138,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "66275f7d8c6e4095adb31bb50fe36a9d",
+      "input_points": 1472,
+      "surface_count": 7,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "66f137f4ef424ad2bcd9d4c1225183be",
+      "input_points": 2685,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "67f31bfa94ee41968a8f24ed625b9de2",
+      "input_points": 1733,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "68265b50f95b416aa5dd9c02ab848847",
+      "input_points": 20075,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6926bdc94d684b409fb78f1ba4f625e1",
+      "input_points": 733,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6aa76afbc5354320b0226c60ea8db0b1",
+      "input_points": 2847,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6b223ec627c44589815fef3fce4052ce",
+      "input_points": 395,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6b98cc7242764cd99e41b94566f046ff",
+      "input_points": 1242,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6c9781bdf45e42349a17dab55123d450",
+      "input_points": 1040,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6dd3cd7ef15b452c92b841263d80bb1b",
+      "input_points": 258,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "6e84aa18b3fa41f1a4ea231dfeeb2d96",
+      "input_points": 1117,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "70295a28f83b4970848598158b38ed98",
+      "input_points": 432,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "70560f66ccd146f5aa13506533440e0a",
+      "input_points": 2285,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "736434cc36ee446ca26d7759241af067",
+      "input_points": 9700,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7384cef5052d46928e8be52f2a91a176",
+      "input_points": 175,
+      "surface_count": 2,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "749d564cfea442a4b4a75df06dba4116",
+      "input_points": 154,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:59"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "759d05b20bb54b57a6e35df7ddd3acac",
+      "input_points": 154,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "75dc2241bddc4db1a70b714eb8bb94a4",
+      "input_points": 2502,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7657d15714894b1ba2aabaed5d31d380",
+      "input_points": 568,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "792bdeb1c0094bc88f4346510133fead",
+      "input_points": 1593,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7a1a515163814bd8a391b950416f99ee",
+      "input_points": 378,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7a4cebd86bf44af99e480d21cf3f5a5d",
+      "input_points": 954,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7ae91a6c8b6c415bac2244905b571c46",
+      "input_points": 1014,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7b82ebc2c00f414d84baa29c0b79e855",
+      "input_points": 1153,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7bab12b794cc46b29b664b09967bd837",
+      "input_points": 301,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7bbd600f807a4ecdb2246e21a4ede3fd",
+      "input_points": 395,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7d0ec2076c5249609e816a02dc4397ff",
+      "input_points": 3679,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7d49ddba96424ad1a92c90b7a2c29361",
+      "input_points": 872,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7ec03c7a33be4fff99fa51622d157335",
+      "input_points": 235,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:69"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "7ee13f13d53e440ba7179549fd4b0f57",
+      "input_points": 3428,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8035e10557394a33b7f33105704eb90f",
+      "input_points": 12129,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "812d46cfd8e040ebaf4971b3206934e9",
+      "input_points": 14355,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "814ec495eef64d2e88187e0ea6f95eb7",
+      "input_points": 1243,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8184ee4263164a56b304a45e068d163e",
+      "input_points": 1343,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "81de95fc251d413689c19fc9f396ad7e",
+      "input_points": 2490,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "82e8c419455e410f9c439060be33c95f",
+      "input_points": 2753,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "835408244a2e4e509fa7e046d1c72705",
+      "input_points": 2481,
+      "surface_count": 6,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8415ff965b974ea3950449db5f920561",
+      "input_points": 5783,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "85937f529f514a28989af8cfb87cefd8",
+      "input_points": 698,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "85ff9fda736a468895252f2bfb0d73ee",
+      "input_points": 837,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "867f6c36eaae43c8b19f038967e09ac3",
+      "input_points": 281,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "87bc9a49b46543b689ebffd0f50d74de",
+      "input_points": 1300,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "87de46eaa7a14fca8bdd81fa6ec04f12",
+      "input_points": 4297,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "88afbc6b3e09414d94e67a4dbde245f2",
+      "input_points": 540,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "897092fa923a47eb9a2e2d68c05ed357",
+      "input_points": 4094,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8a55e4acb8984c4ab74eaecb7f2be0bd",
+      "input_points": 6219,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8aef4c47471b49b4be60594173d78bf0",
+      "input_points": 480,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8b7f00b94b2c4fe49a105faa2fd8710f",
+      "input_points": 302,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8b8ba301e14b45a49145658c6184e91c",
+      "input_points": 176,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8cc5867b8e214932a51b7c97dfddadbb",
+      "input_points": 3015,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "8f9bcd8851ab439cab2918a58b4b32bf",
+      "input_points": 503,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "91ded06681d446978a12880eeca747c3",
+      "input_points": 209,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "92e2e181aff44af4a74ab6f37b529377",
+      "input_points": 6462,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "93a8c9f07cec47739d42122e68e3de24",
+      "input_points": 2834,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "93d826f2f59d4af78f6de7c78f2cb3b9",
+      "input_points": 1617,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "93ef9eea14ca4ea6b43cd0aed46522e5",
+      "input_points": 1686,
+      "surface_count": 2,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "94fd9bbdf083425fb1990d4d30b1210b",
+      "input_points": 477,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9531290e89824d7c98075082c3548f96",
+      "input_points": 606,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "958f747146ee47a3a8058b4e735c1f42",
+      "input_points": 748,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "95af68b0b41044c3980dc9268b7133d7",
+      "input_points": 679,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:61"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "95e2f7da09344340931f2f9d3376b231",
+      "input_points": 377,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9818386a3bd04049b43461d2fbdd51eb",
+      "input_points": 11168,
+      "surface_count": 3,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "98efd1107d4f40408fbb0100c53abb5b",
+      "input_points": 2489,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "99af637c04634e8a9541949cb6001cd4",
+      "input_points": 260,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9a6189f708b94ccdb5ae46a1e9cd4b42",
+      "input_points": 219,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9a7e6177a29c4cb7b3ea0c81519d1d08",
+      "input_points": 850,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9ccb36a36b5f4532a1cf15436a3b1d53",
+      "input_points": 332,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9d3b7ae180ed4a36860b3158926ec7ac",
+      "input_points": 372,
+      "surface_count": 1,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9dc5f81821c14966b9a2475cec4bb699",
+      "input_points": 2197,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9e5601ec82a04f69aa62d5385cd001b7",
+      "input_points": 695,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9e7e6b5426094b9681fb03be89bb125b",
+      "input_points": 2185,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9ebea5a9415e4fae8448767d492fb135",
+      "input_points": 5445,
+      "surface_count": 3,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "9ec374ce4cb84fea8068beb4765794cf",
+      "input_points": 959,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a0f511227de84611bed2869dfd8f2073",
+      "input_points": 511,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a10afefd182742548be57fd88790b528",
+      "input_points": 1109,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:61"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a171589f6aa44e22ad7ed21ae4dd19b2",
+      "input_points": 547,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a17960d980054f63bcb810d0bd177670",
+      "input_points": 519,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a2119048db28479d9ed723f654a5cde5",
+      "input_points": 278,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:29"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a24a92985797407f85aca6a68fe8260f",
+      "input_points": 7234,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a38c513709a14cbf88ad55eaeafc665b",
+      "input_points": 1123,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a5964a7f74ae408394ddaa7407ad1124",
+      "input_points": 562,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a5f308f325554bf78fc19b1a2236b803",
+      "input_points": 673,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a7934b27a6f34b19bf5d4ee3e75d9c81",
+      "input_points": 178,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a7cec67fa18b49d4937859901e06e3e7",
+      "input_points": 445,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a8a26d29951543d09adf0981d5452595",
+      "input_points": 717,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a916d0ef0e1043c4b1ecf52a37c7ec13",
+      "input_points": 5410,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "a92bb57764ae4dab99e74d2c71fba541",
+      "input_points": 7319,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "aa481afaeb1e47b7949d7dcdda9bc123",
+      "input_points": 6711,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "aaa7c52b7ae349fcbd0a206f758cd728",
+      "input_points": 346,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "aabebcac6aec4af0a40386fdb3a6bc7f",
+      "input_points": 2739,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "abb96cb9bc4b4974a2510632f8c0f616",
+      "input_points": 619,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ad03964f58fa4566a4e66b7aece48bad",
+      "input_points": 628,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ae7dc9e5d1d04c30986b92da8c346531",
+      "input_points": 12242,
+      "surface_count": 7,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "aefeb27e2df6442799b3bab8ded04052",
+      "input_points": 6711,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "af44ae934794440091d7d67642d771d4",
+      "input_points": 3111,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b08b591e203549a6ba8a7dc3bddec770",
+      "input_points": 369,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b2d415a4725348c2bdb620076755723e",
+      "input_points": 1908,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b3ed8baf6f88401e90ecca61d666bb5c",
+      "input_points": 1608,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b420841e0f1a41979a59c04b2e7c7a21",
+      "input_points": 1030,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b4a62451dd414bf087cc5689d893ebdf",
+      "input_points": 293,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b4c14dc8b6184a6f84b17703b2e2a186",
+      "input_points": 122,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b4f4f12f5e5c48a2849f87a93ae99026",
+      "input_points": 1643,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b502aec368cd4496a252a8825922342a",
+      "input_points": 294,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b64d7d552d1d4202a5091706e8e4c3d4",
+      "input_points": 3172,
+      "surface_count": 7,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:27"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b66ad0e0dbbc4615bfea332b21585ca9",
+      "input_points": 4187,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b6c2f3f46e1d4e0bb8c1b9b7941c05c0",
+      "input_points": 8456,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b742513c516f459583673164f22f227e",
+      "input_points": 273,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b75bd5529cc4420eb9e28d4c2a5c9d80",
+      "input_points": 1531,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "b9a862d37ca648ffa99522bd55cb1491",
+      "input_points": 1417,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ba37181bcd7d407c8e1adb8159ba249e",
+      "input_points": 3802,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ba3d85fa16ec4608b4c61b07b37aa249",
+      "input_points": 552,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "bacf65835e4342ccb2d3641e81e20560",
+      "input_points": 367,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "bb590b8c58074796915ce895910b214d",
+      "input_points": 428,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "bc100e8b95e7478b82499e681ba7511c",
+      "input_points": 232,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "bc7e8550b3fa40f0bbcc5504c4b49e01",
+      "input_points": 413,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "bf5b76d0af16468e989dcc0017ffa886",
+      "input_points": 385,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c02b1b2d72a044eea10933c54dcc45ad",
+      "input_points": 1261,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c1ac45f0eaae42baa8d5ba2ecdb70c0e",
+      "input_points": 1346,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c1edcfeb32114012ad9c769dcef62d01",
+      "input_points": 319,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c220b745cf154f1196c5efb485088931",
+      "input_points": 1415,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c2e68738e7b143e38522c021fedcc634",
+      "input_points": 362,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c4a1de3f3a07416bb03ee0687a0102c7",
+      "input_points": 1088,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:29"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c635ab374ebc4ee7b22aadb82551e28c",
+      "input_points": 868,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c68de30378e04b12846b7397507c1b18",
+      "input_points": 2020,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c6b05017cdda41278672375cb863f3af",
+      "input_points": 458,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c72adc60b55c4faca9a2a76f066e3d98",
+      "input_points": 210,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c7644ce0a035439d8d1993a704989242",
+      "input_points": 399,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:75"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c76deb84a5a9495fa9c253164a21debc",
+      "input_points": 8219,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c7aee7544e8e413cbd3b55c67d99e4a5",
+      "input_points": 1948,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c7c9970c1a754b4397b490cb0d72a8c2",
+      "input_points": 300,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c7dfe2e619c04d808d07b4a707fd988e",
+      "input_points": 503,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c863e4b8515a4f2c9b7773b4389e182d",
+      "input_points": 682,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c88df92c2176460490dca13b92325951",
+      "input_points": 929,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "c922bc9ce9f74f74a480efb6a18f0666",
+      "input_points": 1871,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cadd035f229540e3aeff1e7b6182d19a",
+      "input_points": 2699,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cb49af302db544bb9b8d791257b052ab",
+      "input_points": 1414,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cba9c8d015ac4322aa056f8b7511b289",
+      "input_points": 25587,
+      "surface_count": 6,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 2,
+      "supported_surface_count": 2,
+      "section_status_counts": [
+        "unknown:31"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cc9fb2849f5f45feaabf3af02d5126cd",
+      "input_points": 309,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cd2949a26de44866a5975e905f9fcb54",
+      "input_points": 572,
+      "surface_count": 1,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cd67b75b47f04aa086300923c7b689d5",
+      "input_points": 2442,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cde76dc17f2b46f99459b825519e0225",
+      "input_points": 874,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cf1d2217cf2d4ddd804452c5d66cf982",
+      "input_points": 6041,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "cfa0bbf9ad614c3db8e1930d31316e9c",
+      "input_points": 960,
+      "surface_count": 7,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d03eea2f5a7d48b3af43d98cd5d26b0d",
+      "input_points": 2834,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d06a96c20b314656bb24636cc7e4a194",
+      "input_points": 2713,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:35"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d0bb695fb6eb4f9f8af18962c024aa99",
+      "input_points": 7961,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d12c87c0376d450fb56eea93d5b5ce88",
+      "input_points": 1394,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:13"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d1dd1c00e0cd43599acef5facb1a3d95",
+      "input_points": 864,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d28060ce0215488f86c70385b0d5f03f",
+      "input_points": 1706,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d5fb17864c33442a9a0a1de745c68022",
+      "input_points": 3741,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d68120fdc57140cabe691d68ab1d7a90",
+      "input_points": 531,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d722cd6f7f16477496b9452177a2a58a",
+      "input_points": 1829,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d771b9ec5b114c6fa43edcdffdd2fa5a",
+      "input_points": 1209,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d82d94b340c147c7b623f735dc09507e",
+      "input_points": 526,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d9c15772eb3e4b2186db00a11941b409",
+      "input_points": 1121,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "d9d6d74f5cb84dc7b9a1041c6a3489ce",
+      "input_points": 991,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:33"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "da043fe0332740f0817caed4f07d0e14",
+      "input_points": 14302,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "daa2f75f698c4b0386c8a3a5265b695c",
+      "input_points": 1097,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "dc94200d1595402f8912df64ce08461d",
+      "input_points": 535,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ddc6f77f5d98481aaa4a27263ce64004",
+      "input_points": 1017,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "df0e0052925d404ea692bf1fc048e780",
+      "input_points": 854,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "df754166fc3e436cbf66c598a5d60461",
+      "input_points": 307,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e016290bee1f41809b18b97ddf1c69ed",
+      "input_points": 1370,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e06f74f742bb443dbf6a1c8773f925fb",
+      "input_points": 3116,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e149c9d3c233490fa0aa62f0956c4f9f",
+      "input_points": 18978,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:45"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e2065f4030ac4e21bec01074ca9997ef",
+      "input_points": 1323,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e42615fcbf5146a1ab9431f57a8b9ce2",
+      "input_points": 616,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:37"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e51e20a625d34faaba69d01b49ff1e97",
+      "input_points": 2015,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e6326fdef95f42458b63025a351d580e",
+      "input_points": 779,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e697eac3be2842deb6e548045cbf1020",
+      "input_points": 1792,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e6c3c00fa9514802bffd30a12f460c37",
+      "input_points": 1823,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:57"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e76a50767704407fb413ac8b3467023b",
+      "input_points": 12433,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e7920b39b5b14e93a76ff0ae48858e10",
+      "input_points": 1415,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:47"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e841b3e3c658411bad6a07bd48d5fb0c",
+      "input_points": 1008,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "e92352c998c846428154bfaced7c6213",
+      "input_points": 2599,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ea4cdfe2279b4b27a4d8ce1f42e21939",
+      "input_points": 2757,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ea689e70c42147e8b739b36993335f7c",
+      "input_points": 149,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:65"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "eaa75f8139f94846b7dd1cf1063d73f0",
+      "input_points": 1067,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "eb3ee8d1ac78451db9608d532ab56105",
+      "input_points": 620,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "eba28d1d7c8c455881fe5f52af1fea7a",
+      "input_points": 719,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ebe41315459245539e9ba91e21e56528",
+      "input_points": 2557,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ed405e4c687f4ab486ddee2b63e87b34",
+      "input_points": 2274,
+      "surface_count": 5,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:7"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ed43e58202a549d09a8e22a6dfee1f3c",
+      "input_points": 1481,
+      "surface_count": 6,
+      "association_status": "partial_candidate_faces",
+      "candidate_edge_count": 1,
+      "supported_surface_count": 1,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "eeffd2b437274cc39d1b7800c8b27b35",
+      "input_points": 11698,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:51"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ef409b7d586b4293b8626c92d4f26c6e",
+      "input_points": 681,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ef5fbc9798e746e79aa385dacd2ecbfd",
+      "input_points": 1606,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ef7c211b3627403097307d052ea41b3a",
+      "input_points": 556,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "ef7c6159e2014864b0d08d253d063945",
+      "input_points": 789,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:17"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f01ab718cdab4c81afc74fc526f4e289",
+      "input_points": 1632,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:53"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f1520e5938aa4b368bee0cd6adfcec97",
+      "input_points": 5658,
+      "surface_count": 6,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f1e3631a805c482ca9994e350e776cf3",
+      "input_points": 3948,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f251d3e6e630427b883b6caf4b3ad2cb",
+      "input_points": 310,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f2ed55317d61468fb77da8f0f2ced237",
+      "input_points": 189,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:41"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f34275b8e00a428085564cceb060fd7d",
+      "input_points": 568,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:49"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f3c558e395e44017a1ea24f89d2e60ad",
+      "input_points": 704,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f3f958204b9643afad71ecf2921d9e25",
+      "input_points": 474,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:23"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f49293a0d2ef4f7690d1de288aea723a",
+      "input_points": 321,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:43"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f560937e00bf422a81c347a0a935c81b",
+      "input_points": 300,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f6425dc771cf4ad0ab640bd6ba4b6a22",
+      "input_points": 2085,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f79c488703f14f87b0b011d35b371724",
+      "input_points": 1570,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f7b0c15163cd446f9d9536b0c2fccf15",
+      "input_points": 300,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:9"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f8149905cf054145bbecd212a0693094",
+      "input_points": 1413,
+      "surface_count": 4,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:19"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f8972519781b4d2786458511f0d1c35f",
+      "input_points": 453,
+      "surface_count": 1,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "f9af06da7fbb41b7be4ea40b9d53ec7e",
+      "input_points": 604,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:25"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "fa30d0290ab94288a647cc3c716d7c2e",
+      "input_points": 2807,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:39"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "fbbc33b9ab504630a7e554923f929c67",
+      "input_points": 20960,
+      "surface_count": 3,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:59"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "fcccca8bb19e4868959c0a737cb66eca",
+      "input_points": 517,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:21"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "fd5f8e19bd6844b193c6c6e58cbf5774",
+      "input_points": 6363,
+      "surface_count": 0,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:15"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    },
+    {
+      "element_id": "fdcc03d32a3141bd9309db67e9c98fb2",
+      "input_points": 237,
+      "surface_count": 2,
+      "association_status": "no_candidate_faces",
+      "candidate_edge_count": 0,
+      "supported_surface_count": 0,
+      "section_status_counts": [
+        "unknown:11"
+      ],
+      "persisted": false,
+      "source_geometry_modified": false,
+      "error": null
+    }
+  ],
+  "source_positions": {
+    "path": "data/projects/workshop_project/clouds/workshop_cloud/positions.npy",
+    "size_bytes": 522000128,
+    "mtime_utc": "2026-10-22T14:53:09.0469168Z",
+    "sha256_after": "5703f3db30ce1d134ca40444ad61e05732f78f927f21afb202b8b9d2cfe5ff1c",
+    "matches_prior_recorded_sha256": true
+  },
+  "full_backend_regression": "exit 0; entire backend test suite reached 100%; 1 existing Starlette/httpx warning"
+}

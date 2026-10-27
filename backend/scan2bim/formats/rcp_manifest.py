@@ -111,11 +111,33 @@ def _resolve_scan_path(rcp_path: Path, stored_path: str, relative_path: str) -> 
             return candidate.resolve()
 
     # A moved RCP may retain an unusable absolute path. Resolve only by the
-    # exact RCS basename inside conventional sibling support folders, and only
-    # when exactly one match exists.
+    # exact RCS basename inside conventional sibling support folders. If the
+    # old absolute path names that conventional support folder, prefer its
+    # matching copy over unrelated same-basename files beside the RCP.
     basenames = {PureWindowsPath(value).name for value in (stored_path, relative_path) if value}
+    old_parent_names = {
+        PureWindowsPath(value).parent.name.casefold()
+        for value in (stored_path, relative_path)
+        if value and PureWindowsPath(value).parent.name
+    }
+    named_support_root = rcp_path.parent / f"{rcp_path.stem} Support"
+    if named_support_root.name.casefold() in old_parent_names and named_support_root.is_dir():
+        for basename in basenames:
+            support_matches = {
+                candidate.resolve()
+                for candidate in named_support_root.rglob(basename)
+                if candidate.is_file() and candidate.suffix.lower() == ".rcs"
+            }
+            if len(support_matches) == 1:
+                return next(iter(support_matches))
+            if len(support_matches) > 1:
+                raise RcpManifestError(
+                    f"linked scan '{basename}' resolves to multiple files in "
+                    f"'{named_support_root.name}'"
+                )
+
     for basename in basenames:
-        roots = [rcp_path.parent / f"{rcp_path.stem} Support", rcp_path.parent]
+        roots = [named_support_root, rcp_path.parent]
         matches: set[Path] = set()
         for root in roots:
             if not root.exists():

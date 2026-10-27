@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-26",
+  "stage": 4,
+  "scope": "Read-only common-coordinate preview for a candidate two-station transform",
+  "implementation": {
+    "preview": "The registration workspace can display both station LODs in one Three.js view. Source preview positions are copied, transformed from source-local to target-local coordinates, and rendered orange; target points are rendered light gray. Decoding uses deterministic stride decimation and caps each rendered cloud at 250,000 points, including when its coarsest LOD exceeds the cap. The source cloud arrays and persisted project coordinates are not edited.",
+    "quality_labels": "The preview is labeled as visual only. ICP/manual RMSE and correspondence support remain separate from independent control accuracy; low support remains marked for review.",
+    "transform_unit_test": "passed; rotation + translation, derived buffer/source immutability, malformed coordinates/matrices and non-finite source values",
+    "lod_decode_unit_test": "passed; binary XYZ decode, deterministic stride cap, short buffers and invalid point limits",
+    "frontend_tests": "passed",
+    "typescript": "passed",
+    "production_build": "passed; Vite 6.4.4, 1,983 modules",
+    "browser_smoke": {
+      "environment": "http://127.0.0.1:8000/",
+      "project": "Autodesk ReCap 2-station pilot",
+      "preview_points": [50000, 50000],
+      "canvas_nonzero_dimensions": true,
+      "preview_rendered": true,
+      "toggle_to_separate_view_and_back": true,
+      "console_errors": 0
+    },
+    "live_read_only_icp": {
+      "pair": "ReCap FARO sample — FARO_2_sample → ReCap FARO sample — FARO_1_sample",
+      "iterations": 6,
+      "inlier_count": 162,
+      "source_sample_count": 10000,
+      "inlier_fraction": 0.016,
+      "rmse_mm": 348.83,
+      "assessment": "review required; insufficient correspondence support and residual far above the 10 mm diagnostic threshold"
+    }
+  },
+  "not_accepted": [
+    "The low-support ICP matrix is only shown as a diagnostic preview and is not accepted as a station transform.",
+    "No independent survey controls were supplied or evaluated.",
+    "No registration matrix or point coordinates were persisted.",
+    "No unified full-resolution cloud or native RCP was generated or opened in ReCap."
+  ],
+  "acceptance": {
+    "accepted_roadmap_stages": [1, 3, 5],
+    "stage_4": "in_progress",
+    "stage_6_order": "penultimate",
+    "stage_9_order": "last"
+  }
+}

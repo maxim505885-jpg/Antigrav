@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-25",
+  "stage": 4,
+  "feature": "Reject under-constrained independent survey controls",
+  "guards": [
+    "duplicate target coordinates are rejected",
+    "near-collinear source or target control layouts are rejected because rotation around their line cannot be independently constrained"
+  ],
+  "validation": {
+    "command": ".venv/Scripts/python.exe -m pytest -p no:cacheprovider backend/tests/test_registration_control_validation.py backend/tests/test_registration_api.py -q",
+    "result": "13 passed",
+    "data_root": "isolated temporary directory inside repository workspace",
+    "pytest_temp": "isolated temporary directory inside repository workspace"
+  },
+  "live_smoke": {
+    "server_restarted_from_current_worktree": true,
+    "pre_restart_projects": 12,
+    "pre_restart_active_jobs": 0,
+    "health_http": 200,
+    "ui_http": 200,
+    "projects_after_restart": 12,
+    "synthetic_collinear_controls_http": 422,
+    "response": "Исходные контрольные точки почти коллинеарны; расположите их минимум в двух независимых направлениях",
+    "production_records_written": false
+  },
+  "safety": {
+    "source_scans_used": false,
+    "production_database_used": false,
+    "project_rows_written": false,
+    "source_scans_modified": false
+  },
+  "limits": [
+    "synthetic numerical/API verification only",
+    "independent field controls remain unavailable",
+    "10 mm field criterion remains unverified"
+  ],
+  "project_acceptance": "3/12",
+  "stage6": "parked until the final pass"
+}

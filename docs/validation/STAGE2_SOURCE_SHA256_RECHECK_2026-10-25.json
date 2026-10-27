@@ -1,0 +1,48 @@
+{
+  "recorded_at_utc": "2026-10-25T10:43:27.5782166Z",
+  "purpose": "Read-only recheck of original FARO source integrity after full-resolution import and user disk cleanup",
+  "sources": [
+    {
+      "name": "1.rcs",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\1.rcs",
+      "bytes": 7196593757,
+      "expected_sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+      "actual_sha256": "315edab40b6a92eb36c1d01454355465c6ae69872b0870f067c481cff188e63a",
+      "matches": true,
+      "bytes_match": true
+    },
+    {
+      "name": "2.rcs",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\2.rcs",
+      "bytes": 13906332111,
+      "expected_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+      "actual_sha256": "784c2235541c89fbf78e02e28af8756a1040d46ff18111df3581b9b6b75b3792",
+      "matches": true,
+      "bytes_match": true
+    },
+    {
+      "name": "10 Support/10.rcs",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+      "bytes": 7130808277,
+      "expected_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+      "actual_sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+      "matches": true,
+      "bytes_match": true
+    },
+    {
+      "name": "10.rcp",
+      "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+      "bytes": 2741,
+      "expected_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+      "actual_sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+      "matches": true,
+      "bytes_match": true
+    }
+  ],
+  "faro_source_files_modified": false,
+  "acceptance": {
+    "closed_stages": "3/12",
+    "stage_6": "parked until final pass",
+    "stage_2": "in_progress"
+  }
+}

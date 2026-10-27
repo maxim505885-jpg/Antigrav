@@ -1,0 +1,136 @@
+{
+  "date": "2026-10-25",
+  "stage": 9,
+  "title": "ODA File Converter production-sheet conversion smoke",
+  "converter": "C:\\Program Files\\ODA\\ODAFileConverter 27.1.0\\ODAFileConverter.exe",
+  "converter_file_version": "1769473.0",
+  "format": "AC1032 / DWG 2018",
+  "source_directory": "data\\output\\workshop_release\\spds_album\\clean_dwg_ready",
+  "results": [
+    {
+      "source": "01_plan_kolonn_SPDS.dxf",
+      "source_bytes": 163971,
+      "source_sha256": "9072537f570263062c5fead43f2d07feb2d91dff39adaf45e5d7bfbebc3c6e56",
+      "dxf_audit": {
+        "modelspace_entities": 653,
+        "entity_types": {
+          "CIRCLE": 92,
+          "LINE": 160,
+          "LWPOLYLINE": 229,
+          "TEXT": 172
+        },
+        "text_entities": 172,
+        "cyrillic_text_entities": 44,
+        "cyrillic_text_sample": "Разраб."
+      },
+      "conversion_ok": true,
+      "dwg_bytes": 34730,
+      "dwg_header": "AC1032",
+      "dwg_sha256": "df64c8b3b15f2e4b43566342484acf2317c0433c8efc7f5ae5db8311276bc0d0",
+      "seconds": 0.35
+    },
+    {
+      "source": "02_plan_podkranovyh_balok_SPDS.dxf",
+      "source_bytes": 34085,
+      "source_sha256": "c3ebaa02ea708496c3f18576af081ffb402cf043ed9b864357061079370718d0",
+      "dxf_audit": {
+        "modelspace_entities": 65,
+        "entity_types": {
+          "LINE": 18,
+          "LWPOLYLINE": 4,
+          "TEXT": 43
+        },
+        "text_entities": 43,
+        "cyrillic_text_entities": 34,
+        "cyrillic_text_sample": "Разраб."
+      },
+      "conversion_ok": true,
+      "dwg_bytes": 14851,
+      "dwg_header": "AC1032",
+      "dwg_sha256": "83a100ca7d9dc7be004ef29050c26c9a6bfb3bc87a47f2eb05d3fb664b293bd0",
+      "seconds": 0.29
+    },
+    {
+      "source": "03_razrez_ceha_1-1_SPDS.dxf",
+      "source_bytes": 57285,
+      "source_sha256": "5d5538007f217ee02b770fc0fd2333fa1694e88a734c9d9072cc22b5fe20f99c",
+      "dxf_audit": {
+        "modelspace_entities": 212,
+        "entity_types": {
+          "CIRCLE": 9,
+          "LINE": 120,
+          "LWPOLYLINE": 46,
+          "TEXT": 37
+        },
+        "text_entities": 37,
+        "cyrillic_text_entities": 23,
+        "cyrillic_text_sample": "Разраб."
+      },
+      "conversion_ok": true,
+      "dwg_bytes": 18467,
+      "dwg_header": "AC1032",
+      "dwg_sha256": "805f61e8a5eb7f3a1b65604a608aae34ec133c96ad7e8dabe04e9ca161d85491",
+      "seconds": 0.3
+    },
+    {
+      "source": "04_shema_ferm_i_svyazei_SPDS.dxf",
+      "source_bytes": 34700,
+      "source_sha256": "f7f57a92c8513d63e6e8151ff4019893ba74c54a699d7b9808aebcd8e2f70d1b",
+      "dxf_audit": {
+        "modelspace_entities": 81,
+        "entity_types": {
+          "LINE": 35,
+          "LWPOLYLINE": 3,
+          "TEXT": 43
+        },
+        "text_entities": 43,
+        "cyrillic_text_entities": 40,
+        "cyrillic_text_sample": "Разраб."
+      },
+      "conversion_ok": true,
+      "dwg_bytes": 15491,
+      "dwg_header": "AC1032",
+      "dwg_sha256": "a646b66fdc808ecd720b0eb5e68a3c46f161b5349850f3c0c37d104ed2e61d7d",
+      "seconds": 0.29
+    },
+    {
+      "source": "05_ispolnitelnaya_shema_otkloneniy_SPDS.dxf",
+      "source_bytes": 227392,
+      "source_sha256": "4662d54a6ddcb22730cc82444f694af615c3cace180108589c0e8bb7320edf63",
+      "dxf_audit": {
+        "modelspace_entities": 981,
+        "entity_types": {
+          "CIRCLE": 46,
+          "LINE": 372,
+          "LWPOLYLINE": 228,
+          "TEXT": 335
+        },
+        "text_entities": 335,
+        "cyrillic_text_entities": 251,
+        "cyrillic_text_sample": "Разраб."
+      },
+      "conversion_ok": true,
+      "dwg_bytes": 50609,
+      "dwg_header": "AC1032",
+      "dwg_sha256": "3273ccee77eccc85d022517e2331bd206a225b9743a22a31d75107aae5941af0",
+      "seconds": 0.35
+    }
+  ],
+  "all_five_converted": true,
+  "sources_unchanged": true,
+  "source_hashes_after": {
+    "01_plan_kolonn_SPDS.dxf": "9072537f570263062c5fead43f2d07feb2d91dff39adaf45e5d7bfbebc3c6e56",
+    "02_plan_podkranovyh_balok_SPDS.dxf": "c3ebaa02ea708496c3f18576af081ffb402cf043ed9b864357061079370718d0",
+    "03_razrez_ceha_1-1_SPDS.dxf": "5d5538007f217ee02b770fc0fd2333fa1694e88a734c9d9072cc22b5fe20f99c",
+    "04_shema_ferm_i_svyazei_SPDS.dxf": "f7f57a92c8513d63e6e8151ff4019893ba74c54a699d7b9808aebcd8e2f70d1b",
+    "05_ispolnitelnaya_shema_otkloneniy_SPDS.dxf": "4662d54a6ddcb22730cc82444f694af615c3cace180108589c0e8bb7320edf63"
+  },
+  "output_directory": "temporary; cleaned after run",
+  "acceptance": {
+    "stage_9": "testing",
+    "verified": "five source DXFs parsed as editable modelspace entities; ODA emitted five valid AC1032 DWGs",
+    "still_missing": "open in AutoCAD 2026 GUI, inspect Cyrillic rendering/lineweights, edit and print sheets",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

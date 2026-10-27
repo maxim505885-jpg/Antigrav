@@ -1,0 +1,40 @@
+{
+  "recorded_at": "2026-10-24",
+  "stage": 6,
+  "purpose": "Read-only performance check for bounded steel-band point sampling on a full-size derived FARO RCS point array.",
+  "source": {
+    "description": "Derived full-resolution positions array for FARO 1.rcs; the original RCS was not opened for writing.",
+    "rows": 297873927,
+    "positions_array_bytes": 3574487252,
+    "access": "read-only memory-mapped array"
+  },
+  "operation": {
+    "function": "_bands_points_with_source_ids",
+    "band": "full local Z extent",
+    "rows_sampled": 297873927,
+    "rows_returned": 2978740,
+    "elapsed_seconds": 4.495,
+    "sample_policy": "deterministic bounded striding",
+    "source_row_ids_preserved": true
+  },
+  "process_memory": {
+    "rss_before_mb_reported": 103.9,
+    "rss_after_mb_reported": 160.7,
+    "peak_working_set_mb_reported": 3618.1,
+    "peak_includes_file_backed_mmap_pages": true,
+    "memory_unit_note": "Values preserve the profiler's MB label; the profiler's exact conversion convention was not independently confirmed."
+  },
+  "integrity": {
+    "source_arrays_modified": false,
+    "original_rcs_modified": false,
+    "api_jobs_active": false
+  },
+  "acceptance": {
+    "bounded_sampler_full_array_read_performance_demonstrated": true,
+    "full_recognition_workflow_demonstrated": false,
+    "classification_accuracy_measured": false,
+    "gpu_performance_measured": false,
+    "stage_6_closed": false,
+    "overall_closed_stages": "3/12"
+  }
+}

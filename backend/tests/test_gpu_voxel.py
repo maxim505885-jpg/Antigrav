@@ -1,7 +1,38 @@
 import numpy as np
 import pytest
 
-from scan2bim.processing.gpu_voxel import voxel_downsample_accelerated
+from scan2bim.processing.gpu_voxel import (
+    _pack_voxel_coordinates,
+    voxel_downsample_accelerated,
+)
+
+
+def test_pack_voxel_coordinates_preserves_lexicographic_order_with_negative_cells():
+    coords = np.array(
+        [[-3, 10, 0], [-4, 9, 1], [-3, 9, 0], [-3, 9, 2]],
+        dtype=np.int64,
+    )
+
+    keys = _pack_voxel_coordinates(coords)
+
+    assert keys is not None
+    assert keys.dtype == np.uint64
+    assert np.array_equal(np.argsort(keys), [1, 2, 3, 0])
+
+
+def test_pack_voxel_coordinates_declines_ranges_that_do_not_fit_exact_key():
+    coords = np.array([[0, 0, 0], [2**21, 2**21, 2**21]], dtype=np.int64)
+
+    assert _pack_voxel_coordinates(coords) is None
+
+
+def test_voxel_downsample_uses_exact_fallback_for_wide_coordinate_ranges():
+    points = np.array([[0.0, 0.0, 0.0], [2**21, 2**21, 2**21]], dtype=np.float64)
+
+    down_points, down_colors = voxel_downsample_accelerated(points, voxel_size_m=1.0)
+
+    assert down_colors is None
+    assert np.array_equal(down_points, points.astype(np.float32))
 
 
 def test_voxel_downsample_accelerated_reduces_density():

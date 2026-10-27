@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-25",
+  "stage": 10,
+  "purpose": "Verify Revit 2027 framework alignment and reproduce the add-in build without replacing the DLL loaded by the open Revit process",
+  "host": {
+    "revit_version": "2027",
+    "revit_process_running": true,
+    "computer_use_target_window_available": false,
+    "clean_windows_11": false
+  },
+  "framework": {
+    "target_framework": "net10.0-windows",
+    "sdk": "10.0.100",
+    "autodesk_confirmation": "Revit 2027 uses the final .NET 10 runtime and add-in developers should use SDK 10.0.100",
+    "official_sources": [
+      "https://help.autodesk.com/cloudhelp/2027/ENU/Revit-WhatsNew/files/GUID-8D7A4715-EAF8-4BD1-BE78-061F900D0BCE.htm",
+      "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/System-requirements-for-Revit-2027-products.html"
+    ]
+  },
+  "build": {
+    "command": "data/.tools/dotnet10/dotnet.exe build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release --no-restore -p:OutputPath=data/.tools/revit_stage10_audit/ -v:minimal",
+    "exit_code": 0,
+    "errors": 0,
+    "warnings": 3,
+    "warning": "MSB3277: Revit API dependency metadata references Microsoft.VisualBasic 10.1; the .NET 10 reference pack resolves 10.0. The plugin does not directly use Microsoft.VisualBasic.",
+    "isolated_output_sha256": "B4FDC8FE6B4199337C91C52C20638525BA031BCADC0402F8CDD26DC74A3F65CE",
+    "currently_registered_addin_dll_sha256": "B4FDC8FE6B4199337C91C52C20638525BA031BCADC0402F8CDD26DC74A3F65CE",
+    "registered_dll_unchanged": true,
+    "registered_manifest": "%APPDATA%/Autodesk/Revit/Addins/2027/SCAN.StructuralModel.addin"
+  },
+  "acceptance": {
+    "framework_alignment_verified": true,
+    "build_verified": true,
+    "interactive_import_save_reopen_verified": false,
+    "stage_10": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

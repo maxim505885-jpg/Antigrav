@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { cameraViewFromLabel, canRenderPointColorMode, cloudPointCoverage, scannerModelLabel, progressPercent, resolvePointColorMode } from "./studioPresentation.ts";
+import { cameraViewFromLabel, canRenderPointColorMode, cloudPointCoverage, rcpDeclaredCountWarning, scannerModelLabel, progressPercent, resolvePointColorMode } from "./studioPresentation.ts";
 
 test("cloud coverage distinguishes stored points from the full source scan", () => {
   assert.deepEqual(cloudPointCoverage({
@@ -15,6 +15,21 @@ test("cloud coverage distinguishes stored points from the full source scan", () 
     sampled: true,
     label: "3 500 000 / 576 820 490",
   });
+});
+
+test("RCP metadata count differences are shown as unverified instead of trusted as source truth", () => {
+  assert.equal(rcpDeclaredCountWarning({ recap_project: {
+    selected_node: { declared_point_count: 295_836_062 },
+    actual_source_point_count: 295_591_803,
+    declared_point_count_difference: 244_259,
+  } }), "Манифест RCP: 295 836 062 точек; связанный RCS: 295 591 803. Расхождение: 244 259 точек; число из манифеста не подтверждено.");
+  assert.equal(rcpDeclaredCountWarning({ recap_project: {
+    selected_node: { declared_point_count: 100 }, actual_source_point_count: 100,
+  } }), null);
+  assert.equal(rcpDeclaredCountWarning({}), null);
+  assert.equal(rcpDeclaredCountWarning({ recap_project: {
+    selected_node: { declared_point_count: 295_836_062 }, actual_source_point_count: 295_591_803,
+  } }, "Манифест RCP указывает 295,836,062; reader прочитал 295,591,803 (разница +244,259)."), null);
 });
 
 test("scanner panel does not invent a FARO model or accuracy when metadata is absent", () => {

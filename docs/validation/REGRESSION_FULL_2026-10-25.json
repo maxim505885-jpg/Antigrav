@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-25",
+  "scope": "Cross-cutting full backend and frontend regression after current working-tree changes",
+  "environment": {
+    "os": "Windows 10 workstation",
+    "python": ".venv/Scripts/python.exe",
+    "frontend": "frontend/package.json scripts"
+  },
+  "results": {
+    "backend": {
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_pytest.ps1 backend/tests",
+      "exit_code": 0,
+      "passed": 791,
+      "failed": 0,
+      "warnings": 1,
+      "warning": "Starlette/httpx TestClient deprecation",
+      "duration_seconds": 112.73,
+      "execution": "outside restrictive sandbox after sandbox run failed with WinError 5 on pytest temp directories"
+    },
+    "frontend_tests": {
+      "command": "npm test",
+      "workdir": "frontend",
+      "exit_code": 0,
+      "test_programs": 32
+    },
+    "production_build": {
+      "command": "npm run build",
+      "workdir": "frontend",
+      "exit_code": 0,
+      "typescript": "passed",
+      "vite_modules_transformed": 1980,
+      "execution": "outside restrictive sandbox after sandbox denied esbuild child process with spawn EPERM"
+    },
+    "release_preflight": {
+      "command": "python scripts/verify_release_bundle.py",
+      "exit_code": 0,
+      "result": "Release bundle inputs OK; 4 frontend assets referenced."
+    }
+  },
+  "isolation": {
+    "pytest_data_root": "unique data/.t/<run-id>/app-data via scripts/run_pytest.ps1",
+    "original_faro_scan_used": false,
+    "production_project_database_used": false
+  },
+  "acceptance_boundary": "Regression evidence only. Does not satisfy ReCap/AutoCAD/Revit GUI checks, full-resolution import, independent survey controls, physical annotation, CUDA or clean-machine release acceptance.",
+  "project_status": {
+    "accepted_stages": "3/12",
+    "current_stage": 2,
+    "stage_6": "parked until final pass per user instruction"
+  }
+}

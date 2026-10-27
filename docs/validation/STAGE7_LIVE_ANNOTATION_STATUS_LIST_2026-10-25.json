@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "url": "http://127.0.0.1:8000/",
+  "feature": "active recognition list shows independent annotation state for columns and other elements",
+  "browser": {
+    "recognition_dialog_open": true,
+    "column_filter": "column",
+    "visible_column_rows": 100,
+    "visible_row_state": "Ожидает независимой проверки",
+    "status_class": "recognition-review-row-state is-pending",
+    "old_generic_column_label_present": false,
+    "browser_console_errors": 0
+  },
+  "api": {
+    "element_annotations": "GET 200",
+    "column_annotations": "GET 200",
+    "annotation_write_requests": 0,
+    "column_annotations": {
+      "pending": 376,
+      "reviewed": 0,
+      "total": 376
+    }
+  },
+  "frontend": {
+    "unit_tests": "passed, including two review-state mapping tests",
+    "production_build": "passed; 1,976 modules transformed"
+  },
+  "interpretation": "The list now reflects reviewer-authored annotation status and keeps unreviewed columns visibly pending. No candidate was labeled or changed during browser QA. This improves the labeling workflow but does not establish field labels, model accuracy, or Stage 6/7 acceptance.",
+  "acceptance": {
+    "ui_state_integration_verified": true,
+    "independent_labels_present": false,
+    "stage_7_closed": false,
+    "overall_closed_stages": "3/12"
+  }
+}

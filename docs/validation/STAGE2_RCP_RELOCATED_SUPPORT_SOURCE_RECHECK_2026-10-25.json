@@ -1,0 +1,36 @@
+{
+  "checked_at_local": "2026-10-25T20:01:00+03:00",
+  "stage": 2,
+  "scope": "Read-only recheck of the exact RCS linked by the supplied 10.rcp after locating its support folder",
+  "project": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10.rcp",
+    "sha256": "3d3a00acd971b42bee11a8fb73f43356ea162d10855edefde84aaa83d27918fd",
+    "manifest_declared_points": 295836062,
+    "embedded_absolute_link": "C:\\Users\\maxim\\Desktop\\ФОТО ЛУГАНСК\\10 Support\\10.rcs",
+    "embedded_absolute_link_exists": false
+  },
+  "resolved_support_source": {
+    "path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+    "bytes": 7130808277,
+    "sha256": "a11497ab0e4649e18480a31eceb00e8552051ff2209f1ca031c2be5b1f693a4a",
+    "matches_previously_imported_manifest_linked_source": true,
+    "previous_full_resolution_reader_count": 295591803
+  },
+  "application_parser": {
+    "read_rcp_manifest": "resolved the moved source through the unique conventional sibling support folder",
+    "resolved_path": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\10 Support\\10.rcs",
+    "ambiguous_match": false
+  },
+  "remaining_count_difference": {
+    "declared_minus_reader": 244259,
+    "percentage_of_reader_count": 0.0825,
+    "cause": "unresolved"
+  },
+  "safety": {
+    "rcp_modified": false,
+    "rcs_modified": false,
+    "project_database_written": false,
+    "source_hash_read_as_full_stream": true
+  },
+  "acceptance": "The stale absolute path is safely recoverable when there is exactly one matching RCS under the conventional support folder, and the recovered file is the previously imported source. This does not resolve the point-count discrepancy or complete native ReCap GUI round-trip; Stage 2 remains open."
+}

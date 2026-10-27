@@ -8,5 +8,8 @@
   <ItemGroup>
     <Compile Include="../Scan.Plugin/MemberSectionPolicy.cs" Link="MemberSectionPolicy.cs" />
     <Compile Include="../Scan.Plugin/ScanProvenancePayload.cs" Link="ScanProvenancePayload.cs" />
+    <Compile Include="../Scan.Plugin/SlabGeometryPolicy.cs" Link="SlabGeometryPolicy.cs" />
+    <Compile Include="../Scan.Plugin/MemberAxisPolicy.cs" Link="MemberAxisPolicy.cs" />
+    <Compile Include="../Scan.Plugin/RevitImportAuditPolicy.cs" Link="RevitImportAuditPolicy.cs" />
   </ItemGroup>
 </Project>

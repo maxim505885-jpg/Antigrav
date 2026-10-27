@@ -87,6 +87,13 @@ cd frontend && npm install && npm run build
 
 Dev-режим UI: `cd frontend && npm run dev` (Vite, проксирует `/api`).
 
+API по умолчанию запускается только на `127.0.0.1`. Поддерживаемый CLI
+`backend/run.py` отказывается запускаться на сетевом адресе без `S2B_API_KEY`;
+сам API также отклоняет запросы с удалённого адреса без ключа и не использует
+`X-Forwarded-For` как подтверждение loopback. Корень UI и read-only health
+доступны без ключа. При настроенном `S2B_API_KEY` защищённые API-маршруты
+требуют `X-API-Key`; встроенный интерфейс рассчитан на обычный локальный режим.
+
 Переменные окружения (см. `backend/scan2bim/config.py`):
 
 | Переменная | Назначение |
@@ -97,7 +104,7 @@ Dev-режим UI: `cd frontend && npm run dev` (Vite, проксирует `/ap
 | `S2B_MAX_SECTION_RASTER_CELLS` | бюджет растра сечения (грубее сетка вместо зависания) |
 | `S2B_RCS_CONVERTER` | разрешённая команда конвертации RCS → E57/LAS |
 | `S2B_RECAP_DIR` | каталог ReCap с `AdskRcExport.dll` |
-| `S2B_API_KEY` | если задан, требуется заголовок `X-API-Key` |
+| `S2B_API_KEY` | ключ для защищённых API-маршрутов и удалённого доступа; хранить в окружении, не в исходниках |
 | `S2B_ALLOWED_ORIGINS` | CORS для внешних интеграций |
 
 ---
@@ -211,6 +218,12 @@ POST /api/v1/elements/{id}/feedback         GET /elements/{id}/similar  /points
 GET  /api/v1/clouds/{id}/elements.dxf|.dwg GET /clouds/{id}/bim?format=json|ifc
 POST /api/v1/clouds/{id}/cleanup            GET /clouds/{id}/derived
 GET  /api/v1/clouds/{id}/derived/{derived}/download?format=ply|xyz|npy
+POST /api/v1/clouds/{id}/export             GET /clouds/{id}/exports
+GET  /api/v1/clouds/{id}/exports/{export}/download
+GET  /api/v1/clouds/{id}/stations
+GET  /api/v1/clouds/{id}/stations/{station}/panorama?source=auto|photo|cloud
+POST /api/v1/clouds/{id}/stations/{station}/photo   DELETE .../photo
+POST /api/v1/clouds/{id}/stations/{station}/pick    POST .../measure
 POST /api/v1/projects/{id}/train            GET /models  POST /models/{id}/activate
 POST /api/v1/webhooks                       GET /events    GET /jobs/{id}
 GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
@@ -218,13 +231,43 @@ GET  /api/v1/plugin/manifest                GET /plugin/cloud/{id}/model
 
 События (`job.*`, `section.created`, `element.feedback`) уходят в webhook-подписки.
 
+### Экспорт облака
+
+`POST /clouds/{id}/export` пишет E57, LAS, LAZ, PLY или XYZ и **обязательно**
+читает файл обратно своим же читателем: в результате задания возвращается
+измеренная максимальная невязка координат и допуск формата, а превышение допуска
+превращает задание в ошибку. Источник (`positions.npy`) открывается только на
+чтение; экспорт складывается в отдельный каталог проекта и скачивается через
+`/exports/{export_id}/download`.
+
+### Панорамы стоянок
+
+Стоянки берутся из метаданных импорта (`station_row_ranges`) либо, если разбивки
+нет, из всего облака. Изображение — либо загруженная эквидистантная фотография
+2:1 (проверяются формат, размер и SHA-256), либо панорама, отрисованная из точек
+с реальным покрытием и источником цвета. Замер между двумя пикселями считается по
+карте глубин облака; если в этих направлениях точек нет, API возвращает 422 с
+причиной, а не выдуманное расстояние. Точка обзора — измеренный центроид точек
+стоянки, а не оптический центр сканера: читатели форматов его не сохраняют.
+
+Станция крупнее бюджета проекции рисуется потоково в полном разрешении: точки
+читаются блоками по 8 млн, z-буфер хранит только ближайшую на пиксель, поэтому
+пик собственной памяти рендера ~1,3 ГБ. На реальном облаке 297,9 млн точек это дало
+покрытие 73,9 % вместо 26,9 % при 2048 px (69,8 % вместо 12,2 % при 4096 px) за
+~50 с, повторный запрос — из кэша за 0,03 с. Каждая дистанция в карте глубин —
+измеренная точка: независимый пересчёт по всему облаку совпал до 0,0 м.
+
+Пиксель на стыке двух поверхностей даёт нестабильный замер (тонкая труба перед
+стеной), поэтому `pick`/`measure` возвращают `stable`/`reliable` и `warning`, а
+Studio подсвечивает такой замер жёлтым вместо выдачи одного числа как точного.
+
 ---
 
 ## Тесты
 
 ```bash
 .venv/Scripts/python.exe -m pytest backend/tests -q
-# 512 passed, одно предупреждение Starlette/httpx
+# 854 passed, одно предупреждение Starlette/httpx (код 0)
 cd frontend && npm test && npm run build
 ```
 

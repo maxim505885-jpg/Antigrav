@@ -1,0 +1,79 @@
+{
+  "check": "full_backend_and_frontend_regression",
+  "date": "2026-10-26",
+  "host": "Windows 10 build 19045 (not a clean Windows 11 machine)",
+  "backend": {
+    "command": ".venv/Scripts/python -m pytest backend/tests -q -p no:cacheprovider",
+    "tests_collected": 847,
+    "failed": 0,
+    "exit_code": 0,
+    "warnings": [
+      "StarletteDeprecationWarning: using httpx with starlette.testclient is deprecated"
+    ]
+  },
+  "frontend": {
+    "typecheck": "npx tsc -b (no errors)",
+    "tests": "npm test (all node --experimental-strip-types suites passed)",
+    "build": "npm run build (vite 6.4.4, 1980 modules transformed)",
+    "assets": [
+      "dist/index.html 1.37 kB",
+      "dist/assets/index-BHFtnXka.css 30.05 kB",
+      "dist/assets/vendor-C8w-UNLI.js 141.74 kB",
+      "dist/assets/index-DD00xFKs.js 240.88 kB",
+      "dist/assets/three-C6GtlS09.js 479.86 kB"
+    ]
+  },
+  "repair": {
+    "file": "backend/scan2bim/cad/spds_full_set.py",
+    "function": "generate_sheet_5_executive_deviation_scheme",
+    "defect": "UnboundLocalError: scale_factor was read in the not-aligned diagnostic branch, where it was never assigned.",
+    "fix": "The diagnostic branch now sets a nominal scale_factor = 100.0 before drawing the A1 frame; no extent is fabricated and the sheet keeps the explicit 'deviations not evaluated' note.",
+    "previously_failing_tests": [
+      "backend/tests/test_end_to_end_acceptance.py::test_full_pipeline_acceptance_certification",
+      "backend/tests/test_spds_album_api.py::test_spds_album_endpoint_returns_draft_dxf_pdf_and_manifest",
+      "backend/tests/test_spds_endpoints.py::test_spds_album_pdf_endpoint",
+      "backend/tests/test_spds_full_set_safety.py::test_deviation_sheet_is_unknown_without_independent_axes_or_tolerance"
+    ],
+    "focused_rerun": "9 passed"
+  },
+  "new_deliverables": {
+    "cloud_export": {
+      "files": [
+        "backend/scan2bim/processing/cloud_export.py",
+        "backend/tests/test_cloud_export.py",
+        "backend/scan2bim/api/app.py",
+        "backend/scan2bim/job_tasks.py"
+      ],
+      "formats": ["e57", "las", "laz", "ply", "xyz"],
+      "verification": "The written file is read back with SCAN's own readers; the job reports the measured maximum coordinate deviation and the per-format tolerance, and fails when the tolerance is exceeded."
+    },
+    "station_panoramas": {
+      "files": [
+        "backend/scan2bim/processing/panorama.py",
+        "backend/scan2bim/api/panoramas.py",
+        "backend/tests/test_station_panorama.py",
+        "backend/tests/test_station_panorama_api.py",
+        "frontend/src/components/BubblePanoramaViewer.tsx",
+        "frontend/src/api.ts"
+      ],
+      "measurement": "Distances come from the depth map rendered from the stored points; a direction without points returns HTTP 422 with the reason instead of a distance.",
+      "photographs": "Uploaded equirectangular photographs are validated (format, size, 2:1 aspect, checksum) and stored per station; the cloud-derived panorama remains available alongside."
+    },
+    "autocad_acceptance": {
+      "script": "backend/scripts/validate_autocad_accoreconsole.py",
+      "protocol": "docs/validation/AUTOCAD_ACCORECONSOLE_20261026T162306Z.json",
+      "result": "passed",
+      "dwg_header": "AC1032",
+      "dwg_size_bytes": 22023,
+      "autocad_acadver": "25.1 (AutoCAD 2026)",
+      "marker_count": 1,
+      "marker_deviation_m": 0.0,
+      "entity_count_read_back": 8,
+      "note": "The seed drawing contributes its own entities, so the check asserts marker presence, layer and coordinates rather than an exact count."
+    }
+  },
+  "limits": [
+    "No clean Windows 11 host, CUDA hardware, code signing certificate or independent survey controls were available.",
+    "The AutoCAD check exercises accoreconsole on a synthetic sheet, not the printed output or the GUI Cyrillic review."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "checked_at_utc": "2026-10-25T04:04:02Z",
+  "stage": 2,
+  "scope": "read-only storage availability and safe cleanup assessment",
+  "required_for_full_resolution_10_rcp_bytes": 14782617889,
+  "required_for_full_resolution_10_rcp_gib": 13.77,
+  "volumes": {
+    "C:": {"ready": true, "free_bytes": 3107020800, "free_gib": 2.89},
+    "R:": {"ready": false, "free_bytes": null, "note": "Mapped volume is unavailable to this session."}
+  },
+  "retained_tools_directory": {
+    "path": "data/.tools",
+    "file_count": 5768,
+    "bytes": 2688615424,
+    "deleted": false,
+    "note": "Contains retained release and tool artifacts; even removing the entire directory would leave the available C: capacity far below the full-resolution estimate."
+  },
+  "full_resolution_import_started": false,
+  "faro_source_files_modified": false,
+  "project_database_modified": false,
+  "acceptance_status": "open",
+  "accepted_stages": 3,
+  "total_stages": 12,
+  "stage_6_order": "last"
+}

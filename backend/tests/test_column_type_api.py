@@ -127,6 +127,46 @@ def test_manual_column_annotations_are_independent_versioned_and_exportable(clie
     assert after == before
 
 
+def test_project_column_reference_types_group_only_current_manual_type_labels(client, api_data):
+    cloud_id = api_data["clouds"]["a"]
+    project_id = api_data["projects"]["a"]
+    dataset = client.get(f"/api/v1/clouds/{cloud_id}/column-annotations").json()
+    measurements = {
+        "column-a1": ("C-01", "K1", 0.500),
+        "column-a2": ("C-02", "K1", 0.505),
+        "column-a3": ("C-03", "K2", 0.700),
+    }
+    for element_id, (physical_id, type_label, long_side) in measurements.items():
+        saved = client.post(
+            f"/api/v1/clouds/{cloud_id}/column-annotations/{element_id}",
+            json={
+                "source_snapshot_sha256": dataset["source_snapshot_sha256"],
+                "annotator": "Maxim", "state": "labeled", "physical_instance_id": physical_id,
+                "type_label": type_label, "shape_label": "rectangular_solid", "structural_role": "column",
+                "sides_m": {"long": long_side, "short": 0.4 if type_label == "K1" else 0.5},
+                "measurement_source": "field_measurement", "z_measurements": [],
+                "visible_faces": [], "hidden_faces": [], "confidence": None,
+                "reason_unknown": "", "note": "independent field measurement",
+            },
+        )
+        assert saved.status_code == 200, saved.text
+
+    before = database.one("SELECT COUNT(*) AS n FROM column_type_assignments WHERE project_id=?", (project_id,))["n"]
+    response = client.get(f"/api/v1/projects/{project_id}/column-reference-types")
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["annotation_origin"] == "independent_manual"
+    assert result["tolerance_status"] == "not_applied"
+    assert result["unique_physical_instance_count"] == 3
+    groups = {item["type_label"]: item for item in result["groups"]}
+    assert groups["K1"]["physical_instance_count"] == 2
+    assert groups["K1"]["measured_sides_range_m"]["long"] == {"min": 0.5, "max": 0.505}
+    assert groups["K1"]["measured_sides_range_m"]["short"] == {"min": 0.4, "max": 0.4}
+    assert groups["K2"]["physical_instance_count"] == 1
+    after = database.one("SELECT COUNT(*) AS n FROM column_type_assignments WHERE project_id=?", (project_id,))["n"]
+    assert after == before == 0
+
+
 def test_invalidated_synthetic_columns_are_never_reference_annotations(client, api_data):
     cloud_id = api_data["clouds"]["a"]
 
@@ -654,3 +694,94 @@ def test_project_catalog_reuse_crosses_clouds_but_never_assigns_automatically(cl
     stale = client.get(url).json()["catalog_reuse"]
     assert stale["suggestions"][0]["matches"] == []
     assert stale["catalog_issues"][0]["type_id"] == confirmed["id"]
+
+
+def test_learning_manifest_export_is_explicit_versioned_and_never_trains(client, api_data, monkeypatch, tmp_path):
+    import numpy as np
+
+    import importlib
+
+    from scan2bim import storage
+    api_module = importlib.import_module("scan2bim.api.app")
+
+    project_id = api_data["projects"]["a"]
+    cloud_id = api_data["clouds"]["a"]
+    sample_snapshot = "e" * 64
+    monkeypatch.setattr(storage, "PROJECTS_DIR", tmp_path / "projects")
+    monkeypatch.setattr(
+        api_module,
+        "current_point_cloud_snapshot",
+        lambda current_cloud_id: {"snapshot_id": sample_snapshot},
+    )
+    with database.db() as con:
+        con.execute("UPDATE elements SET review_status='confirmed' WHERE id='column-a1'")
+    annotation_dataset = client.get(f"/api/v1/clouds/{cloud_id}/element-annotations").json()
+    annotation = client.post(
+        f"/api/v1/clouds/{cloud_id}/element-annotations/column-a1",
+        json={
+            "source_snapshot_sha256": annotation_dataset["source_snapshot_sha256"],
+            "annotator": "Maxim",
+            "state": "labeled",
+            "physical_instance_id": "COL-A-01",
+            "class_label": "column",
+            "role_label": "column",
+            "type_label": "K1",
+            "reason": "",
+            "note": "verified reference",
+        },
+    )
+    assert annotation.status_code == 200, annotation.text
+
+    export_url = f"/api/v1/projects/{project_id}/learning-manifests/export"
+    empty_preview = client.get(f"/api/v1/projects/{project_id}/learning-manifest/preview").json()
+    assert empty_preview["eligible_sample_count"] == 0
+    empty_export = client.post(export_url, json={"confirmed": True,
+        "expected_manifest_sha256": empty_preview["manifest_sha256"]})
+    assert empty_export.status_code == 409
+    catalog_dir = storage.project_dir(project_id) / "catalog" / "learning"
+    assert not catalog_dir.exists()
+
+    points_path = storage.project_dir(project_id) / "training" / "sample.npy"
+    points_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(points_path, np.asarray([[1, 2, 3], [1.1, 2, 3]], dtype=np.float32))
+    now = database.utcnow()
+    database.execute(
+        "INSERT INTO training_samples "
+        "(id,project_id,cloud_id,element_id,class_name,physical_instance_id,source_snapshot_id,"
+        "features_json,points_path,split,source,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("sample-a1", project_id, cloud_id, "column-a1", "column", "COL-A-01", sample_snapshot,
+         json.dumps({"length": 0.5}), str(points_path), "train", "engineer", now),
+    )
+
+    preview = client.get(f"/api/v1/projects/{project_id}/learning-manifest/preview")
+    assert preview.status_code == 200, preview.text
+    manifest = preview.json()
+    assert manifest["eligible_sample_count"] == 1
+    assert manifest["class_counts"] == {"column": 1}
+    assert manifest["training_started"] is False
+    unconfirmed = client.post(export_url, json={"confirmed": False,
+        "expected_manifest_sha256": manifest["manifest_sha256"]})
+    assert unconfirmed.status_code == 422
+    stale = client.post(export_url, json={"confirmed": True,
+        "expected_manifest_sha256": "0" * 64})
+    assert stale.status_code == 409
+    assert not catalog_dir.exists()
+
+    exported = client.post(export_url, json={"confirmed": True,
+        "expected_manifest_sha256": manifest["manifest_sha256"]})
+    assert exported.status_code == 201, exported.text
+    result = exported.json()
+    artifact_path = storage.project_dir(project_id) / result["relative_path"]
+    document = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert result["manifest_sha256"] == manifest["manifest_sha256"]
+    assert document["samples"][0]["physical_instance_id"] == "COL-A-01"
+    assert document["samples"][0]["points_file"] == "training/sample.npy"
+    assert str(tmp_path) not in artifact_path.read_text(encoding="utf-8")
+    assert document["export_confirmation"]["confirmed"] is True
+    assert document["export_confirmation"]["training_started"] is False
+    assert database.one("SELECT COUNT(*) AS n FROM model_versions")["n"] == 0
+
+    repeated = client.post(export_url, json={"confirmed": True,
+        "expected_manifest_sha256": manifest["manifest_sha256"]})
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["relative_path"] == result["relative_path"]

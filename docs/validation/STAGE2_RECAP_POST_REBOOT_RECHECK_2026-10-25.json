@@ -1,0 +1,51 @@
+{
+  "recorded_at_local": "2026-10-25T14:11:31+03:00",
+  "stage": 2,
+  "purpose": "Retry ReCap after the user restarted Windows and confirm the next required repair step.",
+  "reboot": "user reports Windows was restarted",
+  "system": {
+    "windows_display_version": "22H2",
+    "build": "19045.6456",
+    "free_gib_initial": 25.93,
+    "free_gib_after_regression": 25.32
+  },
+  "recap": {
+    "version": "24.0.0.240",
+    "launch": "exited after 10 seconds with code 1; no window",
+    "application_log_last_write": "2026-10-25T10:57:14+03:00",
+    "new_log_entry_created": false
+  },
+  "identity_manager": {
+    "installed_executable_present": false,
+    "licensing_agent_diagnosis": "SSO server executable and registered path are missing; IDSDK initialization error 3005",
+    "signed_installer_publisher": "Autodesk, Inc.",
+    "elevated_installer_result": "failed before UI with Windows error 0xc0000142"
+  },
+  "autodesk_access": {
+    "signed_ui_host_version": "1.0.0.19",
+    "launch_result": "UI host produced an application-error window and exited",
+    "service_status": "Autodesk Access Service Host was stopped; starting it from the current non-elevated session was denied",
+    "remove_odis_utility": {
+      "path": "C:/Program Files/Autodesk/AdODIS/V1/RemoveODIS.exe",
+      "authenticode": "Valid",
+      "publisher": "Autodesk, Inc."
+    },
+    "odIS_installer_at_expected_local_setup_path": false
+  },
+  "official_vendor_guidance": [
+    "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Installation-crash-at-Preparing-for-installation.html",
+    "https://www.autodesk.com/support/technical/article/caas/tsarticles/ts/7zbgTemIhA3ltRs4eACL0g.html"
+  ],
+  "next_external_action": "An administrator must repair the Autodesk ODIS installation service using Autodesk's current installer, then reinstall Identity Manager. The signed RemoveODIS.exe is available at the path above; removal/reinstallation can temporarily affect Autodesk install and update operations, so it was not run without explicit administrator authorization.",
+  "changes": {
+    "faro_sources_modified": false,
+    "windows_registry_modified": false,
+    "odIS_removed_or_reinstalled": false,
+    "reboot_performed_by_codex": false
+  },
+  "overall_acceptance": {
+    "closed_stages": "3/12",
+    "stage_2": "in_progress",
+    "stage_6_order": "parked until final pass"
+  }
+}

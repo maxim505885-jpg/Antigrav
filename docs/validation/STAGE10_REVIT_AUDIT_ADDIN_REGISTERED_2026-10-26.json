@@ -1,0 +1,18 @@
+{
+  "schema": "scan2bim.validation/revit-audit-registration/1.0",
+  "created_at": "2026-10-25T21:34:09.4484290Z",
+  "manifest": "C:\\Users\\maxim\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2027\\SCAN.StructuralModel.addin",
+  "manifest_xml_valid": true,
+  "registered_commands": [
+    "Scan.Revit.Plugin.ImportStructuralModelCommand",
+    "Scan.Revit.Plugin.VerifyImportedModelCommand"
+  ],
+  "registered_assembly": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.tools\\scan-revit-audit-candidate\\Scan.Revit.Plugin.dll",
+  "registered_assembly_sha256": "F0EF6C780942B847C8FDB5B0007C98F7B458FC3D706BBBFA64295D87A31C94F4",
+  "registered_assembly_exists": true,
+  "revit_process_running": true,
+  "revit_process_id": 9100,
+  "loaded_into_current_session": false,
+  "host_command_execution": "PENDING_NEXT_FULL_REVIT_LAUNCH",
+  "result": "REGISTERED_NOT_HOST_VERIFIED"
+}

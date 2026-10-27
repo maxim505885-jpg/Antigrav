@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-24",
+  "stage": 3,
+  "acceptance_criterion": "60 FPS viewport navigation with at least 1,000,000 preview points on the target workstation and a representative cloud",
+  "result": "pass",
+  "workstation": {
+    "browser": "Microsoft Edge 156",
+    "gpu": "AMD Radeon RX 5500 XT",
+    "webgl_renderer": "ANGLE (AMD, Radeon RX 5500 XT, Direct3D11)",
+    "browser_viewport_px": [1670, 956],
+    "webgl_canvas_px": [657, 435],
+    "device_pixel_ratio": 1
+  },
+  "cloud": {
+    "project_id": "workshop_project",
+    "cloud_id": "workshop_cloud",
+    "source_point_count": 43500000,
+    "rendered_lod_level": 2,
+    "rendered_point_count": 3000000,
+    "lod_manifest_http_status": 200,
+    "lod_binary_http_status": 200
+  },
+  "navigation_run": {
+    "duration_ms": 10311,
+    "rendered_frames": 771,
+    "average_fps": 75,
+    "minimum_one_second_hud_fps": 73,
+    "one_second_hud_samples_fps": [75, 75, 75, 75, 75, 75, 73, 75, 75, 75],
+    "camera_distance_start": 50.412936,
+    "camera_distance_end": 64.936233,
+    "input": "Repeated zoom-in/zoom-out wheel events on the viewer while sampling the live WebGL render loop",
+    "document_visible_and_focused": true
+  },
+  "source_files_modified": false,
+  "notes": [
+    "The 3,000,000-point LOD is streamed from the live representative workshop cloud; it exceeds the 1,000,000-point acceptance minimum.",
+    "This verifies the tested local Edge/Radeon workstation and viewport size. It does not claim performance for other GPU/browser combinations."
+  ]
+}

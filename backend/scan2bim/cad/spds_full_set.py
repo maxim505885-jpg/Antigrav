@@ -8,6 +8,7 @@ Produces 4 complete engineering sheets:
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from .spds_tables import draw_spds_specification_table
 from ..recognition.column_validator import WorkshopColumnValidator
 
@@ -21,6 +22,7 @@ import ezdxf
 from matplotlib.backends.backend_pdf import PdfPages
 from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+from ezdxf.addons.drawing.config import BackgroundPolicy, Configuration
 import matplotlib.pyplot as plt
 
 from .spds import (
@@ -152,19 +154,65 @@ def align_elements_to_grid(elements: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def render_dxf_to_pdf(doc: ezdxf.document.Drawing, out_pdf: str | Path, format_name: str = "A1") -> Path:
-    """Render DXF drawing to pure vector PDF using ezdxf matplotlib backend."""
-    out_pdf = Path(out_pdf)
-    out_pdf.parent.mkdir(parents=True, exist_ok=True)
-
+def _dxf_page_figure(doc: ezdxf.document.Drawing, format_name: str) -> Any:
+    """Build a vector-rendered DXF figure on the requested physical paper size."""
     msp = doc.modelspace()
     # A1 Landscape: 841 x 594 mm -> inches: 33.11 x 23.39
     figsize = (33.11, 23.39) if format_name.upper() == "A1" else (23.39, 16.54)
     fig = plt.figure(figsize=figsize, dpi=300)
     ax = fig.add_axes([0, 0, 1, 1])
     _draw_dxf_page(doc, ax)
-    fig.savefig(str(out_pdf), format="pdf", dpi=300, bbox_inches="tight", pad_inches=0.02)
-    plt.close(fig)
+    # The ezdxf Matplotlib backend resizes the figure to drawing extents while
+    # finalizing its view. Restore the paper dimensions after that call.
+    fig.set_size_inches(*figsize, forward=True)
+    # Refit equal-unit axes to the paper aspect so the sheet frame and title
+    # block remain visible after the figure resize, without changing model scale.
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.apply_aspect()
+    return fig
+
+
+def _pdf_render_config() -> Configuration:
+    """Use a white plot page while keeping ACI 7 frame/text visible."""
+    return Configuration(
+        background_policy=BackgroundPolicy.WHITE,
+    )
+
+
+@contextmanager
+def _pdf_contrast_palette(doc: ezdxf.document.Drawing):
+    """Temporarily map white-screen ACI 7 to dark gray for paper plotting.
+
+    DXF sheets keep ACI 7 so the frame and title block stay visible on
+    AutoCAD's dark canvas. Restore every modified color before returning.
+    """
+    changed: list[tuple[Any, int]] = []
+    for layer in doc.layers:
+        if layer.dxf.color == 7:
+            changed.append((layer.dxf, 7))
+            layer.dxf.color = 250
+    for entity in doc.modelspace():
+        if entity.dxf.get("color", 256) == 7:
+            changed.append((entity.dxf, 7))
+            entity.dxf.color = 250
+    try:
+        yield
+    finally:
+        for dxf_namespace, original_color in changed:
+            dxf_namespace.color = original_color
+
+
+def render_dxf_to_pdf(doc: ezdxf.document.Drawing, out_pdf: str | Path, format_name: str = "A1") -> Path:
+    """Render DXF drawing to pure vector PDF using ezdxf matplotlib backend."""
+    out_pdf = Path(out_pdf)
+    out_pdf.parent.mkdir(parents=True, exist_ok=True)
+    with _pdf_contrast_palette(doc):
+        fig = _dxf_page_figure(doc, format_name)
+        try:
+            # Preserve the requested A1/A2 paper dimensions and print scale.
+            fig.savefig(str(out_pdf), format="pdf", dpi=300)
+        finally:
+            plt.close(fig)
     return out_pdf
 
 
@@ -172,7 +220,10 @@ def _draw_dxf_page(doc: ezdxf.document.Drawing, ax: Any) -> None:
     msp = doc.modelspace()
     ctx = RenderContext(doc)
     ctx.set_current_layout(msp)
-    frontend = Frontend(ctx, MatplotlibBackend(ax))
+    # SPDS frame and title block entities use ACI 7 (white) so they remain
+    # visible in AutoCAD's dark modelspace. On a white PDF page that palette
+    # would disappear; swap only black/white while preserving layer colors.
+    frontend = Frontend(ctx, MatplotlibBackend(ax), config=_pdf_render_config())
     frontend.draw_layout(msp, finalize=True)
     ax.set_aspect("equal", "datalim")
     ax.axis("off")
@@ -218,7 +269,7 @@ def _scale_for(bounds: tuple[float, float, float, float], format_name: str = "A1
     min_x, min_y, max_x, max_y = bounds
     sheet_w, sheet_h = SHEET_SIZES_MM[format_name]
     required = max((max_x - min_x) / ((sheet_w - 25.0) / 1000.0), (max_y - min_y) / ((sheet_h - 60.0) / 1000.0))
-    return next((scale for scale in (25, 50, 75, 100, 150, 200, 250, 300, 500, 750, 1000, 1500, 2000) if scale >= required), int(math.ceil(required / 500) * 500))
+    return next((scale for scale in (25, 50, 75, 100, 125, 150, 175, 200, 250, 300, 350, 400, 500, 750, 1000, 1500, 2000) if scale >= required), int(math.ceil(required / 500) * 500))
 
 
 def _new_sheet(title: str, number: int, elements: list[dict[str, Any]], view: str = "xy") -> ezdxf.document.Drawing:
@@ -429,11 +480,14 @@ def generate_sheet_5_executive_deviation_scheme(
     setup_spds_layers_and_styles(doc)
     msp = doc.modelspace()
 
-    scale_factor = 200.0
     x_bays = aligned_data["x_bays"]
     y_spans = aligned_data["y_spans"]
 
     if aligned_data.get("grid_status") != "aligned" or not x_bays or not y_spans:
+        # Without an aligned grid there is no extent to size the sheet from, so
+        # this diagnostic sheet uses a fixed nominal 1:100 frame. The note below
+        # states that no deviation was evaluated; nothing is scaled to imply one.
+        scale_factor = 100.0
         inner_box = draw_spds_sheet_frame(msp, origin_x=-25.0, origin_y=-20.0, format_name="A1", scale_factor=scale_factor)
         draw_spds_title_block(
             msp,
@@ -458,8 +512,14 @@ def generate_sheet_5_executive_deviation_scheme(
     min_x, max_x = min(x_bays), max(x_bays)
     min_y, max_y = min(y_spans), max(y_spans)
 
-    pad_x, pad_y = 25.0, 20.0
-    inner_box = draw_spds_sheet_frame(msp, origin_x=min_x - pad_x, origin_y=min_y - pad_y, format_name="A1", scale_factor=scale_factor)
+    # Size the paper scale from the full grid plus the axis bubbles, dimension
+    # chains, and explanatory notes. A fixed 1:200 clipped long workshop grids.
+    scale_factor = float(_scale_for((min_x - 6.0, min_y - 15.0, max_x + 6.0, max_y + 8.0), "A1"))
+
+    pad_x = 25.0
+    # Reserve the lower title-block band below the axis bubbles, dimensions,
+    # and notes so long-grid labels do not print through the stamp.
+    inner_box = draw_spds_sheet_frame(msp, origin_x=min_x - pad_x, origin_y=min_y - 42.0, format_name="A1", scale_factor=scale_factor)
 
     draw_spds_title_block(
         msp,
@@ -578,11 +638,12 @@ def generate_full_spds_album(
     with PdfPages(album_pdf) as pdf:
         for sheet in sheets:
             doc = ezdxf.readfile(Path(sheet["dxf_path"]))
-            fig = plt.figure(figsize=(33.11, 23.39), dpi=300)
-            ax = fig.add_axes([0, 0, 1, 1])
-            _draw_dxf_page(doc, ax)
-            pdf.savefig(fig, dpi=300, bbox_inches="tight", pad_inches=0.02)
-            plt.close(fig)
+            with _pdf_contrast_palette(doc):
+                fig = _dxf_page_figure(doc, "A1")
+                try:
+                    pdf.savefig(fig, dpi=300)
+                finally:
+                    plt.close(fig)
     canonical_elements = json.dumps(elements, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     manifest = {
         "issue": "draft",

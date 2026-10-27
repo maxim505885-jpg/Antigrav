@@ -1,0 +1,44 @@
+{
+  "schema": "scan2bim.validation/decap-current-smoke/1.0",
+  "date": "2026-10-27",
+  "stage": 2,
+  "authority": "current workstation execution",
+  "tool": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\DeCap.exe",
+  "version": "24.0.0.240",
+  "source": {
+    "kind": "synthetic",
+    "points": 125,
+    "format": "XYZ",
+    "production_data_touched": false,
+    "location": "isolated TEMP directory"
+  },
+  "result": {
+    "package_verified": true,
+    "manifest_declared_points": 125,
+    "linked_rcs_count": 1,
+    "manifest_registered": false,
+    "resolved_linked_rcs": true,
+    "manifest_node_count": 1,
+    "status": "created_by_autodesk_decap",
+    "rcp_size_bytes": 1943,
+    "linked_rcs_size_bytes": 170895
+  },
+  "gui": {
+    "capture_errors": [
+      "FrameArrived timed out: timed out waiting on channel",
+      "window capture timed out: timed out waiting on channel"
+    ],
+    "project_opened": false,
+    "recap_process_started": true,
+    "capture_status": "not_verified",
+    "window_listed": true
+  },
+  "cleanup": {
+    "temporary_test_tree_removed": true
+  },
+  "acceptance": "Partial DeCap packaging smoke only; ReCap GUI open, station movement/registration, and production FARO round-trip remain unverified",
+  "autodesk_documentation": [
+    "https://help.autodesk.com/cloudhelp/ENU/Reality-Capture/files/Creating_Scan_Projects/decap.html",
+    "https://help.autodesk.com/view/RECAP/ENU/?contextId=scan_register_auto"
+  ]
+}

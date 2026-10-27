@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { Cloud } from "../types";
 import { api, type PairAlignResponse, type RegistrationPointPair } from "../api";
+import { DEFAULT_APPLY_ICP_REFINEMENT } from "../manualRegistrationPolicy";
 
 interface Props {
   clouds: Cloud[];
@@ -15,7 +16,7 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
     { source_point: [0, 0, 0], target_point: [0, 0, 0], label: "Репер 2" },
     { source_point: [0, 0, 0], target_point: [0, 0, 0], label: "Репер 3" },
   ]);
-  const [applyIcp, setApplyIcp] = useState<boolean>(true);
+  const [applyIcp, setApplyIcp] = useState<boolean>(DEFAULT_APPLY_ICP_REFINEMENT);
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<PairAlignResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,11 +58,11 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
 
   const handleAlign = async () => {
     if (!sourceId || !targetId) {
-      setError("Выберите исходное и целевое облако");
+      setError("Выберите подвижную и опорную станции");
       return;
     }
     if (sourceId === targetId) {
-      setError("Исходное и целевое облака должны отличаться");
+      setError("Подвижная и опорная станции должны отличаться");
       return;
     }
     if (pairs.length < 3) {
@@ -86,14 +87,14 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
 
   return (
     <div className="manual-registration-panel card" style={{ padding: "16px", marginTop: "16px" }}>
-      <h3>Ручная сшивка по реперам (SVD / Kabsch 6-DOF)</h3>
+      <h3>Ручная сшивка станций по реперам (SVD / Kabsch 6-DOF)</h3>
       <p className="text-secondary" style={{ fontSize: "13px", marginBottom: "12px" }}>
         Задайте соответствие 3+ реперных точек (марок) между двумя станциями сканирования для расчёта матрицы взаимного положения SE(3).
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
         <div>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: "bold" }}>Подвижное облако (Scan A):</label>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "bold" }}>Подвижная станция A:</label>
           <select
             value={sourceId}
             onChange={(e) => setSourceId(e.target.value)}
@@ -107,7 +108,7 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
           </select>
         </div>
         <div>
-          <label style={{ display: "block", fontSize: "12px", fontWeight: "bold" }}>Базовое облако (Scan B):</label>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: "bold" }}>Опорная станция B:</label>
           <select
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
@@ -239,7 +240,7 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
           onChange={(e) => setApplyIcp(e.target.checked)}
         />
         <label htmlFor="applyIcp" style={{ fontSize: "13px", cursor: "pointer" }}>
-          Уточнить совмещение локальным Point-to-Plane / Rigid ICP после SVD-выравнивания
+          Дополнительно уточнить матрицу между станциями через Rigid ICP после ручного Kabsch (может изменить результат реперов)
         </label>
       </div>
 
@@ -261,7 +262,10 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
 
       {result && (
         <div style={{ marginTop: "16px", padding: "12px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)", borderRadius: "4px" }}>
-          <h4 style={{ color: "#34d399", margin: "0 0 8px 0" }}>Результат сшивки</h4>
+          <h4 style={{ color: "#34d399", margin: "0 0 8px 0" }}>Предварительная матрица пары станций</h4>
+          <p role="note" style={{ color: "#fbbf24", fontSize: "12px", margin: "0 0 8px" }}>
+            Точность не измерена: RMSE рассчитана по тем же парам, что использовались для подгонки; независимых контрольных точек: {result.independent_control_count}.
+          </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px", marginBottom: "8px" }}>
             <div>
               <strong>RMSE невязка:</strong> {result.rmse_mm} мм
@@ -303,10 +307,14 @@ export const ManualRegistrationPanel: React.FC<Props> = ({ clouds, onAligned }) 
           </details>
 
           <details style={{ fontSize: "12px", marginTop: "8px" }}>
-            <summary style={{ cursor: "pointer", color: "#60a5fa" }}>Матрица трансформации 4×4</summary>
+            <summary style={{ cursor: "pointer", color: "#60a5fa" }}>Матрицы трансформации 4×4</summary>
+            <p className="hint">Локальные координаты сохранённых массивов точек.</p>
             <pre style={{ background: "rgba(0,0,0,0.3)", padding: "8px", borderRadius: "4px", overflowX: "auto" }}>
               {JSON.stringify(result.matrix_4x4, null, 2)}
             </pre>
+            {result.world_matrix_4x4
+              ? <><p className="hint">Мировые координаты исходной станции → базовая станция.</p><pre style={{ background: "rgba(0,0,0,0.3)", padding: "8px", borderRadius: "4px", overflowX: "auto" }}>{JSON.stringify(result.world_matrix_4x4, null, 2)}</pre></>
+              : <p className="warn-box" role="note">Мировая матрица недоступна: origin отсутствует или исходное преобразование RCP ещё не подтверждено.</p>}
           </details>
         </div>
       )}

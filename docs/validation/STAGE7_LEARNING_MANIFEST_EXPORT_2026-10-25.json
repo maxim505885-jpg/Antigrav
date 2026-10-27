@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-25",
+  "stage": 7,
+  "work_package": "reviewed_learning_manifest_export",
+  "status": "software_verified",
+  "preview_endpoint": "GET /api/v1/projects/{project_id}/learning-manifest/preview",
+  "export_endpoint": "POST /api/v1/projects/{project_id}/learning-manifests/export",
+  "artifact_location": "<project>/catalog/learning/learning-manifest-{sha256-prefix}.json",
+  "eligibility": [
+    "engineer training sample",
+    "current confirmed or corrected non-inferred candidate",
+    "current point cloud snapshot",
+    "current independent labeled annotation with matching class and physical ID",
+    "valid finite Nx3 points file contained in the project directory"
+  ],
+  "export_safety": {
+    "explicit_confirmation_required": true,
+    "expected_manifest_sha256_required": true,
+    "stale_manifest_rejected": true,
+    "zero_eligible_samples_rejected": true,
+    "absolute_source_paths_written": false,
+    "training_started": false,
+    "model_activated": false,
+    "repeated_export_idempotent": true
+  },
+  "verification": {
+    "backend_test_file": "backend/tests/test_column_type_api.py",
+    "backend_test_file_result": "24 passed",
+    "frontend_tests": "npm test passed",
+    "production_build": "npm run build passed; 1978 modules transformed",
+    "isolated_test_database": true,
+    "isolated_test_project_database_written": false,
+    "live_preview_mutated_records": false,
+    "live_studio": "After restarting the repository API with zero active jobs, workshop_project preview returned 0 eligible samples. The recognition dialog showed the learning panel and kept export disabled; the live preview performed no export or training."
+  },
+  "limits": [
+    "No physical workshop annotations were added or exported during verification.",
+    "Independent labeled members and held-out evaluation remain unavailable; Stage 7 stays open.",
+    "This work package only exports a versioned manifest; it does not train or activate a model."
+  ],
+  "project_acceptance": "3/12",
+  "stage_6": "parked_until_last"
+}

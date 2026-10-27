@@ -1,0 +1,49 @@
+{
+  "recorded_at_local": "2026-10-25T13:49:39+03:00",
+  "stage": 2,
+  "purpose": "Retry ReCap and its missing Autodesk Identity Manager dependency after the user freed disk space.",
+  "storage": {
+    "volume": "C:",
+    "free_bytes_after_recheck": 29803077632,
+    "free_gib_after_recheck": 27.76
+  },
+  "recap": {
+    "version": "24.0.0.240",
+    "launch_attempt": "direct launch of installed ReCap.exe, no project argument",
+    "result": "process exited after 10 seconds with code 1; no main window",
+    "application_log_last_write": "2026-10-25T10:57:14+03:00",
+    "interpretation": "this attempt exited before writing a new ReCap application log entry"
+  },
+  "identity_manager": {
+    "signed_installer": {
+      "authenticode": "Valid",
+      "publisher": "Autodesk, Inc.",
+      "elevated_retry": "failed before UI with Windows error 0xc0000142"
+    },
+    "installed_manager_path": "C:/Program Files/Autodesk/AdskIdentityManager/Current/AdskIdentityManager.exe",
+    "installed_manager_present": false,
+    "licensing_agent_log": {
+      "result": "Identity Manager executable and registry path were not found; IDSDK initialization returned error 3005",
+      "source": "%LOCALAPPDATA%/Autodesk/Autodesk ReCap/agent-stdout-26812.log",
+      "recorded_at": "2026-10-25T09:51:22+03:00"
+    }
+  },
+  "changes": {
+    "source_rcp_or_rcs_modified": false,
+    "windows_registry_modified": false,
+    "odIS_modified": false,
+    "reboot_performed": false
+  },
+  "acceptance": {
+    "stage_2": "in_progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass",
+    "remaining_recap_acceptance": [
+      "Identity Manager must be installed and registered",
+      "ReCap GUI must stay open",
+      "Open 10.rcp and verify its linked 10 Support/10.rcs station",
+      "Reconcile ReCap NumPoints 295836062 with the RCS reader count 295591803"
+    ],
+    "next_user_action": "Install available Windows updates and restart Windows, then tell Codex when the desktop is back. If Identity Manager still will not start, use Autodesk Access or an administrator to repair Autodesk ODIS and install Identity Manager."
+  }
+}

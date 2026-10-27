@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-25",
+  "stage": 10,
+  "title": "Point-cloud and BIM interchange regression suite",
+  "command": "pytest backend/tests/test_formats.py backend/tests/test_recap_project_export.py backend/tests/test_cloud_export.py backend/tests/test_ifc_pipe_export.py backend/tests/test_structural_ifc.py backend/tests/test_dwg_compiler.py backend/tests/test_bim_model_contract.py -q",
+  "verification": {
+    "focused_tests": "52 passed",
+    "covered": "RCP packaging contracts, point-cloud formats, IFC structure, DWG compiler preconditions and BIM contracts",
+    "source_clouds_modified": false
+  },
+  "acceptance": {
+    "stage_10": "testing",
+    "missing": "Full-resolution original FARO RCP round-trip and GUI review/movement in ReCap; AutoCAD 2026/Revit 2027 open/edit/print acceptance.",
+    "accepted_stages": "3/12",
+    "stage_6": "parked until the final pass"
+  }
+}

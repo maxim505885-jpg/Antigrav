@@ -1,0 +1,42 @@
+{
+  "recorded_at_local": "2026-10-25T15:01:00+03:00",
+  "stage": 11,
+  "status": "partial implementation; Stage 11 remains open",
+  "implementation": {
+    "capability": "Persistent headless worker process for ingest, RCP batch ingest, structural recognition, cleanup, and cloud export",
+    "configuration": "S2B_INGEST_MODE=worker",
+    "supported_task_types": ["ingest", "rcp_batch_ingest", "recognition", "cleanup", "cloud_export"],
+    "entry_point": "python -m scan2bim.worker",
+    "durability": [
+      "SQLite job payload migration is additive for existing databases",
+      "atomic worker claims use expiring leases and attempts are recorded",
+      "worker heartbeats renew leases; expired leases can be reclaimed",
+      "external cancellation is persisted and checked at progress checkpoints",
+      "API startup recovery preserves queued/running worker-owned imports",
+      "RCP batch imports retain per-station failures and resumable ingest checkpoints"
+    ]
+  },
+  "acceptance_evidence": {
+    "separate_process_integration": "The `test_worker_process.py` integration starts real worker subprocesses for synthetic PLY ingest, structural recognition, voxel cleanup to a derived cloud, and verified PLY export; the jobs succeed and the exported file is downloadable. The production database and FARO sources were not used.",
+    "focused_current_regression": "All 6 tests in backend/tests/test_worker_process.py passed with the tmpdir plugin disabled. Coverage includes separate-process ingest and recognition, ingest → voxel cleanup → verified export/download, API startup recovery, exclusive claim and lease reclaim, persisted queued cancellation, and additive SQLite schema migration. Test inputs and databases were isolated under S2B_DATA_DIR.",
+    "full_backend_suite_after_extension": "All 808 backend tests passed (0 failed; 1 existing Starlette/httpx deprecation warning) after recognition, cleanup, and export handlers were added. The suite used an isolated S2B_DATA_DIR and a temporary pytest tmp_path fixture rooted inside it because Windows denied the default pytest temporary directory. In an earlier attempt, an overly long test root and an AutoCAD Core Console 20-second timeout under load were corrected by shortening the isolated root and rerunning the converter test; the complete suite then passed.",
+    "full_backend_suite_evidence": "STAGE11_FULL_BACKEND_REGRESSION_2026-10-25.json",
+    "legacy_database_migration": "A database with the prior jobs schema received the new task, lease, attempt and cancellation columns without rebuilding the jobs table."
+  },
+  "limitations": [
+    "The queue uses SQLite and is suitable for workers sharing one host and data directory; it is not a multi-host corporate broker or shared PostgreSQL deployment.",
+    "Ingestion, RCP batch ingestion, structural recognition, cleanup, and cloud export have serializable handlers. Other CPU/GPU analysis tasks still use the API process executor.",
+    "CUDA execution remains unverified because compatible NVIDIA hardware is unavailable on this workstation."
+  ],
+  "data_safety": {
+    "test_input": "synthetic PLY in an isolated temporary directory",
+    "production_database_used": false,
+    "original_faro_sources_opened": false,
+    "original_faro_sources_modified": false
+  },
+  "overall_acceptance": {
+    "closed_stages": "3/12",
+    "stage_11": "in_progress",
+    "stage_6_order": "parked until final pass"
+  }
+}

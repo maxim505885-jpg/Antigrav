@@ -1,0 +1,32 @@
+{
+  "checked_at_local": "2026-10-25T15:20:00+03:00",
+  "stage": 11,
+  "change": {
+    "files": [
+      "desktop_app.py",
+      "backend/tests/test_desktop_app.py",
+      "docs/HEADLESS_WORKER.md"
+    ],
+    "behavior": "When S2B_INGEST_MODE=worker and the desktop launcher starts its own API, it starts a worker with the same resolved data root and stops both owned processes when the native window closes. It does not attach a worker to an already-running API because that API's data root cannot be verified. The local in-process mode remains the default."
+  },
+  "verification": {
+    "command": "python -m pytest backend/tests/test_desktop_app.py -q -p no:tmpdir -k 'worker or waits_for_native_window'",
+    "result": "4 passed",
+    "isolated_data_root": true,
+    "full_backend_suite_rerun": false,
+    "notes": [
+      "The test run emitted the existing Starlette/httpx deprecation warning.",
+      "Pytest's cache directory was not writable in this Windows sandbox; this did not affect the four test results."
+    ]
+  },
+  "remaining_stage_11_gates": [
+    "CUDA voxel reduction and normal estimation on compatible NVIDIA hardware",
+    "corporate multi-host worker deployment with shared transactional queue and artifact storage",
+    "accepted hundred-million/billion-point processing workload"
+  ],
+  "acceptance": {
+    "stage_11": "in progress",
+    "overall_closed_stages": "3/12",
+    "stage_6": "parked until final pass"
+  }
+}

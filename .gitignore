@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 node_modules/
 frontend/dist/
+installer/Output/
 data/
 *.log
 *.rcs
@@ -36,3 +37,13 @@ s2b_test_*
 .tmp-*
 
 
+
+# Local test artifacts and database state
+/.stage10-contract-check*/
+/.t-suite*/
+/.t-worker-*/
+/.tmp_pytest*/
+/tmp_pytest_no_cleanup.py
+/backend.db
+
+/.tmp_pytest_no_cleanup.py

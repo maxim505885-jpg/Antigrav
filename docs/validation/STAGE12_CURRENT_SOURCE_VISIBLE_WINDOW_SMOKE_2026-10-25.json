@@ -1,0 +1,41 @@
+{
+  "stage": 12,
+  "date": "2026-10-25",
+  "scope": "Exact current-source candidate isolated install, runtime smoke, visible native-window launch, and cleanup",
+  "candidate": {
+    "path": "%TEMP%\\scan-stage12-installer-output-20261025\\SCAN_Studio_Windows11_Setup_Stage12_20261025.exe",
+    "sha256": "7A6A6B791B60A9D5D1787D57888CC8A28A274E775EFE60AEB3C767716DD82E0D",
+    "size_bytes": 170013300,
+    "isolated_install_exit_code": 0,
+    "source_manifest": "exact match; no missing or unexpected files",
+    "api_health_http": 200,
+    "ui_http": 200,
+    "remote_api_without_key_http": 401,
+    "python_bytecode_files_before_smoke": 0
+  },
+  "native_window": {
+    "visible_top_level_window_observed": true,
+    "browser": "Microsoft Edge",
+    "launch_mode": "app window with unique user-data-dir under TEMP",
+    "launcher_log_sha256": "571AA99D38A1E7FEAA47055CEB51D8A65F46AFA4EC44BC72FECA4308584E5004",
+    "launcher_log_decoded_with": "Windows-1251",
+    "launcher_reported_native_app_running": true,
+    "fallback_to_standard_browser": false,
+    "test_window_closed_after_probe": true
+  },
+  "cleanup": {
+    "candidate_uninstall_exit_code": 0,
+    "isolated_install_removed": true,
+    "isolated_edge_profile_removed": true,
+    "isolated_data_root_removed": true,
+    "candidate_processes_remaining": 0
+  },
+  "release": {
+    "promoted_release_sha256_before_and_after": "83C91C1B82C3FBB7C8E4906A12C6BCB34A8FB5760A18FC3C6595582714ABDAFB",
+    "candidate_sha256_after_smoke": "7A6A6B791B60A9D5D1787D57888CC8A28A274E775EFE60AEB3C767716DD82E0D",
+    "release_promoted": false,
+    "faro_sources_modified": false,
+    "production_data_modified": false
+  },
+  "acceptance": "The updated current-source candidate passed isolated installation, source/API/UI/security checks, and visible native-window launch on this Windows 10 host. This does not satisfy clean Windows 11, Authenticode signing, or final user acceptance. Keep Stage 12 open and do not promote the candidate yet."
+}
