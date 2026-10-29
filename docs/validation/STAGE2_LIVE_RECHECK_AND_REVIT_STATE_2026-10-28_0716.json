@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-10-28T07:16:58+03:00",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "clouds": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "stored_points": 1598422272,
+    "internal_point_count_ingested_count_mismatches": 0,
+    "method": "read-only GET /api/v1/projects/{id}/clouds on local API :8000"
+  },
+  "selected_station": {
+    "name": "scans__rt_11064",
+    "native_reader_points": 81811,
+    "rcp_declared_points": 3740916,
+    "difference": 3659105,
+    "transform_applied": false
+  },
+  "revit": {
+    "version": "2027",
+    "pid": 46548,
+    "responding": true,
+    "main_window": "Autodesk Revit 2027",
+    "started_at": "2026-10-28T07:02:46+03:00",
+    "count_probe_or_scan_modules_loaded": [],
+    "journal_path": "C:\\Users\\maxim\\AppData\\Local\\Autodesk\\Revit\\Autodesk Revit 2027\\Journals\\journal.0023.txt",
+    "journal_bytes": 4481,
+    "journal_last_write": "2026-10-28T07:03:10+03:00",
+    "count_probe_installed_or_run": false
+  },
+  "acceptance": {
+    "stage_2": "open",
+    "reason": "The independent Revit-host point count and ReCap GUI round-trip are still unverified.",
+    "accepted_stages": "3/12"
+  },
+  "mutations": {
+    "shared_api": 0,
+    "project_records": 0,
+    "source_scans": 0,
+    "transforms": 0
+  }
+}

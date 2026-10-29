@@ -9,6 +9,8 @@ from scan2bim.registration.stitching import (
     validate_full_resolution_station,
     validate_unified_cloud_cache,
     write_centered_unified_positions,
+    global_fgr_icp,
+    _sample_registration_indices,
 )
 
 
@@ -129,6 +131,103 @@ def test_rigid_icp_rejects_invalid_initial_pose(initial):
     points = np.random.default_rng(32).uniform(-1.0, 1.0, size=(100, 3))
     with pytest.raises(ValueError, match="initial_t4x4"):
         rigid_icp(points, points, initial_t4x4=initial)
+
+
+def test_registration_sampling_is_seeded_without_fixed_row_stride():
+    first = _sample_registration_indices(1000, 100, seed=17)
+    repeat = _sample_registration_indices(1000, 100, seed=17)
+    other = _sample_registration_indices(1000, 100, seed=18)
+
+    np.testing.assert_array_equal(first, repeat)
+    assert len(np.unique(first)) == 100
+    assert not np.array_equal(first, other)
+    assert not np.array_equal(first, np.linspace(0, 999, 100, dtype=np.int64))
+
+    huge = _sample_registration_indices(297_930_000, 1000, seed=19)
+    assert len(huge) == 1000
+    assert huge[0] >= 0 and huge[-1] < 297_930_000
+    assert len(np.unique(huge)) == 1000
+
+
+def test_global_fgr_icp_returns_read_only_candidate_for_identical_cloud(monkeypatch):
+    rng = np.random.default_rng(731)
+    points = rng.uniform(-4.0, 4.0, size=(3000, 3))
+    evaluation_source = np.random.default_rng(732).uniform(-4.0, 4.0, size=(1000, 3))
+    evaluation_target = np.random.default_rng(733).uniform(-4.0, 4.0, size=(1200, 3))
+    original = points.copy()
+    import open3d as o3d
+    seed_calls = []
+    open3d_seed = o3d.utility.random.seed
+    def record_open3d_seed(seed):
+        seed_calls.append(seed)
+        open3d_seed(seed)
+    monkeypatch.setattr(o3d.utility.random, "seed", record_open3d_seed)
+
+    result = global_fgr_icp(
+        points, points, max_sample_points=3000, voxel_size_m=0.35,
+        max_correspondence_distance_m=0.5,
+        evaluation_source_points=evaluation_source,
+        evaluation_target_points=evaluation_target,
+    )
+
+    matrix = np.asarray(result["matrix_4x4"], dtype=np.float64)
+    assert result["status"] == "candidate"
+    assert result["accuracy_status"] == "not_measured"
+    assert result["method"] == "open3d_fgr_point_to_plane_icp"
+    assert result["iterations"] is None
+    assert result["iteration_limit"] == 80
+    assert result["sample_method"] == "seeded_random_without_replacement"
+    assert result["sample_seed"] == 42
+    assert result["open3d_seed"] == 42
+    assert seed_calls == [42]
+    repeat = global_fgr_icp(
+        points, points, max_sample_points=3000, voxel_size_m=0.35,
+        max_correspondence_distance_m=0.5,
+        evaluation_source_points=evaluation_source,
+        evaluation_target_points=evaluation_target,
+    )
+    np.testing.assert_allclose(result["matrix_4x4"], repeat["matrix_4x4"], atol=1e-10)
+    assert result["holdout"] == repeat["holdout"]
+    assert result["inlier_fraction"] > 0.9
+    assert result["rmse_mm"] is not None
+    assert result["holdout"]["status"] == "evaluated"
+    assert result["holdout"]["is_disjoint_from_fit"] is True
+    assert result["holdout"]["source_sample_count"] == 1000
+    assert result["holdout"]["target_sample_count"] == 1200
+    assert result["holdout"]["rmse_mm"] is not None
+    assert result["holdout"]["reverse"]["status"] == "evaluated"
+    assert result["holdout"]["reverse"]["source_sample_count"] == 1200
+    assert result["holdout"]["reverse"]["target_sample_count"] == 1000
+    assert result["holdout"]["reverse"]["is_disjoint_from_fit"] is True
+    assert result["holdout"]["reverse"]["inlier_fraction"] is not None
+    assert result["holdout"]["reverse"]["rmse_mm"] is not None
+    assert matrix.shape == (4, 4)
+    assert np.isfinite(matrix).all()
+    np.testing.assert_allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-3)
+    np.testing.assert_allclose(points, original, atol=0.0)
+
+
+def test_global_fgr_icp_rejects_partial_or_too_small_holdout_pair():
+    points = np.random.default_rng(19).uniform(-2.0, 2.0, size=(500, 3))
+    with pytest.raises(ValueError, match="provided together"):
+        global_fgr_icp(points, points, evaluation_source_points=points)
+    with pytest.raises(ValueError, match="at least 100"):
+        global_fgr_icp(
+            points,
+            points,
+            evaluation_source_points=points[:99],
+            evaluation_target_points=points[:100],
+        )
+
+
+@pytest.mark.parametrize("points", [
+    np.zeros((20, 3)),
+    np.full((40, 3), np.nan),
+    np.zeros((40, 2)),
+])
+def test_global_fgr_icp_rejects_insufficient_or_invalid_clouds(points):
+    with pytest.raises(ValueError):
+        global_fgr_icp(points, points)
 
 
 def test_full_resolution_station_gate_accepts_complete_matching_source():

@@ -1,0 +1,51 @@
+{
+  "recorded_at": "2026-10-28T02:31:21+03:00",
+  "stage": 2,
+  "project": "Симферополь — Лёгкое",
+  "source_rcp": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+  "method": "Read-only ZIP/XML parse of the original RCP manifest; no extraction or writes to RCP/RCS.",
+  "coverage": {
+    "rcp_nodes": 810,
+    "shotinfo_records": 810,
+    "unique_shotinfo_ids": true,
+    "node_ids_with_exactly_one_matching_shotinfo": 810
+  },
+  "observed_import_metadata": {
+    "unit_type_raw": "1",
+    "unit_type_interpretation": "not inferred",
+    "unitScale": {
+      "value": "1",
+      "stations": 810
+    },
+    "noise_filter": {
+      "value": "MEDIUM",
+      "stations": 810
+    },
+    "intensity_clip_max": {
+      "value": "100",
+      "stations": 810
+    },
+    "advanced_density": {
+      "value": "7",
+      "stations": 810,
+      "meaning": "raw manifest value; units/semantics not inferred"
+    },
+    "up_direction": {
+      "value": "Z",
+      "stations": 810
+    }
+  },
+  "count_discrepancy": {
+    "rcp_declared_total": 2647880035,
+    "application_reader_total": 1598422272,
+    "difference": 1049457763,
+    "conclusion": "The manifest records import-time filtering settings for all nodes, so RCP NumPoints is not yet validated as a one-to-one count oracle for the linked RCS streams. MEDIUM noise filtering and Autodesk-documented ReCap import point exclusion are plausible contributors; the settings do not prove the cause or quantify this difference."
+  },
+  "limitations": [
+    "No raw FARO source scan files for all 810 stations were compared; the visible project contains one top-level unified 1.rcs plus the RCP Support tree.",
+    "No ReCap GUI open/save/reopen round trip was performed.",
+    "RCP UnitType and density values are kept raw; their enum/units are not decoded here.",
+    "Stage 2 remains open."
+  ],
+  "source_files_modified": false
+}

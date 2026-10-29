@@ -1,0 +1,16 @@
+{
+  "checked_at": "2026-10-28T07:31:53+03:00",
+  "stage": 11,
+  "issue": "The 3D viewer drew a fixed 24-axis, four-row grid with guessed origin, rotation, row offsets, and elevation. Only a nominal longitudinal column pitch of 6000 mm is known.",
+  "change": "Removed the unmeasured geometry from Viewer3D. The 6000 mm control now opens a note that states the known pitch and the unknown grid origin, orientation, transverse rows, and axis count. The pure geometry builder returns null without an explicit layout.",
+  "verification": {
+    "test_first": "The new test failed before the implementation because a default fabricated grid was returned; all 3 replacement grid tests pass now.",
+    "frontend_suite": "npm test passed; exit code 0",
+    "frontend_build": "tsc -b and Vite production build passed; 1984 modules",
+    "live_ui": "Reloaded SCAN Studio at :5174; toggling the 6 m control displayed the explanatory note. The A/B station pair and scan selection were unchanged.",
+    "browser_console_errors_after_reload": 0,
+    "source_scan_mutations": 0,
+    "shared_api_mutations": 0
+  },
+  "acceptance": "Stage 11 remains open; accepted stages remain 3/12. This fix removes a misleading visualization but does not establish the actual workshop axes or column positions."
+}

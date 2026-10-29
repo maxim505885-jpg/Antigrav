@@ -165,6 +165,7 @@ export default function ColumnSectionFitPanel({ element, candidateConflicts, pri
     {error && <p role="alert" className="column-type-error">{error}</p>}
     {surfaceAnalysis && <div className="column-fit-evidence" role="status">
       <p><strong>Результат анализа граней:</strong> плоскостей {surfaceAnalysis.surface_result.surfaces.length}, кандидатов граней {surfaceAnalysis.surface_association.candidate_edge_count} из 4, дорожек {surfaceAnalysis.tracks.length}. В анализ вошло {surfaceAnalysis.input_points.count.toLocaleString("ru-RU")} точек.</p>
+      {surfaceAnalysis.surface_orientation_evidence?.status === "surface_axis_candidate" && <p className="hint"><strong>Ось по найденным поверхностям:</strong> {surfaceAnalysis.surface_orientation_evidence.estimated_axis_angle_degrees_mod_90?.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}° по модулю 90°; отличие от гипотезы коробки {surfaceAnalysis.surface_orientation_evidence.candidate_axis_deviation_degrees?.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}°. Это предложение для проверки: длинная и короткая стороны, принадлежность плоскостей колонне и её тип не определены.</p>}
       <p className="hint">Состояние профиля: {surfaceAnalysis.section_series.profile_variation_status}. Это геометрические гипотезы, не подтверждение колонны или её постоянного типа. В оценку вошли только дорожки с поддержанной гранью; неподдержанные дорожки и высоты остаются видимыми как неизвестные.</p>
       <details>
         <summary>Дорожки граней и исходные строки</summary>

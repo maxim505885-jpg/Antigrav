@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-27",
+  "stage": "2 - FARO RCP import provenance",
+  "change": "Recover Windows-1251 paths from RCP XML whose declaration says UTF-8",
+  "manifest_validation": {
+    "real_rcp": "Симферополь легкий.rcp",
+    "nodes": 810,
+    "nodes_with_source_import": 810,
+    "paths_with_replacement_characters": 0,
+    "unique_import_settings_groups": 1,
+    "settings": {
+      "noise_filter": "MEDIUM",
+      "intensity_clip_max": "100",
+      "range_clip": "not set",
+      "density": "7",
+      "up": "Z"
+    },
+    "source_e57_drive": "E: recorded in manifest; not mounted on this host",
+    "support_e57_files": 0
+  },
+  "tests": {
+    "rcp_manifest_suite": "11 passed, exit 0",
+    "api_count_warning": "1 passed, exit 0",
+    "direct_real_manifest_parse": "passed with local Python 3.13 standard library",
+    "warning": "one existing Starlette/httpx deprecation warning in pytest runs"
+  },
+  "live_import": {
+    "observed_at_local": "2026-10-27 22:42:27 +03:00",
+    "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "running",
+    "active_station": "568/810 scans__kr_761533",
+    "ready": 567,
+    "processing": 243,
+    "failed": 0,
+    "ready_points": 1184537081,
+    "internal_count_mismatches": 0,
+    "declared_reader_comparisons": 567,
+    "positive_differences": 567,
+    "declared_sum": 1853533385,
+    "native_reader_sum": 1184537081,
+    "delta_sum": 668996304,
+    "median_relative_difference": 0.5136459559371229
+  },
+  "acceptance": "Stage 2 remains open. Path provenance now parses for this RCP, but source E57 is unavailable, RCP NumPoints semantics are not resolved, the import is incomplete, and ReCap GUI round-trip remains unverified.",
+  "scope": "Desktop source and evidence only; source RCP, Support files, project database and running import were read-only."
+}

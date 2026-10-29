@@ -27,28 +27,28 @@ are absent from the incoming JSON are preserved.
 
 ## Build
 
-Autodesk's Revit 2027 API uses .NET 10 and the add-in was built with SDK
-10.0.100. In this workspace the SDK lives in the ignored `data/.tools`
-directory; build from the repository root with:
+The Revit 2027 API uses .NET 10. Build with .NET SDK 10.0.100 (or a compatible
+.NET 10 SDK) and the Revit API assemblies installed at
+`C:\Program Files\Autodesk\Revit 2027`:
 
 ```powershell
-.\data\.tools\dotnet10\dotnet.exe build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release
+dotnet restore integrations/revit/Scan.Plugin/Scan.Plugin.csproj
+dotnet build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release --no-restore
 ```
 
-The project references the Revit 2027 API assemblies from
-`C:\Program Files\Autodesk\Revit 2027`. Override `RevitInstallDir` for a
-different installation. After build, run `install-user.ps1` to register the
-command under the current Windows user's Revit 2027 AddIns folder. Restart
-Revit, use **Add-Ins → External Tools → Импорт SCAN BIM JSON**, and select a
-JSON file exported by SCAN. Review the model in a disposable RVT first; the
-add-in has compiled, but has not yet been loaded into Revit in this workspace.
+After build, run `integrations/revit/Scan.Plugin/install-user.ps1`. It copies the
+DLL into `%LOCALAPPDATA%\ScanStudio\Revit\2027` and registers both commands in
+the current user's Revit 2027 AddIns folder. The guarded
+`integrations/revit/Scan.Plugin/uninstall-user.ps1` removes only files recorded
+in its install receipt. Restart Revit, use **Add-Ins → External Tools → Импорт
+SCAN BIM JSON**, and select a SCAN export. Review the model in a disposable RVT
+first; a successful build is not host acceptance.
 
 The add-in also provides **Сверить модель с исходником**. After importing and
 saving the RVT, close and reopen it, run this command, select the same BIM JSON,
 and save the audit report. A passing report checks unique SCAN IDs, expected
-Revit categories, and the source/review/dimension provenance stored on every
-element. It deliberately flags geometric visual review as still required; it
-does not claim measured geometric accuracy.
+Revit categories, and stored source/review/dimension provenance. It deliberately
+requires visual geometry review; it does not claim measured accuracy.
 
 For a deterministic repeat-import, absent-ID preservation and rollback check,
 use the synthetic fixtures in `integrations/revit/pilot/` and follow

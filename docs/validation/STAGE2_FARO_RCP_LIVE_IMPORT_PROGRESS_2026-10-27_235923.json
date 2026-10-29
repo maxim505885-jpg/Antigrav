@@ -1,0 +1,23 @@
+{
+  "snapshot_at": "2026-10-27 23:59:23 +03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "cloud_status_counts": {
+    "ready": 666,
+    "processing": 144,
+    "failed": 0
+  },
+  "total": 810,
+  "batch_job": {
+    "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "running",
+    "progress_fraction": 0.823333333333333,
+    "progress_percent": 82.33,
+    "current_station": "667/810",
+    "message": "Станция 667/810: scans__kr_761637 — writing full-resolution RCS points",
+    "error": null,
+    "updated_at": "2026-10-27T23:59:19+03:00"
+  },
+  "interpretation": "666 station clouds ready; station 667 is currently importing. Counts and batch message are consistent.",
+  "read_only": true,
+  "job_control": "not restarted or cancelled"
+}

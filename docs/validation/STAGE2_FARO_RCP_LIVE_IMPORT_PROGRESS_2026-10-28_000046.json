@@ -1,0 +1,21 @@
+{
+  "snapshot_at": "2026-10-28 00:00:46 +03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "cloud_status_counts": {
+    "ready": 668,
+    "processing": 142,
+    "failed": 0
+  },
+  "total": 810,
+  "job": {
+    "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "running",
+    "progress_percent": 82.48,
+    "station": "669/810 scans__kr_761639",
+    "message": "RCS: 1,250,000",
+    "error": null,
+    "updated_at": "2026-10-28T00:00:45+03:00"
+  },
+  "read_only": true,
+  "interpretation": "668 station clouds are ready; station 669 is actively ingesting. No restart or cancellation."
+}

@@ -1,0 +1,83 @@
+{
+  "observed_at": "2026-10-28T03:46:38.8948063+03:00",
+  "source": "Read-only GET from local API bound to 127.0.0.1:8000; service process executable resolves to the existing network-share checkout, not this Desktop working copy.",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "station_count": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "decimated": 0,
+    "internal_point_count_mismatches": 0,
+    "stored_points": 1598422272
+  },
+  "rcp_counts": {
+    "declared_points": 2647880035,
+    "reader_points": 1598422272,
+    "difference": 1049457763,
+    "cause": "unresolved; count difference alone does not prove data loss"
+  },
+  "batch_job": {
+    "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "failed",
+    "failed_node": "scans__rt_11065",
+    "error": "WinError 5 when replacing staged .ingest-stage/meta.json",
+    "historical": null
+  },
+  "recovered_station": {
+    "job_id": "753a36bee3044202b198116245fd294c",
+    "status": "succeeded",
+    "cloud_id": "faafaf8f2b73474dbab16d51d4217e8c",
+    "points": 600494,
+    "ingested_points": 600494,
+    "source": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий Support\\scans__rt_11065.rcs",
+    "bytes": 38596357,
+    "stored_sha256": "a4d7a1013d5b0584950758cebfb4fac975d09f6abb1b9f08d2521f167754b9b9",
+    "rehash_sha256": "a4d7a1013d5b0584950758cebfb4fac975d09f6abb1b9f08d2521f167754b9b9",
+    "hash_matches": true
+  },
+  "desktop_fix": {
+    "file": "backend/scan2bim/storage.py",
+    "behavior": "write_json_atomic retries transient Windows/SMB permission and sharing errors up to five attempts with exponential delays; temp file cleanup is preserved",
+    "test": "backend/tests/test_storage.py",
+    "tests": 2,
+    "limits": "The change has not been deployed to the running network-share service and was validated with deterministic local fault injection, not a live SMB lock."
+  },
+  "verification": {
+    "full_backend_collected": 901,
+    "passed": 900,
+    "skipped": 1,
+    "failed": 0,
+    "focused_ingest_rcs_batch_restart": 36,
+    "focused_passed": 36,
+    "git_diff_check": "passed",
+    "py_compile": "passed"
+  },
+  "caveats": [
+    "The existing batch job remains failed in history although all 810 station clouds are now ready and the failed station has a successful standalone retry.",
+    "No source scan or API service was modified.",
+    "ReCap GUI round-trip and RCP-versus-reader count semantics remain open.",
+    "Desktop source changes are not yet running in the network-share service.",
+    "Computer Use initialization timed out twice before exposing any window; no ReCap GUI action was taken."
+  ],
+  "roadmap": {
+    "current": "Stage 2",
+    "accepted": "3/12",
+    "stage_6": "penultimate",
+    "stage_9": "last",
+    "stage_closed": false
+  },
+  "desktop_frontend": {
+    "url": "http://127.0.0.1:5174/",
+    "http_status": 200,
+    "title": "SCAN STUDIO · Сшивка станций",
+    "api_proxy": "/api/v1/projects",
+    "proxy_status": 200,
+    "projects": 13,
+    "faro_project_id": "130c8f7a6280420ba6a23cdd26e98703",
+    "faro_project_clouds": 810,
+    "source": "Desktop Vite process; proxy target is the existing network-share API on 127.0.0.1:8000",
+    "opened_in_codex_panel": true
+  }
+}

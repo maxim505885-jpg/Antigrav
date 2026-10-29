@@ -88,7 +88,15 @@ def test_cloud_output_warns_when_rcp_manifest_and_linked_rcs_counts_differ():
             "decimated": True,
             "recap_project": {
                 "actual_source_point_count": 295_591_803,
-                "selected_node": {"declared_point_count": 295_836_062},
+                "selected_node": {
+                    "declared_point_count": 295_836_062,
+                    "source_import": {
+                        "raw_scan_path": "E:/raw/10.e57",
+                        "noise_filter_level": "MEDIUM",
+                        "intensity_clip_max": "100",
+                        "decimation_density": "7",
+                    },
+                },
             },
         }),
     }
@@ -101,6 +109,9 @@ def test_cloud_output_warns_when_rcp_manifest_and_linked_rcs_counts_differ():
     assert "295,591,803" in cloud["warning"]
     assert "244,259" in cloud["warning"]
     assert "не доказывает потерю точек" in cloud["warning"]
+    assert "фильтр помех: MEDIUM" in cloud["warning"]
+    assert "предел интенсивности: 100" in cloud["warning"]
+    assert "сырой параметр density из RCP (единицы и смысл не расшифрованы): 7" in cloud["warning"]
 
 
 def test_cloud_lookup_never_treats_legacy_sample_as_full_resolution(monkeypatch):

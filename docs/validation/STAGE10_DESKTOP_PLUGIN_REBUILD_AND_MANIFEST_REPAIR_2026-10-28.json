@@ -1,0 +1,47 @@
+{
+  "observed_at": "2026-10-28T06:23:54+03:00",
+  "scope": "Desktop working copy; user-level Revit 2027 add-in manifest",
+  "stage": "Stage 10",
+  "result": "current source built and missing registered assembly restored; host acceptance not yet observed",
+  "build": {
+    "command": "dotnet10.0.100 build integrations/revit/Scan.Plugin/Scan.Plugin.csproj -c Release",
+    "target_framework": "net10.0-windows",
+    "errors": 0,
+    "warnings": 3,
+    "warning": "MSB3277 Microsoft.VisualBasic reference version 10.0/10.1",
+    "bytes": 38400,
+    "sha256": "93B37FFF3DDB446A1AC7C44A279CC241F9D7ED98CC8310D6C0AA493EEB52E4FA"
+  },
+  "registered_assembly": {
+    "manifest": "C:\\Users\\maxim\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2027\\SCAN.StructuralModel.addin",
+    "target": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.tools\\scan-revit-audit-candidate\\Scan.Revit.Plugin.dll",
+    "exists": true,
+    "sha256": "93B37FFF3DDB446A1AC7C44A279CC241F9D7ED98CC8310D6C0AA493EEB52E4FA",
+    "manifest_xml_valid": true,
+    "commands": [
+      {
+        "name": "SCAN BIM — импорт конструкций",
+        "class": "Scan.Revit.Plugin.ImportStructuralModelCommand",
+        "assembly": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.tools\\scan-revit-audit-candidate\\Scan.Revit.Plugin.dll",
+        "assembly_exists": true
+      },
+      {
+        "name": "SCAN BIM — проверка импорта",
+        "class": "Scan.Revit.Plugin.VerifyImportedModelCommand",
+        "assembly": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\.tools\\scan-revit-audit-candidate\\Scan.Revit.Plugin.dll",
+        "assembly_exists": true
+      }
+    ]
+  },
+  "verification": {
+    "policy_harness": "27 passed: 6 post-import inclusion, 7 member-section + 2 provenance serialization, 4 axis, 8 slab geometry",
+    "manifest_targets_exist": true,
+    "revit_running": false,
+    "host_load_import_save_reopen": "not verified"
+  },
+  "acceptance": {
+    "stage_10_closed": false,
+    "accepted_stages": "3/12",
+    "remaining": "Load plugin in Revit 2027, import SCAN BIM JSON into a disposable RVT, save, reopen, run audit, and visually review geometry."
+  }
+}

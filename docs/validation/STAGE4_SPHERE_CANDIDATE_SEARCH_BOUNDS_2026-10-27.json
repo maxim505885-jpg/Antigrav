@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 22:23:15 +03:00",
+  "stage": "4 - station registration diagnostics",
+  "change": "Bounded spherical survey-target candidate search to avoid redundant per-voxel RANSAC fits",
+  "implementation": {
+    "candidate_limit_default": 64,
+    "minimum_seed_spacing": "max(voxel_size, 1.5 × expected sphere radius)",
+    "fit_sample_limit": 2048,
+    "ransac_iterations": 200,
+    "selection": "stable density ranking and deterministic spatial suppression",
+    "automatic_application": false
+  },
+  "verification": {
+    "command": "project .venv: python -m pytest backend/tests/test_targets.py -q",
+    "result": "3 passed, exit 0",
+    "coverage": [
+      "synthetic known-radius sphere fit",
+      "multiple synthetic target detection",
+      "dense synthetic surface limits candidate count and fit samples"
+    ],
+    "warning": "one existing Starlette/httpx deprecation warning"
+  },
+  "live_workshop": {
+    "project": "Симферополь — Лёгкое",
+    "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "job_status": "running",
+    "job_progress_fraction": 0.6603703703703704,
+    "active_station": "535/810 scans__kr_761487",
+    "ready_stations": 534,
+    "processing_stations": 276,
+    "failed_stations": 0,
+    "ready_point_sum": 1132789410,
+    "ready_count_mismatches": 0
+  },
+  "acceptance": "Stage 4 remains open. Synthetic checks verify bounded search behavior only; no independent FARO target labels, survey control network, tolerance, or accurate station registration was established.",
+  "scope": "Only Desktop source and validation documents were edited. The running service still executes the shared checkout. No FARO source, server data, project rows, registration transforms, or RCP files were changed."
+}

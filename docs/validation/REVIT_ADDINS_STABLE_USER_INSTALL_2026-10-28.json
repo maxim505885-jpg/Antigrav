@@ -1,0 +1,40 @@
+{
+  "observed_at": "2026-10-28T06:28:28+03:00",
+  "scope": "Desktop working copy plus current user Revit 2027 profile",
+  "stage": "Stages 2 and 10",
+  "result": "both SCAN add-ins installed outside the repository under a stable per-user directory",
+  "install_directory": "C:\\Users\\maxim\\AppData\\Local\\ScanStudio\\Revit\\2027",
+  "assemblies": [
+    {
+      "role": "structural import and post-import audit",
+      "bytes": 38400,
+      "sha256": "93B37FFF3DDB446A1AC7C44A279CC241F9D7ED98CC8310D6C0AA493EEB52E4FA",
+      "receipt_sha256": "93B37FFF3DDB446A1AC7C44A279CC241F9D7ED98CC8310D6C0AA493EEB52E4FA",
+      "manifest": "C:\\Users\\maxim\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2027\\SCAN.StructuralModel.addin",
+      "manifest_entries": 2
+    },
+    {
+      "role": "ReCap point-count probe",
+      "bytes": 8192,
+      "sha256": "1238A95DB92BF5911DD653E64C3DF586CC01D5D5DE1A5BE6D90A686F95DA9D41",
+      "receipt_sha256": "1238A95DB92BF5911DD653E64C3DF586CC01D5D5DE1A5BE6D90A686F95DA9D41",
+      "manifest": "C:\\Users\\maxim\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2027\\SCAN.ReCapCountProbe.addin",
+      "manifest_entries": 1
+    }
+  ],
+  "checks": {
+    "manifest_xml_valid": true,
+    "all_manifest_targets_exist": true,
+    "receipt_hashes_match": true,
+    "isolated_install_uninstall": "both installers tested in TEMP; manifests and DLLs removed; no foreign files remained",
+    "revit_running": false,
+    "recap_count_report_exists": false,
+    "installer_guard_tests": "Passed: unrelated manifests preserved; repeated installation idempotent; uninstall removed only receipt-owned files."
+  },
+  "acceptance": {
+    "stage2_closed": false,
+    "stage10_closed": false,
+    "remaining": "Start Revit 2027, confirm both SCAN external tools load, run ReCap count probe on the 810-station RCP, and perform the disposable-RVT import/save/reopen audit."
+  },
+  "no_scan_files_modified": true
+}

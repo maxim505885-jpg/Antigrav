@@ -7,6 +7,7 @@ import pytest
 from scan2bim.structure.column_surface_assignment import (
     associate_surfaces_to_column,
     cluster_column_surface_tracks,
+    estimate_surface_axis_orientation,
 )
 from scan2bim.structure.column_section_series import fit_column_track_sections
 
@@ -58,6 +59,41 @@ def test_rotated_world_surface_matches_one_candidate_face_but_stays_unconfirmed(
     assert result["engineering_status"] == "not_assessed"
     assert result["confirmed"] is False
     assert surface["input_point_indices"] == [0, 1, 2]
+
+
+def test_surface_axis_orientation_proposes_observed_direction_without_confirming_box():
+    geometry = box(angle=math.radians(52.8))
+    measured_angle = math.radians(7.8)
+    surfaces = [
+        {"plane_id": "a", "normal_xy": [math.cos(measured_angle), math.sin(measured_angle)],
+         "longest_consecutive_vertical_span_m": 5.25},
+        {"plane_id": "b", "normal_xy": [math.cos(measured_angle + math.pi / 2), math.sin(measured_angle + math.pi / 2)],
+         "longest_consecutive_vertical_span_m": 5.25},
+        {"plane_id": "c", "normal_xy": [math.cos(measured_angle + math.radians(2)), math.sin(measured_angle + math.radians(2))],
+         "longest_consecutive_vertical_span_m": 0.75},
+        {"plane_id": "d", "normal_xy": [math.cos(measured_angle + math.pi / 2 - math.radians(2)), math.sin(measured_angle + math.pi / 2 - math.radians(2))],
+         "longest_consecutive_vertical_span_m": 0.75},
+    ]
+
+    result = estimate_surface_axis_orientation(surfaces, geometry["rotation_z"])
+
+    assert result["status"] == "surface_axis_candidate"
+    assert result["estimated_axis_angle_degrees_mod_90"] == pytest.approx(7.8, abs=0.1)
+    assert result["candidate_axis_deviation_degrees"] == pytest.approx(45.0, abs=0.1)
+    assert result["supporting_plane_ids"] == ["a", "b", "c", "d"]
+    assert result["review_required"] is True
+    assert result["confirmed"] is False
+
+
+def test_surface_axis_orientation_refuses_parallel_planes_without_corner_evidence():
+    result = estimate_surface_axis_orientation([
+        {"plane_id": "a", "normal_xy": [1.0, 0.0], "vertical_span_m": 4.0},
+        {"plane_id": "b", "normal_xy": [0.999, 0.045], "vertical_span_m": 4.0},
+    ], 0.0)
+
+    assert result["status"] == "no_orthogonal_surface_families"
+    assert result["estimated_axis_angle_degrees_mod_90"] is None
+    assert result["confirmed"] is False
 
 
 def test_parallel_neighbor_outside_candidate_footprint_is_not_attached():

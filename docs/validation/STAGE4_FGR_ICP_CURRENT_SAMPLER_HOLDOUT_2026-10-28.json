@@ -1,0 +1,155 @@
+{
+  "observed_at_utc": "2026-10-28T03:32:13.962479+00:00",
+  "scope": "current Desktop source against read-only FARO-derived cloud arrays on the network project store",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "method": "scan2bim.registration.stitching.global_fgr_icp; seeded Floyd sampling without replacement; read-only mmap; production API sample/split semantics reproduced",
+  "code_sha256": {
+    "stitching.py": "b646d0064c065a03e737fcb0195c2f17818c49d1c82dfff4631a1b740f7d5b1e",
+    "registration.py": "e5b615b67a5861e15b6aa36372f8f5f1b30c1793202f8d31d23a4f92066e8c89"
+  },
+  "parameters": {
+    "fit_points_per_station": 50000,
+    "holdout_points_per_station": 50000,
+    "voxel_size_m": 0.5,
+    "max_correspondence_distance_m": 0.15,
+    "max_iterations": 80,
+    "seeds": [
+      42,
+      17
+    ]
+  },
+  "source_arrays": {
+    "identity_before": {
+      "761015": {
+        "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\d7cd3f4fb3494bcdb20d4d4541e4074d\\positions.npy",
+        "size_bytes": 28045364,
+        "mtime_ns": 1793106124989949200
+      },
+      "761016": {
+        "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\147356c474b84ae88809b877ccbc0b6e\\positions.npy",
+        "size_bytes": 29597096,
+        "mtime_ns": 1793106181247760500
+      },
+      "761017": {
+        "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\90b4d92410a94785a23981966bc3d62a\\positions.npy",
+        "size_bytes": 27512468,
+        "mtime_ns": 1793106231644865700
+      }
+    },
+    "identity_after": {
+      "761015": {
+        "size_bytes": 28045364,
+        "mtime_ns": 1793106124989949200
+      },
+      "761016": {
+        "size_bytes": 29597096,
+        "mtime_ns": 1793106181247760500
+      },
+      "761017": {
+        "size_bytes": 27512468,
+        "mtime_ns": 1793106231644865700
+      }
+    },
+    "size_and_mtime_unchanged_during_run": true,
+    "access": "numpy mmap_mode=r; no write API; no matrices persisted"
+  },
+  "results": [
+    {
+      "source_station": "761015",
+      "target_station": "761016",
+      "seed": 42,
+      "fit_points_per_station": 50000,
+      "holdout_points_per_station": 50000,
+      "fit_holdout_rows_disjoint": true,
+      "fit": {
+        "rmse_mm": 65.97086761543994,
+        "inlier_count": 32640,
+        "inlier_fraction": 0.6528
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 65.35695815954526,
+        "inlier_count": 32403,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.64806,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.686681844052362,
+        "rmse_mm": 402.57470712930973
+      },
+      "iteration_count": null,
+      "iteration_limit": 80,
+      "matrix_saved_or_applied": false
+    },
+    {
+      "source_station": "761015",
+      "target_station": "761016",
+      "seed": 17,
+      "fit_points_per_station": 50000,
+      "holdout_points_per_station": 50000,
+      "fit_holdout_rows_disjoint": true,
+      "fit": {
+        "rmse_mm": 65.90350375932212,
+        "inlier_count": 32539,
+        "inlier_fraction": 0.65078
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 65.81828337366858,
+        "inlier_count": 32676,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.65352,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.6805755395683454,
+        "rmse_mm": 388.78637936249163
+      },
+      "iteration_count": null,
+      "iteration_limit": 80,
+      "matrix_saved_or_applied": false
+    },
+    {
+      "source_station": "761016",
+      "target_station": "761017",
+      "seed": 42,
+      "fit_points_per_station": 50000,
+      "holdout_points_per_station": 50000,
+      "fit_holdout_rows_disjoint": true,
+      "fit": {
+        "rmse_mm": 62.95670369966738,
+        "inlier_count": 39604,
+        "inlier_fraction": 0.79208
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 62.967790303589275,
+        "inlier_count": 39528,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.79056,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.5360854503464203,
+        "rmse_mm": 437.70024015359877
+      },
+      "iteration_count": null,
+      "iteration_limit": 80,
+      "matrix_saved_or_applied": false
+    }
+  ],
+  "limitations": [
+    "Holdout rows are disjoint from fit rows but come from the same scan pair; this is not independent survey control or physical registration accuracy.",
+    "No agreed engineering tolerance or surveyed common controls are available.",
+    "Open3D does not expose actual ICP iteration count or convergence in this result.",
+    "No transform was saved or applied; station coordinates and RCP/RCS sources were not modified."
+  ],
+  "acceptance": "Stage 4 remains open pending independent physical controls, defined tolerance, and ReCap host round-trip."
+}

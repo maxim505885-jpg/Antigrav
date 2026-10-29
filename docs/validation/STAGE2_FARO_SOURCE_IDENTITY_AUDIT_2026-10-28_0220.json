@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-28",
+  "captured_at": "2026-10-28T02:20:32.2162002+03:00",
+  "method": "Read-only Studio API aggregate; for every linked source, compare current path/existence/size/mtime against import-time source_identity; no full content hash in this audit",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "source_rcp": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp"
+  },
+  "imports": {
+    "stations": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "max_points_zero_full_sequential_stream": 810,
+    "max_points_nonzero": 0,
+    "sum_native_reader_points": 1598422272,
+    "sum_stored_points": 1598422272,
+    "internal_count_mismatches": 0,
+    "decimated": 0
+  },
+  "source_identity_audit": {
+    "paths_found_and_match_path_size_mtime": 810,
+    "identity_mismatch": 0,
+    "missing_sources": 0,
+    "missing_import_identity": 0,
+    "sha256_recomputed_in_this_audit": 0,
+    "note": "Path/size/mtime equality is not a content hash."
+  },
+  "rcp_vs_native_reader": {
+    "stations_with_rcp_declared_count": 810,
+    "declared_gt_reader": 810,
+    "declared_equal_reader": 0,
+    "declared_lt_reader": 0,
+    "sum_rcp_declared_points": 2647880035,
+    "sum_native_reader_points": 1598422272,
+    "sum_difference": 1049457763,
+    "ratio_min": 1.18,
+    "ratio_median": 1.581,
+    "ratio_p95": 2.996,
+    "ratio_max": 45.726,
+    "stations_ratio_gt_2": 164,
+    "stations_ratio_gt_5": 11,
+    "interpretation": "Distribution is broad and systematic. It may indicate stale/edited ReCap node metadata or a reader/format interpretation issue; no cause is established and no point loss is inferred."
+  },
+  "independent_sha256_spot_check": {
+    "station": "scans__rt_11064",
+    "actual_sha256": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "import_sha256": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "matches": true,
+    "points_rcp": 3740916,
+    "points_native_reader": 81811,
+    "sha256_verified_files_total": 1
+  },
+  "recap_gui_round_trip": "not_verified",
+  "acceptance": {
+    "all_RCS_reader_streams_imported_without_max_points_cap": true,
+    "full_resolution_relative_to_RCP_NumPoints": "unverified",
+    "all_810_source_contents_rehashed": false,
+    "stage2_closed": false,
+    "remaining": [
+      "Resolve the systematic RCP NumPoints/native reader discrepancy using independent ReCap behavior or format evidence",
+      "Verify representative ReCap GUI open/save/reopen round trip"
+    ]
+  },
+  "references": [
+    "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-display-the-number-of-points-for-a-project-in-ReCap-Pro.html",
+    "https://help.autodesk.com/view/RECAP/ENU/?contextId=supported_file_formats"
+  ]
+}

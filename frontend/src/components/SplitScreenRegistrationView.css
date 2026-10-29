@@ -142,6 +142,14 @@
 .registration-panel-hint,
 .registration-inspector-note { margin: 0; color: var(--reg-muted); font-size: 11px; line-height: 1.55; }
 
+.registration-station-search { display: flex; min-width: 0; min-height: 34px; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid #414244; border-radius: 5px; background: #111213; }
+.registration-station-search:focus-within { border-color: var(--reg-orange); }
+.registration-station-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--reg-text); font: inherit; font-size: 11px; }
+.registration-station-search input::placeholder { color: #85868a; }
+.registration-station-search input::-webkit-search-cancel-button { display: none; }
+.registration-station-search button { display: grid; width: 22px; height: 22px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 4px; background: #2a2b2d; color: #d4d4d8; font-size: 17px; cursor: pointer; }
+.registration-station-filter-count { min-height: 12px; color: #929397; font-size: 10px; }
+.registration-station-filter-count span { color: #ffb27a; }
 .registration-station-list { display: grid; align-content: start; gap: 6px; }
 .registration-station {
   display: grid;
@@ -233,6 +241,10 @@
 .registration-workflow-step.is-result > strong,
 .registration-workflow-step.is-result > span { color: #f1c477; }
 .registration-quality-heading { margin: 0 0 -5px; color: #aeb0b3; font-size: 10px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.registration-parameter-control { display: grid; gap: 5px; padding: 9px 10px; border: 1px solid #343538; border-radius: 6px; background: #202123; }
+.registration-parameter-control > span { color: #c2c3c6; font-size: 10px; font-weight: 650; }
+.registration-parameter-control select { min-height: 34px; padding: 6px 8px; border: 1px solid #48494c; border-radius: 4px; background: #111213; color: #f0f0f1; font-size: 11px; }
+.registration-parameter-control small { color: #929397; font-size: 9px; line-height: 1.4; }
 .registration-metrics-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .registration-metric { display: flex; min-width: 0; min-height: 76px; flex-direction: column; justify-content: space-between; gap: 5px; padding: 10px; border: 1px solid #343538; border-radius: 6px; background: #202123; }
 .registration-metric span { color: #b0b1b4; font-size: 10px; line-height: 1.35; }

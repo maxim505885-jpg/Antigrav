@@ -21,6 +21,10 @@ export function cloudPointCoverage(cloud: CloudPointMetadata) {
   };
 }
 
+export function canOfferRcpBatchResume(clouds: Array<{ status: string }>): boolean {
+  return clouds.length > 0 && clouds.some((cloud) => cloud.status !== "ready");
+}
+
 export function rcpDeclaredCountWarning(metadata: Record<string, unknown> | null | undefined, existingWarning?: string | null): string | null {
   const recapProject = metadata?.recap_project;
   if (!recapProject || typeof recapProject !== "object") return null;
@@ -38,9 +42,50 @@ export function rcpDeclaredCountWarning(metadata: Record<string, unknown> | null
     const mentionedCounts = new Set((existingWarning.match(/\d[\d,.\s\u00a0\u202f]*/g) || []).map((value) => value.replace(/\D/g, "")));
     if (mentionedCounts.has(String(declared)) && mentionedCounts.has(String(actual))) return null;
   }
-  return `Манифест RCP: ${format(declared)} точек; связанный RCS: ${format(actual)}. Расхождение: ${format(Math.abs(declared - actual))} точек; число из манифеста не подтверждено.`;
+  const node = selectedNode as Record<string, unknown>;
+  const sourceImport = node.source_import && typeof node.source_import === "object"
+    ? node.source_import as Record<string, unknown>
+    : {};
+  const settings: string[] = [];
+  const noiseFilter = sourceImport.noise_filter_level;
+  if (typeof noiseFilter === "string" && noiseFilter.trim()) {
+    settings.push(`фильтр помех ${noiseFilter.trim()}`);
+  }
+  const intensityMin = sourceImport.intensity_clip_min;
+  const intensityMax = sourceImport.intensity_clip_max;
+  if (intensityMin != null || intensityMax != null) {
+    settings.push(`интенсивность ${intensityMin ?? "—"}–${intensityMax ?? "—"}`);
+  }
+  const rangeMin = sourceImport.range_clip_min;
+  const rangeMax = sourceImport.range_clip_max;
+  if (rangeMin != null || rangeMax != null) {
+    settings.push(`дистанция ${rangeMin ?? "—"}–${rangeMax ?? "—"}`);
+  }
+  const density = sourceImport.decimation_density;
+  if (density != null && String(density).trim()) {
+    settings.push(`density=${String(density).trim()} (единица не установлена)`);
+  }
+  const importSettingsNote = settings.length
+    ? ` В RCP записаны: ${settings.join("; ")}. Эти параметры могут влиять на число точек при создании RCS; причина этого расхождения не доказана.`
+    : "";
+  const rawScanPath = sourceImport.raw_scan_path;
+  const e57ImportNote = typeof rawScanPath === "string" && rawScanPath.trim().toLowerCase().split("?", 1)[0].endsWith(".e57")
+    ? " Autodesk указывает, что при импорте E57 близкие эквивалентные точки могут объединяться или удаляться даже при decimation=0. Это возможный фактор; его вклад для этой станции не измерен."
+    : "";
+  return `RCP NumPoints: ${format(declared)}; SCAN прочитал из связанного RCS: ${format(actual)}; разница: ${format(Math.abs(declared - actual))} точек. Смысл NumPoints не подтверждён; сама разница не доказывает потерю точек.${importSettingsNote}${e57ImportNote}`;
 }
 
+export function rcpTransformWarning(metadata: Record<string, unknown> | null | undefined): string | null {
+  const recapProject = metadata?.recap_project;
+  if (!recapProject || typeof recapProject !== "object") return null;
+  const project = recapProject as Record<string, unknown>;
+  if (project.transform_applied !== false) return null;
+  const selectedNode = project.selected_node;
+  if (!selectedNode || typeof selectedNode !== "object") return null;
+  const registered = (selectedNode as Record<string, unknown>).registered;
+  const registeredLabel = registered === true ? "да" : registered === false ? "нет" : "не указано";
+  return `Поза узла RCP сохранена, но не применена. Зарегистрировано в ReCap: ${registeredLabel}; общая система координат не подтверждена.`;
+}
 export function scannerModelLabel(cloud: { metadata?: Record<string, any> } | null | undefined): string {
   const metadata = cloud?.metadata || {};
   const sensor = metadata.sensor && typeof metadata.sensor === "object" ? metadata.sensor : {};

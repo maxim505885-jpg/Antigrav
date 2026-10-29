@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 18:58 +03:00",
+  "test": "Autodesk DeCap two-station FARO RCS RCP packaging and whole-folder relocation",
+  "decap_exe": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\DeCap.exe",
+  "project_name": "PORTABLE_RCP_PAIR_761015_016_20261027",
+  "sources": [
+    {
+      "station": "scans__kr_761015",
+      "size_bytes": 58396283,
+      "sha256": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e"
+    },
+    {
+      "station": "scans__kr_761016",
+      "size_bytes": 60193759,
+      "sha256": "db99841b0ba21f98158aa1b2c5f52884f73e20d4376003b2dbb9dda5ba0c4782"
+    }
+  ],
+  "output_rcp": "data/output/recap_projects//.rcp",
+  "support_directory": "data/output/recap_projects// Support",
+  "rcp_node_count": 2,
+  "linked_rcs_count": 2,
+  "external_rcs_count": 0,
+  "package_verified": true,
+  "source_files_copied_for_decap": true,
+  "original_sha256_unchanged": true,
+  "initial_manifest_links_internal": true,
+  "moved_project_dir": "C:\\Users\\maxim\\AppData\\Local\\Temp\\SCAN_RCP_PAIR_RELOCATE_pgvmet4x\\PORTABLE_RCP_PAIR_761015_016_20261027",
+  "relocated_manifest_node_count": 2,
+  "relocated_links_internal": true,
+  "relocated_link_sha256_matches_sources": true,
+  "registered_flags": [
+    false,
+    false
+  ],
+  "raw_node_transforms": "DeCap wrote translation/rotation metadata, but both nodes are registered=false. Transform conventions and accuracy are unverified; the application must not treat these as a validated stitch.",
+  "targeted_backend_tests": {
+    "passed": 17,
+    "failed": 0,
+    "exit_code": 0,
+    "scope": [
+      "test_recap_decap.py",
+      "test_recap_decap_ascii_cache.py",
+      "test_registration_extended_api.py"
+    ]
+  },
+  "limitations": [
+    "RCP native GUI open/save round-trip not verified",
+    "RCP contains two stations but registration was not performed",
+    "Transforms in manifest remain unverified",
+    "No AutoCAD/Revit output or registration accuracy claimed"
+  ],
+  "acceptance": "Two-station portable RCP packaging passes structural verification. Stage 2 remains open for ReCap GUI round-trip; Stage 4 remains open for correct registration and independent controls."
+}

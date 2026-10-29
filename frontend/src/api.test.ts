@@ -219,6 +219,25 @@ test("resuming an interrupted import calls the cloud resume endpoint", async () 
   }
 });
 
+test("resuming a failed RCP batch calls the project job resume endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let method = "";
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    method = init?.method || "GET";
+    return { ok: true, json: async () => ({ id: "job-1", type: "rcp_batch_ingest", status: "queued" }) } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.resumeRcpBatchJob("project / 1", "job / 1");
+    assert.equal(requestedUrl, "/api/v1/projects/project%20%2F%201/jobs/job%20%2F%201/resume");
+    assert.equal(method, "POST");
+    assert.equal(result.status, "queued");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("cloud polling returns when an import was cancelled", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => ({
@@ -242,7 +261,7 @@ test("native ReCap export sends only the selected source scans to DeCap", async 
     payload = JSON.parse(String(init?.body));
     return {
       ok: true,
-      json: async () => ({ status: "created_by_autodesk_decap", package_verified: true, source_files_copied_for_decap: false, source_cache_path: null, rcp_path: "Hall/Hall.rcp" }),
+      json: async () => ({ status: "created_by_autodesk_decap", package_verified: true, source_files_copied_for_decap: true, source_cache_path: null, rcp_path: "Hall/Hall.rcp" }),
     } as Response;
   }) as typeof fetch;
   try {
@@ -255,7 +274,7 @@ test("native ReCap export sends only the selected source scans to DeCap", async 
       stations: [{ name: "Station 01", path: "C:/scans/station-01.rcs", point_count: 1200 }],
     });
     assert.equal(result.package_verified, true);
-    assert.equal(result.source_files_copied_for_decap, false);
+    assert.equal(result.source_files_copied_for_decap, true);
     assert.equal(result.source_cache_path, null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -494,4 +513,38 @@ test("full SPDS album downloads the draft ZIP endpoint", async () => {
   }
   assert.equal(requestedUrl, "/api/v1/clouds/cloud%20%2F%201/spds-album.zip");
   assert.equal(downloadedName, "spds-album-draft.zip");
+});
+
+test("global FGR registration posts station IDs and preserves preliminary status", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = "";
+  let requestBody: any = null;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input);
+    requestBody = JSON.parse(String(init?.body));
+    return {
+      ok: true,
+      json: async () => ({ status: "candidate", accuracy_status: "not_measured",
+        method: "open3d_fgr_point_to_plane_icp", source_cloud_id: "A/1", target_cloud_id: "B/1",
+        matrix_4x4: [], world_matrix_4x4: null, coordinate_frame: {}, rmse_mm: 130,
+        inlier_fraction: 0.8, optimizer_convergence: "not_exposed_by_open3d_result",
+        holdout: { status: "evaluated", rmse_mm: 145, inlier_count: 4000,
+          source_sample_count: 5000, target_sample_count: 5000,
+          inlier_fraction: 0.8, is_disjoint_from_fit: true } }),
+    } as Response;
+  }) as typeof fetch;
+  try {
+    const result = await api.matchCloudsGlobalFgrIcp("A/1", "B/1", 5000, 42, 0.25);
+    assert.equal(result.status, "candidate");
+    assert.equal(result.accuracy_status, "not_measured");
+    assert.equal(result.method, "open3d_fgr_point_to_plane_icp");
+    assert.equal(result.holdout.status, "evaluated");
+    assert.equal(result.holdout.is_disjoint_from_fit, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requestedUrl, "/api/v1/registration/global-match");
+  assert.deepEqual(requestBody, {
+    source_cloud_id: "A/1", target_cloud_id: "B/1", sample_points: 5000, sample_seed: 42, max_correspondence_distance_m: 0.25,
+  });
 });

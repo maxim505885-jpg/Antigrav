@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 19:52:20 +03:00",
+  "repository": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "scope": "Make imported RCP registration state visible in the operator workflow",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "cloud_id": "0745ce68d3864dfb8737602db95e388b",
+  "cloud_name": "Симферополь лёгкий — scans__kr_761297",
+  "source_status": "ready",
+  "source_rcp_node": {
+    "registered": false,
+    "transform_applied": false,
+    "translation": [
+      34.2207690644106,
+      -64.4779997184268,
+      3.2924267210471
+    ],
+    "rotation": [
+      0.0601024404376723,
+      0.0897125646619193,
+      110.981359352445
+    ]
+  },
+  "expected_visible_warning": "Поза узла RCP сохранена, но не применена. Зарегистрировано в ReCap: нет; общая система координат не подтверждена.",
+  "browser": {
+    "url": "http://127.0.0.1:5174/",
+    "project": "Симферополь — Лёгкое",
+    "warning_rendered": true,
+    "console_errors": 0,
+    "console_warnings": 0
+  },
+  "verification": {
+    "focused_helper_tests": "8 passed",
+    "full_frontend_suite": "passed",
+    "typescript": "passed",
+    "vite_build": "passed; 1984 modules transformed",
+    "diff_check": "passed"
+  },
+  "limitation": "UI provenance only. No transform was applied, no station registration accuracy or ReCap GUI round-trip was tested, and no roadmap stage is closed."
+}

@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-28",
+  "captured_at": "2026-10-28T02:17:10.9093821+03:00",
+  "method": "Read-only GET to the running Studio API plus SHA-256 re-hash of one linked source RCS",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "source_rcp": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp"
+  },
+  "live_api": {
+    "url": "http://127.0.0.1:8000/api/v1/projects/130c8f7a6280420ba6a23cdd26e98703/clouds",
+    "http_status": 200,
+    "total_stations": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "point_count_sum": 1598422272,
+    "internal_point_count_ingested_count_mismatches": 0,
+    "decimated": 0,
+    "native_rcs_verified_metadata_markers": 810,
+    "source_unchanged_metadata_markers": 810,
+    "source_sha256_equals_import_checksum_metadata_markers": 810,
+    "rcp_declared_vs_reader_count_warnings": 810
+  },
+  "rehashed_source": {
+    "station": "Симферополь лёгкий — scans__rt_11064",
+    "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий Support\\scans__rt_11064.rcs",
+    "size_bytes": 39269721,
+    "last_write_utc": "2026-07-13T08:16:02.9939348Z",
+    "actual_sha256": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "import_metadata_sha256": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "sha256_matches_import_metadata": true,
+    "reader": "recap-adskrcexport-dll",
+    "native_rcs_verified_import_marker": true,
+    "declared_rcp_num_points": 3740916,
+    "native_reader_point_count": 81811,
+    "stored_point_count": 81811,
+    "difference": 3659105,
+    "source_file_modified": false
+  },
+  "interpretation": "One current source-file re-hash matches its import-time SHA-256. The 810 ready states and checksum comparisons above are API/import metadata; the other 809 source files were not re-hashed in this check. RCP NumPoints differs from native-reader counts for all 810 nodes, including the sampled station. This mismatch alone does not establish point loss; its semantics remain unresolved.",
+  "recap_gui_round_trip": "not_verified; no RCP was opened or saved in the ReCap GUI during this check",
+  "acceptance": {
+    "stage2_closed": false,
+    "remaining": [
+      "Resolve or document the RCP NumPoints versus native RCS reader semantics from authoritative ReCap project behavior",
+      "Verify a representative ReCap GUI open/save/reopen round-trip"
+    ]
+  },
+  "references": [
+    "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/How-to-display-the-number-of-points-for-a-project-in-ReCap-Pro.html",
+    "https://help.autodesk.com/view/RECAP/ENU/?contextId=supported_file_formats"
+  ]
+}

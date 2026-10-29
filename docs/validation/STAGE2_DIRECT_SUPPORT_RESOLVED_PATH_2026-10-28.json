@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-28T06:19:39+03:00",
+  "scope": "Desktop working copy",
+  "stage": "Stage 2",
+  "change": "Direct Support RCS index matches are now returned as resolved absolute paths, consistent with the prior path-validation route.",
+  "verification": {
+    "command": "backend/.venv/Scripts/python.exe -m pytest -q backend/tests/test_rcp_manifest.py",
+    "result": "15 passed",
+    "warnings": [
+      "PytestRemovedIn10Warning from dash.testing hook configuration",
+      "Starlette/httpx TestClient deprecation warning"
+    ],
+    "diff_check": "passed"
+  },
+  "files": [
+    "backend/scan2bim/formats/rcp_manifest.py",
+    "backend/tests/test_rcp_manifest.py"
+  ],
+  "data_safety": "The test uses a temporary synthetic RCP/Support folder; original FARO scans and project records were not modified.",
+  "stage_2_closed": false
+}

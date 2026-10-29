@@ -155,6 +155,12 @@ export interface ColumnSurfaceTrackAnalysisResponse {
   input_points: { count: number; source_row_kind: string; description: string };
   surface_result: { surfaces: { plane_id: string; source_point_row_id_count: number; source_point_row_id_sample: number[] }[] };
   surface_association: { association_status: string; candidate_edge_count: number; candidate_edges: string[]; surface_associations: { plane_id: string; candidate_edge_id: string | null; association_status: string }[] };
+  surface_orientation_evidence?: {
+    status: string; estimated_axis_angle_degrees_mod_90: number | null;
+    candidate_axis_deviation_degrees: number | null; axis_coherence: number | null;
+    surface_count: number; supporting_plane_ids: string[]; review_required: true; confirmed: false;
+    limits?: string[];
+  };
   tracks: {
     track_id: string; candidate_edge_id: string | null; surface_ids: string[];
     vertical_support_m: number; vertical_support_fraction: number;
@@ -571,7 +577,7 @@ export interface StationRegistrationProposal {
   target_station_id: string;
   source_station_name: string;
   target_station_name: string;
-  method: "rigid_icp" | "manual_kabsch" | "manual_kabsch_icp";
+  method: "rigid_icp" | "open3d_fgr_point_to_plane_icp" | "manual_kabsch" | "manual_kabsch_icp";
   matrix_4x4: number[][];
   world_matrix_4x4: number[][] | null;
   fit_rmse_mm: number | null;
@@ -698,6 +704,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ path, name_prefix: namePrefix, max_points: maxPoints }),
     }),
+  resumeRcpBatchJob: (projectId: string, jobId: string) =>
+    request<import("./types").Job>(
+      `/projects/${encodeURIComponent(projectId)}/jobs/${encodeURIComponent(jobId)}/resume`,
+      { method: "POST" },
+    ),
   uploadCloud: async (projectId: string, file: File, name?: string, maxPoints?: number) => {
     const form = new FormData();
     form.append("file", file);
@@ -1015,6 +1026,7 @@ export const api = {
   // Registration & Stitching
   matchCloudsIcp: (sourceCloudId: string, targetCloudId: string, samplePoints = 20000, maxIterations = 30) =>
     request<{
+      method?: "rigid_icp";
       rotation: number[][];
       translation: number[];
       matrix_4x4: number[][];
@@ -1035,6 +1047,56 @@ export const api = {
         sample_points: samplePoints,
         max_iterations: maxIterations,
       }),
+    }),
+  matchCloudsGlobalFgrIcp: (sourceCloudId: string, targetCloudId: string, samplePoints = 100000, sampleSeed = 42, maxCorrespondenceDistanceM = 0.15) =>
+    request<{
+      status: "candidate";
+      accuracy_status: "not_measured";
+      method: "open3d_fgr_point_to_plane_icp";
+      source_cloud_id: string;
+      target_cloud_id: string;
+      rotation_3x3: number[][];
+      translation: number[];
+      matrix_4x4: number[][];
+      world_matrix_4x4: number[][] | null;
+      coordinate_frame: PairAlignResponse["coordinate_frame"];
+      rmse_mm: number | null;
+      inlier_count: number;
+      source_sample_count: number;
+      target_sample_count: number;
+      inlier_fraction: number;
+      iterations: null;
+      iteration_limit: number;
+      sample_method: "seeded_random_without_replacement";
+      sample_seed: number;
+      converged: null;
+      optimizer_convergence: string;
+      global_fgr_fitness: number;
+      global_fgr_rmse_mm: number | null;
+      holdout: {
+        status: "evaluated" | "not_available";
+        rmse_mm: number | null;
+        inlier_count: number;
+        source_sample_count: number;
+        target_sample_count: number;
+        inlier_fraction: number | null;
+        is_disjoint_from_fit: boolean;
+        reverse?: {
+          status: "evaluated" | "not_available";
+          rmse_mm: number | null;
+          inlier_count: number;
+          source_sample_count: number;
+          target_sample_count: number;
+          inlier_fraction: number | null;
+          is_disjoint_from_fit: boolean;
+        };
+      };
+      voxel_size_m: number;
+      max_correspondence_distance_m: number;
+      fit_note: string;
+    }>("/registration/global-match", {
+      method: "POST",
+      body: JSON.stringify({ source_cloud_id: sourceCloudId, target_cloud_id: targetCloudId, sample_points: samplePoints, sample_seed: sampleSeed, max_correspondence_distance_m: maxCorrespondenceDistanceM }),
     }),
   exportStitchedPly: (projectName: string, stations: any[]) =>
     request<{ status: string; output_path: string; size_bytes: number }>("/registration/export-ply", {

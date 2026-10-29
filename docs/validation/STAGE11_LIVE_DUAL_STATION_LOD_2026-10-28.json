@@ -1,0 +1,58 @@
+{
+  "protocol": "stage11_live_dual_station_lod_render_2026-10-28",
+  "verified_at": "2026-10-28T08:40:37+03:00",
+  "desktop_repository": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/intelligent-scan-to-bim",
+  "frontend": {
+    "url": "http://127.0.0.1:5174/",
+    "source": "Desktop Vite checkout, branch feature/recap-realworks-parity",
+    "http_status": 200,
+    "viewport_css_px": [921, 938]
+  },
+  "backend": {
+    "url": "http://127.0.0.1:8000",
+    "source": "existing UNC checkout, accessed through Vite proxy",
+    "health": "ok",
+    "limitation": "Desktop backend changes are not deployed to this service"
+  },
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "stations_listed": 810,
+    "project_point_count": 1598422272
+  },
+  "station_pair": [
+    {
+      "name": "scans__rt_11064",
+      "cloud_id": "83f89b62d99746089114b3b244114623",
+      "stored_points": 81811,
+      "lod_level_0_http": 200,
+      "lod_level_0_bytes": 750000,
+      "visible_canvas_css_px": [230, 716]
+    },
+    {
+      "name": "scans__rt_11065",
+      "cloud_id": "faafaf8f2b73474dbab16d51d4217e8c",
+      "stored_points": 600494,
+      "lod_level_0_http": 200,
+      "lod_level_0_bytes": 750000,
+      "visible_canvas_css_px": [231, 716]
+    }
+  ],
+  "registration": {
+    "status": "Ожидает расчёта",
+    "transform_saved_or_applied": false
+  },
+  "browser": {
+    "api_failed_resources": 0,
+    "console_errors": 0,
+    "console_warnings": 0,
+    "visible_point_cloud_canvases": 2
+  },
+  "actions": "Read-only inspection. No buttons that run registration, persist transforms, or change scan/project data were activated.",
+  "acceptance_boundary": "Confirms both station LOD binaries load into the live registration UI. Does not prove registration accuracy, ReCap GUI round-trip, wide-screen layout, or Desktop backend deployment.",
+  "roadmap": {
+    "accepted_stages": 3,
+    "total_stages": 12,
+    "current_stage": 2,
+    "stage11_status": "in_progress"
+  }
+}

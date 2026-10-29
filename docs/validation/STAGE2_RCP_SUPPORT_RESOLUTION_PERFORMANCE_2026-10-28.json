@@ -1,0 +1,69 @@
+{
+  "title": "Stage 2 FARO RCP Support path-resolution performance",
+  "measured_at": "2026-10-28T03:08:19+03:00",
+  "stage": 2,
+  "status": "optimization_verified_stage_remains_open",
+  "input_rcp": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+  "source_data_modified": false,
+  "node_count": 810,
+  "resolved_rcs_count": 810,
+  "timings": {
+    "per_node_network_stat_variant_seconds": 171.29,
+    "batched_direct_support_index_seconds": 6.39,
+    "speedup_factor": 26.81,
+    "same_host_and_same_rcp": true
+  },
+  "implementation": "Enumerate direct Support RCS entries once with os.scandir; use exact candidate paths where possible; build recursive Support index once only for moved or nested fallback paths; preserve named Support precedence and exact-path fallback when directory listing fails.",
+  "verification": {
+    "rcp_manifest_tests": "14 passed",
+    "test_duration_seconds": 0.29,
+    "test_runner": "pytest in local .venv, module copied to TEMP to bypass application conftest",
+    "isolated_smoke": "direct links: 0 recursive index builds; moved nested paths: 1 cached recursive index build",
+    "direct_support_enumeration_failure": "exact file check fallback covered",
+    "python_compile": "passed",
+    "git_diff_check": "passed",
+    "downstream_stage2_tests": "26 passed: test_rcp_manifest.py, test_recap_decap.py, test_recap_decap_ascii_cache.py",
+    "live_api_recheck": {
+      "http_status": 200,
+      "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+      "clouds": 810,
+      "ready": 810,
+      "processing": 0,
+      "failed": 0,
+      "point_count": 1598422272,
+      "ingested_count": 1598422272,
+      "mismatches": 0,
+      "method": "read-only GET; existing service not restarted or modified"
+    },
+    "recap_process": {
+      "pid": 29308,
+      "process_responding": true,
+      "window_title": "Autodesk ReCap",
+      "project_open_state": "not verified; UI helper timed out before inspection"
+    },
+    "ui_helper": "node_repl initialization and CUA getState each timed out twice; no ReCap UI action was sent"
+  },
+  "limitations": [
+    "Timing includes SMB/network behavior and can vary.",
+    "The full application conftest was not run because optional ifcopenshell is not installed in this local venv.",
+    "This verifies manifest path resolution only; it does not verify ReCap GUI acceptance, RCP/RCS point-count semantics, or point-cloud registration."
+  ],
+  "acceptance": "Stage 2 remains open; no full stage acceptance or point-count parity is claimed.",
+  "latest_manifest_recheck": {
+    "nodes": 810,
+    "resolved_rcs": 810,
+    "source_import_records": 810,
+    "noise_filter_levels": [
+      "MEDIUM"
+    ],
+    "decimation_density_raw": [
+      "7"
+    ],
+    "intensity_clip_max_raw": [
+      "100"
+    ],
+    "unit_type_raw": "1",
+    "elapsed_seconds": 6.48,
+    "source_modified": false
+  }
+}

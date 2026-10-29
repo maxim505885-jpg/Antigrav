@@ -1,0 +1,107 @@
+{
+  "observed_at": "2026-10-28T07:09:52+03:00",
+  "scope": "Read-only diagnostic on shared FARO-derived arrays; Desktop source",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "source_station": "761015",
+    "target_station": "761016"
+  },
+  "sources": [
+    {
+      "station": "761015",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\d7cd3f4fb3494bcdb20d4d4541e4074d\\positions.npy",
+      "bytes": 28045364,
+      "mtime": "2026-10-27T16:02:04.9899492+03:00",
+      "sha256": "D64854B15E4CDEFF51F6D6E577FA8EE699D83815D2B16D601A17C7F38F35FD78"
+    },
+    {
+      "station": "761016",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\147356c474b84ae88809b877ccbc0b6e\\positions.npy",
+      "bytes": 29597096,
+      "mtime": "2026-10-27T16:03:01.2477605+03:00",
+      "sha256": "247EAC6A98C278813E35EF8BE953C764A3A65136C1A7EC3A4777631DB4594F10"
+    }
+  ],
+  "sampling": {
+    "algorithm": "current Floyd sampler; NumPy read-only memmaps",
+    "seed_source": 42,
+    "seed_target": 43,
+    "sampled_rows_per_station": 100000,
+    "fit_rows_per_station": 50000,
+    "holdout_rows_per_station": 50000,
+    "fit_holdout_disjoint": true,
+    "split_seeds": [
+      44,
+      45
+    ]
+  },
+  "baseline": {
+    "method": "current FGR + point-to-plane ICP",
+    "holdout_rmse_mm": 65.35695638502399,
+    "holdout_correspondence_fraction": 0.64806,
+    "source": "STAGE4_FGR_ICP_OPEN3D_SEEDED_HOLDOUT_2026-10-28.json"
+  },
+  "experiments": [
+    {
+      "method": "FPFH feature RANSAC (30,000 iterations) + point-to-plane ICP",
+      "parameters": {
+        "voxel_m": 0.5,
+        "normal_radius_m": 0.375,
+        "fpfh_radius_m": 2.5,
+        "ransac_max_distance_m": 0.75,
+        "icp_max_distance_m": 0.15,
+        "icp_iterations": 80
+      },
+      "ransac_fitness": 0.6670461013090495,
+      "ransac_rmse_mm": 448.863285884395,
+      "fit_rmse_mm": 65.98010984857146,
+      "holdout_rmse_mm": 65.34467651086337,
+      "holdout_correspondence_fraction": 0.648,
+      "delta_vs_FGR_mm": -0.01227987465062
+    },
+    {
+      "method": "FGR + multiscale point-to-plane ICP",
+      "thresholds_m": [
+        0.75,
+        0.3,
+        0.15
+      ],
+      "iterations": [
+        30,
+        30,
+        80
+      ],
+      "fit_rmse_mm": 65.97960255043985,
+      "holdout_rmse_mm": 65.35293440065274,
+      "holdout_correspondence_fraction": 0.64804,
+      "delta_vs_FGR_mm": -0.00402198437125
+    },
+    {
+      "method": "FGR + Huber robust point-to-plane ICP",
+      "huber_k_m": 0.05,
+      "max_distance_m": 0.15,
+      "iterations": 80,
+      "fit_rmse_mm": 65.93811936443657,
+      "holdout_rmse_mm": 65.32359136959798,
+      "holdout_correspondence_fraction": 0.64774,
+      "delta_vs_FGR_mm": -0.03336501504
+    }
+  ],
+  "source_integrity": {
+    "sha256_before_after_match": true,
+    "size_and_mtime_match": true,
+    "transforms_persisted": false,
+    "transforms_applied": false
+  },
+  "interpretation": "Alternative global matching and robust refinement converge to the same local solution; the 0.012-0.033 mm holdout differences are not meaningful gains and do not justify replacing the current route.",
+  "acceptance": {
+    "roadmap_rmse_target_mm": 10,
+    "criterion_passed": false,
+    "engineering_tolerance": "not defined by user",
+    "independent_survey_controls": "not supplied",
+    "same_scan_holdout_is_survey_accuracy": false,
+    "stage_4_status": "IN_PROGRESS",
+    "accepted_stages": "3/12"
+  }
+}

@@ -19,6 +19,10 @@ def test_accoreconsole_detection():
 
 def test_batch_convert_album_to_dwg():
     test_album_dir = Path("data/output/single_pass_release/spds_album")
+    if not test_album_dir.is_dir():
+        import pytest
+
+        pytest.skip("prebuilt release DXF album is not included in this working copy")
     dwg_files = batch_convert_album_to_dwg(test_album_dir)
     assert len(dwg_files) >= 5, "Ожидалось не менее 5 скомпилированных DWG чертежей"
     for dwg in dwg_files:

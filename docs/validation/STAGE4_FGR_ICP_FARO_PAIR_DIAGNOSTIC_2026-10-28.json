@@ -1,0 +1,179 @@
+{
+  "date": "2026-10-28",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "method": "Desktop source: read-only Open3D FGR followed by point-to-plane ICP",
+  "sampling": {
+    "method": "Floyd sampling without replacement; output sorted by source row",
+    "memory_complexity": "O(max_sample_points)",
+    "max_sample_points": 100000,
+    "source_seed": 42,
+    "target_seed": 43,
+    "voxel_size_m": 0.5,
+    "max_correspondence_distance_m": 0.5,
+    "iteration_limit": 80,
+    "actual_iteration_count": null,
+    "converged": null
+  },
+  "pairs": [
+    {
+      "source_station": {
+        "name": "scans__kr_761015",
+        "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+        "point_count": 2337103
+      },
+      "target_station": {
+        "name": "scans__kr_761016",
+        "cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+        "point_count": 2466414
+      },
+      "sample_seed": 42,
+      "status": "candidate",
+      "accuracy_status": "not_measured",
+      "fit_rmse_mm": 136.85819596270508,
+      "inlier_count": 82654,
+      "inlier_fraction": 0.82654,
+      "global_fgr_fitness": 0.5698769007965243,
+      "global_fgr_rmse_mm": 421.62144470604204,
+      "iterations": null,
+      "iteration_limit": 80,
+      "matrix_4x4": [
+        [
+          0.9999225630614559,
+          -0.012443532923700108,
+          0.00016238530469292781,
+          0.9623618950306729
+        ],
+        [
+          0.012443750521797924,
+          0.9999215710381656,
+          -0.001415925675100542,
+          -6.146502257824542
+        ],
+        [
+          -0.0001447534512264446,
+          0.0014178367123711007,
+          0.9999989843922318,
+          -1.2508920366694591
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "source_station": {
+        "name": "scans__kr_761015",
+        "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+        "point_count": 2337103
+      },
+      "target_station": {
+        "name": "scans__kr_761016",
+        "cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+        "point_count": 2466414
+      },
+      "sample_seed": 17,
+      "status": "candidate",
+      "accuracy_status": "not_measured",
+      "fit_rmse_mm": 137.5222470605575,
+      "inlier_count": 83153,
+      "inlier_fraction": 0.83153,
+      "global_fgr_fitness": 0.6078767123287672,
+      "global_fgr_rmse_mm": 423.5550829000762,
+      "iterations": null,
+      "iteration_limit": 80,
+      "matrix_4x4": [
+        [
+          0.9999123606920353,
+          -0.01323499485572155,
+          0.0003253405135999888,
+          0.9625224413852198
+        ],
+        [
+          0.013235377757586566,
+          0.9999116832183622,
+          -0.0012043832595355604,
+          -6.155602231418653
+        ],
+        [
+          -0.0003093717743286206,
+          0.001208583712817533,
+          0.9999992218069544,
+          -1.248561351290433
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "source_station": {
+        "name": "scans__kr_761016",
+        "cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+        "point_count": 2466414
+      },
+      "target_station": {
+        "name": "scans__kr_761017",
+        "cloud_id": "90b4d92410a94785a23981966bc3d62a",
+        "point_count": 2292695
+      },
+      "sample_seed": 42,
+      "status": "candidate",
+      "accuracy_status": "not_measured",
+      "fit_rmse_mm": 105.55660159297399,
+      "inlier_count": 93064,
+      "inlier_fraction": 0.93064,
+      "global_fgr_fitness": 0.6677648251393816,
+      "global_fgr_rmse_mm": 424.67018334216357,
+      "iterations": null,
+      "iteration_limit": 80,
+      "matrix_4x4": [
+        [
+          0.9999997394539263,
+          0.0006589701057904764,
+          0.0002947040541884519,
+          -1.3679555855674563
+        ],
+        [
+          -0.0006585447783540255,
+          0.9999987449014598,
+          -0.001441011547694439,
+          0.06171583762839853
+        ],
+        [
+          -0.0002956532678377893,
+          0.0014408170964284454,
+          0.9999989183170349,
+          0.4590902489950678
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    }
+  ],
+  "verification": {
+    "focused_backend": "6 passed: candidate, input guards, Floyd sampler at 297.93M row range, and read-only API response contract",
+    "downstream_backend": "77 passed across registration, stitching export, ReCap package, point-data and API pipeline; exit code 0; one existing Starlette/httpx deprecation warning",
+    "frontend": "npm test exit 0; api.test.ts 23/23 including FGR request contract",
+    "production_build": "npm run build exit 0; TypeScript and Vite; 1984 modules"
+  },
+  "limitations": [
+    "Fit RMSE and inlier fraction are computed on the same sampled points used by the fit, not independent accuracy measurements.",
+    "Seeded repeat of 761015→761016 produced 137.5 mm and 83.2% versus 136.9 mm and 82.7%; matrix similarity is evidence of numerical repeatability only.",
+    "Open3D does not expose actual iteration count or convergence in the result used here.",
+    "No surveyed common control points or approved engineering tolerance are available.",
+    "No resulting matrix was saved, applied to either station, or written into ReCap."
+  ],
+  "interpretation": "The Desktop candidate route and seeded sampling are repeatable on the tested adjacent FARO derivatives, but the fit residual is not physical accuracy and no transform is accepted.",
+  "acceptance": "Stage 4 remains open pending independent survey controls, a defined project tolerance, verified coordinate frames, and ReCap host round-trip."
+}

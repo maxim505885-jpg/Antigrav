@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-10-28T07:06:31.6724032+03:00",
+  "scope": "Desktop working copy and read-only live API",
+  "stage": "Stage 2",
+  "result": "Revit 2027 shows a responding main window and journal records successful license initialization, but the journal stopped growing before add-in load could be confirmed; count-probe build succeeds; native count and ReCap GUI acceptance remain pending",
+  "autodesk_licensing": {
+    "service": "AdskLicensingService",
+    "status": "Running",
+    "version": "16.1.0.14849",
+    "revit_pid": 46548,
+    "revit_responding": true,
+    "revit_main_window": "Autodesk Revit 2027",
+    "journal": "journal.0023.txt",
+    "license_initialization": "complete",
+    "generic_checkout_error_in_new_journal": false
+  },
+  "probe_build": {
+    "source": "integrations/revit/ReCapCountProbe/ReCapCountProbeCommand.cs",
+    "assembly": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\integrations\\revit\\ReCapCountProbe\\bin\\Scan.Revit.ReCapCountProbe.dll",
+    "size_bytes": 8704,
+    "sha256": "4ED843542B7F5B5FACEE50408E6DED3BFBA8BE6BCCB06EADBDF573CB852F5680",
+    "build": "passed",
+    "behavior": "creates an unsaved metric project from Revit Home if no normal project is active; rolls back temporary PointCloudType; closes scratch project without saving",
+    "installed_for_next_revit_start": false,
+    "host_command_executed": false
+  },
+  "live_faro": {
+    "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+    "cloud_count": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "stored_points": 1598422272.0,
+    "selected_station": "Симферополь лёгкий — scans__rt_11064",
+    "reader_points": 81811,
+    "rcp_declared_points": 3740916,
+    "source_rcs_sha256": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "source_unchanged_marker": true
+  },
+  "acceptance": {
+    "accepted_stages": "3/12",
+    "stage_2_closed": false,
+    "blockers": [
+      "install updated probe after Revit is closed",
+      "run probe against the original FARO RCP and compare counts",
+      "complete ReCap native GUI round-trip"
+    ]
+  }
+}

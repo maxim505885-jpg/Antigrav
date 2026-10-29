@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-28",
+  "method": "Read-only Open3D FGR followed by point-to-plane ICP; fit and post-fit evaluation on disjoint source rows",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "pair": {
+    "source_station": "scans__kr_761015",
+    "source_cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+    "target_station": "scans__kr_761016",
+    "target_cloud_id": "147356c474b84ae88809b877ccbc0b6e"
+  },
+  "sampling": {
+    "method": "Seeded random sample without replacement, split into fit/holdout",
+    "partition_seeds": [
+      314159,
+      271828
+    ],
+    "fit_rows_per_station": 20000,
+    "holdout_rows_per_station": 20000,
+    "overlap_per_station": 0,
+    "positions_arrays": "Read-only NumPy memmaps",
+    "source_size_bytes": 28045364,
+    "source_mtime_ns": 1793106124989949200,
+    "target_size_bytes": 29597096,
+    "target_mtime_ns": 1793106181247760500
+  },
+  "trials": [
+    {
+      "partition_seed": 314159,
+      "voxel_size_m": 0.25,
+      "correspondence_radius_m": 0.5,
+      "fit_rmse_mm": 217.3192980417271,
+      "fit_inlier_fraction": 0.7009,
+      "holdout_rmse_mm": 219.03877439183867,
+      "holdout_inlier_fraction": 0.70325,
+      "global_fgr_rmse_mm": 253.39173348904433
+    },
+    {
+      "partition_seed": 314159,
+      "voxel_size_m": 0.5,
+      "correspondence_radius_m": 0.25,
+      "fit_rmse_mm": 109.43424273422916,
+      "fit_inlier_fraction": 0.67565,
+      "holdout_rmse_mm": 107.72577959183124,
+      "holdout_inlier_fraction": 0.67605,
+      "global_fgr_rmse_mm": 388.4510968462172
+    },
+    {
+      "partition_seed": 314159,
+      "voxel_size_m": 1.0,
+      "correspondence_radius_m": 0.5,
+      "fit_rmse_mm": 173.65801850870733,
+      "fit_inlier_fraction": 0.79415,
+      "holdout_rmse_mm": 173.30270259431532,
+      "holdout_inlier_fraction": 0.7977,
+      "global_fgr_rmse_mm": 774.9749353685753
+    },
+    {
+      "partition_seed": 314159,
+      "voxel_size_m": 0.5,
+      "correspondence_radius_m": 0.15,
+      "fit_rmse_mm": 79.83209450633446,
+      "fit_inlier_fraction": 0.4634,
+      "holdout_rmse_mm": 79.65295921564581,
+      "holdout_inlier_fraction": 0.46745,
+      "global_fgr_rmse_mm": null
+    },
+    {
+      "partition_seed": 271828,
+      "voxel_size_m": 0.25,
+      "correspondence_radius_m": 0.25,
+      "fit_rmse_mm": 110.7005128839582,
+      "fit_inlier_fraction": 0.46345,
+      "holdout_rmse_mm": 111.00392141604854,
+      "holdout_inlier_fraction": 0.4616,
+      "global_fgr_rmse_mm": 241.25855818122383
+    },
+    {
+      "partition_seed": 271828,
+      "voxel_size_m": 0.5,
+      "correspondence_radius_m": 0.15,
+      "fit_rmse_mm": 78.72058848978564,
+      "fit_inlier_fraction": 0.5521,
+      "holdout_rmse_mm": 78.76863689002694,
+      "holdout_inlier_fraction": 0.55105,
+      "global_fgr_rmse_mm": 485.0923886621807
+    },
+    {
+      "partition_seed": 271828,
+      "voxel_size_m": 0.5,
+      "correspondence_radius_m": 0.25,
+      "fit_rmse_mm": 109.29881999740032,
+      "fit_inlier_fraction": 0.67505,
+      "holdout_rmse_mm": 109.51772014834405,
+      "holdout_inlier_fraction": 0.6715,
+      "global_fgr_rmse_mm": 449.9443967132207
+    },
+    {
+      "partition_seed": 271828,
+      "voxel_size_m": 0.5,
+      "correspondence_radius_m": 0.5,
+      "fit_rmse_mm": 173.7026773045402,
+      "fit_inlier_fraction": 0.797,
+      "holdout_rmse_mm": 176.9760557008216,
+      "holdout_inlier_fraction": 0.79585,
+      "global_fgr_rmse_mm": 459.4890700863055
+    }
+  ],
+  "interpretation": "A 0.15 m correspondence radius was the lowest-RMSE configuration in both tested partitions (~79 mm holdout), but retained only 46–55% one-sided correspondences. Wider radii produced more correspondences but materially larger residuals. The setting is a candidate search parameter, not an accuracy tolerance or acceptance result.",
+  "limitations": [
+    "Both partitions come from the same two scans and are not independent survey control.",
+    "The inlier fraction is source-to-target directional support; this experiment does not establish bidirectional coverage.",
+    "No surveyed control points or approved engineering tolerance are available.",
+    "No transform was saved, applied to station coordinates, or written to RCP/RCS.",
+    "Only one station pair was used for this parameter sensitivity sweep."
+  ],
+  "verification": {
+    "focused_backend": "34 passed across registration API and stitching tests",
+    "frontend": "npm test exited 0",
+    "typescript": "tsc -b passed",
+    "production_build": "Vite passed; 1,984 modules transformed",
+    "diff_check": "git diff --check passed"
+  },
+  "acceptance": "Stage 4 remains open; sensitivity informs a user-selectable candidate radius only and does not establish physical accuracy."
+}

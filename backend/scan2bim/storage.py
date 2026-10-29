@@ -5,12 +5,14 @@ Imported-by-path files stay where they are; only their metadata is recorded.
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
 import re
 import shutil
 import tempfile
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import BinaryIO
@@ -19,6 +21,22 @@ from .config import PROJECTS_DIR
 from .db import new_id
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
+JSON_REPLACE_MAX_ATTEMPTS = 5
+
+
+def _replace_json_target(source: Path, target: Path) -> None:
+    """Retry transient Windows/SMB access denials while atomically replacing JSON."""
+    for attempt in range(JSON_REPLACE_MAX_ATTEMPTS):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError as exc:
+            transient = exc.errno in {errno.EACCES, errno.EPERM, errno.EBUSY} or getattr(
+                exc, "winerror", None
+            ) in {5, 32, 33}
+            if not transient or attempt + 1 >= JSON_REPLACE_MAX_ATTEMPTS:
+                raise
+            time.sleep(0.05 * (2**attempt))
 
 
 def safe_filename(name: str, fallback: str = "cloud") -> str:
@@ -60,7 +78,7 @@ def write_json_atomic(path: Path, value: object) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(value, fh, ensure_ascii=False, indent=2)
-        Path(tmp).replace(path)
+        _replace_json_target(Path(tmp), path)
     finally:
         if Path(tmp).exists():
             Path(tmp).unlink()

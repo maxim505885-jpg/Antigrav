@@ -8,6 +8,7 @@ import os
 import shutil
 import zipfile
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,7 @@ from ..server import is_loopback_host
 from ..structure.column_surface_assignment import (
     associate_surfaces_to_column,
     cluster_column_surface_tracks,
+    estimate_surface_axis_orientation,
 )
 from ..structure.column_section_series import fit_column_track_sections
 from ..structure.vertical_surfaces import extract_vertical_surfaces
@@ -241,6 +243,60 @@ def _cloud(cloud_id: str) -> dict[str, Any]:
     return row
 
 
+@lru_cache(maxsize=8)
+def _cached_rcp_import_settings(
+    project_file: str,
+    size_bytes: int,
+    mtime_ns: int,
+    ctime_ns: int,
+    expected_sha256: str,
+) -> dict[str, dict[str, Any]]:
+    """Read import settings only from the exact RCP previously bound to this cloud."""
+    if len(expected_sha256) != 64:
+        return {}
+    source = Path(project_file)
+    if not hmac.compare_digest(sha256_file(source).lower(), expected_sha256.lower()):
+        return {}
+    manifest = read_rcp_manifest(source)
+    return {
+        str(node["node_id"]): node["source_import"]
+        for node in manifest.get("nodes", [])
+        if isinstance(node, dict)
+        and node.get("node_id") is not None
+        and isinstance(node.get("source_import"), dict)
+    }
+
+
+def _restore_rcp_import_settings(recap: dict[str, Any]) -> None:
+    """Attach RCP settings to the response when legacy cloud metadata omitted them.
+
+    This is a read-only response enrichment. It fails closed if the original
+    manifest is missing, inaccessible, malformed, or no longer matches the
+    import-time project hash recorded with the cloud.
+    """
+    selected_node = recap.get("selected_node")
+    project_file = recap.get("project_file")
+    expected_sha256 = recap.get("project_sha256")
+    if (not isinstance(selected_node, dict)
+            or isinstance(selected_node.get("source_import"), dict)
+            or not isinstance(project_file, str)
+            or not isinstance(expected_sha256, str)
+            or selected_node.get("node_id") is None):
+        return
+    source = Path(project_file)
+    try:
+        stat = source.stat()
+        settings_by_node = _cached_rcp_import_settings(
+            str(source), int(stat.st_size), int(stat.st_mtime_ns),
+            int(stat.st_ctime_ns), expected_sha256,
+        )
+    except (OSError, ValueError, RcpManifestError):
+        return
+    settings = settings_by_node.get(str(selected_node["node_id"]))
+    if isinstance(settings, dict):
+        selected_node["source_import"] = settings
+
+
 def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[str, Any]:
     meta = loads(row.get("metadata_json"), {})
     metadata_decimated = meta.get("decimated")
@@ -256,6 +312,7 @@ def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[st
         )
     recap = meta.get("recap_project")
     if isinstance(recap, dict):
+        _restore_rcp_import_settings(recap)
         selected_node = recap.get("selected_node")
         declared_count = (
             selected_node.get("declared_point_count")
@@ -274,6 +331,52 @@ def _cloud_out(row: dict[str, Any], import_job_id: str | None = None) -> dict[st
                     f"(разница {delta:+,}). Проверьте источник в ReCap; эта "
                     "разница сама по себе не доказывает потерю точек."
                 )
+                provenance = (
+                    selected_node.get("source_import")
+                    if isinstance(selected_node, dict)
+                    else None
+                )
+                if isinstance(provenance, dict):
+                    filter_notes: list[str] = []
+                    raw_scan_path = provenance.get("raw_scan_path")
+                    is_e57_source = (
+                        isinstance(raw_scan_path, str)
+                        and raw_scan_path.strip().lower().split("?", 1)[0].endswith(".e57")
+                    )
+                    noise_filter = provenance.get("noise_filter_level")
+                    if isinstance(noise_filter, str) and noise_filter:
+                        filter_notes.append(f"фильтр помех: {noise_filter}")
+                    intensity_max = provenance.get("intensity_clip_max")
+                    if intensity_max is not None:
+                        filter_notes.append(f"предел интенсивности: {intensity_max}")
+                    range_min = provenance.get("range_clip_min")
+                    range_max = provenance.get("range_clip_max")
+                    if range_min is not None or range_max is not None:
+                        filter_notes.append(
+                            f"дистанция: {range_min if range_min is not None else '—'}"
+                            f"–{range_max if range_max is not None else '—'}"
+                        )
+                    density = provenance.get("decimation_density")
+                    if density is not None:
+                        filter_notes.append(
+                            f"сырой параметр density из RCP (единицы и смысл не расшифрованы): {density}"
+                        )
+                    if filter_notes:
+                        count_warning += (
+                            " В метаданных импорта этой станции записаны "
+                            + "; ".join(filter_notes)
+                            + ". Справка Autodesk подтверждает, что фильтры шума и "
+                            "интенсивности могут исключать точки при индексации. "
+                            "Это возможное объяснение разницы, но для этой станции "
+                            "оно отдельно не подтверждено."
+                        )
+                    if is_e57_source:
+                        count_warning += (
+                            " Autodesk отдельно указывает, что при импорте E57 близкие "
+                            "эквивалентные точки могут объединяться или удаляться даже при "
+                            "decimation=0. Это возможный фактор; его вклад для этой станции "
+                            "не измерен."
+                        )
                 warning = f"{warning} {count_warning}" if warning else count_warning
     origin = None
     if row.get("origin_x") is not None:
@@ -1016,6 +1119,93 @@ def create_app() -> FastAPI:
         for job in jobs:
             job["result"] = loads(job.pop("result_json"), {})
         return jobs
+
+    @api.post(
+        "/projects/{project_id}/jobs/{job_id}/resume",
+        response_model=JobOut,
+        status_code=202,
+    )
+    def resume_rcp_batch_job(project_id: str, job_id: str):
+        """Resume a failed/cancelled RCP batch, skipping stations already ready."""
+        _project(project_id)
+        with db_session() as con:
+            con.execute("BEGIN IMMEDIATE")
+            row = con.execute(
+                "SELECT id, project_id, type, status, task_payload_json FROM jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+            if row is None or row["project_id"] != project_id:
+                raise HTTPException(404, "Задача не найдена в проекте")
+            if row["type"] != "rcp_batch_ingest":
+                raise HTTPException(409, "Возобновить можно только пакетный импорт RCP")
+            if row["status"] not in {"failed", "cancelled"}:
+                raise HTTPException(409, f"Пакет нельзя возобновить из статуса {row['status']}")
+            stored_task = loads(row["task_payload_json"], {})
+            if (
+                not isinstance(stored_task, dict)
+                or stored_task.get("task_type") != "rcp_batch_ingest"
+                or not isinstance(stored_task.get("payload"), dict)
+            ):
+                raise HTTPException(409, "Сохранённые данные задачи RCP некорректны")
+            payload = stored_task["payload"]
+            if payload.get("project_id") != project_id:
+                raise HTTPException(409, "Сохранённые данные задачи RCP некорректны")
+            stations = payload.get("stations")
+            if not isinstance(stations, list) or not stations:
+                raise HTTPException(409, "В задаче RCP отсутствует список станций")
+            cloud_ids: list[str] = []
+            for station in stations:
+                if not isinstance(station, dict) or not station.get("cloud_id"):
+                    raise HTTPException(409, "В задаче RCP найден некорректный узел")
+                cloud_ids.append(str(station["cloud_id"]))
+            if len(set(cloud_ids)) != len(cloud_ids):
+                raise HTTPException(409, "В задаче RCP повторяется облако станции")
+
+            placeholders = ",".join("?" for _ in cloud_ids)
+            cloud_rows = con.execute(
+                f"SELECT id, project_id, status, source_path, source_format FROM clouds WHERE id IN ({placeholders})",
+                tuple(cloud_ids),
+            ).fetchall()
+            clouds_by_id = {cloud["id"]: cloud for cloud in cloud_rows}
+            if len(clouds_by_id) != len(cloud_ids) or any(
+                cloud["project_id"] != project_id for cloud in cloud_rows
+            ):
+                raise HTTPException(409, "Не все облака станций принадлежат этому проекту")
+
+            active = con.execute(
+                f"SELECT id FROM jobs WHERE cloud_id IN ({placeholders}) "
+                "AND status IN ('queued', 'running')",
+                tuple(cloud_ids),
+            ).fetchone()
+            if active is not None:
+                raise HTTPException(409, "Для одной из станций уже выполняется отдельная задача")
+
+            ready_count = 0
+            for cloud_id in cloud_ids:
+                cloud = clouds_by_id[cloud_id]
+                if cloud["status"] == "ready":
+                    ready_count += 1
+                    continue
+                if cloud["source_format"] != "rcs" or not Path(cloud["source_path"]).is_file():
+                    raise HTTPException(
+                        409,
+                        f"Исходный RCS станции недоступен: {cloud_id}",
+                    )
+
+            now = utcnow()
+            message = (
+                f"возобновление RCP batch: {len(cloud_ids) - ready_count} станций, "
+                f"готовых пропускается: {ready_count}"
+            )
+            con.execute(
+                """UPDATE jobs SET status='queued', progress=0, message=?, result_json='{}',
+                   error=NULL, cancel_requested=0, worker_id=NULL, lease_expires_at=NULL,
+                   updated_at=? WHERE id=?""",
+                (message, now, job_id),
+            )
+
+        submit_ingest_task(job_id, "rcp_batch_ingest", payload)
+        return get_job(job_id)
 
     # ------------------------------------------------------------ formats
     @api.get("/formats")
@@ -2277,6 +2467,9 @@ def create_app() -> FastAPI:
 
         candidate_geometry = {**geometry, "id": element_id}
         association = associate_surfaces_to_column(candidate_geometry, surface_result)
+        orientation_evidence = estimate_surface_axis_orientation(
+            surface_result.get("surfaces", []), rotation_z
+        )
         tracks = cluster_column_surface_tracks(candidate_geometry, surface_result, association)
         series = fit_column_track_sections(
             candidate_geometry,
@@ -2341,6 +2534,7 @@ def create_app() -> FastAPI:
             },
             "surface_result": {**surface_result, "surfaces": public_surfaces},
             "surface_association": association,
+            "surface_orientation_evidence": orientation_evidence,
             "tracks": tracks,
             "section_series": series["section_series"],
             "excluded_tracks": series["excluded_tracks"],

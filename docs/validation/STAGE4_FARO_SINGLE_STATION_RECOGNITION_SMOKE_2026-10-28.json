@@ -1,0 +1,139 @@
+{
+  "schema": "scan.validation.recognition-smoke/1",
+  "recorded_at": "2026-10-28T07:52:00+03:00",
+  "environment": {
+    "frontend_url": "http://127.0.0.1:5174/",
+    "api_url": "http://127.0.0.1:8000/api/v1",
+    "api_is_shared_network_checkout": true
+  },
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "cloud_count_after_run": 810,
+    "element_count_after_run": 29
+  },
+  "cloud": {
+    "id": "fb60cc25cd9144b7893910e62b48df51",
+    "name": "Симферополь лёгкий — scans__faro_scan_019",
+    "format": "rcs",
+    "status": "ready",
+    "ingested_points": 2556463,
+    "existing_elements_before_run": 0,
+    "source_transform_applied": false
+  },
+  "job": {
+    "id": "8c3e649c60a14027b5d6f97f22bf9bcf",
+    "type": "recognition",
+    "status": "succeeded",
+    "points_processed": 2556462,
+    "candidate_count": 29,
+    "candidate_review_status": "unreviewed",
+    "candidate_source": "geometric",
+    "confidence_kind": "heuristic",
+    "classes": {
+      "column": 18,
+      "wall": 8,
+      "slab": 2,
+      "opening": 1,
+      "beam": 0,
+      "girder": 0,
+      "truss": 0,
+      "brace": 0
+    },
+    "detector_stats": {
+      "method": "geometric-baseline-v1",
+      "level_candidates": 2,
+      "steel_stage": "skipped (нужно >= 3 уровней и >= 10 000 точек)",
+      "unimplemented_classes": ["girder", "pipe", "duct", "equipment"]
+    },
+    "warnings": [
+      "Кандидаты не подтверждены физической разметкой.",
+      "Балка/подкрановая балка не обнаружена; отсутствие кандидатов не доказывает отсутствие этих объектов.",
+      "Узел RCP в текущих данных помечен registered=false и transform_applied=false."
+    ]
+  },
+  "ui_verification": {
+    "station_selected": true,
+    "recognition_page_candidate_count": 29,
+    "column_count": 18,
+    "beam_and_crane_girder_count": 0,
+    "review_queue_visible": true,
+    "all_candidates_waiting_for_independent_review": true,
+    "empty_cloud_review_opened_without_console_errors": true,
+    "console_errors": 0,
+    "console_warnings": 0
+  },
+  "column_cross_section_followup": {
+    "candidate_id": "0ece4981123e45f0ac1cc4f4b23021e6",
+    "candidate_obb_hypothesis": {
+      "side_a_m": 0.68,
+      "side_b_m": 0.422,
+      "height_m": 5.5,
+      "rotation_z_rad": 2.49167,
+      "confidence_kind": "heuristic"
+    },
+    "read_only_surface_analysis": {
+      "persisted": false,
+      "source_geometry_modified": false,
+      "point_query_strategy": "spatial_index",
+      "selected_source_rows": 8003,
+      "vertical_surface_count": 4,
+      "surfaces": [
+        {"id": "V1", "normal_xy": [0.990733, 0.135823], "vertical_support_m": 5.25, "orientation_deviation_degrees": 45.044, "status": "orientation_mismatch"},
+        {"id": "V2", "normal_xy": [0.132256, -0.991216], "vertical_support_m": 5.25, "orientation_deviation_degrees": 45.162, "status": "orientation_mismatch"},
+        {"id": "V3", "normal_xy": [0.994960, 0.100271], "vertical_support_m": 0.75, "orientation_deviation_degrees": 42.993, "status": "orientation_mismatch"},
+        {"id": "V4", "normal_xy": [0.183475, -0.983024], "vertical_support_m": 0.75, "orientation_deviation_degrees": 42.190, "status": "orientation_mismatch"}
+      ],
+      "assigned_candidate_faces": 0,
+      "complete_section_slices": 0,
+      "known_side_dimensions_supplied": false,
+      "inferred_rectangle_created": false
+    },
+    "read_only_orientation_proposal_from_recorded_planes": {
+      "status": "surface_axis_candidate",
+      "estimated_axis_angle_degrees_mod_90": 7.76,
+      "candidate_axis_deviation_degrees": 44.998,
+      "axis_coherence": 0.9982,
+      "surface_count": 4,
+      "supporting_plane_ids": ["V1", "V2", "V3", "V4"],
+      "confirmed": false,
+      "review_required": true,
+      "basis": "Recalculated locally from the four normal_xy values and vertical support already recorded above; this is not a new API run.",
+      "limits": [
+        "axis only; long and short sides are not identified",
+        "plane ownership and structural role remain unknown",
+        "candidate geometry and source scan were not changed"
+      ]
+    },
+    "interpretation": "The preliminary oriented-box dimensions are unsupported by the observed surface orientations. Treat this as a geometry-or-candidate review finding; no candidate dimensions or physical class were changed."
+  },
+  "orientation_evidence_followup": {
+    "implementation": "Added review-only weighted modulo-90 axis estimate from orthogonal vertical surface normals to the section analysis response and UI.",
+    "backend_focused_tests": "passed (26 column-surface assignment tests and 2 section-fit API tests)",
+    "frontend_tests": "passed",
+    "typescript_and_vite_build": "passed (1984 modules)",
+    "live_api_deployment_verified": false,
+    "stage_closed": false
+  },
+  "frontend_fix": {
+    "file": "frontend/src/StudioReferenceLayout.tsx",
+    "change": "Skip annotation dataset requests and clear reference state when the selected cloud has no candidates.",
+    "npm_test": "passed",
+    "typescript_and_vite_build": "passed",
+    "vite_modules_transformed": 1984
+  },
+  "mutations": {
+    "recognition_job_created": true,
+    "unreviewed_geometric_candidates_saved": 29,
+    "existing_reviewed_candidates_before_run": 0,
+    "manual_labels_created": 0,
+    "scan_source_modified": false,
+    "station_registration_or_transform_saved": false
+  },
+  "acceptance": {
+    "stage_closed": false,
+    "overall_accepted_stages": "3/12",
+    "current_stage": 2,
+    "reason_open": "Single-station smoke proves only execution and UI visibility. Independent labels, crane-girder detections, multi-station registration, project coordinate frame, and engineering accuracy are not established."
+  }
+}

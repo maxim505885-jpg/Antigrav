@@ -1,0 +1,65 @@
+{
+  "protocol": "stage2_desktop_api_readonly_faro_project_smoke",
+  "verified_at": "2026-10-28T08:34:12+03:00",
+  "implementation": "Desktop checkout feature/recap-realworks-parity",
+  "method": {
+    "database": "consistent SQLite backup from a read-only URI into a temporary directory; temporary snapshot deleted at process exit",
+    "api": "FastAPI TestClient using loopback address 127.0.0.1; S2B_INGEST_MODE=worker; only GET routes invoked",
+    "cloud_storage": "read-only access to the existing project data root; no importer, worker, or export task started"
+  },
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "http_status": 200,
+    "project_count_in_database": 13,
+    "station_count": 810,
+    "ready_station_count": 810
+  },
+  "station": {
+    "id": "83f89b62d99746089114b3b244114623",
+    "name_suffix": "scans__rt_11064",
+    "http_status": 200,
+    "reader_point_count": 81811,
+    "ingested_point_count": 81811,
+    "has_point_count_warning": true,
+    "warning_summary": "RCP declares 3,740,916 points; linked RCS reader reports 81,811. Import settings were restored from the hash-matched source RCP. Cause and contribution of settings remain unverified."
+  },
+  "preview": {
+    "http_status": 200,
+    "bytes": 1227165,
+    "content_type": "application/octet-stream"
+  },
+  "stats": {
+    "http_status": 200,
+    "element_count": 0,
+    "section_count": 0
+  },
+  "health": "ok",
+  "elapsed_seconds": 7.21,
+  "acceptance_boundary": "API/storage smoke only. Does not verify interactive 3D rendering, ReCap GUI round-trip, point-count cause, registration accuracy, or stage completion.",
+  "roadmap": {
+    "accepted_stages": 3,
+    "total_stages": 12,
+    "current_stage": 2,
+    "stage2_status": "in_progress"
+  },
+  "fresh_recheck": {
+    "run_date": "2026-10-28",
+    "implementation": "Desktop checkout source, local .venv; isolated FastAPI TestClient",
+    "database": "read-only consistent backup to temp; deleted after process",
+    "source_database_modified": false,
+    "storage_access": "GET routes only",
+    "health": "ok",
+    "project_http": 200,
+    "cloud_list_http": 200,
+    "stations": 810,
+    "ready_stations": 810,
+    "selected_station": "scans__rt_11064",
+    "selected_point_count": 81811,
+    "count_warning_present": true,
+    "preview_http": 200,
+    "preview_bytes": 1227165,
+    "stats_http": 200,
+    "elapsed_seconds": 19.09
+  }
+}

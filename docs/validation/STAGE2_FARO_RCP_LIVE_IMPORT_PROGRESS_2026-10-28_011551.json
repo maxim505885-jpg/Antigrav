@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-10-28T01:15:51+03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "source": "read-only GET /api/v1/projects/{id}, /jobs, /clouds",
+  "batch_job": {
+    "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "type": "rcp_batch_ingest",
+    "status": "running",
+    "progress_fraction": 0.9739506172839506,
+    "message": "Станция 789/810: scans__rt_11047 — writing full-resolution RCS points"
+  },
+  "station_counts": {
+    "total": 810,
+    "ready": 788,
+    "processing": 22,
+    "failed": 0
+  },
+  "ready_ingested_points": 1576724787,
+  "ready_point_count_ingested_count_mismatches": 0,
+  "source_files_modified": false,
+  "stage_2_status": "open: batch incomplete; RCP/native-reader count semantics and ReCap GUI round-trip are not accepted"
+}

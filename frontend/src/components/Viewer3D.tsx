@@ -7,7 +7,6 @@ import { groupCameraDistance } from "../columnGroupGeometry";
 import { selectLodLevel } from "../lodLevel";
 import { RenderFpsSampler } from "../renderFps";
 import { elementBoxLinePositions, elementUsesCloudLocalCoordinates } from "../structuralFrameGeometry";
-import { computeStructuralGridGeometry } from "../structuralGrid3D";
 import { classLabel } from "../types";
 import { LimitBoxDock, type LimitBoxRange } from "./LimitBoxDock";
 import { Measure3DDock, type MeasureResult } from "./Measure3DDock";
@@ -107,7 +106,6 @@ export default function Viewer3D({
   const planeRef = useRef<THREE.Mesh | null>(null);
   const groupSphereRef = useRef<THREE.Sphere | null>(null);
   const bimGroupRef = useRef<THREE.Group | null>(null);
-  const gridGroupRef = useRef<THREE.Group | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [showCloud, setShowCloud] = useState(true);
   const [showColumns, setShowColumns] = useState(false);
@@ -945,100 +943,6 @@ export default function Viewer3D({
     }
   }, [showCloud, pointCloudVisible]);
 
-  // Structural SPDS Grid Effect (3 Spans, 4 Rows: А, Б, В, Г, 24 Axes: 1..24, step 6000 mm)
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
-
-    if (gridGroupRef.current) {
-      scene.remove(gridGroupRef.current);
-      gridGroupRef.current.traverse((child) => {
-        if (child instanceof THREE.LineSegments || child instanceof THREE.Sprite) {
-          child.geometry?.dispose();
-          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
-          else child.material?.dispose();
-        }
-      });
-      gridGroupRef.current = null;
-    }
-
-    if (!showGrid) return;
-
-    const origin = cloud?.origin || [0, 0, 0];
-    const gridData = computeStructuralGridGeometry(origin);
-    const group = new THREE.Group();
-    group.name = "structural-spds-grid";
-
-    // 1. Transverse lines (Axes 1..24, step 6000 mm)
-    const tGeom = new THREE.BufferGeometry();
-    tGeom.setAttribute("position", new THREE.BufferAttribute(gridData.transverseLinePositions, 3));
-    const tMat = new THREE.LineBasicMaterial({
-      color: 0x64748b, // SPDS axis slate blue
-      transparent: true,
-      opacity: 0.65,
-      depthTest: false,
-    });
-    const tLines = new THREE.LineSegments(tGeom, tMat);
-    tLines.renderOrder = 4;
-    group.add(tLines);
-
-    // 2. Longitudinal lines (Rows А, Б, В, Г for the 3 spans)
-    const lGeom = new THREE.BufferGeometry();
-    lGeom.setAttribute("position", new THREE.BufferAttribute(gridData.longitudinalLinePositions, 3));
-    const lMat = new THREE.LineBasicMaterial({
-      color: 0x0284c7, // Structural blue
-      transparent: true,
-      opacity: 0.85,
-      depthTest: false,
-    });
-    const lLines = new THREE.LineSegments(lGeom, lMat);
-    lLines.renderOrder = 4;
-    group.add(lLines);
-
-    // 3. Axis bubbles with crisp high-res canvas sprites
-    const createBubbleTexture = (text: string, isRow: boolean) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return null;
-
-      ctx.beginPath();
-      ctx.arc(64, 64, 56, 0, Math.PI * 2);
-      ctx.fillStyle = isRow ? "#0284c7" : "#334155";
-      ctx.fill();
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = "#ffffff";
-      ctx.stroke();
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 52px system-ui, -apple-system, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, 64, 64);
-
-      return new THREE.CanvasTexture(canvas);
-    };
-
-    gridData.bubbleNodes.forEach((node) => {
-      const tex = createBubbleTexture(node.label, node.type === "row");
-      if (!tex) return;
-      const spriteMat = new THREE.SpriteMaterial({
-        map: tex,
-        transparent: true,
-        depthTest: false,
-      });
-      const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(node.position[0], node.position[1], node.position[2]);
-      sprite.scale.set(2.4, 2.4, 1.0);
-      sprite.renderOrder = 12;
-      group.add(sprite);
-    });
-
-    scene.add(group);
-    gridGroupRef.current = group;
-  }, [showGrid, cloud?.origin]);
-
   useEffect(() => {
     const bimGroup = bimGroupRef.current;
     if (!bimGroup) return;
@@ -1289,9 +1193,9 @@ export default function Viewer3D({
               fontWeight: showGrid ? 700 : 500,
             }}
             onClick={() => setShowGrid(!showGrid)}
-            title="Схематическая сетка-шаблон: шаг 6 м. Начало координат, поворот и поперечные ряды не подтверждены контрольной съёмкой."
+            title="Известен только номинальный продольный шаг 6000 мм. Показать справку; геометрия осей не привязана к облаку."
           >
-            {showGrid ? "📐 Скрыть сетку-шаблон" : "📐 Сетка-шаблон (6 м)"}
+            {showGrid ? "📐 Скрыть справку о шагах" : "📐 Шаг колонн · 6 м"}
           </button>
           {(counts.column || 0) > 0 && (
             <button
@@ -1440,6 +1344,14 @@ export default function Viewer3D({
           {cloud?.decimated && <span className="warn">прорежено</span>}
           {groupPositions.length > 0 && <span>контуры группы: {groupPositions.length / 72}</span>}
         </div>
+        {showGrid && (
+          <div
+            role="note"
+            style={{ maxWidth: 420, padding: "7px 9px", border: "1px solid #8a6a4e", borderRadius: 5, background: "#30251c", color: "#f5d7bd", lineHeight: 1.45 }}
+          >
+            Номинальный продольный шаг колонн — 6000 мм. Начало, направление сетки относительно облака, поперечные ряды и число осей не заданы; геометрия сетки не нанесена.
+          </div>
+        )}
       </div>
       )}
       {selectedElement && (

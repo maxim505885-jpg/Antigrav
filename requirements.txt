@@ -14,6 +14,7 @@ open3d>=0.19          # optional acceleration (viewer-independent algorithms use
 laspy[lazrs]>=2.5     # LAS / LAZ
 pye57>=0.4.12         # E57
 plyfile>=1.0
+pandas>=2.1          # XYZ/CSV and ASCII PCD/PLY reader support
 
 # CAD / BIM / drawings
 ezdxf>=1.3

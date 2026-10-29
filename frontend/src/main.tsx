@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { StudioReferenceLayout } from "./StudioReferenceLayout";
 import "./styles.css";
 import "./theme.css";
 import { api, waitForJob } from "./api";
 import { type Cloud, type Element, type Project } from "./types";
+import { selectInitialProject } from "./projectSelection";
 
 function Root() {
   const [preferredProjectId] = useState(() => window.localStorage.getItem("scan.selectedProjectId") || undefined);
@@ -29,6 +30,14 @@ function Root() {
   const [jobLabel, setJobLabel] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState<number | null>(null);
   const [activeImportJobId, setActiveImportJobId] = useState<string | null>(null);
+  const [batchImportCounts, setBatchImportCounts] = useState<{
+    total: number;
+    ready: number;
+    processing: number;
+    failed: number;
+    cancelled: number;
+  } | null>(null);
+  const attachedBatchJobs = useRef(new Set<string>());
 
   // Load live data from local API backend
   const loadData = async (preferredCloudId?: string, preferredProjectId?: string): Promise<number> => {
@@ -38,10 +47,8 @@ function Root() {
       if (!projectsList || projectsList.length === 0) return 0;
 
       setProjects(projectsList);
-      // Keep the requested/current project; use the workshop as the initial default.
-      const prj = projectsList.find((p) => p.id === (preferredProjectId || project?.id))
-        || projectsList.find((p) => p.id === "workshop_project")
-        || projectsList[0];
+      // Keep the requested/current project; fresh profiles open the most populated project.
+      const prj = selectInitialProject(projectsList, preferredProjectId || project?.id)!;
       setProject(prj);
 
       const projectJobs = await api.projectJobs(prj.id);
@@ -76,6 +83,84 @@ function Root() {
   useEffect(() => {
     void loadData(preferredCloudId, preferredProjectId);
   }, []);
+
+  useEffect(() => {
+    if (!project) return;
+    const activeBatch = jobs.find((job) => job.type === "rcp_batch_ingest" && ["queued", "running"].includes(job.status));
+    if (!activeBatch || attachedBatchJobs.current.has(activeBatch.id)) return;
+    attachedBatchJobs.current.add(activeBatch.id);
+    setActiveImportJobId(activeBatch.id);
+    setBusy(true);
+
+    const countsForJob = (items: Cloud[], message: string) => {
+      const stationName = message.match(/Станция\s+\d+\/\d+:\s*(.*?)\s+—/i)?.[1]?.trim();
+      const currentStation = stationName
+        ? items.find((item) => item.metadata?.recap_project?.selected_node?.name === stationName)
+        : undefined;
+      const projectSha = currentStation?.metadata?.recap_project?.project_sha256;
+      const stations = projectSha
+        ? items.filter((item) => item.metadata?.recap_project?.project_sha256 === projectSha)
+        : [];
+      if (!stations.length) return null;
+      const totalFromMessage = Number(message.match(/Станция\s+\d+\/(\d+)/i)?.[1]);
+      return {
+        total: totalFromMessage > 0 ? totalFromMessage : stations.length,
+        ready: stations.filter((item) => item.status === "ready").length,
+        processing: stations.filter((item) => item.status === "processing").length,
+        failed: stations.filter((item) => item.status === "failed").length,
+        cancelled: stations.filter((item) => item.status === "cancelled").length,
+      };
+    };
+
+    let lastCloudStatusPoll = 0;
+    let cloudStatusPollInFlight = false;
+    let finished = false;
+    setJobLabel(activeBatch.message ? `Импорт RCP: ${activeBatch.message}` : "Импорт станций RCP");
+    setJobProgress(activeBatch.progress);
+    const initialCounts = countsForJob(clouds, activeBatch.message || "");
+    if (initialCounts) setBatchImportCounts(initialCounts);
+
+    void waitForJob(activeBatch.id, (update) => {
+      setJobProgress(update.progress);
+      setJobLabel(update.message ? `Импорт RCP: ${update.message}` : "Импорт станций RCP");
+      const now = Date.now();
+      if (!finished && !cloudStatusPollInFlight && now - lastCloudStatusPoll >= 10_000) {
+        lastCloudStatusPoll = now;
+        cloudStatusPollInFlight = true;
+        void api.listClouds(project.id)
+          .then((list) => {
+            if (finished) return;
+            setClouds(list);
+            const counts = countsForJob(list, update.message || activeBatch.message || "");
+            if (counts) setBatchImportCounts(counts);
+          })
+          .catch(() => undefined)
+          .finally(() => { cloudStatusPollInFlight = false; });
+      }
+    }, 24 * 60 * 60 * 1000)
+      .then(async (job) => {
+        finished = true;
+        await loadData(undefined, project.id);
+        if (job.status === "failed") setJobLabel(job.error || "Импорт станций RCP завершился ошибкой");
+      })
+      .catch((error) => {
+        finished = true;
+        setJobLabel(`Потеряно наблюдение за импортом RCP: ${error instanceof Error ? error.message : String(error)}`);
+      })
+      .finally(() => {
+        setActiveImportJobId(null);
+        setBatchImportCounts(null);
+        setBusy(false);
+        setJobProgress(null);
+        attachedBatchJobs.current.delete(activeBatch.id);
+      });
+  }, [jobs, project?.id, clouds]);
+
+  const handleResumeRcpBatch = async (jobId: string) => {
+    if (!project) throw new Error("Сначала выберите проект.");
+    const resumed = await api.resumeRcpBatchJob(project.id, jobId);
+    setJobs((current) => current.map((job) => job.id === resumed.id ? resumed : job));
+  };
 
   const handleRunSinglePass = async (cloudId: string | null) => {
     const target = clouds.find((item) => item.id === cloudId);
@@ -185,10 +270,40 @@ function Root() {
       if (path.trim().toLowerCase().endsWith(".rcp")) {
         const batch = await api.importRcpPath(project.id, path.trim(), undefined, maxPoints);
         setActiveImportJobId(batch.import_job_id);
+        const stationIds = new Set(batch.stations.map((station) => station.cloud.id));
+        const updateBatchCounts = (items: Cloud[]) => {
+          const imported = items.filter((item) => stationIds.has(item.id));
+          setBatchImportCounts({
+            total: batch.node_count,
+            ready: imported.filter((item) => item.status === "ready").length,
+            processing: imported.filter((item) => item.status === "processing").length,
+            failed: imported.filter((item) => item.status === "failed").length,
+            cancelled: imported.filter((item) => item.status === "cancelled").length,
+          });
+        };
+        updateBatchCounts(batch.stations.map((station) => station.cloud));
+        let lastCloudStatusPoll = 0;
+        let cloudStatusPollInFlight = false;
+        let finished = false;
         const job = await waitForJob(batch.import_job_id, (update) => {
           setJobProgress(update.progress || 0.03);
           setJobLabel(update.message ? `Импорт RCP: ${update.message}` : "Импорт станций RCP");
+          const now = Date.now();
+          if (!finished && !cloudStatusPollInFlight && now - lastCloudStatusPoll >= 10_000) {
+            lastCloudStatusPoll = now;
+            cloudStatusPollInFlight = true;
+            void api.listClouds(project.id)
+              .then((list) => {
+                if (finished) return;
+                const imported = list.filter((item) => stationIds.has(item.id));
+                updateBatchCounts(imported);
+                setClouds([...imported, ...list.filter((item) => !stationIds.has(item.id))]);
+              })
+              .catch(() => undefined)
+              .finally(() => { cloudStatusPollInFlight = false; });
+          }
         }, 30 * 60 * 1000);
+        finished = true;
         await loadData(undefined, project.id);
         if (job.status === "cancelled") throw new Error("Импорт станций RCP отменён.");
         if (job.status === "failed") throw new Error(job.error || "Импорт станций RCP завершился ошибкой.");
@@ -215,6 +330,7 @@ function Root() {
       setJobLabel(`Готово · ${ready.name} · ${ready.ingested_count.toLocaleString("ru-RU")} точек`);
     } finally {
       setActiveImportJobId(null);
+      setBatchImportCounts(null);
       setBusy(false);
       setJobProgress(null);
     }
@@ -249,10 +365,12 @@ function Root() {
       onUploadScan={handleUploadScan}
       onImportPath={handleImportPath}
       onCancelImport={handleCancelImport}
+      onResumeRcpBatch={handleResumeRcpBatch}
       canCancelImport={activeImportJobId !== null}
       busy={busy}
       jobLabel={jobLabel}
       jobProgress={jobProgress}
+      batchImportCounts={batchImportCounts}
     />
   );
 }

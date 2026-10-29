@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-27",
+  "scope": "Stage 11 frontend first-launch project selection",
+  "repository": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "checks": {
+    "regression_tests": "4 passed: fresh profile selects largest cloud_count; explicit saved project stays preferred; stale preference falls back; empty list returns null",
+    "full_frontend_suite": "passed",
+    "typescript": "passed",
+    "vite_production_build": "passed; 1984 modules transformed",
+    "live_browser": {
+      "url": "http://127.0.0.1:5174/",
+      "title": "SCAN STUDIO · Сшивка станций",
+      "no_saved_project_preference": true,
+      "selected_project_id": "130c8f7a6280420ba6a23cdd26e98703",
+      "selected_project": "Симферополь — Лёгкое",
+      "displayed_cloud_count": 810,
+      "loaded_cloud": "scans__kr_761279",
+      "browser_console_errors": 0,
+      "browser_console_warnings": 0
+    },
+    "existing_port_8000": {
+      "status": "serves older UNC checkout",
+      "selected_project": "Завод №1 (Цех 1.rcs + 2.rcs)",
+      "asset": "/assets/index-DSS9Y0il.js",
+      "note": "Desktop working copy is intentionally separate per user request; no transfer performed"
+    },
+    "legacy_component": "App.tsx was aligned to shared selection policy and now persists explicit project selection"
+  },
+  "acceptance": "UX regression verified only; no roadmap stage closed",
+  "rcp_import": {
+    "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "running",
+    "progress": 0.443086,
+    "message": "Станция 359/810: scans__kr_761308 — writing full-resolution RCS points",
+    "ready_cloud_count": 358,
+    "processing_count": 452,
+    "failed_count": 0,
+    "ready_count_mismatches": 0,
+    "ready_point_sum": 752201501.0,
+    "total_cloud_count": 810
+  },
+  "observed_at_local": "2026-10-27 19:57:18 +03:00"
+}

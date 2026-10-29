@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, waitForCloud, waitForJob, type CloudExportFormat, type CloudExportMeta, type ColumnSurfaceTrackAnalysisResponse, type DerivedCloud, type ElementAnnotation } from "./api";
+import { selectInitialProject } from "./projectSelection";
 import ElementTable from "./components/ElementTable";
 import ColumnTypesPanel from "./components/ColumnTypesPanel";
 import ColumnSectionFitPanel from "./components/ColumnSectionFitPanel";
@@ -66,6 +67,7 @@ function rcsDetail(error: any): any {
 }
 
 export default function App() {
+  const [preferredProjectId] = useState(() => window.localStorage.getItem("scan.selectedProjectId") || undefined);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [clouds, setClouds] = useState<Cloud[]>([]);
@@ -194,16 +196,10 @@ export default function App() {
 
   const refreshProjects = async () => {
     const list = await api.listProjects();
-    const workshop = list.find((p) => p.id === "workshop_project");
-    const sorted = workshop ? [workshop, ...list.filter((p) => p.id !== "workshop_project")] : list;
+    const sorted = list;
     setProjects(sorted);
-    setProject((current) => {
-      if (current) {
-        const found = sorted.find((p) => p.id === current.id);
-        if (found && !found.name.toLowerCase().includes("demo")) return found;
-      }
-      return workshop ?? (sorted.length > 0 ? sorted[0] : null);
-    });
+    setProject((current) => sorted.find((p) => p.id === current?.id)
+      ?? selectInitialProject(sorted, preferredProjectId));
     return sorted;
   };
 
@@ -767,6 +763,7 @@ export default function App() {
                   key={item.id}
                   className={project?.id === item.id ? "project active" : "project"}
                   onClick={() => {
+                    window.localStorage.setItem("scan.selectedProjectId", item.id);
                     setProject(item);
                     setCloud(null);
                     setSection(null);

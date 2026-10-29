@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-27",
+  "stage": 11,
+  "area": "Studio background-job presentation",
+  "change": "Localized real queue job types: rcp_batch_ingest, recognition, panorama_render, cloud_export, station registration, ingest, cleanup and export.",
+  "source_file": "frontend/src/StudioReferenceLayout.tsx",
+  "verification": {
+    "typescript": "passed via npm run build",
+    "modules_transformed": 1984,
+    "browser_live_smoke": "not run",
+    "vite": "passed",
+    "automated_tests": "not run",
+    "local_http_smoke": "Desktop Vite on 127.0.0.1:5174 returned HTTP 200; proxied API health on /api/v1/health returned HTTP 200; Vite process executable path belongs to this Desktop repository",
+    "browser_console": "not inspected"
+  },
+  "roadmap_acceptance": "No stage closed. Build confirms compilation only; live rendering remains to verify."
+}

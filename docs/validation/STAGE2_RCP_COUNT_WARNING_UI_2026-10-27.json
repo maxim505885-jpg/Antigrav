@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-27",
+  "stage": 2,
+  "change": "Clarified the live RCP NumPoints mismatch warning: distinguish declared value from SCAN native-reader count and explicitly state the difference alone does not prove point loss.",
+  "source_file": "frontend/src/studioPresentation.ts",
+  "verification": {
+    "live_api_proxy": "HTTP 200",
+    "compiled_bundle": "frontend/dist/assets/index-DIcXdhww.js includes updated warning",
+    "live_desktop_vite_module": "HTTP 200; includes updated warning",
+    "focused_frontend_module": "8/8 passed",
+    "vite_modules_transformed": 1984,
+    "typescript_and_vite": "passed"
+  },
+  "roadmap_acceptance": "Stage 2 remains open. This UI clarification does not resolve RCP count semantics or ReCap GUI round-trip."
+}

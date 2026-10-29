@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 18:46:33 +03:00",
+  "test": "Autodesk DeCap single-station FARO RCS native RCP packaging and folder relocation",
+  "decap_exe": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\DeCap.exe",
+  "source": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий Support\\scans__kr_761015.rcs",
+  "source_size_bytes": 58396283,
+  "source_sha256_before": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e",
+  "source_sha256_after": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e",
+  "output_rcp": "data/output/recap_projects/PORTABLE_RCP_SMOKE_761015_20261027/PORTABLE_RCP_SMOKE_761015_20261027.rcp",
+  "support_directory": "data/output/recap_projects/PORTABLE_RCP_SMOKE_761015_20261027/PORTABLE_RCP_SMOKE_761015_20261027 Support",
+  "input_station_count": 1,
+  "rcp_node_count": 1,
+  "linked_rcs_count": 1,
+  "external_rcs_count": 0,
+  "package_verified": true,
+  "source_copied_under_support": true,
+  "relocation_test": {
+    "copied_entire_project_folder_to_separate_temp_path": true,
+    "manifest_reopened_from_moved_rcp": true,
+    "linked_rcs_resolved_inside_moved_support": true,
+    "linked_rcs_sha256_matches_source": true
+  },
+  "backend_tests": {
+    "passed": 16,
+    "failed": 0,
+    "scope": [
+      "test_recap_decap.py",
+      "test_recap_decap_ascii_cache.py",
+      "test_registration_extended_api.py"
+    ]
+  },
+  "limitations": [
+    "ReCap GUI open/save round-trip was not verified",
+    "This is packaging of one station, not station registration/stitching",
+    "The 810-station production import remains a separate running job"
+  ],
+  "acceptance": "Portable folder packaging passes structural verification for one real FARO RCS. Stage 2 and Stage 4 remain open."
+}

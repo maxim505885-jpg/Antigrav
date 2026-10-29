@@ -8,7 +8,7 @@ import { BubblePanoramaViewer } from "./components/BubblePanoramaViewer";
 import { SplitScreenRegistrationView } from "./components/SplitScreenRegistrationView";
 import { api, type LearningManifestPreview, type LearningManifestExportResult } from "./api";
 import { recognitionReviewState } from "./recognitionReviewState";
-import { rcpDeclaredCountWarning } from "./studioPresentation";
+import { canOfferRcpBatchResume, rcpDeclaredCountWarning, rcpTransformWarning } from "./studioPresentation";
 import { elementRoleSummary } from "./elementRoleSummary";
 import "./StudioReferenceLayout.css";
 import { type Cloud, type Element, type Job, type Project, classLabel } from "./types";
@@ -37,11 +37,13 @@ export interface StudioLayoutProps {
   onUploadScan?: (file: File, maxPoints?: number) => Promise<void>;
   onImportPath?: (path: string, maxPoints?: number) => Promise<void>;
   onCancelImport?: () => Promise<void>;
+  onResumeRcpBatch?: (jobId: string) => Promise<void>;
   canCancelImport?: boolean;
   onTabChange?: (tab: string) => void;
   busy: boolean;
   jobLabel: string | null;
   jobProgress: number | null;
+  batchImportCounts: { total: number; ready: number; processing: number; failed: number; cancelled: number } | null;
 }
 
 export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
@@ -61,10 +63,12 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   onUploadScan,
   onImportPath,
   onCancelImport,
+  onResumeRcpBatch,
   canCancelImport = false,
   busy,
   jobLabel,
   jobProgress,
+  batchImportCounts,
 }) => {
   // Navigation & Viewport State
   const [activeWorkspace, setActiveWorkspace] = useState("processing");
@@ -88,6 +92,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const [learningManifestExport, setLearningManifestExport] = useState<LearningManifestExportResult | null>(null);
   const [learningManifestError, setLearningManifestError] = useState<string | null>(null);
   const [learningManifestBusy, setLearningManifestBusy] = useState(false);
+  const [resumingRcpBatchId, setResumingRcpBatchId] = useState<string | null>(null);
   const [recognitionQuery, setRecognitionQuery] = useState("");
   const [recognitionKind, setRecognitionKind] = useState<"all" | "column" | "structural">("all");
   const [recognitionVisibleCount, setRecognitionVisibleCount] = useState(100);
@@ -133,6 +138,7 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const wallsCount = countClass("wall");
   const totalObjectsCount = elements.length;
   const rcpCountWarning = rcpDeclaredCountWarning(cloud?.metadata, cloud?.warning);
+  const rcpPoseWarning = rcpTransformWarning(cloud?.metadata);
   const recognitionCandidates = useMemo(() => elements.filter((element) => {
     const isColumn = element.class_name === "column";
     const isStructural = ["beam", "crane_girder", "truss", "brace"].includes(element.class_name);
@@ -159,6 +165,10 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   }, [canCancelImport]);
   useEffect(() => {
     if (!showRecognitionReview || !cloud?.id) return;
+    if (!elements.some((element) => element.cloud_id === cloud.id)) {
+      setIndependentReviewState({});
+      return;
+    }
     let active = true;
     setIndependentReviewState({});
     void (async () => {
@@ -252,7 +262,8 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
   const activeObjClass = selectedElement?.class_name ? classLabel(selectedElement.class_name) : "—";
   const selectedRoleSummary = elementRoleSummary(selectedElement);
   const recentJobs = [...jobs].sort((a, b) => (b.updated_at || b.created_at || "").localeCompare(a.updated_at || a.created_at || "")).slice(0, 8);
-  const jobTypeLabel = (type: string) => ({ ingest: "Импорт облака", recognize: "Распознавание", cleanup: "Очистка", registration: "Регистрация", export: "Экспорт" }[type] || type);
+  const canOfferBatchResume = canOfferRcpBatchResume(clouds);
+  const jobTypeLabel = (type: string) => ({ ingest: "Импорт облака", rcp_batch_ingest: "Импорт станций RCP", recognize: "Распознавание", recognition: "Распознавание", cleanup: "Очистка", panorama_render: "Построение панорамы", cloud_export: "Экспорт облака", registration: "Регистрация станций", export: "Экспорт" }[type] || type);
   const jobStatusLabel = (status: string) => ({ succeeded: "Завершено", running: "Выполняется", queued: "В очереди", failed: "Ошибка", cancelled: "Отменено" }[status] || status);
   const formatBytes = (bytes: number) => bytes < 1024 ** 3 ? `${(bytes / 1024 ** 2).toFixed(1)} МБ` : `${(bytes / 1024 ** 3).toFixed(2)} ГБ`;
   const formatMeters = (meters: number | undefined) => Number.isFinite(meters) ? `${(meters as number).toFixed(3)} м` : "—";
@@ -340,6 +351,27 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
           </div>
         </div>
       </header>
+
+      {busy && jobLabel && (
+        <section className="live-job-banner" role="status" aria-live="polite" aria-label="Текущая задача">
+          <div className="live-job-banner__top">
+            <span className="live-job-banner__label">{jobLabel}</span>
+            {canCancelImport && <button type="button" onClick={() => {
+              setCancelPending(true);
+              void onCancelImport?.().finally(() => setCancelPending(false));
+            }} disabled={cancelPending}>
+              {cancelPending ? "Отмена запрошена…" : "Отменить импорт"}
+            </button>}
+          </div>
+          {jobProgress !== null && <div className="live-job-banner__track" aria-label={`Прогресс ${(Math.max(0, Math.min(1, jobProgress)) * 100).toFixed(1)}%`}>
+            <div style={{ width: `${Math.max(0, Math.min(1, jobProgress)) * 100}%` }} />
+          </div>}
+          {batchImportCounts && <div className="live-job-banner__counts">
+            Станции: <strong>{batchImportCounts.ready}</strong> готовы · {batchImportCounts.processing} в обработке · {batchImportCounts.failed} ошибок
+            {batchImportCounts.cancelled > 0 ? ` · ${batchImportCounts.cancelled} отменены` : ""} · всего {batchImportCounts.total}
+          </div>}
+        </section>
+      )}
 
       {/* 2. MAIN WORKSPACE ROW */}
       <div className={`scan-studio-main${activeWorkspace === "registration" ? " scan-studio-main--registration" : ""}`} style={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -503,6 +535,11 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                   {rcpCountWarning && (
                     <div className="scan-studio-import-warning" role="alert">
                       ⚠ {rcpCountWarning}
+                    </div>
+                  )}
+                  {rcpPoseWarning && (
+                    <div className="scan-studio-import-warning" role="alert">
+                      ⚠ {rcpPoseWarning}
                     </div>
                   )}
                   <button
@@ -713,7 +750,28 @@ export const StudioReferenceLayout: React.FC<StudioLayoutProps> = ({
                         <div style={{ color: "#94a3b8", fontSize: 8.5 }}>{item.error || item.message || jobStatusLabel(item.status)}</div>
                       </div>
                     </div>
-                    <span style={{ color: item.status === "failed" ? "#f87171" : "#fb923c", fontSize: 9 }}>{jobStatusLabel(item.status)}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      <span style={{ color: item.status === "failed" ? "#f87171" : "#fb923c", fontSize: 9 }}>{jobStatusLabel(item.status)}</span>
+                      {item.type === "rcp_batch_ingest" && item.status === "failed" && onResumeRcpBatch && canOfferBatchResume && (
+                        <button
+                          type="button"
+                          aria-label={`Возобновить пакетный импорт RCP ${item.id}`}
+                          disabled={busy || resumingRcpBatchId === item.id}
+                          onClick={() => {
+                            setResumingRcpBatchId(item.id);
+                            void onResumeRcpBatch(item.id)
+                              .catch((error) => window.alert(`Не удалось возобновить импорт RCP: ${error instanceof Error ? error.message : String(error)}`))
+                              .finally(() => setResumingRcpBatchId(null));
+                          }}
+                          style={{ background: "#34261d", color: "#fdba74", border: "1px solid #8d4e22", borderRadius: 4, padding: "3px 6px", fontSize: 8.5, cursor: busy ? "not-allowed" : "pointer" }}
+                        >
+                          {resumingRcpBatchId === item.id ? "Запуск…" : "Возобновить"}
+                        </button>
+                      )}
+                      {item.type === "rcp_batch_ingest" && item.status === "failed" && onResumeRcpBatch && !canOfferBatchResume && (
+                        <span title="Повторный запуск не нужен: все облака проекта уже готовы." style={{ color: "#6ee7b7", fontSize: 8.5 }}>Все облака готовы</span>
+                      )}
+                    </div>
                   </div>
                 )) : <div style={{ color: "#94a3b8", padding: 8 }}>Для проекта ещё нет записей о выполненных заданиях.</div>}
               </div>

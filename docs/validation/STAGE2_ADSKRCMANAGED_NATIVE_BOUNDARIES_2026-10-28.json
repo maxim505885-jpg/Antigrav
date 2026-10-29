@@ -1,0 +1,30 @@
+{
+  "recorded_at": "2026-10-28T03:17:28+03:00",
+  "stage": 2,
+  "purpose": "Read-only inspection of the Revit 2027 ReCap point-count API assembly native boundary after standalone .NET load failure.",
+  "tool": "REA inspect_managed_native_boundaries",
+  "evidence_id": "ev_a9d6c762f261f494055841f923a417029b506f77ec405302b860b8d257bd2a9b",
+  "artifact": {
+    "path": "C:\\Program Files\\Autodesk\\Revit 2027\\AdskRcManaged.dll",
+    "bytes": 432472,
+    "sha256": "219cdfdfb9a061da76bae24d1640798a6aa8ccf0b060a658b6ab174d8ce0e213",
+    "mvid": "0b3ac6a8-36b1-4bf2-8af5-f24ddc80fbbf"
+  },
+  "observed": {
+    "il_only": false,
+    "mixed_mode_or_native_header": true,
+    "native_entry_point": true,
+    "module_ref_count": 2,
+    "pinvoke_import_count": 282,
+    "native_implementation_count": 289,
+    "target_metadata_exposes": "RCProject.LoadFromFile and RCProject.GetNumberOfPoints"
+  },
+  "interpretation": "The observed DLL is a mixed managed/native boundary, so the failed standalone PowerShell/.NET load is not a valid way to obtain a ReCap count. This supports trying the API inside its intended Autodesk host, but does not prove that Revit is strictly required or identify the missing native provider.",
+  "acceptance": "No independent point count obtained; no ReCap GUI round-trip; Stage 2 remains open.",
+  "safety": "Metadata-only inspection. No Autodesk application was launched by this inspection. No RCP/RCS/project data was opened or changed.",
+  "limitations": [
+    "P/Invoke declarations do not prove that a native library, export, or provider-qualified function is present.",
+    "Native dependencies and load context were not resolved.",
+    "No RCP point count or ReCap UI result was observed."
+  ]
+}

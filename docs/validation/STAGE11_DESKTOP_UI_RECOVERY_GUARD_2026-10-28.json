@@ -1,0 +1,42 @@
+{
+  "observed_at_local": "2026-10-28T06:51:38+03:00",
+  "scope": "Read-only browser/API smoke plus Desktop frontend fix for stale RCP resume action",
+  "working_copy": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "live_smoke": {
+    "frontend_url": "http://127.0.0.1:5174/",
+    "api_url": "http://127.0.0.1:8000/",
+    "relationship": "Desktop Vite frontend proxies to the existing shared API; shared backend was not restarted or modified.",
+    "browser_title": "SCAN STUDIO · Сшивка станций",
+    "selected_project_cloud_count": 810,
+    "ready_cloud_count": 810,
+    "selected_cloud": "scans__rt_11064",
+    "selected_cloud_reader_points": 81811,
+    "rcp_declared_points": 3740916,
+    "console_errors": 0,
+    "console_warnings": 0
+  },
+  "read_only_job_audit": [
+    {"id":"753a36bee3044202b198116245fd294c","status":"succeeded","updated_at":"2026-10-28T01:27:23+03:00"},
+    {"id":"e8458d88e7764dc3bc95e56f6a8bbdd4","status":"failed","updated_at":"2026-10-28T01:24:37+03:00","error":"PermissionError WinError 5 while atomically replacing staged meta.json for scans__rt_11065"}
+  ],
+  "change": {
+    "files": ["frontend/src/studioPresentation.ts","frontend/src/studioPresentation.test.ts","frontend/src/StudioReferenceLayout.tsx"],
+    "behavior": "Do not offer RCP batch resume when every cloud in the selected project is already ready; show an explicit all-clouds-ready status instead.",
+    "validation": "After the patch, live browser showed 0 resume buttons and the all-clouds-ready badge for the existing 810-ready project."
+  },
+  "tests": {
+    "frontend_npm_test_exit_code": 0,
+    "typescript_exit_code": 0,
+    "vite_version": "6.4.4",
+    "modules_transformed": 1984,
+    "production_build_exit_code": 0,
+    "backend_full_regression_preceding_frontend_only_patch": {"collected":905,"passed":904,"skipped":1,"failed":0,"exit_code":0}
+  },
+  "limitations": [
+    "The original failed import job remains a historical failed row; no resume request was sent.",
+    "RCP declared count and RCS reader count still differ and require ReCap host review.",
+    "The live browser uses the existing shared API; Desktop backend source changes have not been deployed.",
+    "Stage 11 remains open; browser smoke does not verify ReCap, AutoCAD, or Revit."
+  ],
+  "acceptance": "UI recovery guard verified; roadmap stages and accepted-stage count unchanged."
+}

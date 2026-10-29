@@ -1,0 +1,22 @@
+{
+  "snapshot_at": "2026-10-27 23:39:41 +03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "clouds_endpoint": "GET /api/v1/projects/130c8f7a6280420ba6a23cdd26e98703/clouds",
+  "cloud_status_counts": {
+    "ready": 642,
+    "processing": 168,
+    "failed": 0
+  },
+  "total": 810,
+  "batch_job": {
+    "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+    "status": "running",
+    "progress_station": "641/810",
+    "progress_percent": 79.12,
+    "message": "Станция 641/810: scans__kr_761610 — writing full-resolution RCS points",
+    "error": null,
+    "updated_at": "2026-10-27T23:38:28+03:00"
+  },
+  "read_only": true,
+  "note": "Project cloud rows independently counted; batch-job progress is slightly behind the ready-cloud aggregate. No scan or project data was modified."
+}

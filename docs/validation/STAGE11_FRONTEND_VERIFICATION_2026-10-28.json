@@ -1,0 +1,24 @@
+{
+  "title": "Stage 11 desktop frontend regression",
+  "measured_at": "2026-10-28T03:08:19+03:00",
+  "stage": 11,
+  "status": "checks_passed_stage_remains_open",
+  "commands": {
+    "npm_test": {
+      "exit_code": 0,
+      "result": "all chained Node test modules passed"
+    },
+    "npm_run_build": {
+      "exit_code": 0,
+      "typescript": "passed",
+      "vite": "passed",
+      "modules_transformed": 1984
+    }
+  },
+  "browser_visual_acceptance": "not performed in this run",
+  "api_deployment": "none; existing API was only checked with read-only GET",
+  "limitations": [
+    "Stage 11 remains open for CUDA, multi-host and host acceptance.",
+    "Build output was generated locally and not deployed."
+  ]
+}

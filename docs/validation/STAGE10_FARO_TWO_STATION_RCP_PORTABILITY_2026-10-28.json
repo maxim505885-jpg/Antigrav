@@ -1,0 +1,66 @@
+{
+  "recorded_at": "2026-10-28T03:21:25+03:00",
+  "stage": 10,
+  "purpose": "Create a portable native Autodesk ReCap RCP from two real adjacent FARO stations using the current Desktop implementation, then relocate the entire package and verify relative station links.",
+  "tool": "Autodesk DeCap via scan2bim.formats.recap_decap.create_recap_project; SCAN RCP manifest reader",
+  "source": {
+    "original_rcp": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+    "stations": [
+      {
+        "name": "scans__kr_761015.rcs",
+        "bytes": 58396283,
+        "sha256": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e"
+      },
+      {
+        "name": "scans__kr_761016.rcs",
+        "bytes": 60193759,
+        "sha256": "db99841b0ba21f98158aa1b2c5f52884f73e20d4376003b2dbb9dda5ba0c4782"
+      }
+    ],
+    "source_hashes_match_recorded_baseline": true,
+    "originals_modified": false
+  },
+  "output": {
+    "path": "data/output/recap_projects/RELOCATED_VALIDATION/FARO_PAIR_PORTABILITY_20261028/FARO_PAIR_PORTABILITY_20261028.rcp",
+    "rcp_sha256": "4a077ff01f6da211d8ab093e52f2d43ef4aadbeb7444b5a205467fca3a52e4b9",
+    "rcp_bytes": 2235,
+    "support_dir": "data/output/recap_projects/RELOCATED_VALIDATION/FARO_PAIR_PORTABILITY_20261028/FARO_PAIR_PORTABILITY_20261028 Support",
+    "linked_rcs_count": 2,
+    "linked_rcs_bytes": 118590042,
+    "external_rcs_count": 0,
+    "package_verified_by_decap": true,
+    "moved_package_path": "data/output/recap_projects/RELOCATED_VALIDATION/FARO_PAIR_PORTABILITY_20261028",
+    "moved_manifest_node_count": 2,
+    "all_moved_links_resolve": true,
+    "all_links_inside_moved_support": true,
+    "support_files": [
+      {
+        "name": "scans__kr_761015.rcs",
+        "bytes": 58396283,
+        "sha256": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e"
+      },
+      {
+        "name": "scans__kr_761016.rcs",
+        "bytes": 60193759,
+        "sha256": "db99841b0ba21f98158aa1b2c5f52884f73e20d4376003b2dbb9dda5ba0c4782"
+      }
+    ],
+    "station_registration": [
+      {
+        "name": "scans__kr_761015",
+        "registered": false
+      },
+      {
+        "name": "scans__kr_761016",
+        "registered": false
+      }
+    ]
+  },
+  "acceptance": "Verified native DeCap RCP creation and relative Support links after moving the output directory. Not a ReCap GUI open/edit/save/reopen acceptance and not evidence that the stations are registered. Stage 10 remains TESTING; Stage 4 remains open.",
+  "limitations": [
+    "Only two adjacent stations were exported; the full 810-station source project was not copied.",
+    "The moved RCP manifest was checked with SCAN reader; ReCap GUI was not used.",
+    "Both RCP nodes remain registered=false; no transform was estimated, applied, or saved.",
+    "This run validates the current Desktop checkout only; the package is local to this workstation."
+  ]
+}

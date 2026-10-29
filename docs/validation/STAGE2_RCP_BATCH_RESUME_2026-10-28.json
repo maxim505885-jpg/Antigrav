@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-28",
+  "timezone": "Europe/Moscow",
+  "scope": "Desktop working copy; backend resume endpoint and RCP job journal UI",
+  "change": {
+    "backend": "POST /api/v1/projects/{project_id}/jobs/{job_id}/resume resumes only failed/cancelled RCP batch jobs after validating durable task payload, project ownership, unique cloud IDs, station ownership, source availability and absence of active child jobs. The job row is reset transactionally and keeps its ID; worker logic skips already-ready clouds.",
+    "frontend": "Failed RCP batch rows in the project job journal show a Возобновить action. The client reattaches progress observation after the same job is queued again."
+  },
+  "verification": {
+    "backend_full_suite": {
+      "command": ".venv/Scripts/python.exe -m pytest -q backend/tests",
+      "collected": 902,
+      "passed": 901,
+      "skipped": 1,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "focused_resume_scenario": "Passed: one station fails, standalone station retry succeeds, parent batch resumes, ready stations are skipped without duplicate clouds; resume is rejected while a child job is active and after successful completion.",
+    "frontend_tests": {
+      "command": "npm test",
+      "exit_code": 0
+    },
+    "frontend_build": {
+      "command": "npm run build",
+      "typescript": "passed",
+      "vite_modules": 1984,
+      "exit_code": 0
+    }
+  },
+  "limitations": [
+    "The new Desktop source changes have not been deployed to the shared API process.",
+    "The live 810-station source project remains read-only and separate from the local test database.",
+    "ReCap GUI round-trip and the RCP-declared versus native-reader point-count difference remain unresolved; Stage 2 is not complete.",
+    "The one existing skipped test requires the absent prebuilt DWG release album."
+  ],
+  "roadmap": {
+    "current": "Stage 2",
+    "accepted": "3/12",
+    "stage_closed": false,
+    "stage_6": "penultimate",
+    "stage_9": "last"
+  },
+  "runtime_ui_smoke": {
+    "url": "http://127.0.0.1:5174/",
+    "title": "SCAN STUDIO · Сшивка станций",
+    "selected_project": "Симферополь — Лёгкое",
+    "project_clouds": 810,
+    "observation": "The current page renders the Возобновить action in the job journal.",
+    "api_backend": "The Vite proxy still targets the shared API on :8000, which has not received the new endpoint.",
+    "action_clicked": false,
+    "limitation": "No state-changing action was sent to the shared API; end-to-end UI action is pending a Desktop backend launch or deployment."
+  },
+  "desktop_dev_launch": {
+    "file": "frontend/vite.config.ts",
+    "configuration": "SCAN_API_PROXY_TARGET environment variable overrides the development API proxy target; default remains http://127.0.0.1:8000.",
+    "verification": "npm run build passed after the configuration change.",
+    "purpose": "Allows a Desktop Vite instance to use an isolated Desktop backend on a separate port without redirecting or mutating the shared API.",
+    "override_test": {
+      "command": "Vite loadConfigFromFile with SCAN_API_PROXY_TARGET=http://127.0.0.1:8123",
+      "result": "passed; resolved proxy target equals configured override"
+    }
+  },
+  "isolated_browser_e2e": {
+    "data": "Two synthetic RCP stations with 42 points each; isolated SQLite under data/validation/isolated-rcp-resume-ui-20261028. No FARO source data used.",
+    "services": {
+      "api": "127.0.0.1:8010",
+      "vite": "127.0.0.1:5175",
+      "vite_proxy_target": "http://127.0.0.1:8010"
+    },
+    "steps": [
+      "Opened the failed RCP batch in SCAN Studio job journal.",
+      "Clicked Возобновить in the browser.",
+      "API resumed the same job ID; its worker skipped both ready clouds and completed the batch."
+    ],
+    "result": {
+      "job_id": "78a5d27b0ad14f26a192e4249cb0680b",
+      "terminal_status": "succeeded",
+      "ready_clouds": 2,
+      "duplicate_clouds": 0
+    },
+    "runtime_console": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "production_services": "The shared API at :8000 and real FARO project were not called by this test."
+  },
+  "post_e2e_live_read_only_recheck": {
+    "timestamp": "2026-10-28T04:15:06.7519931+03:00",
+    "api": "GET http://127.0.0.1:8000/api/v1/projects/130c8f7a6280420ba6a23cdd26e98703/clouds",
+    "http_status": 200,
+    "stations": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "decimated": 0,
+    "internal_point_count_mismatches": 0,
+    "stored_points": 1598422272,
+    "method": "read-only API observation; no job actions or source mutations"
+  }
+}

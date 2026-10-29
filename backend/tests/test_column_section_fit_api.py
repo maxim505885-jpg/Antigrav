@@ -169,6 +169,9 @@ def test_column_surface_track_analysis_returns_source_linked_review_evidence(cli
     assert report["input_points"]["count"] == len(xyz)
     assert report["surface_result"]["surfaces"]
     assert report["surface_association"]["candidate_edge_count"] == 4
+    assert report["surface_orientation_evidence"]["status"] == "surface_axis_candidate"
+    assert abs(report["surface_orientation_evidence"]["estimated_axis_angle_degrees_mod_90"]) <= 0.1
+    assert report["surface_orientation_evidence"]["confirmed"] is False
     assert len(report["tracks"]) == 4
     track_statuses = {track["track_status"] for track in report["tracks"]}
     assert track_statuses & {"candidate_track", "weak_candidate_track"}

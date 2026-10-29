@@ -1,0 +1,30 @@
+{
+  "captured_at": "2026-10-28T01:28:10+03:00",
+  "source": "read-only local API plus source SHA-256 recheck",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "expected_stations": 810,
+  "ready_stations": 810,
+  "processing_stations": 0,
+  "failed_stations": 0,
+  "total_ready_points": 1598422272,
+  "internal_count_mismatches": 0,
+  "recovery": {
+    "station": "scans__rt_11065",
+    "cloud_id": "faafaf8f2b73474dbab16d51d4217e8c",
+    "initial_error": "PermissionError: [WinError 5] replacing .ingest-stage/meta.json",
+    "resume_job_id": "753a36bee3044202b198116245fd294c",
+    "resume_status": "succeeded",
+    "point_count": 600494,
+    "source_rcs_sha256": "a4d7a1013d5b0584950758cebfb4fac975d09f6abb1b9f08d2521f167754b9b9",
+    "matches_recorded_import_hash": true
+  },
+  "acceptance": {
+    "import_complete": true,
+    "internal_counts_consistent": true,
+    "source_unchanged": true,
+    "rcp_native_reader_count_semantics": "unresolved",
+    "recap_gui_round_trip": "not_verified",
+    "stage2_closed": false
+  }
+}

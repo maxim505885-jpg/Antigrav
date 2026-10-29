@@ -1,0 +1,98 @@
+{
+  "observed_at": "2026-10-28T07:10:32+03:00",
+  "scope": "Read-only hypothesis evaluation of original RCP node transforms on FARO station holdout",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "pair": {
+    "source": "761015",
+    "target": "761016"
+  },
+  "source_inputs": [
+    {
+      "station": "761015",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\d7cd3f4fb3494bcdb20d4d4541e4074d\\positions.npy",
+      "bytes": 28045364,
+      "mtime": "2026-10-27T16:02:04.9899492+03:00",
+      "sha256": "D64854B15E4CDEFF51F6D6E577FA8EE699D83815D2B16D601A17C7F38F35FD78"
+    },
+    {
+      "station": "761016",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\147356c474b84ae88809b877ccbc0b6e\\positions.npy",
+      "bytes": 29597096,
+      "mtime": "2026-10-27T16:03:01.2477605+03:00",
+      "sha256": "247EAC6A98C278813E35EF8BE953C764A3A65136C1A7EC3A4777631DB4594F10"
+    }
+  ],
+  "pose_values": {
+    "source_translation": [
+      -2.12410472884111,
+      -84.3422381202077,
+      -6.2576109413708
+    ],
+    "source_rotation": [
+      0.020672131360807,
+      0.000696364390719432,
+      118.908191735618
+    ],
+    "target_translation": [
+      0.199414400113481,
+      -81.4720113298933,
+      -6.2805997300084
+    ],
+    "target_rotation": [
+      0.00937447012951202,
+      0.0263597115781242,
+      99.9212656644634
+    ],
+    "registered_flags": [
+      false,
+      false
+    ],
+    "points_origin_applied_to_hypothesis": true
+  },
+  "evaluation": {
+    "sample_rows_per_station": 100000,
+    "fit_holdout_split": "fit 50,000 / holdout 50,000; same production seed/index scheme; holdout scored only",
+    "max_correspondence_distance_m": 0.15,
+    "pose_interpretation": "degrees, target inverse times source, translation plus point-array origins",
+    "hypotheses": [
+      {
+        "euler_order": "xyz",
+        "holdout_correspondences": 2,
+        "holdout_fraction": 4E-05,
+        "conditional_rmse_mm": 116.7392432443
+      },
+      {
+        "euler_order": "zyx",
+        "holdout_correspondences": 0,
+        "holdout_fraction": 0,
+        "rmse_mm": null
+      },
+      {
+        "euler_order": "XYZ",
+        "holdout_correspondences": 2,
+        "holdout_fraction": 4E-05,
+        "conditional_rmse_mm": 112.6440988282
+      },
+      {
+        "euler_order": "ZYX",
+        "holdout_correspondences": 0,
+        "holdout_fraction": 0,
+        "rmse_mm": null
+      }
+    ]
+  },
+  "interpretation": "These four common Euler-degree/order hypotheses do not align the stations. Conditional RMSE with only two pairs is not meaningful. This neither validates nor disproves the proprietary ReCap convention; it is evidence that no tested guess should be applied.",
+  "official_reference": {
+    "url": "https://aps.autodesk.com/developer/overview/reality-capture-api",
+    "what_it_confirms": "Autodesk identifies ReCap SDK as the RCP/RCS spatial-data read/write API",
+    "transform_convention_published_in_reviewed_reference": false
+  },
+  "source_unchanged": true,
+  "no_transform_saved_or_applied": true,
+  "acceptance": {
+    "stage_4": "IN_PROGRESS",
+    "accepted_stages": "3/12",
+    "registration_accuracy_accepted": false,
+    "next": "Use ReCap/official SDK or independent controls to establish transform convention; do not apply node transforms automatically"
+  }
+}

@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from ..db import execute, new_id, one, rows, utcnow
 from ..registration.stitching import (
+    _sample_registration_indices,
     rigid_icp,
+    global_fgr_icp,
     export_stitched_cloud,
     create_recap_registration_project,
     compute_pairwise_svd_alignment,
@@ -116,6 +118,26 @@ class StitchingRequest(BaseModel):
     random_seed: int = Field(default=0, ge=0)
 
 
+class GlobalRegistrationRequest(BaseModel):
+    source_cloud_id: str
+    target_cloud_id: str
+    sample_points: int = Field(
+        default=100000,
+        ge=100,
+        le=200000,
+        description="Fit sample points per station; up to twice this count is read for disjoint holdout evaluation.",
+    )
+    sample_seed: int = Field(default=42, ge=0, le=2_147_483_647)
+    voxel_size_m: float = Field(default=0.5, ge=0.05, le=2.0)
+    max_correspondence_distance_m: float = Field(
+        default=0.15,
+        ge=0.02,
+        le=2.0,
+        description="Candidate correspondence radius in meters; this is not an accuracy tolerance.",
+    )
+    max_iterations: int = Field(default=80, ge=1, le=200)
+
+
 class TargetDetectRequest(BaseModel):
     cloud_id: str
     expected_radius_m: float = Field(default=0.0725, ge=0.02, le=0.5, description="Expected radius in meters (e.g. 0.0725 for 145mm)")
@@ -139,7 +161,7 @@ class BundleAdjustmentRequest(BaseModel):
 class SaveStationRegistrationRequest(BaseModel):
     source_station_id: str
     target_station_id: str
-    method: Literal["rigid_icp", "manual_kabsch", "manual_kabsch_icp"]
+    method: Literal["rigid_icp", "open3d_fgr_point_to_plane_icp", "manual_kabsch", "manual_kabsch_icp"]
     matrix_4x4: list[list[float]] = Field(..., min_length=4, max_length=4)
     world_matrix_4x4: list[list[float]] | None = Field(default=None, min_length=4, max_length=4)
     fit_rmse_mm: float | None = Field(default=None, ge=0, le=1_000_000)
@@ -171,7 +193,9 @@ class RecapExportRequest(BaseModel):
     stations: list[dict[str, Any]]
 
 
-def _load_cloud_points(cloud_id: str, sample_size: int) -> tuple[np.ndarray, np.ndarray]:
+def _load_cloud_points(
+    cloud_id: str, sample_size: int, *, sample_seed: int | None = None
+) -> tuple[np.ndarray, np.ndarray]:
     cloud = one("SELECT project_id, name, status FROM clouds WHERE id = ?", (cloud_id,))
     if not cloud:
         raise HTTPException(status_code=404, detail=f"Облако {cloud_id} не найдено")
@@ -188,11 +212,42 @@ def _load_cloud_points(cloud_id: str, sample_size: int) -> tuple[np.ndarray, np.
     if count < 10:
         raise HTTPException(status_code=400, detail="Для регистрации ICP нужно не менее 10 точек в каждом облаке")
     
-    # Evenly span the stored rows and retain their exact source-row identity.
-    # This is a registration sample only; the persisted cloud is never changed.
-    source_row_ids = np.linspace(0, len(data) - 1, count, dtype=np.int64)
+    # Preserve source-row identity; use seeded random sampling for global registration
+    # to avoid aliasing a regular scanner/source-row order. Other routes keep the
+    # historical evenly spaced sample.
+    if sample_seed is None:
+        source_row_ids = np.linspace(0, len(data) - 1, count, dtype=np.int64)
+    else:
+        source_row_ids = _sample_registration_indices(
+            len(data), count, seed=sample_seed
+        )
     pts = np.asarray(data[source_row_ids], dtype=np.float64)
     return pts, source_row_ids
+
+
+def _partition_global_registration_samples(
+    source_points: np.ndarray,
+    target_points: np.ndarray,
+    fit_sample_size: int,
+    *,
+    sample_seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Split a 2x source sample into disjoint fit and post-fit evaluation data."""
+    source = np.asarray(source_points)
+    target = np.asarray(target_points)
+    if min(len(source), len(target)) < 200:
+        return source, target, None, None
+
+    def split(points: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray]:
+        count = min(fit_sample_size, len(points) // 2)
+        order = np.random.default_rng(seed).permutation(len(points))
+        fit_ids = order[:count]
+        evaluation_ids = order[count : count * 2]
+        return points[fit_ids], points[evaluation_ids]
+
+    fit_source, evaluation_source = split(source, sample_seed + 2)
+    fit_target, evaluation_target = split(target, sample_seed + 3)
+    return fit_source, fit_target, evaluation_source, evaluation_target
 
 
 @router.post("/registration/pair-align")
@@ -363,6 +418,64 @@ def match_clouds_icp(req: StitchingRequest):
     return result
 
 
+@router.post("/registration/global-match")
+def match_clouds_global_fgr(req: GlobalRegistrationRequest):
+    """Calculate an uncommitted FGR + point-to-plane ICP registration candidate."""
+    source = one("SELECT project_id FROM clouds WHERE id = ?", (req.source_cloud_id,))
+    target = one("SELECT project_id FROM clouds WHERE id = ?", (req.target_cloud_id,))
+    if not source or not target:
+        missing_id = req.source_cloud_id if not source else req.target_cloud_id
+        raise HTTPException(status_code=404, detail=f"Станция {missing_id} не найдена")
+    if source["project_id"] != target["project_id"]:
+        raise HTTPException(status_code=422, detail="Сшивайте станции внутри одного проекта")
+    _station_for_registration(source["project_id"], req.source_cloud_id, "source")
+    _station_for_registration(source["project_id"], req.target_cloud_id, "target")
+    # Load up to twice the fit sample size so a disjoint holdout can be scored
+    # after FGR/ICP without rescanning or reusing points from the fit.
+    source_pts, _ = _load_cloud_points(
+        req.source_cloud_id, req.sample_points * 2, sample_seed=req.sample_seed
+    )
+    target_pts, _ = _load_cloud_points(
+        req.target_cloud_id, req.sample_points * 2, sample_seed=req.sample_seed + 1
+    )
+    fit_source, fit_target, evaluation_source, evaluation_target = (
+        _partition_global_registration_samples(
+            source_pts,
+            target_pts,
+            req.sample_points,
+            sample_seed=req.sample_seed,
+        )
+    )
+    try:
+        result = global_fgr_icp(
+            fit_source, fit_target,
+            evaluation_source_points=evaluation_source,
+            evaluation_target_points=evaluation_target,
+            max_sample_points=req.sample_points,
+            voxel_size_m=req.voxel_size_m,
+            max_correspondence_distance_m=req.max_correspondence_distance_m,
+            max_iterations=req.max_iterations,
+            sample_seed=req.sample_seed,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result.update({
+        "source_cloud_id": req.source_cloud_id,
+        "target_cloud_id": req.target_cloud_id,
+        "fit_note": (
+            "Невязки подгонки рассчитаны на fit-выборке. Отложенная выборка оценивается "
+            "по другим строкам скана и не является независимым геодезическим контролем."
+            if result["holdout"]["status"] == "evaluated"
+            else "Holdout-оценка недоступна: в одном из облаков недостаточно строк "
+            "для непересекающихся выборок подгонки и оценки."
+        ),
+    })
+    _add_registration_coordinate_frames(result, req.source_cloud_id, req.target_cloud_id)
+    return result
+
+
 def _station_registration_out(row: dict[str, Any]) -> dict[str, Any]:
     result = dict(row)
     result["matrix_4x4"] = json.loads(result.pop("matrix_json"))
@@ -484,7 +597,7 @@ def save_station_registration(
 
 @router.post("/registration/detect-targets")
 def detect_targets_endpoint(req: TargetDetectRequest):
-    """Detect geodetic spheres (145mm/100mm/200mm) with sub-millimeter precision."""
+    """Return unverified geometric candidates for common survey sphere radii."""
     pts, _ = _load_cloud_points(req.cloud_id, req.sample_points)
     targets = detect_spherical_targets(pts, expected_radius_m=req.expected_radius_m)
     return {

@@ -1,0 +1,9 @@
+{
+  "observed_at_local": "2026-10-28T06:45:48+03:00",
+  "scope": "Desktop working copy full regression after Open3D RNG seeding fix and current development changes",
+  "backend": {"command":"pytest backend/tests -q","collected":905,"passed":904,"skipped":1,"failed":0,"exit_code":0,"skip_reason":"Prebuilt DWG release fixture is absent in this checkout."},
+  "registration_focused": {"command":"pytest backend/tests/test_stitching.py backend/tests/test_registration_api.py -q","passed":34,"failed":0,"exit_code":0},
+  "frontend": {"test_command":"npm test","test_exit_code":0,"build_command":"npm run build","typescript_exit_code":0,"vite_version":"6.4.4","modules_transformed":1984,"build_exit_code":0},
+  "limitations": ["Automated regression is not live acceptance in Autodesk ReCap, AutoCAD, or Revit.","The current source changes have not been deployed to the shared API or server.","Passing tests do not close roadmap stages by themselves."],
+  "acceptance": "Stage 11 remains open pending live browser/host acceptance and release deployment checks; accepted roadmap stages remain unchanged."
+}

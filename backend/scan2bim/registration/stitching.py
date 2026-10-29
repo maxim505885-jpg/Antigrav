@@ -11,12 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from threading import Lock
 from pathlib import Path
 from typing import Any, Mapping
 import numpy as np
 from scipy.spatial import cKDTree
 
 logger = logging.getLogger(__name__)
+_OPEN3D_FGR_RANDOM_LOCK = Lock()
 
 
 def validate_full_resolution_station(
@@ -296,6 +298,263 @@ def compute_pairwise_svd_alignment(
         "rmse_mm": round(rmse_mm, 4),
         "max_error_mm": round(max_error_mm, 4),
         "pairs_count": len(src),
+    }
+
+
+def _sample_registration_indices(
+    point_count: int,
+    max_sample_points: int,
+    *,
+    seed: int,
+) -> np.ndarray:
+    """Choose a reproducible sample without aliasing a regular source-row stride."""
+    if point_count < 0:
+        raise ValueError("point_count must be non-negative")
+    if max_sample_points < 1:
+        raise ValueError("max_sample_points must be positive")
+    count = min(point_count, max_sample_points)
+    if count == point_count:
+        return np.arange(point_count, dtype=np.int64)
+    rng = np.random.default_rng(seed)
+    if count * 4 >= point_count:
+        # This branch is bounded by at most four times the requested sample size.
+        return np.sort(rng.choice(point_count, size=count, replace=False).astype(np.int64))
+
+    # Floyd's algorithm stores only the requested sample, even for hundreds of
+    # millions of source rows.
+    selected: set[int] = set()
+    for upper in range(point_count - count, point_count):
+        candidate = int(rng.integers(upper + 1))
+        selected.add(upper if candidate in selected else candidate)
+    return np.fromiter(sorted(selected), dtype=np.int64, count=count)
+
+
+def _validate_finite_points_in_chunks(points: np.ndarray, label: str) -> None:
+    """Bound temporary validation memory when the input is a full-resolution mmap."""
+    chunk_rows = 1_000_000
+    for start in range(0, len(points), chunk_rows):
+        try:
+            finite = np.isfinite(points[start : start + chunk_rows]).all()
+        except TypeError as exc:
+            raise ValueError(f"{label}_points must be numeric") from exc
+        if not finite:
+            raise ValueError(f"{label}_points must contain only finite values")
+
+
+def global_fgr_icp(
+    source_points: np.ndarray,
+    target_points: np.ndarray,
+    *,
+    evaluation_source_points: np.ndarray | None = None,
+    evaluation_target_points: np.ndarray | None = None,
+    max_sample_points: int = 100_000,
+    voxel_size_m: float = 0.5,
+    max_correspondence_distance_m: float = 0.15,
+    max_iterations: int = 80,
+    sample_seed: int = 42,
+) -> dict[str, Any]:
+    """Return a read-only FGR + point-to-plane ICP transform candidate.
+
+    Fit metrics describe the samples used to estimate the transform. Optional
+    evaluation samples are disjoint at the caller and are only scored after
+    fitting; they are not surveyed controls or physical accuracy measurements.
+    This function never applies or persists a transformation.
+    """
+    source_raw = np.asarray(source_points)
+    target_raw = np.asarray(target_points)
+    for label, points in (("source", source_raw), ("target", target_raw)):
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError(f"{label}_points must be an N×3 array")
+        if len(points) < 100:
+            raise ValueError(f"{label}_points must contain at least 100 points")
+        _validate_finite_points_in_chunks(points, label)
+    if (evaluation_source_points is None) != (evaluation_target_points is None):
+        raise ValueError("evaluation source and target points must be provided together")
+    evaluation_source_raw = None
+    evaluation_target_raw = None
+    if evaluation_source_points is not None and evaluation_target_points is not None:
+        evaluation_source_raw = np.asarray(evaluation_source_points)
+        evaluation_target_raw = np.asarray(evaluation_target_points)
+        for label, points in (
+            ("evaluation_source", evaluation_source_raw),
+            ("evaluation_target", evaluation_target_raw),
+        ):
+            if points.ndim != 2 or points.shape[1] != 3:
+                raise ValueError(f"{label}_points must be an N×3 array")
+            if len(points) < 100:
+                raise ValueError(f"{label}_points must contain at least 100 points")
+            _validate_finite_points_in_chunks(points, label)
+    if not isinstance(max_sample_points, int) or max_sample_points < 100:
+        raise ValueError("max_sample_points must be an integer of at least 100")
+    if not np.isfinite(voxel_size_m) or voxel_size_m <= 0:
+        raise ValueError("voxel_size_m must be finite and positive")
+    if not np.isfinite(max_correspondence_distance_m) or max_correspondence_distance_m <= 0:
+        raise ValueError("max_correspondence_distance_m must be finite and positive")
+    if not isinstance(max_iterations, int) or max_iterations < 1:
+        raise ValueError("max_iterations must be a positive integer")
+    if not isinstance(sample_seed, int) or sample_seed < 0 or sample_seed >= 2**31:
+        raise ValueError("sample_seed must be an integer in [0, 2^31)")
+
+    source_indices = _sample_registration_indices(
+        len(source_raw), max_sample_points, seed=sample_seed
+    )
+    target_indices = _sample_registration_indices(
+        len(target_raw), max_sample_points, seed=sample_seed + 1
+    )
+    source = np.asarray(source_raw[source_indices], dtype=np.float64)
+    target = np.asarray(target_raw[target_indices], dtype=np.float64)
+    try:
+        import open3d as o3d
+    except ImportError as exc:
+        raise RuntimeError("Open3D is required for global FGR registration") from exc
+
+    source_cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(source))
+    target_cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(target))
+    source_down = source_cloud.voxel_down_sample(voxel_size_m)
+    target_down = target_cloud.voxel_down_sample(voxel_size_m)
+    if len(source_down.points) < 50 or len(target_down.points) < 50:
+        raise ValueError("Too few spatial samples remain for global registration")
+
+    normal_radius = max(voxel_size_m * 0.75, 0.1)
+    feature_radius = voxel_size_m * 5.0
+    normal_search = o3d.geometry.KDTreeSearchParamHybrid(radius=normal_radius, max_nn=40)
+    feature_search = o3d.geometry.KDTreeSearchParamHybrid(radius=feature_radius, max_nn=100)
+    for cloud in (source_down, target_down):
+        cloud.estimate_normals(normal_search)
+    source_features = o3d.pipelines.registration.compute_fpfh_feature(source_down, feature_search)
+    target_features = o3d.pipelines.registration.compute_fpfh_feature(target_down, feature_search)
+    fgr_options = o3d.pipelines.registration.FastGlobalRegistrationOption(
+        maximum_correspondence_distance=voxel_size_m * 1.5,
+        iteration_number=128,
+        maximum_tuple_count=1000,
+    )
+    # Open3D FGR uses a process-global RNG; seed and serialize registration calls.
+    with _OPEN3D_FGR_RANDOM_LOCK:
+        o3d.utility.random.seed(sample_seed)
+        coarse = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(
+            source_down, target_down, source_features, target_features, fgr_options
+        )
+    initial = np.asarray(coarse.transformation, dtype=np.float64)
+    if (
+        initial.shape != (4, 4)
+        or not np.isfinite(initial).all()
+        or coarse.fitness <= 0
+        or not np.allclose(initial[3], [0.0, 0.0, 0.0, 1.0], atol=1e-8)
+        or not np.allclose(initial[:3, :3].T @ initial[:3, :3], np.eye(3), atol=1e-3)
+        or not np.isclose(np.linalg.det(initial[:3, :3]), 1.0, atol=1e-3)
+    ):
+        raise ValueError("Global feature matching did not produce a valid rigid candidate")
+
+    target_cloud.estimate_normals(normal_search)
+    refined = o3d.pipelines.registration.registration_icp(
+        source_cloud,
+        target_cloud,
+        max_correspondence_distance_m,
+        initial,
+        o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iterations),
+    )
+    matrix = np.asarray(refined.transformation, dtype=np.float64)
+    if (
+        matrix.shape != (4, 4)
+        or not np.isfinite(matrix).all()
+        or not np.allclose(matrix[3], [0.0, 0.0, 0.0, 1.0], atol=1e-8)
+        or not np.allclose(matrix[:3, :3].T @ matrix[:3, :3], np.eye(3), atol=1e-3)
+        or not np.isclose(np.linalg.det(matrix[:3, :3]), 1.0, atol=1e-3)
+    ):
+        raise ValueError("Point-to-plane ICP returned an invalid rigid candidate")
+
+    inlier_count = len(refined.correspondence_set)
+    holdout = None
+    if evaluation_source_raw is not None and evaluation_target_raw is not None:
+        evaluation_source = np.asarray(evaluation_source_raw, dtype=np.float64)
+        evaluation_target = np.asarray(evaluation_target_raw, dtype=np.float64)
+        evaluation_source_cloud = o3d.geometry.PointCloud(
+            o3d.utility.Vector3dVector(evaluation_source)
+        )
+        evaluation_target_cloud = o3d.geometry.PointCloud(
+            o3d.utility.Vector3dVector(evaluation_target)
+        )
+        evaluated = o3d.pipelines.registration.evaluate_registration(
+            evaluation_source_cloud,
+            evaluation_target_cloud,
+            max_correspondence_distance_m,
+            matrix,
+        )
+        holdout_count = len(evaluated.correspondence_set)
+        reverse_evaluated = o3d.pipelines.registration.evaluate_registration(
+            evaluation_target_cloud,
+            evaluation_source_cloud,
+            max_correspondence_distance_m,
+            np.linalg.inv(matrix),
+        )
+        reverse_holdout_count = len(reverse_evaluated.correspondence_set)
+        holdout = {
+            "status": "evaluated",
+            "rmse_mm": (
+                float(evaluated.inlier_rmse * 1000.0) if holdout_count else None
+            ),
+            "inlier_count": holdout_count,
+            "source_sample_count": len(evaluation_source),
+            "target_sample_count": len(evaluation_target),
+            "inlier_fraction": float(holdout_count / len(evaluation_source)),
+            "is_disjoint_from_fit": True,
+            "reverse": {
+                "status": "evaluated",
+                "rmse_mm": (
+                    round(float(reverse_evaluated.inlier_rmse * 1000.0), 9)
+                    if reverse_holdout_count else None
+                ),
+                "inlier_count": reverse_holdout_count,
+                "source_sample_count": len(evaluation_target),
+                "target_sample_count": len(evaluation_source),
+                "inlier_fraction": float(reverse_holdout_count / len(evaluation_target)),
+                "is_disjoint_from_fit": True,
+            },
+        }
+    return {
+        "status": "candidate",
+        "accuracy_status": "not_measured",
+        "independent_control_count": 0,
+        "fit_residuals_are_independent": False,
+        "holdout": holdout or {
+            "status": "not_available",
+            "rmse_mm": None,
+            "inlier_count": 0,
+            "source_sample_count": 0,
+            "target_sample_count": 0,
+            "inlier_fraction": None,
+            "is_disjoint_from_fit": False,
+            "reverse": {
+                "status": "not_available",
+                "rmse_mm": None,
+                "inlier_count": 0,
+                "source_sample_count": 0,
+                "target_sample_count": 0,
+                "inlier_fraction": None,
+                "is_disjoint_from_fit": False,
+            },
+        },
+        "method": "open3d_fgr_point_to_plane_icp",
+        "matrix_4x4": matrix.tolist(),
+        "rotation_3x3": matrix[:3, :3].tolist(),
+        "translation": matrix[:3, 3].tolist(),
+        "rmse_mm": float(refined.inlier_rmse * 1000.0) if inlier_count else None,
+        "inlier_count": inlier_count,
+        "source_sample_count": len(source),
+        "target_sample_count": len(target),
+        "inlier_fraction": float(inlier_count / len(source)),
+        "iterations": None,
+        "iteration_limit": max_iterations,
+        "sample_method": "seeded_random_without_replacement",
+        "sample_seed": sample_seed,
+        "open3d_seed": sample_seed,
+        "converged": None,
+        "optimizer_convergence": "not_exposed_by_open3d_result",
+        "global_fgr_fitness": float(coarse.fitness),
+        "global_fgr_rmse_mm": float(coarse.inlier_rmse * 1000.0) if coarse.fitness > 0 else None,
+        "voxel_size_m": float(voxel_size_m),
+        "max_correspondence_distance_m": float(max_correspondence_distance_m),
     }
 
 

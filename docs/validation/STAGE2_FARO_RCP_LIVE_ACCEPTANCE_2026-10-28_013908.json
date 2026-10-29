@@ -1,0 +1,34 @@
+{
+  "captured_at": "2026-10-28T01:39:08+03:00",
+  "source": "GET http://127.0.0.1:8000/api/v1/projects/130c8f7a6280420ba6a23cdd26e98703/clouds",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "stations": {
+    "expected": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0
+  },
+  "point_counts": {
+    "ready_point_count_sum": 1598422272,
+    "internal_point_count_ingested_count_mismatches": 0,
+    "decimated_stations": 0
+  },
+  "reader_and_source_markers": {
+    "native_rcs_verified_stations": 810,
+    "source_unchanged_metadata_markers": 810,
+    "independently_rehashed_this_check": 0,
+    "reader": "recap-adskrcexport-dll"
+  },
+  "recap_manifest_count_warnings": {
+    "stations_with_warning": 810,
+    "interpretation": "RCP NumPoints differs from the count read from the linked RCS; this does not by itself prove point loss."
+  },
+  "acceptance": {
+    "full_resolution_import_complete": true,
+    "internal_counts_consistent": true,
+    "rcp_native_reader_count_semantics": "unresolved",
+    "recap_gui_round_trip": "not_verified",
+    "stage2_closed": false
+  }
+}

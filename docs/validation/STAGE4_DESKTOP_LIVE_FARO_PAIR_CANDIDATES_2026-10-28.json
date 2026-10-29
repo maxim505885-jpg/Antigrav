@@ -1,0 +1,91 @@
+{
+  "protocol": "stage4_live_scan_pair_align_candidates_2026-10-28",
+  "verified_at": "2026-10-28T08:44:10+03:00",
+  "desktop_repository": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/intelligent-scan-to-bim",
+  "method": {
+    "route": "POST /api/v1/registration/global-match",
+    "implementation": "Desktop FastAPI using production UI settings: sample_points=100000, seed=42, voxel=0.5m, correspondence radius=0.15m, max_iterations=80",
+    "database": "read-only source SQLite backed up to a temporary local SQLite snapshot; snapshot removed",
+    "source_arrays": "read-only positions.npy files; size and mtime checked before/after",
+    "result_persistence": "none; no transform was saved or applied; no RCP node changed"
+  },
+  "candidates": [
+    {
+      "pair": ["scans__kr_761015", "scans__kr_761016"],
+      "cloud_ids": ["d7cd3f4fb3494bcdb20d4d4541e4074d", "147356c474b84ae88809b877ccbc0b6e"],
+      "http_status": 200,
+      "method": "open3d_fgr_point_to_plane_icp",
+      "elapsed_seconds": 7.56,
+      "fit": {
+        "rmse_mm": 56.392648,
+        "inliers": 69039,
+        "source_sample_count": 100000,
+        "inlier_fraction": 0.69039,
+        "correspondence_radius_mm": 150
+      },
+      "holdout_forward": {
+        "rmse_mm": 56.375007,
+        "inliers": 69004,
+        "source_sample_count": 100000,
+        "coverage": 0.69004,
+        "disjoint_from_fit": true
+      },
+      "holdout_reverse": {
+        "rmse_mm": 55.306206,
+        "inliers": 68661,
+        "source_sample_count": 100000,
+        "coverage": 0.68661,
+        "disjoint_from_fit": true
+      },
+      "matrix_finite": true,
+      "source_arrays_unchanged": true
+    },
+    {
+      "pair": ["scans__rt_11064", "scans__rt_11065"],
+      "cloud_ids": ["83f89b62d99746089114b3b244114623", "faafaf8f2b73474dbab16d51d4217e8c"],
+      "http_status": 200,
+      "method": "open3d_fgr_point_to_plane_icp",
+      "elapsed_seconds": 2.1,
+      "fit": {
+        "rmse_mm": 108.208492,
+        "inliers": 75,
+        "source_sample_count": 40905,
+        "target_sample_count": 100000,
+        "inlier_fraction": 0.0018335,
+        "correspondence_radius_mm": 150
+      },
+      "holdout_forward": {
+        "rmse_mm": 106.91941,
+        "inliers": 97,
+        "source_sample_count": 40905,
+        "coverage": 0.00237135,
+        "disjoint_from_fit": true
+      },
+      "holdout_reverse": {
+        "rmse_mm": 99.335191,
+        "inliers": 56,
+        "source_sample_count": 100000,
+        "coverage": 0.00056,
+        "disjoint_from_fit": true
+      },
+      "matrix_finite": true,
+      "source_arrays_unchanged": true
+    }
+  ],
+  "interpretation": {
+    "761015_761016": "A usable overlap candidate was computed, but approximately 55-56 mm same-scan residuals are not independent survey accuracy and do not establish an accepted transform.",
+    "11064_11065": "The candidate has effectively negligible overlap support; the matrix should not be treated as a usable registration.",
+    "limitations": [
+      "No independent surveyed control points or approved tolerance were available.",
+      "The holdout uses disjoint rows from the same two scan arrays; it is not independent field accuracy.",
+      "The desktop backend candidate was tested through TestClient with a temporary DB snapshot; the visible UI still proxies to the UNC backend."
+    ]
+  },
+  "roadmap": {
+    "accepted_stages": 3,
+    "total_stages": 12,
+    "current_stage": 2,
+    "stage4_status": "in_progress"
+  }
+}
+

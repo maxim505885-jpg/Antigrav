@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 23:00:54 +03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+  "job_type": "rcp_batch_ingest",
+  "job_status": "running",
+  "job_progress_fraction": 0.7305081008344999,
+  "job_message": "Станция 592/810: scans__kr_761557 — writing full-resolution RCS points",
+  "station_total": 810,
+  "station_ready": 591,
+  "station_processing": 219,
+  "station_failed": 0,
+  "ready_point_sum": 1233404231,
+  "ready_point_count_ingested_count_mismatches": 0,
+  "declared_vs_native_reader": {
+    "observed_at_local": "2026-10-27 22:44:09 +03:00",
+    "compared_ready_stations": 570,
+    "nonzero_differences": 570,
+    "declared_point_sum": 1862721998,
+    "native_reader_point_sum": 1189057936,
+    "declared_minus_native_reader_sum": 673664062,
+    "median_relative_difference": 0.5138254488552552,
+    "interpretation": "Separate count audit snapshot is from 22:44 +03:00 and compared 570 then-ready stations; it is not refreshed by this status poll. Count semantics remain unverified and this does not prove data loss or reader error.",
+    "station_name_families": [
+      {
+        "family": "faro_scan",
+        "count": 56,
+        "delta_sum": 65331227,
+        "median_relative_difference": 0.5110549079976076,
+        "min_relative_difference": 0.2086843586710608,
+        "max_relative_difference": 1.5524365559680617
+      },
+      {
+        "family": "kr",
+        "count": 514,
+        "delta_sum": 608332835,
+        "median_relative_difference": 0.5143803833247431,
+        "min_relative_difference": 0.1798380014044312,
+        "max_relative_difference": 5.104977062716434
+      }
+    ]
+  },
+  "source_import_settings": {
+    "observed_at_local": "2026-10-27 22:42:27 +03:00",
+    "parsed_manifest_nodes": 810,
+    "nodes_with_source_import": 810,
+    "unique_settings_groups": 1,
+    "noise_filter_level": "MEDIUM",
+    "intensity_clip_max": "100",
+    "range_clip": "not set",
+    "decimation_density": "7",
+    "up_direction": "Z",
+    "raw_scan_paths": "Recovered without replacement characters; paths record E: which is not mounted",
+    "interpretation": "All 810 RCP manifest nodes have the same recorded settings. They may affect counts but do not establish the station count deltas."
+  },
+  "source_files_available_in_share": {
+    "support_rcs_count": 810,
+    "support_rcc_count": 810,
+    "support_e57_count": 0,
+    "local_e_drive_mounted": false,
+    "count_semantics_next_evidence": "Original E57 is not present in the delivered Support folder and its recorded E: source drive is not mounted here. Resolve with original E57 access or ReCap native GUI/API count."
+  },
+  "code_verification": {
+    "rcp_manifest_tests": "10 passed in isolated temp test run",
+    "changed_python_modules": "py_compile passed",
+    "cloud_warning_scenario": "isolated _cloud_out behavior scenario passed; full API pytest import was not completed in a reasonable time"
+  },
+  "api_recovery": {
+    "stalled_read_only_target_search": "client timeout after 120 seconds; no result",
+    "api_restarted": true,
+    "api_health_after_restart": "ok",
+    "durable_import_after_restart": "running, advanced from station 509 to 515",
+    "station_registration_records_after_diagnostic": 0,
+    "detector_fix": "Bounded deterministic sphere-candidate search is implemented in the Desktop working copy; focused target suite passed 3/3; live server still runs the shared-checkout source."
+  },
+  "acceptance": "Stage 2 remains open until all stations finish, RCP NumPoints semantics are understood, and native ReCap GUI round-trip is verified."
+}

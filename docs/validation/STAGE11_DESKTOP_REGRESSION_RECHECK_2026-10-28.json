@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-28",
+  "timestamp_local": "2026-10-28T06:06:25+03:00",
+  "scope": "Desktop working copy; isolated test data under local TEMP; shared production API queried read-only",
+  "live_api": {
+    "health": "ok",
+    "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+    "project": "Симферополь — Лёгкое",
+    "stations": 810,
+    "ready": 810,
+    "processing": 0,
+    "failed": 0,
+    "ingested_points": 1598422272,
+    "decimated": 0,
+    "internal_point_count_mismatches": 0,
+    "stations_with_rcp_reader_warnings": 810,
+    "data_mutated": false
+  },
+  "backend": {
+    "command": ".venv/Scripts/python.exe -m pytest -p no:cacheprovider backend/tests --basetemp <local TEMP>/pytest --tb=short",
+    "collected": 902,
+    "passed": 901,
+    "skipped": 1,
+    "failed": 0,
+    "duration_seconds": 146.02,
+    "skip_reason": "DWG album batch conversion requires absent data/output/single_pass_release release fixture",
+    "worker_mode": "default local mode; worker tests select durable mode individually"
+  },
+  "frontend": {
+    "test_command": "npm test",
+    "test_exit_code": 0,
+    "build_command": "npm run build",
+    "typescript": "passed",
+    "vite_modules": 1984,
+    "build_exit_code": 0
+  },
+  "hygiene": {
+    "git_diff_check": "passed",
+    "notes": "Only Git LF-to-CRLF informational warnings."
+  },
+  "stage_status": {
+    "current": "Stage 2",
+    "accepted": "3/12",
+    "stage_6": "parked penultimate",
+    "stage_9": "last",
+    "stage_closed_by_this_recheck": false
+  },
+  "limitations": [
+    "RCP declared point counts differ from native reader counts and cause remains unverified.",
+    "ReCap GUI round-trip remains unverified.",
+    "The running API is still served by the shared backend; Desktop source changes are not deployed.",
+    "The missing release fixture prevents full DWG album conversion acceptance."
+  ]
+}

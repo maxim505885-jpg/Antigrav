@@ -606,6 +606,7 @@ input[type="checkbox"] {
   justify-content: space-between;
   gap: 8px;
 }
+
 .job-cancel {
   flex: 0 0 auto;
   padding: 3px 8px;

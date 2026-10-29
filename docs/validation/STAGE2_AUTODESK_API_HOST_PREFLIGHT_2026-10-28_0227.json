@@ -1,0 +1,26 @@
+{
+  "recorded_at": "2026-10-28T02:27:54+03:00",
+  "stage": 2,
+  "purpose": "Read-only preflight for an independent Autodesk RCP point-count check.",
+  "result": "The Revit 2027 AdskRcManaged.dll is a mixed C++/CLI x64 assembly targeting .NET 10. Static metadata exposes RCProject.LoadFromFile and GetNumberOfPoints. Loading it from the available standalone PowerShell 7.6.5 / .NET 10.0.11 process failed with FileNotFoundException: Could not load file or assembly; adding the Revit DLL directory to PATH did not resolve it. Revit was not launched, and no RCP/RCS or project data was opened or changed.",
+  "limits": [
+    "The error does not identify the missing native dependency; it does not prove that Revit is strictly required.",
+    "No independent Autodesk point-count value was obtained.",
+    "Existing application reader counts remain unvalidated against an independent SDK count."
+  ],
+  "external_research": [
+    {
+      "relevant_finding": "Autodesk documents that ReCap may exclude points because of import decimation, a one-point-per-cubic-millimeter density limit, unit mismatch, and coordinate precision. This is a plausible source of RCP manifest versus RCS reader count differences, but it does not establish the cause for this project.",
+      "title": "Autodesk: Not all scan points are used when creating or importing a ReCap Point Cloud",
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Not-all-scan-points-are-used-when-creating-a-Recap-Point-Cloud.html"
+    },
+    {
+      "relevant_finding": "Autodesk lists RCS as a point-cloud format and RCP/RCS as supported exports.",
+      "title": "Autodesk ReCap: Supported file formats",
+      "url": "https://help.autodesk.com/view/RECAP/ENU/?contextId=supported_file_formats"
+    }
+  ],
+  "acceptance": "Stage 2 stays open: count semantics and a successful ReCap GUI round-trip are still required.",
+  "source_unchanged": true,
+  "recap_or_revit_launched": false
+}

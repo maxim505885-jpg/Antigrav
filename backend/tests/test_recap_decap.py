@@ -43,15 +43,16 @@ def test_calls_autodesk_decap_and_requires_linked_rcs(tmp_path, monkeypatch):
         root = Path(command[2])
         name = command[3]
         support = root / f"{name} Support"
-        support.mkdir()
+        support.mkdir(exist_ok=True)
         linked = support / "station.rcs"
-        linked.write_bytes(b"indexed-scan")
-        _write_rcp(root / f"{name}.rcp", [("station", str(linked))])
-        assert "--importWithLicense" in command
-        assert "--controlFile" in command
+        assert Path(_kwargs["cwd"]) == root
         control = Path(command[command.index("--controlFile") + 1])
-        expected_source = recap_decap._decap_compatible_path(source)
-        assert expected_source in control.read_text(encoding=locale.getpreferredencoding(False))
+        listed = control.read_text(encoding=locale.getpreferredencoding(False)).splitlines()
+        assert listed == [str(Path(name + " Support") / "station.rcs")]
+        assert (root / listed[0]).read_bytes() == source.read_bytes()
+        linked.write_bytes(b"indexed-scan")
+        _write_rcp(root / f"{name}.rcp", [("station", listed[0])])
+        assert "--importWithLicense" in command
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 
     monkeypatch.setattr(recap_decap.subprocess, "run", run)
@@ -81,7 +82,7 @@ def test_accepts_autodesk_rcp_that_references_existing_source_rcs_without_copyin
     def run(command, **_kwargs):
         root, name = Path(command[2]), command[3]
         support = root / f"{name} Support"
-        support.mkdir()
+        support.mkdir(exist_ok=True)
         _write_rcp(root / f"{name}.rcp", [("station", str(source))])
         return SimpleNamespace(returncode=0, stdout="linked input RCS", stderr="")
 
@@ -92,7 +93,7 @@ def test_accepts_autodesk_rcp_that_references_existing_source_rcs_without_copyin
     assert result["project_verified"] is True
     assert result["package_verified"] is False
     assert result["rcp_node_count"] == 1
-    assert result["linked_rcs_count"] == 0
+    assert result["linked_rcs_count"] == 1
     assert result["external_rcs_count"] == 1
     assert result["external_rcs_paths"] == [str(source.resolve())]
     from scan2bim.formats.rcp_manifest import read_rcp_manifest
@@ -135,7 +136,7 @@ def test_decap_unresolved_source_error_includes_bounded_diagnostics_and_cleans_s
     def run(command, **_kwargs):
         root, name = Path(command[2]), command[3]
         support = root / f"{name} Support"
-        support.mkdir()
+        support.mkdir(exist_ok=True)
         _write_rcp(root / f"{name}.rcp", [("missing", str(tmp_path / "missing.rcs"))])
         return SimpleNamespace(returncode=0, stdout="No indexed scans were produced", stderr="diagnostic detail")
 
@@ -171,7 +172,7 @@ def test_rejects_decap_output_that_reports_any_failed_scan(tmp_path, monkeypatch
         root, name = Path(command[2]), command[3]
         (root / f"{name}.rcp").touch()
         support = root / f"{name} Support"
-        support.mkdir()
+        support.mkdir(exist_ok=True)
         (support / "partial.rcs").touch()
         return SimpleNamespace(returncode=0, stdout="[P][1 Failed]", stderr="")
 
@@ -192,7 +193,7 @@ def test_rejects_empty_files_in_decap_bundle(tmp_path, monkeypatch, empty_part):
         root, name = Path(command[2]), command[3]
         (root / f"{name}.rcp").write_bytes(b"" if empty_part == "project" else b"native-project")
         support = root / f"{name} Support"
-        support.mkdir()
+        support.mkdir(exist_ok=True)
         (support / "station.rcs").write_bytes(b"" if empty_part == "scan" else b"indexed-scan")
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 

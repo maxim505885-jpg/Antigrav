@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-10-28T01:36:09+03:00",
+  "registry_display_name": "Autodesk ReCap",
+  "version": "24.0.0.240",
+  "install_location": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\",
+  "executable": "C:\\Program Files\\Autodesk\\Autodesk ReCap\\ReCap.exe",
+  "launch": {
+    "started_at": "2026-10-28T01:31:34+03:00",
+    "pid": 29308,
+    "responding": true,
+    "window_title": "Autodesk ReCap"
+  },
+  "project_opened": false,
+  "rcp_gui_round_trip": "not_verified",
+  "stage2_closed": false,
+  "note": "The previous search matched folder names beginning with ReCap and missed the Autodesk ReCap directory."
+}

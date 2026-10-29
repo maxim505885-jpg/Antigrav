@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Viewer3D from "./Viewer3D";
 import { RegistrationOverlayPreview } from "./RegistrationOverlayPreview";
 import { type Cloud } from "../types";
@@ -6,6 +6,7 @@ import { api, type StationRegistrationProposal } from "../api";
 import { registrationOutcome } from "../registrationOutcome";
 import { defaultRegistrationCloudIds } from "../registrationCloudSelection";
 import { parseRegistrationControlsCsv } from "../registrationControlCsv";
+import { filterRegistrationStations } from "../stationFilter";
 import "./SplitScreenRegistrationView.css";
 
 type CoordinateInput = [string, string, string];
@@ -28,16 +29,20 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
   initialSourceCloudId,
   onClose,
 }) => {
-  const readyClouds = clouds.filter((cloud) => cloud.status === "ready");
+  const readyClouds = useMemo(() => clouds.filter((cloud) => cloud.status === "ready"), [clouds]);
   const initialCloudPair = defaultRegistrationCloudIds(readyClouds, initialSourceCloudId);
   const [sourceCloudId, setSourceCloudId] = useState(initialCloudPair.sourceId);
   const [targetCloudId, setTargetCloudId] = useState(initialCloudPair.targetId);
+  const [stationQuery, setStationQuery] = useState("");
   const [detectedTargets, setDetectedTargets] = useState(0);
   const [targetDiameterMm, setTargetDiameterMm] = useState("");
   const [isDetecting, setIsDetecting] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
+  const [maxCorrespondenceDistanceM, setMaxCorrespondenceDistanceM] = useState(0.15);
   const [alignStatus, setAlignStatus] = useState<string | null>(null);
-  const [registrationResult, setRegistrationResult] = useState<Awaited<ReturnType<typeof api.matchCloudsIcp>> | null>(null);
+  const [registrationResult, setRegistrationResult] = useState<
+    Awaited<ReturnType<typeof api.matchCloudsIcp>> | Awaited<ReturnType<typeof api.matchCloudsGlobalFgrIcp>> | null
+  >(null);
   const [manualPairs, setManualPairs] = useState<Array<{ source_point: [number, number, number]; target_point: [number, number, number]; label: string }>>([]);
   const [pendingSourcePoint, setPendingSourcePoint] = useState<[number, number, number] | null>(null);
   const [pickSide, setPickSide] = useState<"source" | "target" | null>(null);
@@ -66,6 +71,9 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
   } | null>(null);
   const sourceCloud = readyClouds.find((cloud) => cloud.id === sourceCloudId) || null;
   const targetCloud = readyClouds.find((cloud) => cloud.id === targetCloudId) || null;
+  const readyStationIndices = useMemo(() => new Map(readyClouds.map((station, index) => [station.id, index])), [readyClouds]);
+  const filteredStations = useMemo(() => filterRegistrationStations(readyClouds, stationQuery)
+    .map((station) => ({ station, index: readyStationIndices.get(station.id) ?? 0 })), [readyClouds, readyStationIndices, stationQuery]);
   const previewTransform = manualResult?.matrix_4x4 || registrationResult?.matrix_4x4 || null;
   const currentPairState = controlEvaluation
     ? controlEvaluation.criterion_passed ? "provisional" : "review"
@@ -104,7 +112,9 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
     try {
       const method = manualResult
         ? manualResult.refined_with_icp ? "manual_kabsch_icp" : "manual_kabsch"
-        : "rigid_icp";
+        : registrationResult?.method === "open3d_fgr_point_to_plane_icp"
+          ? "open3d_fgr_point_to_plane_icp"
+          : "rigid_icp";
       const saved = await api.saveStationRegistration(projectId, {
         source_station_id: sourceCloud.id,
         target_station_id: targetCloud.id,
@@ -162,7 +172,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
       setAlignStatus(result.package_verified
         ? "RCP создан и проверен вместе с файлами станций. Регистрацию завершите в ReCap."
         : result.source_files_copied_for_decap
-          ? "RCP создан и проверен. Исходные станции скопированы в локальный кэш этого компьютера; сохраните его и не переносите RCP отдельно. Регистрацию завершите в ReCap."
+          ? "RCP создан, но часть ссылок выходит за Support. Копии станций включены в комплект; перед переносом проверьте перечисленные внешние RCS. Регистрацию завершите в ReCap."
           : result.external_rcs_count
             ? "RCP создан и проверен. Станции остаются отдельными и ссылаются на исходные RCS; перед переносом проекта проверьте доступность этих файлов. Регистрацию завершите в ReCap."
             : "RCP создан и проверен. Регистрация станций не выполнена — завершите её в ReCap.");
@@ -324,6 +334,30 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
       setIsMatching(false);
     }
   };
+  const handleGlobalFgrMatch = async () => {
+    if (!sourceCloud || !targetCloud || sourceCloud.id === targetCloud.id) return;
+    setShowCombinedPreview(false);
+    setIsMatching(true);
+    setRegistrationResult(null);
+    setManualResult(null);
+    setControlEvaluation(null);
+    setAlignStatus("Глобальный подбор FGR и уточнение ICP; результат будет предварительным…");
+    try {
+      const res = await api.matchCloudsGlobalFgrIcp(sourceCloud.id, targetCloud.id, 100000, 42, maxCorrespondenceDistanceM);
+      setRegistrationResult(res);
+      const fit = res.rmse_mm != null ? `${res.rmse_mm.toFixed(1)} мм` : "не вычислена";
+      const holdout = res.holdout.status === "evaluated"
+        ? `Отложенная выборка (не участвовала в подгонке): RMSE ${res.holdout.rmse_mm != null ? `${res.holdout.rmse_mm.toFixed(1)} мм` : "не вычислена"}, соответствия ${res.holdout.inlier_count}/${res.holdout.source_sample_count} (${((res.holdout.inlier_fraction ?? 0) * 100).toFixed(1)}%).`
+        : "Отложенная выборка недоступна: в облаках недостаточно точек для разделения fit/оценки.";
+      setAlignStatus(`Предварительный кандидат FGR → ICP: fit RMSE ${fit}; доля fit-пар в радиусе ${(res.max_correspondence_distance_m * 1000).toFixed(0)} мм — ${(res.inlier_fraction * 100).toFixed(1)}%. ${holdout} Это оценка на других строках тех же сканов, не геодезический контроль. Open3D не сообщает факт сходимости; точность не подтверждена, матрица не применена.`);
+    } catch (error: any) {
+      setRegistrationResult(null);
+      setAlignStatus(`Глобальный подбор не выполнен: ${error.message || String(error)}`);
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
   const emptySections: [Float32Array, Float32Array, Float32Array] = [
     new Float32Array(0),
     new Float32Array(0),
@@ -382,8 +416,23 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
         <aside className="registration-stations" aria-label="Станции проекта">
           <div className="registration-panel-heading"><strong>Станции проекта</strong><span>{readyClouds.length} доступны</span></div>
           <p className="registration-panel-hint">Выберите две отдельные станции. A — подвижная, B — опорная.</p>
+          <label className="registration-station-search">
+            <input
+              type="search"
+              value={stationQuery}
+              onChange={(event) => setStationQuery(event.target.value)}
+              placeholder="Найти станцию…"
+              aria-label="Фильтр станций по имени, ID или формату"
+              autoComplete="off"
+            />
+            {stationQuery && <button type="button" onClick={() => setStationQuery("")} aria-label="Очистить фильтр станций">×</button>}
+          </label>
+          <div className="registration-station-filter-count" role="status" aria-live="polite">
+            {stationQuery.trim() ? `Показано ${filteredStations.length} из ${readyClouds.length}` : `Показаны все ${readyClouds.length}`}
+            {stationQuery.trim() && (sourceCloud || targetCloud) && <span> · роли A/B сохранены</span>}
+          </div>
           <div className="registration-station-list">
-            {readyClouds.map((station, index) => {
+            {filteredStations.map(({ station, index }) => {
               const isSource = station.id === sourceCloudId;
               const isTarget = station.id === targetCloudId;
               return <div key={station.id} className={`registration-station${isSource || isTarget ? " is-active" : ""}`}>
@@ -404,6 +453,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
               </div>;
             })}
             {!readyClouds.length && <p className="registration-panel-hint">Нет готовых станций. Импортируйте данные и дождитесь завершения обработки.</p>}
+            {!!readyClouds.length && !filteredStations.length && <p className="registration-panel-hint" role="status">По запросу «{stationQuery}» станции не найдены.</p>}
           </div>
           <div className="registration-station-legend"><span><i className="legend-a" /> A · подвижная</span><span><i className="legend-b" /> B · опорная</span></div>
         </aside>
@@ -421,7 +471,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
         <div className="registration-tools-content">
       {registrationResult && (
         <details className="registration-matrix-details">
-          <summary style={{ cursor: "pointer" }}>Матрица оценки · {registrationResult.iterations} итераций · сошлось: {registrationResult.converged ? "да" : "нет"} · поддержка: {registrationResult.inlier_count}/{registrationResult.source_sample_count} ({(registrationResult.inlier_fraction * 100).toFixed(1)}%) · точность не подтверждена</summary>
+          <summary style={{ cursor: "pointer" }}>Матрица оценки · {registrationResult.method === "open3d_fgr_point_to_plane_icp" ? "лимит " + registrationResult.iteration_limit + " итераций; фактическое число неизвестно" : registrationResult.iterations + " итераций"} · сошлось: {registrationResult.converged ? "да" : registrationResult.method === "open3d_fgr_point_to_plane_icp" ? "не сообщает" : "нет"} · поддержка: {registrationResult.inlier_count}/{registrationResult.source_sample_count} ({(registrationResult.inlier_fraction * 100).toFixed(1)}%) · точность не подтверждена</summary>
           <p className="hint">Матрица локальных координат двух станций.</p>
           <pre style={{ overflow: "auto", margin: "8px 0 2px", color: "#E2E8F0" }}>{JSON.stringify(registrationResult.matrix_4x4, null, 2)}</pre>
           {registrationResult.world_matrix_4x4 && <>
@@ -567,15 +617,30 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
             </div>
           </div>
           <div className="registration-quality-heading">Показатели качества</div>
+          <label className="registration-parameter-control">
+            <span>Радиус соответствий FGR → ICP</span>
+            <select value={maxCorrespondenceDistanceM} onChange={(event) => setMaxCorrespondenceDistanceM(Number(event.target.value))} disabled={isMatching}>
+              <option value={0.15}>150 мм · узкий кандидат</option>
+              <option value={0.25}>250 мм · средний поиск</option>
+              <option value={0.5}>500 мм · широкий поиск</option>
+            </select>
+            <small>Радиус поиска, не допуск точности. Настройка влияет на подгонку и holdout.</small>
+          </label>
           <div className="registration-metrics-grid" aria-label="Показатели совмещения">
-            <div className="registration-metric"><span>Соответствия ICP</span><strong>{registrationResult ? `${(registrationResult.inlier_fraction * 100).toFixed(1)}%` : "—"}</strong><small>поиск в радиусе 0,5 м</small></div>
+            <div className="registration-metric"><span>{registrationResult?.method === "open3d_fgr_point_to_plane_icp" ? "Соответствия FGR → ICP" : "Соответствия ICP"}</span><strong>{registrationResult ? `${(registrationResult.inlier_fraction * 100).toFixed(1)}%` : "—"}</strong><small>{registrationResult?.method === "open3d_fgr_point_to_plane_icp" ? `поиск в радиусе ${(registrationResult.max_correspondence_distance_m * 1000).toFixed(0)} мм` : "поиск в радиусе 500 мм"}</small></div>
             <div className="registration-metric"><span>Невязка расчёта</span><strong>{registrationResult?.rmse_mm != null ? `${registrationResult.rmse_mm.toFixed(2)} мм` : manualResult ? `${manualResult.rmse_mm.toFixed(2)} мм` : "—"}</strong><small>не независимая точность</small></div>
             <div className="registration-metric"><span>Пары реперов</span><strong>{manualPairs.length} / 3</strong><small>минимум для ручного расчёта</small></div>
             <div className="registration-metric"><span>Полевые контроли</span><strong>{controlEvaluation ? `${controlEvaluation.independent_control_count} · ${controlEvaluation.criterion_passed ? "пройдены" : "не пройдены"}` : `${filledSurveyControlCount}/3 готовы`}</strong><small>отдельно от реперов совмещения</small></div>
           </div>
-          <div className="registration-quality-note" role="note">Пока вычисляется только предварительное преобразование: оно не перемещает станции и не записывается в RCP. Допуск проекта не задан; 10 мм — временный порог проверки.</div>
+          {registrationResult?.method === "open3d_fgr_point_to_plane_icp" && <div className="registration-quality-note" role="status">
+            <strong>Отложенная оценка (не участвовала в подгонке):</strong> {registrationResult.holdout.status === "evaluated"
+              ? `A→B: RMSE ${registrationResult.holdout.rmse_mm != null ? `${registrationResult.holdout.rmse_mm.toFixed(2)} мм` : "не вычислена"}, покрытие ${(registrationResult.holdout.inlier_fraction != null ? registrationResult.holdout.inlier_fraction * 100 : 0).toFixed(1)}%; B→A: RMSE ${registrationResult.holdout.reverse?.rmse_mm != null ? `${registrationResult.holdout.reverse.rmse_mm.toFixed(2)} мм` : "нет данных"}, покрытие ${registrationResult.holdout.reverse?.inlier_fraction != null ? `${(registrationResult.holdout.reverse.inlier_fraction * 100).toFixed(1)}%` : "—"}. Это два направления на других строках тех же сканов, не независимый полевой контроль.`
+              : "недоступна — в одном из облаков недостаточно точек для непересекающихся выборок."}
+          </div>}
+          <div className="registration-quality-note" role="note">Результат — предварительная матрица: станции не перемещаются и RCP не меняется. FGR → ICP отдельно оценивается по невязке и покрытию в обоих направлениях на отложенных строках, не использованных при подгонке; это всё ещё не независимый геодезический контроль. Open3D не сообщает сходимость итераций. Допуск проекта не задан; 10 мм — временный порог проверки.</div>
           <div className="registration-inspector-actions">
-            <button type="button" onClick={() => void handleAutoMatchICP()} disabled={isMatching || !sourceCloud || !targetCloud || sourceCloud.id === targetCloud.id}>{isMatching ? "Идёт предварительная оценка…" : "Оценить совмещение автоматически"}</button>
+            <button type="button" onClick={() => void handleAutoMatchICP()} disabled={isMatching || !sourceCloud || !targetCloud || sourceCloud.id === targetCloud.id}>{isMatching ? "Идёт предварительная оценка…" : "Оценить совмещение ICP"}</button>
+            <button type="button" onClick={() => void handleGlobalFgrMatch()} disabled={isMatching || !sourceCloud || !targetCloud || sourceCloud.id === targetCloud.id}>{isMatching ? "Идёт глобальный расчёт…" : "Глобальная регистрация FGR → ICP"}</button>
             <button type="button" onClick={() => void handleSaveStationPair()} disabled={isSavingStationPair || (!manualResult && !registrationResult) || !sourceCloud || !targetCloud}>{isSavingStationPair ? "Сохраняю…" : "Сохранить черновик пары станций"}</button>
             <button type="button" onClick={() => void handleExportStationPairToRecap()} disabled={isExportingStationPair || !projectId || !sourceCloud?.source_path || !targetCloud?.source_path || sourceCloud?.id === targetCloud?.id}>{isExportingStationPair ? "Создаю RCP…" : "Подготовить проект ReCap из 2 станций"}</button>
           </div>
@@ -617,7 +682,7 @@ export const SplitScreenRegistrationView: React.FC<SplitScreenRegistrationViewPr
                   <td><span className="registration-link-index">A↔B</span></td>
                   <td>{activeStationPair.source.name}</td>
                   <td>{activeStationPair.target.name}</td>
-                  <td>{registrationResult ? `${(registrationResult.inlier_fraction * 100).toFixed(1)}% ICP` : manualResult ? `${manualResult.pairs_count} репера` : "—"}</td>
+                  <td>{registrationResult ? `${(registrationResult.inlier_fraction * 100).toFixed(1)}% ${registrationResult.method === "open3d_fgr_point_to_plane_icp" ? "FGR→ICP" : "ICP"}` : manualResult ? `${manualResult.pairs_count} репера` : "—"}</td>
                   <td>{error != null ? `${error.toFixed(2)} мм` : "—"}</td>
                   <td><span className={`registration-link-state is-${state}`} title={state === "provisional" ? "Порог 10 мм пока временный: допуск проекта не задан." : undefined}><i />{state === "provisional" ? "≤10 мм · временно" : state === "review" ? "Нужна проверка" : "Не оценено"}</span></td>
                 </tr>;

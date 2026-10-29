@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-28",
+  "stage": 2,
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "method": "Read-only GET from the active API, parse the linked RCP manifest using the Desktop repository parser, compare each resolved RCS path with the cloud source_path, and os.stat current source files. No full-file rehash in this pass.",
+  "rcp_sha256_from_import_metadata": "67dc9b04cd97eed5a86712ff89fe1f480c08b67576de30588f8cf0d05b84b5f8",
+  "summary": {
+    "manifest_nodes": 810,
+    "api_clouds": 810,
+    "matched_by_node_name": 810,
+    "resolved_rcs_path_equals_api_source_path": 810,
+    "linked_rcs_files_present": 810,
+    "current_file_size_equals_import_identity": 810,
+    "current_mtime_equals_import_identity": 810,
+    "stat_errors": 0,
+    "rcp_registered_true": 0,
+    "rcp_registered_false": 810,
+    "exact_declared_vs_ingested_count_matches": 0
+  },
+  "point_counts": {
+    "rcp_declared_total": 2647880035,
+    "native_reader_and_ingested_total": 1598422272,
+    "delta": 1049457763,
+    "interpretation": "Wrong or moved linked RCS paths do not explain the discrepancy: path, file size, and mtime matched for all 810 entries. The reason for the point-count delta remains unproven."
+  },
+  "sample": {
+    "station": "scans__rt_11064",
+    "rcp_declared_points": 3740916,
+    "native_reader_and_ingested_points": 81811,
+    "rcs_size_bytes": 39269721,
+    "source_sha256_from_import_metadata": "965d1e61ab8c2d5a2221cfc14f104eba91ef06ee9490a56d7a00c028c87dc150",
+    "resolved_path_equals_api_source_path": true
+  },
+  "raw_source_audit": {
+    "nodes_with_recorded_raw_path": 810,
+    "raw_path_extension": ".e57",
+    "recorded_raw_e57_paths_available_at_audit_time": 0,
+    "nodes_with_import_settings": 810,
+    "decimation_density_value": "7",
+    "decimation_density_units": "unknown",
+    "interpretation": "Raw E57 files are absent at the paths recorded in the RCP. This prevents an independent raw-E57 point-count comparison; it does not establish that the RCS imports lost points."
+  },
+  "registration_flag": {
+    "manifest_field": "RCP node Registered",
+    "false_count": 810,
+    "meaning": "XML manifest value only; native ReCap GUI registration state and resulting station placement were not visually verified."
+  },
+  "limitations": [
+    "The current audit did not recompute SHA-256 for all 810 RCS files; hashes are reported from prior import metadata and the sample's earlier spot check.",
+    "The full RCP-declared versus native-reader point-count difference remains unresolved.",
+    "No registration matrix was applied or saved; no RCP/RCS, project database, or API write endpoint was modified.",
+    "ReCap GUI round-trip remains unverified because the Windows app inspection helper timed out twice."
+  ],
+  "stage2_accepted": false,
+  "count_ratio_audit": {
+    "matched_nodes": 810,
+    "api_point_count_equals_ingested_count": 810,
+    "rcp_declared_greater_than_ingested": 810,
+    "metric": "native ingested_count / RCP declared NumPoints",
+    "min": 0.021869242720232156,
+    "p10": 0.3947598476291972,
+    "median": 0.6331248486550398,
+    "p90": 0.7623501599135578,
+    "max": 0.8475739879624496,
+    "percentile_method": "Python statistics.quantiles, n=10, default exclusive method",
+    "interpretation": "The broad ratio range is not consistent with a single fixed reduction fraction. It does not identify the cause."
+  }
+}

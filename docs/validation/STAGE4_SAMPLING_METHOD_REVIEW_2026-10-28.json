@@ -1,0 +1,19 @@
+{
+  "observed_at": "2026-10-28T06:18:30+03:00",
+  "stage": "Stage 4",
+  "finding": "The October 28 disjoint-holdout metrics were produced before the backend switched to seeded Floyd sampling without replacement. They are retained as historical evidence but must not be presented as the current-source registration baseline.",
+  "review": {
+    "sampler_now": "Seeded Floyd sampling without replacement; sorted source row indices; O(sample_count) memory",
+    "prior_report": "docs/validation/STAGE4_FGR_ICP_FARO_DISJOINT_HOLDOUT_2026-10-28.json",
+    "current_pair_diagnostic": "docs/validation/STAGE4_FGR_ICP_FARO_PAIR_DIAGNOSTIC_2026-10-28.json",
+    "fgr_endpoint_in_shared_api": false,
+    "desktop_project_data_directory_has_project_fixtures": false,
+    "readonly_shared_api_checked": true
+  },
+  "action": "Mark old holdout and radius-sensitivity values historical in the live panel; do not replace them with estimates. Repeat using current code before treating numbers as current.",
+  "limitations": [
+    "No new FARO FGR/ICP calculation was run in this check.",
+    "Existing source scans and saved transforms were not changed.",
+    "Stage 4 remains open pending current-source repeat, independent physical controls, and an agreed tolerance."
+  ]
+}

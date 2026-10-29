@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-27",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "source_station": {
+    "name": "scans__kr_761015",
+    "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+    "point_count": 2337103
+  },
+  "target_station": {
+    "name": "scans__kr_761016",
+    "cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+    "point_count": 2466414
+  },
+  "method": "POST /api/v1/registration/match (read-only rigid ICP estimate)",
+  "runs": [
+    {
+      "sample_points": 20000,
+      "random_seed": 42,
+      "rmse_mm": 201.456,
+      "inlier_count": 5274,
+      "inlier_fraction": 0.5274,
+      "iterations": 4,
+      "converged": true,
+      "translation_local_m": [
+        3.5915340558797797,
+        -3.444087111574417,
+        -1.212896412290973
+      ]
+    },
+    {
+      "sample_points": 20000,
+      "random_seed": 7,
+      "rmse_mm": 200.792,
+      "inlier_count": 5182,
+      "inlier_fraction": 0.5182,
+      "iterations": 2,
+      "converged": true,
+      "translation_local_m": [
+        3.5998466292737805,
+        -3.448319606244696,
+        -1.2329574488899384
+      ]
+    }
+  ],
+  "translation_delta_between_samples_mm": [
+    8.313,
+    -4.232,
+    -20.061
+  ],
+  "translation_delta_norm_mm": 22.1,
+  "coordinate_frame": "stored_local_source_to_stored_local_target",
+  "world_matrix_available": false,
+  "station_origins_world_available": false,
+  "survey_control_count": 0,
+  "project_tolerance": "not defined",
+  "result_saved_or_applied": false,
+  "registration_records_after_run": 0,
+  "target_detection_diagnostic": {
+    "station": "scans__kr_761015",
+    "expected_radius_m": 0.0725,
+    "sample_points": 200000,
+    "client_timeout_seconds": 120,
+    "result": "no result; client timed out",
+    "server_health_at_timeout": "ok",
+    "api_restarted_afterward": true
+  },
+  "interpretation": "Repeatable coarse ICP proposal only. ~201 mm fit residual and ~22 mm seed-to-seed translation variation are not an engineering acceptance. Coordinates and RCP are unchanged.",
+  "acceptance": "Stage 4 remains open pending independent common controls, defined project tolerance, correct world coordinate frames, and verified ReCap registration."
+}

@@ -1,0 +1,156 @@
+{
+  "observed_at_utc": "2026-10-28T03:40:28Z",
+  "scope": "current Desktop FGR→ICP code against three read-only FARO-derived point arrays from the shared project store",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "software": {
+    "python": "project .venv",
+    "open3d": "0.20.0",
+    "implementation": "scan2bim.registration.stitching.global_fgr_icp"
+  },
+  "code_sha256": {
+    "backend/scan2bim/registration/stitching.py": "872C7629DC59A0F8074D412FF0638F13547134D68473BFAEB6F42D45998E6441",
+    "backend/scan2bim/api/registration.py": "E5B615B67A5861E15B6AA36372F8F5F1B30C1793202F8D31D23A4F92066E8C89"
+  },
+  "parameters": {
+    "fit_points_per_station": 50000,
+    "holdout_points_per_station": 50000,
+    "input_sample_points_per_station": 100000,
+    "fit_holdout_rows_disjoint": true,
+    "voxel_size_m": 0.5,
+    "max_correspondence_distance_m": 0.15,
+    "max_iterations": 80,
+    "sampling": "seeded random without replacement; production split reproduced",
+    "seeds": [
+      42,
+      17
+    ]
+  },
+  "source_arrays": [
+    {
+      "station": "761015",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\d7cd3f4fb3494bcdb20d4d4541e4074d\\positions.npy",
+      "size_bytes": 28045364,
+      "mtime_utc": "2026-10-27T13:02:04.9899492Z",
+      "sha256": "D64854B15E4CDEFF51F6D6E577FA8EE699D83815D2B16D601A17C7F38F35FD78"
+    },
+    {
+      "station": "761016",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\147356c474b84ae88809b877ccbc0b6e\\positions.npy",
+      "size_bytes": 29597096,
+      "mtime_utc": "2026-10-27T13:03:01.2477605Z",
+      "sha256": "247EAC6A98C278813E35EF8BE953C764A3A65136C1A7EC3A4777631DB4594F10"
+    },
+    {
+      "station": "761017",
+      "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim\\data\\projects\\130c8f7a6280420ba6a23cdd26e98703\\clouds\\90b4d92410a94785a23981966bc3d62a\\positions.npy",
+      "size_bytes": 27512468,
+      "mtime_utc": "2026-10-27T13:03:51.6448657Z",
+      "sha256": "9885D25CA7DB5356EB8C4EED991138593D430F26038D1A2BB3E209695951C42D"
+    }
+  ],
+  "results": [
+    {
+      "source": "761015",
+      "target": "761016",
+      "seed": 42,
+      "matrix_sha256": "5054d21b89573e8b25e3c43188979b46b2f902a915a2ee84a10a44503894f691",
+      "fit": {
+        "rmse_mm": 65.97086050091661,
+        "inlier_count": 32640,
+        "inlier_fraction": 0.6528
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 65.35695638502399,
+        "inlier_count": 32403,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.64806,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.7222538417757541,
+        "rmse_mm": 381.85894785369334
+      }
+    },
+    {
+      "source": "761015",
+      "target": "761016",
+      "seed": 17,
+      "matrix_sha256": "40c1acfb3903309049ebb12c74f991d2029d2658761fb638355d0b990cd613b0",
+      "fit": {
+        "rmse_mm": 65.90350599883428,
+        "inlier_count": 32539,
+        "inlier_fraction": 0.65078
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 65.81828475026582,
+        "inlier_count": 32676,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.65352,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.7053237410071942,
+        "rmse_mm": 359.2623643006027
+      }
+    },
+    {
+      "source": "761016",
+      "target": "761017",
+      "seed": 42,
+      "matrix_sha256": "5d2327000118f7510a324c007a9823c1b06b3fbbb89e886fd75b58fd52fb35fb",
+      "fit": {
+        "rmse_mm": 62.94476041911824,
+        "inlier_count": 39601,
+        "inlier_fraction": 0.79202
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 62.963647556794925,
+        "inlier_count": 39527,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.79054,
+        "is_disjoint_from_fit": true
+      },
+      "fgr": {
+        "fitness": 0.49971131639722866,
+        "rmse_mm": 431.0747875482806
+      }
+    }
+  ],
+  "repeatability": {
+    "independent_processes": 3,
+    "same_pair_seed": 42,
+    "matrix_hashes_bit_identical": false,
+    "max_elementwise_matrix_delta": 6.3E-15,
+    "max_translation_delta_mm": 6.3E-12,
+    "interpretation": "Numerically repeatable within floating-point round-off; byte-identical matrix hashes are not a valid reproducibility criterion for these Open3D builds."
+  },
+  "source_unchanged": {
+    "access": "numpy mmap_mode=r",
+    "sha256_verified_before_after": true,
+    "size_and_mtime_unchanged": true,
+    "transforms_saved_or_applied": false
+  },
+  "limitations": [
+    "Fit/holdout rows are disjoint but belong to the same scan pair; holdout is not an independent survey control or physical accuracy measurement.",
+    "The ROADMAP target of RMSE < 10.0 mm is not met by these same-scan holdout values; the user has not defined/confirmed the engineering tolerance.",
+    "Open3D does not expose the actual ICP iteration count/convergence in this response.",
+    "The FGR fitness for 761016→761017 is lower than for the first pair; pair geometry/initialization needs review.",
+    "No transform was persisted or applied and no ReCap GUI registration acceptance was performed."
+  ],
+  "acceptance": "Stage 4 remains open pending independent physical controls, confirmation of engineering tolerance, and host-level ReCap round-trip acceptance.",
+  "roadmap_acceptance_check": {
+    "criterion": "Roadmap target: RMSE < 10.0 mm on industrial structures",
+    "max_observed_same_scan_holdout_rmse_mm": 65.81828475026582,
+    "criterion_passed": false,
+    "interpretation": "Same-scan diagnostic holdout only; this is not an independent physical acceptance result."
+  }
+}

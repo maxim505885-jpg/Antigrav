@@ -1,0 +1,103 @@
+{
+  "date_local": "2026-10-27 23:29:15 +03:00",
+  "stage": 4,
+  "title": "Reject planar surface arcs from spherical target candidates",
+  "workspace_source": "C:/Users/maxim/Desktop/ДЛЯ ИИ/облоко ТОЧЕК/intelligent-scan-to-bim",
+  "code_file": "backend/scan2bim/registration/targets.py",
+  "test_file": "backend/tests/test_targets.py",
+  "derived_cloud": {
+    "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+    "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+    "source_checkout": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\GPT\\Облоко ТОЧЕК\\intelligent-scan-to-bim",
+    "positions_file": "data/projects/130c8f7a6280420ba6a23cdd26e98703/clouds/d7cd3f4fb3494bcdb20d4d4541e4074d/positions.npy",
+    "point_count": 2337103,
+    "sha256": "d64854b15e4cdeff51f6d6e577fa8ee699d83815d2b16d601a17c7f38f35fd78"
+  },
+  "change": {
+    "metric": "covariance spread of unit directions from fitted sphere center to inlier points",
+    "minimum_surface_coverage_ratio": 0.1,
+    "previous_threshold": 0.02,
+    "behavior": "reject weak planar surface arcs that can fit a sphere near the allowed radius boundary"
+  },
+  "synthetic_verification": {
+    "planar_noisy_surface_arcs": "rejected (empty candidate list)",
+    "cylindrical_surface": "rejected at threshold 0.10 (empty candidate list)",
+    "visible_hemisphere": "accepted; center error < 5 mm",
+    "occluded_60_degree_cap": "accepted; observed coverage 0.1058; center error < 5 mm",
+    "occluded_45_degree_cap": "rejected; observed coverage 0.0553 (known recall limitation)",
+    "bounded_dense_candidate_search": "passed"
+  },
+  "full_cloud_read_only_diagnostic": {
+    "cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+    "point_count": 2337103,
+    "expected_radius_72_5mm": {
+      "candidate_count": 11,
+      "coverage_ratio_min": 0.1251,
+      "coverage_ratio_median": 0.2056,
+      "fitted_diameter_mm_range": [
+        137.1,
+        161.0
+      ],
+      "rmse_mm_range": [
+        1.52,
+        1.85
+      ],
+      "runtime_seconds": 7.05
+    },
+    "expected_radius_80mm": {
+      "candidate_count": 13,
+      "coverage_ratio_min": 0.1046,
+      "coverage_ratio_median": 0.3102,
+      "fitted_diameter_mm_range": [
+        145.9,
+        175.7
+      ],
+      "rmse_mm_range": [
+        1.52,
+        1.79
+      ],
+      "runtime_seconds": 4.51
+    }
+  },
+  "tests": {
+    "command": "pytest backend/tests/test_targets.py backend/tests/test_registration_api.py -q",
+    "result": "exit 0; 9 collected tests passed"
+  },
+  "limitations": [
+    "Real candidates are unlabelled hypotheses; no physical target size or independent ground-truth centers were supplied.",
+    "The number of candidates is not a measure of detection accuracy; Stage 4 remains open.",
+    "No scan, database row, registration transform, RCP/RCS source, or project state was changed."
+  ],
+  "current_import_context": "Read-only API at 2026-10-28 00:00:46 +03:00: 668 ready, 142 processing, 0 failed. Active batch job at 82.48%, station 669 scans__kr_761639, native reader has 1,250,000 points so far. Process alive; no restart/cancel/write.",
+  "git_commit": "not created",
+  "threshold_sweep": [
+    {
+      "threshold": 0.02,
+      "cap_45": true,
+      "cap_60": true,
+      "pipe_false_positive": true,
+      "plane_false_positive": false
+    },
+    {
+      "threshold": 0.05,
+      "cap_45": true,
+      "cap_60": true,
+      "pipe_false_positive": true,
+      "plane_false_positive": false
+    },
+    {
+      "threshold": 0.1,
+      "cap_45": false,
+      "cap_60": true,
+      "pipe_false_positive": false,
+      "plane_false_positive": false
+    },
+    {
+      "threshold": 0.15,
+      "cap_45": false,
+      "cap_60": false,
+      "pipe_false_positive": false,
+      "plane_false_positive": false
+    }
+  ]
+}

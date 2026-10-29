@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-27",
+  "observed_at_local": "2026-10-27 22:46:39 +03:00",
+  "stage": "11 - Studio interface and local runtime",
+  "frontend": {
+    "working_copy": "Desktop",
+    "npm_test": "passed, exit 0",
+    "typescript": "passed as part of npm run build",
+    "vite": "6.4.4",
+    "production_modules": 1984,
+    "production_build": "passed"
+  },
+  "http_smoke": {
+    "url": "http://127.0.0.1:5174/",
+    "status": 200,
+    "title": "SCAN STUDIO · Сшивка станций",
+    "api_proxy": "http://127.0.0.1:5174/api/v1/health",
+    "api_status": 200,
+    "api_health": "ok"
+  },
+  "acceptance": "Stage 11 remains open. Frontend tests, TypeScript, production bundle, local HTTP/API proxy and a live 1440x900 visual interaction check passed after a clean reload. The first HMR attempt briefly showed stale-module and API errors; these did not recur after full navigation. This does not verify ReCap/Revit/AutoCAD host workflows, CUDA, multi-host workers, or clean-machine acceptance.",
+  "scope": "Frontend source, tests and build use the Desktop working copy. The proxied API on 127.0.0.1:8000 is the pre-existing shared-checkout service and supplies its project data. No raw FARO files or project data were modified by this check.",
+  "live_visual_check": {
+    "observed_at_local": "2026-10-27 23:00:54 +03:00",
+    "url": "http://127.0.0.1:5174/",
+    "viewport": "1440x900",
+    "workspace": "Сшивка станций",
+    "visible": "589-station list, paired 3D viewers, registration quality panel, station-pair footer",
+    "api_project_clouds": "HTTP 200; 810 records",
+    "api_jobs": "HTTP 200; one running rcp_batch_ingest job",
+    "fresh_reload_console": "0 new errors and 0 new warnings",
+    "first_hmr_observation": "A stale HMR module-export error and transient API 500 appeared before full reload; neither reproduced after clean navigation."
+  }
+}

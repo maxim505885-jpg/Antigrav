@@ -1,0 +1,26 @@
+{
+  "schema": "scan2bim.validation/frontend-desktop-recheck/1.0",
+  "observed_at_local": "2026-10-27 19:22:04 +03:00",
+  "repository": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim",
+  "node_version": "v24.21.0",
+  "npm_version": "11.19.0",
+  "commands": [
+    {
+      "command": "npm run test",
+      "exit_code": 0,
+      "result": "all scripted frontend tests passed"
+    },
+    {
+      "command": "npm run build",
+      "exit_code": 0,
+      "result": "tsc -b succeeded; Vite production build succeeded; 1983 modules transformed",
+      "bundle_files": [
+        "assets/index-BVIm6E22.css",
+        "assets/vendor-C8w-UNLI.js",
+        "assets/index-DtmuOuJi.js",
+        "assets/three-DuZOZq27.js"
+      ]
+    }
+  ],
+  "acceptance": "Frontend regression and production compilation verified in the Desktop working copy. This does not validate live browser rendering, backend integration, Revit host execution, or overall roadmap stage acceptance."
+}

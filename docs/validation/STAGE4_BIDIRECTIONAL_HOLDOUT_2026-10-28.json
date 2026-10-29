@@ -1,0 +1,76 @@
+{
+  "schema": "scan.validation.registration-bidirectional-holdout/1",
+  "recorded_at": "2026-10-28T08:20:43+03:00",
+  "stage": 4,
+  "method": "Read-only Open3D FGR followed by point-to-plane ICP; disjoint-row holdout evaluated in both directions",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "pair": {
+    "source_station": "scans__kr_761015",
+    "source_cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+    "target_station": "scans__kr_761016",
+    "target_cloud_id": "147356c474b84ae88809b877ccbc0b6e"
+  },
+  "input_integrity": {
+    "source_positions_size_bytes": 28045364,
+    "source_positions_mtime_ns": 1793106124989949200,
+    "target_positions_size_bytes": 29597096,
+    "target_positions_mtime_ns": 1793106181247760500,
+    "source_and_target_opened_read_only": true,
+    "transforms_persisted_or_applied": false
+  },
+  "sampling": {
+    "fit_rows_per_station": 40000,
+    "holdout_rows_per_station": 20000,
+    "fit_holdout_source_row_overlap": 0,
+    "random_seeds_for_row_split": [314159, 271828],
+    "fit_seed": 42,
+    "voxel_size_m": 0.5,
+    "correspondence_radius_m": 0.15
+  },
+  "fit": {
+    "rmse_mm": 69.49451990746586,
+    "source_to_target_inlier_fraction": 0.631475
+  },
+  "holdout": {
+    "status": "evaluated",
+    "fit_rows_reused": false,
+    "A_to_B": {
+      "rmse_mm": 77.70723393056488,
+      "matched_pairs": 11057,
+      "source_rows": 20000,
+      "target_rows": 20000,
+      "source_coverage": 0.55285
+    },
+    "B_to_A": {
+      "rmse_mm": 77.745506637,
+      "matched_pairs": 11182,
+      "source_rows": 20000,
+      "target_rows": 20000,
+      "source_coverage": 0.5591
+    }
+  },
+  "desktop_change": {
+    "backend": "FGR/ICP holdout response now reports a reverse evaluation using the inverse candidate transform, with source/target counts, coverage, RMSE, and explicit disjoint-from-fit status.",
+    "frontend": "Registration review shows A→B and B→A holdout RMSE and coverage separately; reverse fields are optional for compatibility with an older API response.",
+    "verification": {
+      "backend_registration_and_export_tests": "39 passed across stitching, registration API, and stitching export",
+      "frontend_suite": "passed",
+      "typescript_and_production_build": "passed; 1,984 modules transformed",
+      "diff_check": "passed"
+    }
+  },
+  "limitations": [
+    "Both holdout subsets come from the same two scans; they are not independent survey controls.",
+    "Directional holdout metrics diagnose overlap coverage and algorithmic consistency; they do not establish physical registration accuracy.",
+    "No approved engineering tolerance or surveyed common control points are available.",
+    "No transform was saved, applied to station coordinates, or written to RCP/RCS.",
+    "The updated API response is in the Desktop source and is not deployed to the UNC service used by the currently open browser."
+  ],
+  "acceptance": {
+    "stage_4_closed": false,
+    "accepted_stages": "3/12"
+  }
+}

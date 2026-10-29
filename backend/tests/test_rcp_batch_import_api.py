@@ -323,3 +323,82 @@ def test_batch_resume_skips_stations_already_ready(monkeypatch):
     assert result["failed_count"] == 0
     assert updates[-1][0] == 1.0
     assert "уже готова, пропуск" in updates[-1][1]
+
+
+def test_failed_rcp_batch_can_resume_after_failed_station_succeeds(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("S2B_INGEST_MODE", "worker")
+    # Earlier API tests persist queued rows in the session-scoped test database;
+    # keep run_once focused on the jobs created by this lifecycle test.
+    api_module.execute(
+        "UPDATE jobs SET status='cancelled', cancel_requested=1 "
+        "WHERE status='queued' AND task_payload_json IS NOT NULL"
+    )
+    project = client.post("/api/v1/projects", json={"name": "RCP batch retry"}).json()
+    support = tmp_path / "retry Support"
+    support.mkdir()
+    for name in ("station-a.rcs", "station-b.rcs"):
+        (support / name).write_bytes(b"RCS fixture")
+    rcp = tmp_path / "retry.rcp"
+    _write_rcp(rcp, [_node("Station A", "station-a.rcs"), _node("Station B", "station-b.rcs")])
+    monkeypatch.setattr("scan2bim.formats.rcs_native.native_available", lambda: {"dll_exists": True})
+
+    imported = client.post(
+        f"/api/v1/projects/{project['id']}/rcp/import-path",
+        json={"path": str(rcp), "max_points": 1},
+    )
+    assert imported.status_code == 200, imported.text
+    batch_job_id = imported.json()["import_job_id"]
+    clouds = imported.json()["stations"]
+    ready_cloud_id = clouds[0]["cloud"]["id"]
+    failed_cloud_id = clouds[1]["cloud"]["id"]
+    failed_once = False
+
+    def fake_ingest_work(_project_id, cloud_id):
+        def run(_progress):
+            nonlocal failed_once
+            if cloud_id == failed_cloud_id and not failed_once:
+                failed_once = True
+                api_module.execute(
+                    "UPDATE clouds SET status='failed', error='simulated SMB denial' WHERE id=?",
+                    (cloud_id,),
+                )
+                raise PermissionError("simulated SMB denial")
+            api_module.execute(
+                "UPDATE clouds SET status='ready', error=NULL, point_count=42, ingested_count=42 WHERE id=?",
+                (cloud_id,),
+            )
+            return {"status": "ready"}
+        return run
+
+    monkeypatch.setattr(api_module, "_ingest_work", fake_ingest_work)
+    from scan2bim.worker import run_once
+
+    assert run_once("batch-first-attempt") is True
+    assert one("SELECT status FROM jobs WHERE id=?", (batch_job_id,))["status"] == "failed"
+    assert one("SELECT status FROM clouds WHERE id=?", (ready_cloud_id,))["status"] == "ready"
+
+    station_retry = client.post(f"/api/v1/clouds/{failed_cloud_id}/resume")
+    assert station_retry.status_code == 200, station_retry.text
+    active_batch_resume = client.post(
+        f"/api/v1/projects/{project['id']}/jobs/{batch_job_id}/resume"
+    )
+    assert active_batch_resume.status_code == 409
+    assert one("SELECT status FROM jobs WHERE id=?", (batch_job_id,))["status"] == "failed"
+    assert run_once("station-retry") is True
+    assert one("SELECT status FROM clouds WHERE id=?", (failed_cloud_id,))["status"] == "ready"
+
+    resumed = client.post(f"/api/v1/projects/{project['id']}/jobs/{batch_job_id}/resume")
+    assert resumed.status_code == 202, resumed.text
+    assert resumed.json()["id"] == batch_job_id
+    assert run_once("batch-retry") is True
+
+    job = client.get(f"/api/v1/projects/{project['id']}/jobs").json()[0]
+    assert job["id"] == batch_job_id
+    assert job["status"] == "succeeded"
+    assert job["result"]["ready_count"] == 2
+    assert job["result"]["failed_count"] == 0
+    assert len(client.get(f"/api/v1/projects/{project['id']}/clouds").json()) == 2
+    duplicate_resume = client.post(
+        f"/api/v1/projects/{project['id']}/jobs/{batch_job_id}/resume"
+    )
+    assert duplicate_resume.status_code == 409

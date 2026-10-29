@@ -1,0 +1,21 @@
+{
+  "recorded_at": "2026-10-28T02:34:35+03:00",
+  "stage": 2,
+  "change": "RCP point-count warning now includes the raw decimation_density metadata value while explicitly stating that its units and semantics are not decoded.",
+  "files": [
+    "backend/scan2bim/api/app.py",
+    "backend/tests/test_api_pipeline.py"
+  ],
+  "verification": {
+    "py_compile": "passed for the changed API module and test file",
+    "isolated_warning_smoke": "passed: production _cloud_out function emitted count delta, MEDIUM filter, and raw density=7 qualifier for a synthetic row",
+    "pytest": "not run: neither system Python 3.13 nor the bundled Python has pytest installed; no dependency installation was performed",
+    "git_diff_check": "passed; Git emitted existing LF-to-CRLF working-copy warnings"
+  },
+  "limitations": [
+    "This is a diagnostic UI/API improvement, not proof of the RCP count cause.",
+    "Stage 2 remains open pending count semantics and ReCap GUI open/save/reopen."
+  ],
+  "source_scans_modified": false,
+  "stage_closed": false
+}

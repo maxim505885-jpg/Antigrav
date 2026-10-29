@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from scan2bim.formats import rcp_manifest
 from scan2bim.formats.rcp_manifest import (
     RcpManifestError,
     compare_axis_aligned_asset_bounds,
@@ -54,6 +55,170 @@ def test_reads_single_station_metadata_and_resolves_moved_support_path(tmp_path:
     assert node["registered"] is True
     assert linked.read_bytes() == b"source stays untouched"
 
+
+def test_direct_support_links_skip_recursive_support_index(tmp_path: Path, monkeypatch):
+    rcp = tmp_path / "hall.rcp"
+    linked = tmp_path / "hall Support" / "station 01.rcs"
+    linked.parent.mkdir()
+    linked.write_bytes(b"source stays untouched")
+    _write_rcp(
+        rcp,
+        [_node("Station 01", r".\hall Support\station 01.rcs")],
+    )
+
+    def unexpected_index(_support_root: Path):
+        raise AssertionError("direct RCS links must not trigger a Support tree walk")
+
+    monkeypatch.setattr(rcp_manifest, "_index_support_scans", unexpected_index)
+
+    result = read_rcp_manifest(rcp)
+
+    assert result["nodes"][0]["resolved_rcs_path"] == str(linked.resolve())
+
+
+def test_relative_direct_support_links_return_resolved_path(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rcp = Path("hall.rcp")
+    linked = Path("hall Support") / "station 01.rcs"
+    linked.parent.mkdir()
+    linked.write_bytes(b"source stays untouched")
+    _write_rcp(
+        rcp,
+        [_node("Station 01", r".\hall Support\station 01.rcs")],
+    )
+
+    result = read_rcp_manifest(rcp)
+
+    resolved = Path(result["nodes"][0]["resolved_rcs_path"])
+    assert resolved.is_absolute()
+    assert resolved == linked.resolve()
+    assert linked.read_bytes() == b"source stays untouched"
+
+def test_direct_path_is_still_checked_when_support_listing_fails(tmp_path: Path, monkeypatch):
+    rcp = tmp_path / "hall.rcp"
+    linked = tmp_path / "hall Support" / "station 01.rcs"
+    linked.parent.mkdir()
+    linked.write_bytes(b"source stays untouched")
+    _write_rcp(
+        rcp,
+        [_node("Station 01", r".\hall Support\station 01.rcs")],
+    )
+
+    monkeypatch.setattr(rcp_manifest, "_index_direct_support_scans", lambda _root: None)
+    monkeypatch.setattr(
+        rcp_manifest,
+        "_index_support_scans",
+        lambda _root: (_ for _ in ()).throw(AssertionError("unexpected recursive index")),
+    )
+
+    result = read_rcp_manifest(rcp)
+
+    assert result["nodes"][0]["resolved_rcs_path"] == str(linked.resolve())
+
+
+def test_moved_support_paths_build_recursive_index_once_for_all_nodes(tmp_path: Path, monkeypatch):
+    rcp = tmp_path / "hall.rcp"
+    support = tmp_path / "hall Support"
+    support.mkdir()
+    nested_support = support / "nested"
+    nested_support.mkdir()
+    first = nested_support / "station-01.rcs"
+    second = nested_support / "station-02.rcs"
+    first.write_bytes(b"station 01")
+    second.write_bytes(b"station 02")
+    _write_rcp(
+        rcp,
+        [
+            _node("Station 01", r"Z:\old\hall Support\station-01.rcs"),
+            _node("Station 02", r"Z:\old\hall Support\station-02.rcs"),
+        ],
+    )
+    original_index = rcp_manifest._index_support_scans
+    calls = 0
+
+    def count_index_calls(support_root: Path):
+        nonlocal calls
+        calls += 1
+        return original_index(support_root)
+
+    monkeypatch.setattr(rcp_manifest, "_index_support_scans", count_index_calls)
+
+    result = read_rcp_manifest(rcp)
+
+    assert [node["resolved_rcs_path"] for node in result["nodes"]] == [
+        str(first.resolve()),
+        str(second.resolve()),
+    ]
+    assert calls == 1
+
+
+def test_reads_station_specific_source_import_filter_provenance(tmp_path: Path):
+    rcp = tmp_path / "filters.rcp"
+    shot_info = """<ShotInfo name="Station 01" id="shot-1" PCPid="{node-Station 01}"
+        rawScanPath="E:/raw/station.e57" path="filters Support/station.rcc">
+      <ScanImportSettings>
+        <ScanImportFilterSettings>
+          <NoiseFilter level="MEDIUM"/>
+          <IntensityClip min="10" max="100"/>
+          <RangeClip min="2" max="80"/>
+        </ScanImportFilterSettings>
+        <ScanImportAdvancedSettings density="7" upDirection="Z"/>
+      </ScanImportSettings>
+    </ShotInfo>"""
+    _write_rcp(rcp, [_node("Station 01", "station.rcs")], f"<Shots>{shot_info}</Shots>")
+
+    node = read_rcp_manifest(rcp)["nodes"][0]
+
+    assert node["source_import"] == {
+        "raw_scan_path": "E:/raw/station.e57",
+        "rcc_path": "filters Support/station.rcc",
+        "noise_filter_level": "MEDIUM",
+        "intensity_clip_min": "10",
+        "intensity_clip_max": "100",
+        "range_clip_min": "2",
+        "range_clip_max": "80",
+        "decimation_density": "7",
+        "up_direction": "Z",
+    }
+
+
+def test_recovers_cp1251_shot_paths_when_rcp_declares_utf8(tmp_path: Path):
+    rcp = tmp_path / "legacy-paths.rcp"
+    raw_scan_path = r"E:\Сканирование\сырьё\station-01.e57"
+    rcc_path = r"D:\Проект\Поддержка\station-01.rcc"
+    shot = f'''<Shots><ShotInfo PCPid="{{node-Station 01}}"
+        rawScanPath="{raw_scan_path}" path="{rcc_path}">
+      <ScanImportSettings><ScanImportAdvancedSettings density="7" upDirection="Z"/></ScanImportSettings>
+    </ShotInfo></Shots>'''
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Autodesk Version="1.0"><ProjectId UUID="project-123"/><Nodes>'
+        + _node("Station 01", "station.rcs")
+        + '</Nodes>'
+        + shot
+        + '</Autodesk>'
+    )
+    xml_bytes = xml.encode("utf-8")
+    for value in (raw_scan_path, rcc_path):
+        xml_bytes = xml_bytes.replace(value.encode("utf-8"), value.encode("cp1251"))
+    with zipfile.ZipFile(rcp, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("project.xml", xml_bytes)
+
+    node = read_rcp_manifest(rcp)["nodes"][0]
+
+    assert node["source_import"]["raw_scan_path"] == raw_scan_path
+    assert node["source_import"]["rcc_path"] == rcc_path
+
+def test_does_not_attach_ambiguous_shot_info_to_station(tmp_path: Path):
+    rcp = tmp_path / "ambiguous-shot.rcp"
+    shot = """<ShotInfo PCPid="{node-Station 01}" rawScanPath="a.e57">
+      <ScanImportSettings><ScanImportFilterSettings><NoiseFilter level="HIGH"/></ScanImportFilterSettings></ScanImportSettings>
+    </ShotInfo>"""
+    _write_rcp(rcp, [_node("Station 01", "station.rcs")], f"<Shots>{shot}{shot}</Shots>")
+
+    node = read_rcp_manifest(rcp)["nodes"][0]
+
+    assert node["source_import"] is None
 
 def test_prefers_named_support_copy_over_same_basename_workspace_file(tmp_path: Path):
     rcp = tmp_path / "10.rcp"

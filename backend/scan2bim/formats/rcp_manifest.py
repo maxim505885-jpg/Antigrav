@@ -104,11 +104,28 @@ def _index_support_scans(support_root: Path) -> dict[str, list[Path]]:
     return index
 
 
+def _index_direct_support_scans(support_root: Path) -> dict[str, list[Path]] | None:
+    """List direct Support children once to avoid per-station SMB stat calls."""
+    index: dict[str, list[Path]] = {}
+    try:
+        with os.scandir(support_root) as entries:
+            for entry in entries:
+                if entry.is_file() and entry.name.lower().endswith(".rcs"):
+                    index.setdefault(entry.name.casefold(), []).append(Path(entry.path))
+    except OSError:
+        return None
+    return index
+
+
 def _resolve_scan_path(
     rcp_path: Path,
     stored_path: str,
     relative_path: str,
     support_index: dict[str, list[Path]] | None = None,
+    *,
+    allow_fallback: bool = True,
+    direct_support_index: dict[str, list[Path]] | None = None,
+    direct_support_root: Path | None = None,
 ) -> Path | None:
     candidates: list[Path] = []
     for raw in (stored_path, relative_path):
@@ -125,8 +142,24 @@ def _resolve_scan_path(
             candidates.append(rcp_path.parent / Path(raw.replace("\\", "/")))
 
     for candidate in candidates:
+        if direct_support_root is not None and direct_support_index is not None:
+            candidate_parent = os.path.normcase(os.path.abspath(candidate.parent))
+            indexed_root = os.path.normcase(os.path.abspath(direct_support_root))
+            if candidate_parent == indexed_root:
+                support_matches = direct_support_index.get(candidate.name.casefold(), [])
+                if len(support_matches) == 1:
+                    return support_matches[0].resolve()
+                if len(support_matches) > 1:
+                    raise RcpManifestError(
+                        f"linked scan '{candidate.name}' resolves to multiple files in "
+                        f"'{direct_support_root.name}'"
+                    )
+                continue
         if candidate.is_file() and candidate.suffix.lower() == ".rcs":
             return candidate.resolve()
+
+    if not allow_fallback:
+        return None
 
     # A moved RCP may retain an unusable absolute path. Resolve only by the
     # exact RCS basename inside conventional sibling support folders. If the
@@ -211,12 +244,17 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
                 raise RcpManifestError("RCP XML manifest exceeds the 32 MiB safety limit")
             if b"<!DOCTYPE" in xml_bytes.upper() or b"<!ENTITY" in xml_bytes.upper():
                 raise RcpManifestError("RCP XML DTD/entity declarations are not accepted")
-            root = ET.fromstring(xml_bytes)
-            # Some ReCap projects declare UTF-8 while retaining legacy
-            # Windows-1251 bytes in the linked absolute path. ElementTree
-            # replaces those bytes when reading the byte stream, so retry only
-            # when that corruption marker is actually present.
+            # Some ReCap manifests declare UTF-8 while retaining Windows-1251
+            # bytes in path text or ShotInfo attributes. Decode strictly first;
+            # only malformed UTF-8 falls back to the legacy Windows code page.
+            try:
+                xml_text = xml_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                xml_text = xml_bytes.decode("cp1251")
+            root = ET.fromstring(xml_text)
             path_values = [element.get("Value", "") for element in root.findall(".//Path")]
+            for shot in root.findall(".//ShotInfo"):
+                path_values.extend((shot.get("rawScanPath", ""), shot.get("path", "")))
             if any("\ufffd" in value for value in path_values):
                 root = ET.fromstring(xml_bytes.decode("cp1251"))
     except (OSError, zipfile.BadZipFile, ET.ParseError, UnicodeDecodeError) as exc:
@@ -232,7 +270,44 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
     if nodes_parent is None:
         raise RcpManifestError("RCP has no Nodes section")
     nodes: list[dict[str, Any]] = []
-    support_index = _index_support_scans(rcp_path.parent / f"{rcp_path.stem} Support")
+    shot_infos = root.findall(".//ShotInfo")
+
+    def source_import_provenance(node_id: str | None) -> dict[str, Any] | None:
+        if not node_id:
+            return None
+        matches = [shot for shot in shot_infos if shot.get("PCPid") == node_id]
+        if len(matches) != 1:
+            return None
+        shot = matches[0]
+        import_settings = shot.find("./ScanImportSettings")
+        filter_settings = (
+            import_settings.find("./ScanImportFilterSettings")
+            if import_settings is not None
+            else None
+        )
+        advanced_settings = (
+            import_settings.find("./ScanImportAdvancedSettings")
+            if import_settings is not None
+            else None
+        )
+        noise_filter = filter_settings.find("./NoiseFilter") if filter_settings is not None else None
+        intensity_clip = filter_settings.find("./IntensityClip") if filter_settings is not None else None
+        range_clip = filter_settings.find("./RangeClip") if filter_settings is not None else None
+        provenance: dict[str, Any] = {
+            "raw_scan_path": shot.get("rawScanPath"),
+            "rcc_path": shot.get("path"),
+            "noise_filter_level": noise_filter.get("level") if noise_filter is not None else None,
+            "intensity_clip_min": intensity_clip.get("min") if intensity_clip is not None else None,
+            "intensity_clip_max": intensity_clip.get("max") if intensity_clip is not None else None,
+            "range_clip_min": range_clip.get("min") if range_clip is not None else None,
+            "range_clip_max": range_clip.get("max") if range_clip is not None else None,
+            "decimation_density": advanced_settings.get("density") if advanced_settings is not None else None,
+            "up_direction": advanced_settings.get("upDirection") if advanced_settings is not None else None,
+        }
+        return provenance if any(value is not None for value in provenance.values()) else None
+    support_root = rcp_path.parent / f"{rcp_path.stem} Support"
+    direct_support_index = _index_direct_support_scans(support_root)
+    support_index: dict[str, list[Path]] | None = None
     for node in list(nodes_parent):
         stored_path = _value(node, "Path")
         relative_path = _value(node, "RelativePath")
@@ -281,14 +356,35 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
             raise RcpManifestError(f"RCP scan node '{node_name}' has invalid NumPoints") from exc
         if declared_point_count < 0:
             raise RcpManifestError("RCP NumPoints cannot be negative")
+        resolved_rcs_path = _resolve_scan_path(
+            rcp_path,
+            stored_path,
+            relative_path,
+            allow_fallback=False,
+            direct_support_index=direct_support_index,
+            direct_support_root=support_root,
+        )
+        if resolved_rcs_path is None:
+            # Most RCPs keep usable relative paths, so avoid walking a large
+            # network Support folder unless a linked scan actually needs the
+            # moved-project fallback. Build the index once and reuse it for
+            # the remaining nodes.
+            if support_index is None:
+                support_index = _index_support_scans(support_root)
+            resolved_rcs_path = _resolve_scan_path(
+                rcp_path,
+                stored_path,
+                relative_path,
+                support_index,
+                direct_support_index=direct_support_index,
+                direct_support_root=support_root,
+            )
         nodes.append({
             "node_id": node.get("Id"),
             "name": node_name,
             "stored_path": stored_path,
             "relative_path": relative_path,
-            "resolved_rcs_path": str(
-                _resolve_scan_path(rcp_path, stored_path, relative_path, support_index) or ""
-            ),
+            "resolved_rcs_path": str(resolved_rcs_path or ""),
             "declared_point_count": declared_point_count,
             "has_rgb": _value(node, "HasRGB", "0") == "1",
             "has_intensity": _value(node, "HasIntensity", "0") == "1",
@@ -310,6 +406,7 @@ def read_rcp_manifest(path: str | Path) -> dict[str, Any]:
                 _number(node, "Scale", "z", 1.0),
             ],
             "asset_bounds": asset_bounds,
+            "source_import": source_import_provenance(node.get("Id")),
         })
     if not nodes:
         raise RcpManifestError("RCP contains no scan nodes")

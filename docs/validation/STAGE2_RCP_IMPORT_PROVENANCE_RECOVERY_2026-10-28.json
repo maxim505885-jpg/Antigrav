@@ -1,0 +1,67 @@
+{
+  "schema": "scan.validation.rcp-import-provenance-recovery/1",
+  "recorded_at": "2026-10-28T08:06:00+03:00",
+  "scope": "Desktop working copy plus read-only inspection of the live 810-station project and its original RCP",
+  "live_project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое",
+    "cloud_count": 810,
+    "ready_count": 810,
+    "project_sha256_from_import_metadata": "67dc9b04cd97eed5a86712ff89fe1f480c08b67576de30588f8cf0d05b84b5f8"
+  },
+  "sample_station": {
+    "id": "83f89b62d99746089114b3b244114623",
+    "node_id": "{57f96af9_c685_4101_aa3f_5d21cc9190ce}",
+    "name": "Симферополь лёгкий — scans__rt_11064",
+    "stored_and_ingested_points": 81811,
+    "rcp_declared_num_points": 3740916,
+    "difference": 3659105,
+    "live_cloud_metadata_had_source_import": false
+  },
+  "source_manifest_read": {
+    "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+    "size_bytes": 1276020,
+    "observed_sha256": "67dc9b04cd97eed5a86712ff89fe1f480c08b67576de30588f8cf0d05b84b5f8",
+    "matches_import_time_project_hash": true,
+    "nodes_with_import_settings": 810,
+    "station_11064_settings": {
+      "noise_filter_level": "MEDIUM",
+      "intensity_clip_min": null,
+      "intensity_clip_max": "100",
+      "range_clip_min": null,
+      "range_clip_max": null,
+      "decimation_density_raw": "7",
+      "up_direction": "Z"
+    }
+  },
+  "desktop_change": {
+    "api": "Legacy cloud responses restore source_import from the original RCP only when its SHA-256 still matches import metadata; lookups are cached by path, size, mtime and ctime. The response is enriched only in memory; SQLite and source files are not changed.",
+    "frontend": "Count warning can display recorded noise filter, intensity/range bounds, and raw density without interpreting unknown density units or claiming causality.",
+    "backend_tests": "2 passed; a hash mismatch suppresses manifest parsing and all provenance claims",
+    "frontend_presentation_tests": "10 passed",
+    "frontend_suite": "passed",
+    "typescript_and_vite_build": "passed; 1,984 modules transformed"
+  },
+  "autodesk_documentation": {
+    "claim": "ReCap project creation allows point inclusion to vary through noise, range/intensity limits and decimation; this makes those settings plausible factors but does not prove they caused this project's exact RCP/RCS count gap.",
+    "sources": [
+      "https://help.autodesk.com/cloudhelp/ENU/Reality-Capture/files/Getting_Started/about_reality_capture.html",
+      "https://help.autodesk.com/cloudhelp/ENU/Reality-Capture/files/Creating_Scan_Projects/scan_project_settings.html"
+    ]
+  },
+  "mutations": {
+    "live_api_or_database_changed": false,
+    "source_rcp_or_rcs_changed": false,
+    "desktop_database_changed": false,
+    "api_change_deployed_to_live_unc_service": false
+  },
+  "acceptance": {
+    "stage_2_closed": false,
+    "accepted_stages": "3/12",
+    "remaining": [
+      "ReCap native GUI round-trip on the real multi-station project",
+      "independent interpretation of RCP NumPoints versus native RCS point count",
+      "deployment and browser verification of the Desktop API response enrichment"
+    ]
+  }
+}

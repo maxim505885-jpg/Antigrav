@@ -1,0 +1,14 @@
+{
+  "id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "type": "rcp_batch_ingest",
+  "status": "running",
+  "progress": 0.7912345679012346,
+  "progress_percent": 79.12,
+  "station_progress": "641/810",
+  "message": "Станция 641/810: scans__kr_761610 — writing full-resolution RCS points",
+  "error": null,
+  "updated_at": "2026-10-27T23:38:28+03:00",
+  "source": "GET http://127.0.0.1:8000/api/v1/jobs/e8458d88e7764dc3bc95e56f6a8bbdd4",
+  "note": "progress is batch-job progress; ready-cloud aggregate was not separately recounted"
+}

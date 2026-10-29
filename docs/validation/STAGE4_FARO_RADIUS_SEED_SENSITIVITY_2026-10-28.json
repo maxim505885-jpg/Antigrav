@@ -1,0 +1,82 @@
+{
+  "protocol": "stage4_faro_global_match_radius_sensitivity_2026-10-28",
+  "verified_at": "2026-10-28T08:45:18+03:00",
+  "pair": {
+    "names": ["scans__kr_761015", "scans__kr_761016"],
+    "cloud_ids": ["d7cd3f4fb3494bcdb20d4d4541e4074d", "147356c474b84ae88809b877ccbc0b6e"],
+    "project_id": "130c8f7a6280420ba6a23cdd26e98703"
+  },
+  "route": "POST /api/v1/registration/global-match",
+  "runtime": "Desktop backend; temporary SQLite snapshot; real positions.npy accessed read-only",
+  "settings": {
+    "sample_points_per_fit_and_holdout": 100000,
+    "voxel_size_m": 0.5,
+    "max_iterations": 80,
+    "correspondence_radius_m": [0.15, 0.25, 0.5],
+    "sample_seed": [42, 17]
+  },
+  "results": [
+    {
+      "seed": 42,
+      "radius_mm": 150,
+      "runtime_s": 7.48,
+      "fit_rmse_mm": 56.392648,
+      "fit_coverage": 0.69039,
+      "holdout_rmse_mm": 56.375007,
+      "holdout_coverage": 0.69004,
+      "reverse_rmse_mm": 55.306206,
+      "reverse_coverage": 0.68661
+    },
+    {
+      "seed": 42,
+      "radius_mm": 250,
+      "runtime_s": 1.6,
+      "fit_rmse_mm": 77.120494,
+      "fit_coverage": 0.74864,
+      "holdout_rmse_mm": 76.609432,
+      "holdout_coverage": 0.74662,
+      "reverse_rmse_mm": 77.189235,
+      "reverse_coverage": 0.74151
+    },
+    {
+      "seed": 42,
+      "radius_mm": 500,
+      "runtime_s": 1.71,
+      "fit_rmse_mm": 138.596592,
+      "fit_coverage": 0.8305,
+      "holdout_rmse_mm": 139.130178,
+      "holdout_coverage": 0.82878,
+      "reverse_rmse_mm": 152.996184,
+      "reverse_coverage": 0.81535
+    },
+    {
+      "seed": 17,
+      "radius_mm": 150,
+      "runtime_s": 1.54,
+      "fit_rmse_mm": 56.399098,
+      "fit_coverage": 0.69353,
+      "holdout_rmse_mm": 56.016077,
+      "holdout_coverage": 0.69285,
+      "reverse_rmse_mm": 55.084068,
+      "reverse_coverage": 0.69246
+    }
+  ],
+  "result_handling": {
+    "matrices_saved_or_applied": false,
+    "rcp_nodes_changed": false,
+    "source_position_arrays_unchanged": true,
+    "temporary_database_removed": true
+  },
+  "interpretation": "For this pair, larger correspondence radii increased coverage while substantially worsening same-scan residuals. Seed 17 and 42 at 150 mm were numerically close. This supports presenting both coverage and residual and retaining a human review; it does not select an accuracy threshold or prove field accuracy.",
+  "limits": [
+    "Holdout is disjoint rows from the same scans, not independent survey control.",
+    "No approved engineering tolerance is set.",
+    "No transform was committed."
+  ],
+  "roadmap": {
+    "accepted_stages": 3,
+    "total_stages": 12,
+    "current_stage": 2,
+    "stage4_status": "in_progress"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "scan.validation.e57-point-count-interpretation/1",
+  "recorded_at": "2026-10-28T08:13:46+03:00",
+  "stage": 2,
+  "scope": "Desktop working copy; read-only inspection of the original FARO RCP and response-only API smoke",
+  "live_project_snapshot": {
+    "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+    "project_name": "Симферополь — Лёгкое",
+    "clouds_ready": 810,
+    "clouds_total": 810,
+    "sample_station_id": "83f89b62d99746089114b3b244114623",
+    "sample_station_name": "scans__rt_11064",
+    "rcp_declared_num_points": 3740916,
+    "scan_reader_points": 81811,
+    "difference": 3659105
+  },
+  "original_rcp": {
+    "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+    "sha256": "67dc9b04cd97eed5a86712ff89fe1f480c08b67576de30588f8cf0d05b84b5f8",
+    "matches_import_time_project_hash": true,
+    "sample_raw_source_extension": ".e57",
+    "sample_raw_e57_available_on_workstation": false,
+    "sample_import_settings": {
+      "noise_filter_level": "MEDIUM",
+      "intensity_clip_max": "100",
+      "decimation_density_raw": "7"
+    }
+  },
+  "official_autodesk_reference": {
+    "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/E57-import-is-always-decimated-in-ReCap-Pro.html",
+    "finding": "Autodesk says E57 import is not a one-to-one point replication: points below 1 mm can still be decimated/clipped with decimation set to zero, and statistically equivalent nearby points may be unified.",
+    "application_to_this_project": "The selected RCP node points to an E57 raw source, so this is a plausible mechanism. It does not establish which mechanism or how many points explain the 3,659,105-point difference for this station."
+  },
+  "desktop_change": {
+    "backend": "RCP count warning adds the Autodesk E57 behavior only when the hash-verified raw source path ends in .e57; it labels the mechanism possible and says its contribution is unmeasured.",
+    "frontend": "The same conditional explanation appears in the SCAN warning when response metadata is available.",
+    "tests": {
+      "backend_focused": "2 passed",
+      "frontend_suite": "passed",
+      "typescript_and_production_build": "passed; 1,984 Vite modules transformed"
+    },
+    "real_rcp_response_only_smoke": "Passed: the original project hash matched, node 11064 resolved to .e57, source_import settings were restored in memory, and the warning included the qualified E57 explanation."
+  },
+  "mutations": {
+    "source_rcp_or_rcs_modified": false,
+    "live_api_or_database_modified": false,
+    "desktop_database_modified": false,
+    "change_deployed_to_live_unc_api": false
+  },
+  "limitations": [
+    "The original E57 path recorded in the RCP points to E:\\, where the sample source is not available on this workstation; an independent direct E57 count could not be run.",
+    "The Autodesk import behavior is a plausible explanation, not a measured cause or point-by-point reconciliation for this station."
+  ],
+  "acceptance": {
+    "stage_2_closed": false,
+    "accepted_stages": "3/12",
+    "remaining": [
+      "ReCap GUI round-trip on the real multi-station project",
+      "independent count semantics/measurement for this specific station",
+      "deployment and browser verification of the Desktop API response"
+    ]
+  }
+}

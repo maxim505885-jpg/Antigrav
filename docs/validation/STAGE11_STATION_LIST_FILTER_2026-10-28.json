@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-28T07:16:58+03:00",
+  "stage": 11,
+  "change": "Added a local station-list filter to the station registration screen.",
+  "search_fields": ["station name", "station ID", "source format", "source path"],
+  "behavior": [
+    "Displays the number of filtered stations out of all ready stations.",
+    "Filtering does not change the selected source A or target B station.",
+    "Empty results display a status message; clearing the query restores the full list."
+  ],
+  "verification": {
+    "frontend_build": "passed after final change: tsc -b and Vite production build, 1985 modules",
+    "frontend_test_suite": "passed after final change: npm test, exit code 0",
+    "new_unit_cases": 6,
+    "test_first": "new stationFilter.test.ts initially failed because helper did not exist; passed after helper implementation",
+    "live_ui": "passed: query faro_scan_029 reduced 810 stations to exactly one expected station",
+    "pair_preservation": "passed: selected scans__rt_11064 and scans__rt_11065 remained in the toolbar while filtered row was unrelated",
+    "live_ui_after_refactor": "passed: source-path query E57 returned one matching project station after helper extraction; clearing query restored all 810 rows",
+    "browser_console_errors": 0,
+    "shared_api_mutations": 0,
+    "scan_data_mutations": 0
+  },
+  "stage_status": "Stage 11 remains open; this UI improvement alone does not meet whole-stage acceptance. Accepted stages remain 3/12."
+}

@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-27",
+  "topic": "Independent RCP/RCS point count verification",
+  "official_sources": [
+    {
+      "title": "Revit API PointCloudType.GetReCapProject",
+      "url": "https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/d309db9b-b523-7dcb-9b76-69d540c1a362.htm",
+      "finding": "Returns ReCap SDK RCProject; documented example calls RCProject.GetNumberOfPoints() for the total point count."
+    },
+    {
+      "title": "Autodesk Reality Solutions SDK",
+      "url": "https://help.autodesk.com/cloudhelp/ENU/Reality-Capture/files/Product_Overview/recap_sdk.html",
+      "finding": "SDK reads and writes RCP/RCS; availability is through Autodesk Developer Network/Reality Solutions SDK."
+    },
+    {
+      "title": "Autodesk ReCap RCS file format support",
+      "url": "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Information-about-RCS-file-format-in-ReCap-Pro.html",
+      "finding": "Autodesk directs users to Reality Solutions SDK for RCS/RCP file information."
+    }
+  ],
+  "local_evidence": {
+    "file_timestamp": "2026-09-03 17:59:59",
+    "reflection_query": "Assembly.GetExportedTypes() did not return before command timeout; no SDK invocation or point-count value obtained.",
+    "revit_2027_adsk_rc_managed_present": "C:\\Program Files\\Autodesk\\Revit 2027\\AdskRcManaged.dll",
+    "length_bytes": 432472,
+    "revit_2027_revitapi_xml": "C:\\Program Files\\Autodesk\\Revit 2027\\RevitAPI.xml documents Autodesk.Revit.DB.PointCloudType.GetReCapProject; AdskRcManaged.dll is present beside RevitAPI.dll.",
+    "revit_2027_method_entrypoint_confirmed": true
+  },
+  "conclusion": "A documented Autodesk point-count method exists, but it has not yet been run against station 761317. The current RCP NumPoints vs native-reader discrepancy therefore remains unresolved and does not prove point loss.",
+  "next_step": "The installed Revit 2027 XML confirms PointCloudType.GetReCapProject and the required AdskRcManaged.dll is present. Run the documented RCProject.GetNumberOfPoints() against the same source RCS inside a licensed Revit API host, then compare its result to RCP NumPoints and SCAN native iteration.",
+  "stage2_closed": false
+}

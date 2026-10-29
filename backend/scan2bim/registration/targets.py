@@ -1,8 +1,8 @@
-"""Geodetic target detection and extraction module.
+"""Candidate extraction utilities for survey targets.
 
-Detects spherical targets (reflectance spheres) and planar checkerboard targets
-from raw point clouds with sub-millimeter centroid accuracy, matching and
-exceeding Trimble RealWorks and Leica Cyclone target extraction precision.
+Sphere candidates are generated from raw point clouds. Their physical identity
+and field accuracy require independent validation; no product-level accuracy
+claim is made by this module.
 """
 from __future__ import annotations
 
@@ -118,14 +118,45 @@ def fit_sphere_ransac(
     }
 
 
+MIN_SPHERE_SURFACE_COVERAGE_RATIO = 0.10
+
+
+def _sphere_surface_coverage_ratio(
+    points: np.ndarray,
+    center: np.ndarray,
+    radius_m: float,
+    distance_threshold_m: float,
+) -> float:
+    """Measure 3D angular spread of points that fit a sphere surface.
+
+    A planar arc can have a small radial residual for a large fitted sphere.
+    Eigenvalue spread of the unit directions distinguishes that near-1D/2D
+    surface arc from a sphere with useful visible angular coverage.
+    """
+    offsets = np.asarray(points, dtype=np.float64) - np.asarray(center, dtype=np.float64)
+    distances = np.linalg.norm(offsets, axis=1)
+    inliers = np.abs(distances - radius_m) <= distance_threshold_m
+    if int(np.count_nonzero(inliers)) < 4:
+        return 0.0
+
+    directions = offsets[inliers] / distances[inliers, None]
+    eigenvalues = np.linalg.eigvalsh(np.cov(directions, rowvar=False))
+    largest = float(eigenvalues[-1])
+    if not np.isfinite(eigenvalues).all() or largest <= 1e-12:
+        return 0.0
+    return float(max(0.0, float(eigenvalues[0])) / largest)
+
+
 def detect_spherical_targets(
     points: np.ndarray,
     expected_radius_m: float = 0.0725,
     voxel_size_m: float = 0.04,
     search_radius_m: float = 0.15,
     min_points_per_cluster: int = 50,
+    max_candidates: int = 64,
+    max_fit_points: int = 2048,
 ) -> list[dict[str, Any]]:
-    """Scan the point cloud for potential survey spheres and accurately extract their centers.
+    """Return potential sphere candidates; independently validate centers before use.
 
     1. Voxel grid downsampling to find candidate clusters.
     2. Local neighborhood extraction.
@@ -144,26 +175,73 @@ def detect_spherical_targets(
 
     # Unique voxels with count
     unique_voxels, counts = np.unique(grid_coords, axis=0, return_counts=True)
-    dense_voxels = unique_voxels[counts >= 5]
+    dense_mask = counts >= 5
+    dense_voxels = unique_voxels[dense_mask]
+    dense_counts = counts[dense_mask]
+
+    # A dense scan may contain thousands of occupied voxels around the same
+    # surface. Visit strongest, spatially separated seeds first so one target
+    # or wall patch does not trigger thousands of redundant local fits.
+    candidate_centers: list[np.ndarray] = []
+    candidate_spacing_m = max(voxel_size_m, expected_radius_m * 1.5)
+    spacing_cells = candidate_spacing_m / voxel_size_m
+    cell_radius = int(np.ceil(spacing_cells))
+    neighbor_offsets = [
+        (dx, dy, dz)
+        for dx in range(-cell_radius, cell_radius + 1)
+        for dy in range(-cell_radius, cell_radius + 1)
+        for dz in range(-cell_radius, cell_radius + 1)
+        if dx * dx + dy * dy + dz * dz < spacing_cells * spacing_cells
+    ]
+    selected_voxel_keys: set[tuple[int, int, int]] = set()
+    for voxel_index in np.argsort(-dense_counts, kind="stable"):
+        voxel = dense_voxels[voxel_index]
+        key = (int(voxel[0]), int(voxel[1]), int(voxel[2]))
+        if any(
+            (key[0] + dx, key[1] + dy, key[2] + dz) in selected_voxel_keys
+            for dx, dy, dz in neighbor_offsets
+        ):
+            continue
+        selected_voxel_keys.add(key)
+        candidate_centers.append(mins + (voxel + 0.5) * voxel_size_m)
+        if len(candidate_centers) >= max_candidates:
+            break
 
     found_targets: list[dict[str, Any]] = []
 
-    for v in dense_voxels:
-        v_center = mins + (v + 0.5) * voxel_size_m
-        neighbor_indices = tree.query_ball_point(v_center, search_radius_m)
+    for v_center in candidate_centers:
+        neighbor_indices = tree.query_ball_point(
+            v_center, search_radius_m, return_sorted=True
+        )
         if len(neighbor_indices) < min_points_per_cluster:
             continue
 
+        if len(neighbor_indices) > max_fit_points:
+            sample_indices = np.linspace(
+                0, len(neighbor_indices) - 1, num=max_fit_points, dtype=np.int64
+            )
+            neighbor_indices = np.asarray(neighbor_indices, dtype=np.int64)[sample_indices]
         cluster_pts = pts[neighbor_indices]
         fit = fit_sphere_ransac(
             cluster_pts,
             target_radius_m=expected_radius_m,
             radius_tolerance_m=0.008,
             distance_threshold_m=0.003,
+            max_iterations=200,
             min_inliers=30,
         )
 
         if fit and fit["rmse_mm"] < 4.0:
+            surface_coverage = _sphere_surface_coverage_ratio(
+                cluster_pts,
+                np.asarray(fit["center"], dtype=np.float64),
+                float(fit["radius_m"]),
+                distance_threshold_m=0.003,
+            )
+            fit["surface_coverage_ratio"] = surface_coverage
+            if surface_coverage < MIN_SPHERE_SURFACE_COVERAGE_RATIO:
+                continue
+
             # Check duplicate against existing found targets
             c_new = np.array(fit["center"])
             is_dup = False

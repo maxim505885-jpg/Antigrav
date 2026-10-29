@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-28",
+  "method": "read-only Open3D FGR followed by point-to-plane ICP; post-fit evaluation on disjoint rows",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "sampling": {
+    "seed": 42,
+    "fit_points_per_station": 50000,
+    "holdout_points_per_station": 50000,
+    "source_row_overlap_per_station": 0,
+    "row_partition": "seeded sample without replacement, then independent seeded permutation and disjoint split",
+    "source_arrays": "positions.npy opened with mmap_mode=read-only",
+    "source_file_size_and_mtime_unchanged": true
+  },
+  "pairs": [
+    {
+      "source_station": "scans__kr_761015",
+      "source_cloud_id": "d7cd3f4fb3494bcdb20d4d4541e4074d",
+      "target_station": "scans__kr_761016",
+      "target_cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+      "fit": {
+        "rmse_mm": 148.90658804962698,
+        "inlier_fraction": 0.8185,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 148.3935138329408,
+        "inlier_count": 40759,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.81518,
+        "is_disjoint_from_fit": true
+      },
+      "iterations": null,
+      "converged": null,
+      "matrix_saved_or_applied": false
+    },
+    {
+      "source_station": "scans__kr_761016",
+      "source_cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+      "target_station": "scans__kr_761017",
+      "target_cloud_id": "90b4d92410a94785a23981966bc3d62a",
+      "fit": {
+        "rmse_mm": 120.26740280344013,
+        "inlier_fraction": 0.92606,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000
+      },
+      "holdout": {
+        "status": "evaluated",
+        "rmse_mm": 120.04957296720696,
+        "inlier_count": 46335,
+        "source_sample_count": 50000,
+        "target_sample_count": 50000,
+        "inlier_fraction": 0.9267,
+        "is_disjoint_from_fit": true
+      },
+      "iterations": null,
+      "converged": null,
+      "matrix_saved_or_applied": false
+    }
+  ],
+  "verification": {
+    "focused_backend": "34 passed across test_registration_api.py and test_stitching.py; one existing Starlette/httpx deprecation warning",
+    "downstream_backend": "81 passed across registration, stitching export, ReCap/DeCap, point-data, API pipeline, and OpenAPI schema; one existing deprecation warning",
+    "frontend": "34 frontend test commands passed",
+    "typescript": "tsc -b passed",
+    "production_build": "Vite passed; 1,984 modules transformed",
+    "diff_check": "git diff --check passed"
+  },
+  "limitations": [
+    "Holdout rows were not used to fit the transform, but they come from the same scan pair and are not independent survey controls.",
+    "Holdout correspondence RMSE is an algorithmic generalization diagnostic, not physical registration accuracy.",
+    "No surveyed common control points or approved engineering tolerance are available; the user's 6,000 mm column pitch is not a registration accuracy tolerance.",
+    "Open3D does not expose actual ICP iteration count or convergence in this result.",
+    "No transform was saved, applied to station coordinates, or written to the RCP."
+  ],
+  "acceptance": "Stage 4 remains open pending independent physical controls, a defined project tolerance, and ReCap host round-trip."
+}

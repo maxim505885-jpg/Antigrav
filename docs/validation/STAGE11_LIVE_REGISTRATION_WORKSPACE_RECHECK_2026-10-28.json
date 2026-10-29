@@ -1,0 +1,31 @@
+{
+  "schema": "scan.validation.desktop-registration-workspace-recheck/1",
+  "recorded_at": "2026-10-28T08:26:14+03:00",
+  "stage": 11,
+  "app": {
+    "url": "http://127.0.0.1:5174/",
+    "frontend_source": "Desktop working copy",
+    "api_source": "existing UNC service via Vite proxy; updated Desktop API is not deployed",
+    "project": "Симферополь — Лёгкое",
+    "ready_clouds": 810,
+    "listed_stations": 810,
+    "workspace": "Сшивка станций",
+    "selected_pair": ["scans__rt_11064", "scans__rt_11065"]
+  },
+  "verification": {
+    "clean_page_load": true,
+    "registration_workspace_opened": true,
+    "station_filter_present": true,
+    "browser_console_errors": 0,
+    "browser_console_warnings": 0,
+    "cloud_or_transform_mutation": false
+  },
+  "limitations": [
+    "The fresh page load is a smoke check, not visual/host acceptance of the complete application.",
+    "The open page proxies the older UNC API, so it cannot demonstrate the new Desktop reverse-holdout response or E57 provenance warning yet."
+  ],
+  "acceptance": {
+    "stage_11_closed": false,
+    "accepted_stages": "3/12"
+  }
+}

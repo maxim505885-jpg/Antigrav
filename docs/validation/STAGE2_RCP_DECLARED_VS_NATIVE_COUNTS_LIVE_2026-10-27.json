@@ -1,0 +1,50 @@
+{
+  "observed_at_local": "2026-10-27 22:44:09 +03:00",
+  "project_id": "130c8f7a6280420ba6a23cdd26e98703",
+  "project_name": "Симферополь — Лёгкое",
+  "job_id": "e8458d88e7764dc3bc95e56f6a8bbdd4",
+  "ready_clouds": 570,
+  "processing_clouds": 240,
+  "failed_clouds": 0,
+  "nodes_with_declared_count": 570,
+  "declared_count_sum": 1862721998,
+  "native_reader_source_count_sum": 1189057936,
+  "declared_minus_native_sum": 673664062,
+  "declared_greater_count": 570,
+  "equal_count": 0,
+  "declared_lower_count": 0,
+  "median_relative_difference": 0.5138254488552552,
+  "scan_internal_count_mismatches": 0,
+  "source_manifest_settings": {
+    "manifest_nodes": 810,
+    "matched_source_import_entries": 810,
+    "unique_groups": 1,
+    "noise_filter_level": "MEDIUM",
+    "intensity_clip_max": "100",
+    "range_clip": "not set",
+    "decimation_density": "7",
+    "up_direction": "Z",
+    "raw_scan_path_encoding": "Windows-1251 recovered from malformed UTF-8 declaration",
+    "original_e57_access": "E: path recorded, drive not mounted; no E57 files in Support"
+  },
+  "interpretation": "All ready declarations exceed the native reader count. The two station-name families have similar median relative differences (51.11% and 51.44%), and all 810 manifest nodes share identical recorded source-import settings. This is diagnostic only; RCP NumPoints semantics remain unverified and the mismatch does not prove point loss or reader error.",
+  "acceptance": "Stage 2 remains open: finish 810-station ingest, resolve Autodesk count semantics, and verify native ReCap GUI round-trip.",
+  "station_name_families": [
+    {
+      "family": "faro_scan",
+      "count": 56,
+      "delta_sum": 65331227,
+      "median_relative_difference": 0.5110549079976076,
+      "min_relative_difference": 0.2086843586710608,
+      "max_relative_difference": 1.5524365559680617
+    },
+    {
+      "family": "kr",
+      "count": 514,
+      "delta_sum": 608332835,
+      "median_relative_difference": 0.5143803833247431,
+      "min_relative_difference": 0.1798380014044312,
+      "max_relative_difference": 5.104977062716434
+    }
+  ]
+}

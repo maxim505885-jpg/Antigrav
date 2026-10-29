@@ -1,0 +1,66 @@
+{
+  "schema": "scan.validation.registration-bidirectional-holdout-pair/1",
+  "recorded_at": "2026-10-28T08:25:23+03:00",
+  "stage": 4,
+  "method": "Desktop global_fgr_icp; read-only Open3D FGR + point-to-plane ICP; disjoint-row holdout evaluated in both directions",
+  "project": {
+    "id": "130c8f7a6280420ba6a23cdd26e98703",
+    "name": "Симферополь — Лёгкое"
+  },
+  "pair": {
+    "source_station": "scans__kr_761016",
+    "source_cloud_id": "147356c474b84ae88809b877ccbc0b6e",
+    "target_station": "scans__kr_761017",
+    "target_cloud_id": "90b4d92410a94785a23981966bc3d62a"
+  },
+  "input_integrity": {
+    "source_positions_size_bytes": 29597096,
+    "source_positions_mtime_ns": 1793106181247760500,
+    "target_positions_size_bytes": 27512468,
+    "target_positions_mtime_ns": 1793106231644865700,
+    "opened_read_only": true,
+    "size_and_mtime_unchanged_after_run": true,
+    "transform_persisted_or_applied": false
+  },
+  "sampling": {
+    "fit_rows_per_station": 40000,
+    "holdout_rows_per_station": 20000,
+    "fit_holdout_row_overlap_per_station": 0,
+    "row_split_seeds": [314159, 271828],
+    "registration_seed": 42,
+    "voxel_size_m": 0.5,
+    "correspondence_radius_m": 0.15
+  },
+  "runtime_seconds": 7.688,
+  "fit": {
+    "rmse_mm": 65.83764897633186,
+    "source_to_target_support": 0.76985
+  },
+  "holdout": {
+    "fit_rows_reused": false,
+    "A_to_B": {
+      "rmse_mm": 75.8268282409228,
+      "matched_pairs": 13943,
+      "source_rows": 20000,
+      "target_rows": 20000,
+      "source_coverage": 0.69715
+    },
+    "B_to_A": {
+      "rmse_mm": 72.524613185,
+      "matched_pairs": 11864,
+      "source_rows": 20000,
+      "target_rows": 20000,
+      "source_coverage": 0.5932
+    }
+  },
+  "interpretation": "This second adjacent pair produced holdout RMSE around 73–76 mm, with directional coverage differing by about 10 percentage points. It supports the value of reporting both directions, but it is not survey accuracy; no site tolerance or independent controls were used.",
+  "acceptance": {
+    "stage_4_closed": false,
+    "accepted_stages": "3/12",
+    "remaining": [
+      "independent surveyed common controls",
+      "approved project tolerance",
+      "host round-trip and confirmation that saved station-pair transforms behave correctly"
+    ]
+  }
+}

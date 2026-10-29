@@ -1,7 +1,6 @@
 /**
- * Provisional visual template for layout exploration, not surveyed project control.
- * Its origin, rotation, row offsets and axis count are hypotheses; only the 6 m
- * nominal longitudinal pitch was supplied by the user.
+ * Builds grid geometry only when a measured layout is explicitly supplied.
+ * The user's nominal 6 m pitch alone is not enough to place axes in 3D.
  */
 
 export interface GridAxisNode {
@@ -16,24 +15,38 @@ export interface StructuralGridData {
   bubbleNodes: GridAxisNode[];
 }
 
-export const WORKSHOP_GRID_CONFIG = {
-  angleDeg: 10.260,
-  floorZ: -11.55,
-  rowAxes: [
-    { label: "А", v: -29.80 },
-    { label: "Б", v: -16.55 },
-    { label: "В", v: -4.85 },
-    { label: "Г", v: 8.40 },
-  ],
-  uBase: 0.14,
-  bayStepM: 6.0,
-  bayIndices: Array.from({ length: 24 }, (_, i) => i - 16), // -16 .. 7 -> 24 axes
-};
+export interface StructuralGridConfig {
+  /** Measured grid orientation in the XY plane. */
+  angleDeg: number;
+  /** Measured grid elevation relative to the cloud origin, in metres. */
+  floorZ: number;
+  /** Measured transverse row offsets from the longitudinal axis, in metres. */
+  rowAxes: Array<{ label: string; v: number }>;
+  /** Measured longitudinal coordinate for bay index zero, in metres. */
+  uBase: number;
+  /** Nominal or measured spacing, in metres. */
+  bayStepM: number;
+  /** Explicit measured bay-axis indices to draw. */
+  bayIndices: number[];
+}
 
 export function computeStructuralGridGeometry(
   origin: readonly number[] = [0, 0, 0],
-  config = WORKSHOP_GRID_CONFIG,
-): StructuralGridData {
+  config?: StructuralGridConfig,
+): StructuralGridData | null {
+  if (
+    !config
+    || !Number.isFinite(config.angleDeg)
+    || !Number.isFinite(config.floorZ)
+    || !Number.isFinite(config.uBase)
+    || !Number.isFinite(config.bayStepM)
+    || config.bayStepM <= 0
+    || config.rowAxes.length === 0
+    || config.bayIndices.length === 0
+    || config.rowAxes.some((row) => !row.label.trim() || !Number.isFinite(row.v))
+    || config.bayIndices.some((index) => !Number.isInteger(index))
+  ) return null;
+
   const rad = (config.angleDeg * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);

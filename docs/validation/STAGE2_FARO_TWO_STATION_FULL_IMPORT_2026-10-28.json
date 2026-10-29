@@ -1,0 +1,64 @@
+{
+  "recorded_at": "2026-10-28T03:30:28+03:00",
+  "stage": 2,
+  "purpose": "End-to-end full-resolution import of a relocated native RCP containing two real adjacent FARO stations through the Desktop SCAN API and durable worker.",
+  "input": {
+    "project_relative_path": "data/output/recap_projects/RELOCATED_VALIDATION/FARO_PAIR_PORTABILITY_20261028/FARO_PAIR_PORTABILITY_20261028.rcp",
+    "rcp_sha256": "4a077ff01f6da211d8ab093e52f2d43ef4aadbeb7444b5a205467fca3a52e4b9",
+    "nodes": 2,
+    "max_points": 0,
+    "rcp_declared_total_points": 6114664
+  },
+  "execution": {
+    "api_route": "POST /api/v1/projects/{project_id}/rcp/import-path",
+    "queue_type": "rcp_batch_ingest",
+    "worker": "scan2bim.worker.run_once",
+    "job_was_queued": true,
+    "worker_claimed_job": true,
+    "job_final_status": "succeeded",
+    "attempts": 1,
+    "worker_result_status": "completed",
+    "ready_count": 2,
+    "failed_count": 0,
+    "isolated_temp_data_root": true
+  },
+  "stations": [
+    {
+      "name": "scans__kr_761015",
+      "rcp_declared_points": 3086011,
+      "reader_and_ingested_points": 2337103,
+      "internal_count_delta": 0,
+      "declared_minus_reader": 748908,
+      "max_points": 0,
+      "status": "ready",
+      "registered": false,
+      "transform_applied": false,
+      "source_sha256": "8156f75acadeed2f9deeab673c42ad90aa4cf507333de09861cf725e24d1626e"
+    },
+    {
+      "name": "scans__kr_761016",
+      "rcp_declared_points": 3028653,
+      "reader_and_ingested_points": 2466414,
+      "internal_count_delta": 0,
+      "declared_minus_reader": 562239,
+      "max_points": 0,
+      "status": "ready",
+      "registered": false,
+      "transform_applied": false,
+      "source_sha256": "db99841b0ba21f98158aa1b2c5f52884f73e20d4376003b2dbb9dda5ba0c4782"
+    }
+  ],
+  "validation": {
+    "focused_pytest": "36 passed",
+    "diff_check": "passed",
+    "source_hashes_match_recorded_baseline": true,
+    "original_sources_modified": false
+  },
+  "acceptance": "The current Desktop API, durable queue worker, full native RCS import, and station identity passed for this moved two-station package. point_count equals ingested_count for both stations with max_points=0. The RCP manifest still declares 1,311,147 more points in total than the native reader produced; the reason is unresolved. Both nodes remain registered=false. ReCap GUI open/save/reopen has not been performed. Stage 2 remains open.",
+  "limitations": [
+    "This is a two-station integration check, not a rerun of all 810 stations in the isolated Desktop database.",
+    "A max_points=0 setting and matching stored/reader counts do not explain the discrepancy from RCP-declared counts.",
+    "This does not verify registration, coordinate alignment, or ReCap GUI acceptance.",
+    "The worker run was local to this workstation and the shared API on port 8000 was not changed."
+  ]
+}

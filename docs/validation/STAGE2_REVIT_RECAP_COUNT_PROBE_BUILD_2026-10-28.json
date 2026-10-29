@@ -1,0 +1,34 @@
+{
+  "observed_at": "2026-10-28T06:16:31+03:00",
+  "scope": "Desktop working copy only",
+  "stage": "Stage 2",
+  "result": "probe built and user manifest registered; host execution not observed",
+  "probe": {
+    "assembly": "integrations/revit/ReCapCountProbe/bin/Scan.Revit.ReCapCountProbe.dll",
+    "bytes": 8192,
+    "sha256": "1238A95DB92BF5911DD653E64C3DF586CC01D5D5DE1A5BE6D90A686F95DA9D41",
+    "manifest_path": "C:\\Users\\maxim\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2027\\SCAN.ReCapCountProbe.addin",
+    "manifest_exists": true,
+    "manifest_targets": "C:\\Users\\maxim\\Desktop\\ДЛЯ ИИ\\облоко ТОЧЕК\\intelligent-scan-to-bim\\integrations\\revit\\ReCapCountProbe\\bin\\Scan.Revit.ReCapCountProbe.dll",
+    "revit_process_running": false,
+    "count_report_files": 0,
+    "reported_recap_point_count": null
+  },
+  "source_rcp": {
+    "path": "\\\\SPUServer\\SERVER_SPU_NEW\\Зиганшин Максим\\Симферополь\\Легкое\\Симферополь легкий.rcp",
+    "exists": true,
+    "bytes": 1276020,
+    "last_write": "2026-07-13T11:16:43.8727396+03:00",
+    "modified_by_probe": false
+  },
+  "probe_safety": "Creates a temporary Revit PointCloudType inside a transaction, reads RCProject.GetNumberOfPoints(), rolls back the transaction, and records source hash before/after per implementation.",
+  "acceptance": {
+    "build": "passed earlier in this session with PowerShell 7/.NET 10 and Revit 2027 references",
+    "manifest": "installed and structurally verified; install/uninstall scripts tested in isolated TEMP",
+    "host": "not run; Revit closed",
+    "stage_2_closed": false,
+    "accepted_stages": "3/12"
+  },
+  "next_action": "Open Revit 2027, invoke SCAN ReCap count probe from Add-Ins > External Tools, select the original FARO RCP, then inspect the generated JSON report and compare with SCAN/native reader.",
+  "reference": "https://help.autodesk.com/cloudhelp/2026/ENU/Revit-API-MainReference/files/html/d309db9b-b523-7dcb-9b76-69d540c1a362.htm"
+}
